@@ -1,0 +1,75 @@
+version: "3.5"
+services:
+  # nginx
+  nginx:
+    image: nginx     # 镜像名称
+    container_name: nginx     # 容器名字
+    restart: always     # 开机自动重启
+    ports: # 端口号绑定（宿主机:容器内）
+      - "80:80"
+      - "443:443"
+    volumes: # 目录映射（宿主机:容器内）
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./nginx/html:/usr/share/nginx/html
+  # 对象存储
+  minio:
+    image: minio/minio
+    volumes:
+      - ./minio:/data # 持久化地址
+    ports:
+      - "9000:9000"
+      - "19001:19001"
+    container_name: minio
+    restart: always
+    environment:
+      MINIO_ROOT_USER: minio # 账号
+      MINIO_ROOT_PASSWORD: naivedata123 #密码
+      MINIO_PROMETHEUS_AUTH_TYPE: public
+    command: server /data --console-address :19001
+  # 数据库
+  mysql:
+    image: amd64/mysql:8.0.22
+    container_name: mysql
+    restart: always
+    command: [
+        '--default-authentication-plugin=mysql_native_password',
+        '--character-set-server=utf8mb4',
+        '--collation-server=utf8mb4_unicode_ci',
+        '--log-bin=mysql-bin'
+    ]
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: naivedata123
+    volumes:
+      - ./mysql:/var/lib/mysql
+  redis:
+    image: redis:6.0.9
+    container_name: redis
+    restart: always
+    ports:
+      - "6379:6379"
+    command:
+      # 设置 redis 密码
+      redis-server --requirepass naivedata123 --appendonly yes
+  elasticsearch:
+    image: arm64v8/elasticsearch:7.17.2 # elasticsearch:7.17.2
+    container_name: elasticsearch
+    restart: always
+    environment:
+      - discovery.type=single-node
+      - http.port=9200
+      - http.cors.enabled=true
+      - http.cors.allow-origin=*
+      - http.cors.allow-headers=X-Requested-With,X-Auth-Token,Content-Type,Content-Length,Authorization
+      - http.cors.allow-credentials=false
+      - bootstrap.memory_lock=true
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - ELASTIC_PASSWOR=naivedata123
+    volumes:
+      - ./elasticsearch/data:/usr/share/elasticsearch/data
+      - ./elasticsearch/config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
+    ports:
+      - '9200:9200'
+      - '9300:9300'

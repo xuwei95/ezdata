@@ -1,0 +1,31 @@
+version: "3"  # docker-compose版本
+services:
+  server: # docker-compose编排名称，一般同微服务名称，注意不要与其>他服务重名
+    image: "naivedata:1.0"  # docker镜像名及版本
+    container_name: naivedata  # 服务容器
+    volumes: # 挂载目录
+      - /opt/naivedata:/opt/naivedata
+    environment: # 配置环境变量
+      - TZ=Asia/Shanghai  # 设置时区
+      - read_env=1 # 是否读取配置文件
+      - ENV=dev.env # 配置文件
+      - run_web=1 # 是否运行web api
+      - web_worker=4 # web api 并发数
+      - run_scheduler=1 # 是否运行scheduler api
+      - run_flower=1 # 是否运行celery flower监控
+      - run_worker=1 # 是否运行celery worker
+      - worker_name=worker # celery worker 名称
+      - worker_concurrency=4 # celery worker 并发数
+      - worker_queue=default # celery worker 订阅队列
+      - worker_process=prefork # celery worker 运行模式
+    working_dir: /opt/naivedata
+    ports:
+      - 8001:8001 # web服务端口
+      - 8002:8002 # 任务调度端口
+      - 5555:5555 # flower监控端口，不开启可注释掉
+      - 9001:9001 # 守护进程web端口，不开启可注释掉
+    command: /bin/bash -c "bash init.sh && python"
+    privileged: true
+    restart: always
+    stdin_open: true
+    tty: true

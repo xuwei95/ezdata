@@ -1,0 +1,48 @@
+version: "3"  # docker-compose版本
+services:
+  server: # docker-compose编排名称，一般同微服务名称，注意不要与其>他服务重名
+    image: "naivedata_full:1.0"  # docker镜像名及版本
+    container_name: naivedata_full  # 服务容器
+    volumes: # 挂载目录
+      - ./naivedata:/opt/naivedata
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf # nginx映射地址
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./nginx/html:/usr/share/nginx/html
+      - ./elasticsearch/data:/usr/share/elasticsearch/data # es持久化地址
+      - ./elasticsearch/config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml # es配置地址
+      - ./minio:/opt/minio-data # minio持久化地址
+      - ./mysql:/var/lib/mysql # mysql持久化地址
+    environment: # 配置环境变量
+      - TZ=Asia/Shanghai  # 设置时区
+      - read_env=1 # 是否读取配置文件
+      - ENV=dev.env # 配置文件
+      - run_web=1 # 是否运行web api
+      - web_worker=4 # web api 并发数
+      - run_scheduler=1 # 是否运行scheduler api
+      - run_flower=1 # 是否运行celery flower
+      - run_worker=1 # 是否运行celery worker
+      - worker_name=worker # celery worker 名称
+      - worker_concurrency=4 # celery worker 并发数
+      - worker_queue=default # celery worker 订阅队列
+      - worker_process=prefork # celery worker 运行模式
+      - MINIO_ROOT_USER=minio
+      - MINIO_ROOT_PASSWORD=naivedata123
+      - MINIO_PROMETHEUS_AUTH_TYPE=public
+    working_dir: /opt
+    ports:
+      - 80:80 # nginx端口
+      - 3306:3306 # mysql端口
+      - 6379:6379 # redis端口
+      - 9000:9000 # minio端口
+      - 19001:19001 # minio端口
+      - 9200:9200 # elasticsearch端口
+      - 9300:9300 # elasticsearch端口
+      - 8001:8001 # web服务端口
+      - 8002:8002 # 任务调度端口
+      - 5555:5555 # flower端口，不开启可注释掉
+      - 9001:9001 # 守护进程端口，不开启可注释掉
+    command: /bin/bash -c "bash init_all.sh && python"
+    privileged: true
+    restart: always
+    stdin_open: true
+    tty: true
