@@ -54,7 +54,7 @@ services:
       # 设置 redis 密码
       redis-server --requirepass naivedata123 --appendonly yes
   elasticsearch:
-    image: arm64v8/elasticsearch:7.17.2 # elasticsearch:7.17.2
+    image: elasticsearch:7.17.2 # arm64v8/elasticsearch:7.17.2
     container_name: elasticsearch
     restart: always
     environment:
