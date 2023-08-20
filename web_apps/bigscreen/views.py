@@ -57,6 +57,7 @@ def screen_upload():
         file_name = file.filename
         file_type = file.filename.split('.')[-1]
         content = file.read()
+        print(content)
         file_url = upload_content_to_oss(content, name=file_name, file_type=file_type)
     else:
         res_data = gen_json_response(code=400, msg='文件获取失败')

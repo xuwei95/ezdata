@@ -24,7 +24,7 @@ services:
     restart: always
     environment:
       MINIO_ROOT_USER: minio # 账号
-      MINIO_ROOT_PASSWORD: naivedata123 #密码
+      MINIO_ROOT_PASSWORD: ezdata123 #密码
       MINIO_PROMETHEUS_AUTH_TYPE: public
     command: server /data --console-address :19001
   # 数据库
@@ -41,7 +41,7 @@ services:
     ports:
       - "3306:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: naivedata123
+      MYSQL_ROOT_PASSWORD: ezdata123
     volumes:
       - ./mysql:/var/lib/mysql
   redis:
@@ -52,9 +52,9 @@ services:
       - "6379:6379"
     command:
       # 设置 redis 密码
-      redis-server --requirepass naivedata123 --appendonly yes
+      redis-server --requirepass ezdata123 --appendonly yes
   elasticsearch:
-    image: elasticsearch:7.17.2 # arm64v8/elasticsearch:7.17.2
+    image: arm64v8/elasticsearch:7.17.2 # arm64v8/elasticsearch:7.17.2
     container_name: elasticsearch
     restart: always
     environment:
@@ -66,7 +66,7 @@ services:
       - http.cors.allow-credentials=false
       - bootstrap.memory_lock=true
       - ES_JAVA_OPTS=-Xms512m -Xmx512m
-      - ELASTIC_PASSWOR=naivedata123
+      - ELASTIC_PASSWOR=ezdata123
     volumes:
       - ./elasticsearch/data:/usr/share/elasticsearch/data
       - ./elasticsearch/config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml

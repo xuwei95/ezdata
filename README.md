@@ -1,7 +1,7 @@
 基于python flask后端和vue3前端开发的低代码数据处理和任务调度系统。
 支持数据源管理，数据模型管理，数据集成，数据查询API接口封装，数据可视化大屏，低代码自定义数据处理任务模版，单任务及dag任务工作流调度等功能。
 
-demo地址：http://naivdata.com/
+demo地址：http://101.35.23.52/
 ### 依赖安装
 pip install -r requirements.txt -i https://pypi.doubanio.com/simple
 ### 系统web接口服务
