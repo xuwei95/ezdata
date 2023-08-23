@@ -84,6 +84,6 @@ if __name__ == '__main__':
     # PROGRESS 任务进行中
     # a = normal_task.delay(60)
     # print(a, type(a), type(str(a)))
-    a = normal_task('691f4067b41a42099feef10c75fb56f8')
+    a = normal_task('6c6395371bac4f8a8e5b4db23eaa010a')
 
 

@@ -12,8 +12,8 @@ RUN apt install -y tzdata \
     && echo ${TZ} > /etc/timezone \
     && dpkg-reconfigure --frontend noninteractive tzdata \
     && rm -rf /var/lib/apt/lists/*
-WORKDIR /opt/naivedata
-ADD . /opt/naivedata
-RUN cd /opt/naivedata
-RUN pip install -i https://pypi.doubanio.com/simple -r /opt/naivedata/requirements.txt
+WORKDIR /opt/ezdata
+ADD . /opt/ezdata
+RUN cd /opt/ezdata
+RUN pip install -r /opt/ezdata/requirements.txt
 CMD ["python"]
