@@ -1,5 +1,6 @@
 from ezetl.etl_task import etl_task_process
 from utils.etl_utils import MyEtlTask
+from utils.algs.transform_algs import extend_alg_dict
 
 
 class EtlTaskRunner(object):
@@ -15,7 +16,9 @@ class EtlTaskRunner(object):
         执行任务
         '''
         try:
-            etl_task_process(params=self.params, run_load=True, logger=self.logger, task_class=MyEtlTask)
+            task_params = self.params
+            task_params['extend_alg_dict'] = extend_alg_dict
+            etl_task_process(params=task_params, run_load=True, logger=self.logger, task_class=MyEtlTask)
             self.logger.info(self.params)
         except Exception as e:
             self.logger.exception(e)
