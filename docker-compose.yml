@@ -14,7 +14,6 @@ services:
       - run_scheduler=1 # 是否运行scheduler api
       - run_flower=1 # 是否运行celery flower监控
       - run_worker=1 # 是否运行celery worker
-      - worker_name=worker # celery worker 名称
       - worker_concurrency=4 # celery worker 并发数
       - worker_queue=default # celery worker 订阅队列
       - worker_process=prefork # celery worker 运行模式
