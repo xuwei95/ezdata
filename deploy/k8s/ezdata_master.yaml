@@ -1,0 +1,105 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: ezdata
+  namespace: ezdata
+  labels:
+    app: ezdata
+  annotations:
+    deployment.kubernetes.io/revision: '16'
+    kubesphere.io/creator: admin
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ezdata
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: ezdata
+      annotations:
+        logging.kubesphere.io/logsidecar-config: '{}'
+    spec:
+      volumes:
+        - name: host-time
+          hostPath:
+            path: /etc/localtime
+            type: ''
+        - name: volume-hs45l7
+          configMap:
+            name: ezdata
+            items:
+              - key: prod.env
+                path: prod.env
+            defaultMode: 420
+      containers:
+        - name: container-ivjql4
+          image: 'ezdata123/ezdata:1.0'
+          command:
+            - /bin/sh
+            - '-c'
+            - tail -f /dev/null
+          workingDir: //opt/ezdata
+          ports:
+            - name: http-8001
+              containerPort: 8001
+              protocol: TCP
+            - name: http-8002
+              containerPort: 8002
+              protocol: TCP
+            - name: http-5555
+              containerPort: 5555
+              protocol: TCP
+            - name: http-9001
+              containerPort: 9001
+              protocol: TCP
+          env:
+            - name: read_env
+              value: '1'
+            - name: ENV
+              value: prod.env
+            - name: run_web
+              value: '1'
+            - name: web_worker
+              value: '4'
+            - name: run_scheduler
+              value: '1'
+            - name: run_flower
+              value: '1'
+            - name: run_worker
+              value: '0'
+            - name: worker_name
+              value: master
+            - name: worker_concurrency
+              value: '4'
+            - name: worker_queue
+              value: default
+            - name: worker_process
+              value: prefork
+          resources: {}
+          volumeMounts:
+            - name: host-time
+              readOnly: true
+              mountPath: /etc/localtime
+            - name: volume-hs45l7
+              readOnly: true
+              mountPath: /opt/ezdata/prod.env
+              subPath: prod.env
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          imagePullPolicy: IfNotPresent
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      dnsPolicy: ClusterFirst
+      serviceAccountName: default
+      serviceAccount: default
+      securityContext: {}
+      schedulerName: default-scheduler
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 25%
+      maxSurge: 25%
+  revisionHistoryLimit: 10
+  progressDeadlineSeconds: 600

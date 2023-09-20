@@ -83,7 +83,9 @@ def get_res_fields(res_data):
     if isinstance(res_data, dict):
         if 'records' in res_data:
             if res_data['records'] != []:
-                res_fields = list(res_data['records'][0].keys())
+                r0 = res_data['records'][0]
+                if isinstance(r0, dict):
+                    res_fields = list(res_data['records'][0].keys())
             else:
                 res_fields = []
         else:

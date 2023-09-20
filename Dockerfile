@@ -16,4 +16,4 @@ WORKDIR /opt/ezdata
 ADD . /opt/ezdata
 RUN cd /opt/ezdata
 RUN pip install -r /opt/ezdata/requirements.txt
-CMD ["python"]
+CMD ["tail -f /dev/null"]

@@ -30,11 +30,10 @@ class DataModelQueryApiService(object):
         res_data = gen_datamodel_conf(obj)
         return gen_json_response(data=res_data)
 
-    def operate_obj(self, req_dict):
+    def operate_obj(self, req_dict, use_auth=True):
         '''
         操作模型
         '''
-        # user_info = get_auth_token_info()
         obj_id = req_dict.get('id')
         operate = req_dict.get('operate')
         obj = db.session.query(DataModel).filter(
@@ -47,12 +46,14 @@ class DataModelQueryApiService(object):
         })
         if not flag:
             return gen_json_response(code=400, msg='未找到查询配置')
-        # if user_info['username'] != 'admin':
-        #     model_conf = extract_info['model']
-        #     depart_list = model_conf.get('depart_list')
-        #     org_code = user_info.get('org_code')
-        #     if org_code not in depart_list:
-        #         return gen_json_response(code=400, msg='无权限访问此数据模型')
+        if use_auth:
+            user_info = get_auth_token_info()
+            if user_info['username'] != 'admin':
+                model_conf = extract_info['model']
+                depart_list = model_conf.get('depart_list')
+                org_code = user_info.get('org_code')
+                if org_code not in depart_list:
+                    return gen_json_response(code=400, msg='无权限访问此数据模型')
         flag, reader = get_reader_model(extract_info)
         if not flag:
             return gen_json_response(code=400, msg=reader)

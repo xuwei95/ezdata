@@ -14,14 +14,14 @@ chmod +x minio
 mv minio /usr/bin/minio
 mkdir /opt/minio-data
 export MINIO_ROOT_USER=minio                                                                                                                                    │·················
-export MINIO_ROOT_PASSWORD=naivedata123
+export MINIO_ROOT_PASSWORD=ezdata123
 minio server /opt/minio-data
 nohup minio server /opt/minio-data --console-address :19001 2>&1 &
 # mysql
 wget https://dev.mysql.com/get/mysql-apt-config_0.8.16-1_all.deb
 dpkg -i mysql-apt-config_0.8.16-1_all.deb
 apt-get install mysql-server
-alter user'root'@'%' identified with mysql_native_password by 'naivedata123';
+alter user'root'@'%' identified with mysql_native_password by 'ezdata123';
 # redis
 apt-get install redis-server
 配置文件路径
@@ -31,4 +31,4 @@ apt-get install redis-server
 日志路径
 /var/log/redis
 vim /etc/redis/redis.conf
-requirepass naivedata123
+requirepass ezdata123

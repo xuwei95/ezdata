@@ -108,6 +108,6 @@ if __name__ == '__main__':
     print(a)
     a = set_key_exp('test', 1, 10)
     print(a)
-    # b = get_key_value('test')
-    # print(b)
+    b = get_key_value('test')
+    print(b)
 

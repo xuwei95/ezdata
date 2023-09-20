@@ -20,3 +20,5 @@ if [ $run_worker == 1 ]; then
   echo "开启celery worker"
   supervisorctl start celery_worker
 fi
+
+tail -f /dev/null
