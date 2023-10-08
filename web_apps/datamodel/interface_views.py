@@ -8,7 +8,7 @@ from utils.web_utils import get_req_para, validate_params, generate_download_fil
 from utils.common_utils import gen_json_response
 from web_apps.datamodel.services.data_interface_api_services import DataInterfaceApiService
 data_interface_bp = Blueprint('data_interface', __name__)
-    
+
 
 @data_interface_bp.route('/query', methods=['GET', 'POST'])
 def data_interface_query():

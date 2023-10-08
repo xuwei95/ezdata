@@ -8,6 +8,8 @@ from utils.auth import set_insert_user, set_update_user, get_auth_token_info
 from utils.common_utils import gen_json_response, gen_uuid, parse_json
 from web_apps.datamodel.db_models import DataModel
 from web_apps.datasource.db_models import DataSource
+from web_apps.datamodel.services.datamodel_service import gen_extract_info
+from utils.etl_utils import get_reader_model
 from utils.web_utils import validate_params
 import pandas as pd
 import io
@@ -197,6 +199,27 @@ class DataModelApiService(object):
                 setattr(obj, key, req_dict[key])
         obj.id = gen_uuid(res_type='base')
         set_insert_user(obj)
+        db.session.add(obj)
+        db.session.flush()
+        # 创建后检查一次状态
+        try:
+            flag, extract_info = gen_extract_info({
+                'model_id': obj.id,
+            })
+            if not flag:
+                return gen_json_response(code=400, msg='未找到查询配置')
+            flag, reader = get_reader_model(extract_info)
+            if not flag:
+                return gen_json_response(code=400, msg=reader)
+            flag, res = reader.connect()
+            if flag:
+                obj.status = 1
+            else:
+                obj.status = 0
+                print(res)
+        except Exception as e:
+            print(e)
+            obj.status = 0
         db.session.add(obj)
         db.session.flush()
         return gen_json_response(msg='添加成功', extends={'success': True})

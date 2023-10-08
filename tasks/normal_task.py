@@ -6,8 +6,7 @@ from celery_app import celery_app
 from web_apps.task.db_models import Task, TaskTemplate
 from web_apps import db
 from utils.task_util import get_task_instance, update_task_instance, set_task_running_id, set_task_instance_running, set_task_instance_failed, set_task_instance_retry
-from config import TASK_LOG_INDEX
-from utils.logger.eslogger import get_es_logger
+from utils.log_utils import get_task_logger
 from utils.common_utils import gen_uuid, get_now_time
 from tasks.task_runners import runner_dict, DynamicTaskRunner
 from web_apps.alert.strategys.task_alert_strategys import handle_task_fail_alert
@@ -21,8 +20,8 @@ def normal_task(self, task_id):
     '''
     uuid = self.request.id if self.request.id else gen_uuid()
     worker = self.request.hostname if self.request.hostname else ''
-    es_logger = get_es_logger(p_name='normal_task', index=TASK_LOG_INDEX, **{'task_uuid': uuid})
-    es_logger.info(f'任务开始，任务id:{uuid}, 执行worker:{worker}')
+    logger = get_task_logger(p_name='normal_task', task_log_keys={'task_uuid': uuid})
+    logger.info(f'任务开始，任务id:{uuid}, 执行worker:{worker}')
     task_instance_obj = get_task_instance(uuid, task_id, {'worker': worker})
     task_obj = db.session.query(Task).filter(Task.id == task_id).first()
     if task_obj is None or task_obj.del_flag == 1:
@@ -42,19 +41,19 @@ def normal_task(self, task_id):
             if Runner is None:
                 raise ValueError(f'处理失败:未找到任务执行器')
             else:
-                task_runner = Runner(params=params, logger=es_logger)
+                task_runner = Runner(params=params, logger=logger)
         else:
             runner_code = task_template_obj.runner_code
-            task_runner = DynamicTaskRunner(params=params, logger=es_logger, runner_code=runner_code)
+            task_runner = DynamicTaskRunner(params=params, logger=logger, runner_code=runner_code)
         task_runner.run()
         update_task_instance(task_instance_obj, {'status': 'success', 'progress': 100, 'closed': 1, 'result': '成功',
                                                  'end_time': get_now_time('datetime')})
     except Exception as e:
-        es_logger.exception(e)
+        logger.exception(e)
         set_task_instance_failed(task_instance_obj, f'处理失败:{str(e)[:1000]}')
         retries = self.request.retries
         if retries < retry:
-            es_logger.info(f'任务出错，第{retries + 1}次重试')
+            logger.info(f'任务出错，第{retries + 1}次重试')
             set_task_instance_retry(task_instance_obj, retries)
             self.retry(exc=e, countdown=countdown, max_retries=retry)
         else:

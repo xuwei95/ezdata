@@ -104,7 +104,6 @@ def get_user_prem_by_token():
         "menu": user_menus,
         "sysSafeMode": False
     }
-    print(res_data)
     return jsonify(gen_json_response(data=res_data))
 
 

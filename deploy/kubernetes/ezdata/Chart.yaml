@@ -1,0 +1,23 @@
+apiVersion: v2
+name: ezdata-helm
+version: v1
+appVersion: 1.0.0
+description: A Helm chart for deploying the ezdata project
+
+dependencies:
+- name: mysql
+  version: 9.4.1
+  repository: https://charts.bitnami.com/bitnami
+  condition: mysql.enabled
+- name: redis
+  version: 17.10.1
+  repository: https://charts.bitnami.com/bitnami
+  condition: redis.enabled
+- name: elasticsearch
+  version: 7.17.3
+  repository: https://helm.elastic.co
+  condition: elasticsearch.enabled
+- name: minio
+  version: 11.10.13
+  repository: https://charts.bitnami.com/bitnami
+  condition: minio.enabled

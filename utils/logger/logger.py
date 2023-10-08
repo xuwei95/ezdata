@@ -15,7 +15,7 @@ class LogFileHandler(object):
         if not name.endswith('.logs'):
             name = name + '.log'
         file_name = os.path.join('logs', name)
-        handler = logging.handlers.RotatingFileHandler(file_name, maxBytes=1024*1024*1024, backupCount=3, )
+        handler = logging.handlers.RotatingFileHandler(file_name, maxBytes=100*1024*1024, backupCount=3,)
         handler.setFormatter(
             logging.Formatter('%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s: %(message)s'))
         handler.suffix = "%Y%m%d.task"

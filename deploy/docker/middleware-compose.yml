@@ -1,16 +1,15 @@
-version: "3.5"
+version: "3"  # docker-compose版本
 services:
   # nginx
   nginx:
     image: nginx     # 镜像名称
     container_name: nginx     # 容器名字
     restart: always     # 开机自动重启
-    ports: # 端口号绑定（宿主机:容器内）
+    ports:
       - "80:80"
       - "443:443"
     volumes: # 目录映射（宿主机:容器内）
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf
-      - ./nginx/conf.d:/etc/nginx/conf.d
       - ./nginx/html:/usr/share/nginx/html
   # 对象存储
   minio:
@@ -66,10 +65,8 @@ services:
       - http.cors.allow-credentials=false
       - bootstrap.memory_lock=true
       - ES_JAVA_OPTS=-Xms512m -Xmx512m
-      - ELASTIC_PASSWOR=ezdata123
     volumes:
       - ./elasticsearch/data:/usr/share/elasticsearch/data
-      - ./elasticsearch/config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
     ports:
       - '9200:9200'
       - '9300:9300'

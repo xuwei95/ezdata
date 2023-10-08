@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "ezdata.fullname" . }}-api
+  namespace: {{ include "ezdata.name" . }}
+  labels:
+    app: {{ include "ezdata.name" . }}-api
+    app.kubernetes.io/name: {{ include "ezdata.name" . }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion }}
+    version: {{ .Chart.Version }}
+spec:
+  replicas: {{ .Values.api.replicas }}
+  selector:
+    matchLabels:
+      app: {{ include "ezdata.name" . }}-api
+      app.kubernetes.io/name: {{ include "ezdata.name" . }}
+      app.kubernetes.io/version: {{ .Chart.AppVersion }}
+      version: {{ .Chart.Version }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "ezdata.name" . }}-api
+        app.kubernetes.io/name: {{ include "ezdata.name" . }}
+        app.kubernetes.io/version: {{ .Chart.AppVersion }}
+        version: {{ .Chart.Version }}
+    spec:
+      volumes:
+        - name: host-time
+          hostPath:
+            path: /etc/localtime
+        - name: {{ include "ezdata.fullname" . }}-env
+          configMap:
+            name: {{ template "ezdata.fullname" . }}-env
+            items:
+              - key: prod.env
+                path: prod.env
+      containers:
+        - name: container-ezdata
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          command:
+            - /bin/sh
+            - "-c"
+            - bash init.sh
+          workingDir: //opt/ezdata
+          ports:
+            - name: http-8001
+              containerPort: 8001
+              protocol: TCP
+          env:
+            - name: read_env
+              value: "{{ .Values.api.env.read_env }}"
+            - name: ENV
+              value: "{{ .Values.api.env.ENV }}"
+            - name: run_web
+              value: "{{ .Values.api.env.run_web }}"
+            - name: web_worker
+              value: "{{ .Values.api.env.web_worker }}"
+            - name: run_scheduler
+              value: "{{ .Values.api.env.run_scheduler }}"
+            - name: run_flower
+              value: "{{ .Values.api.env.run_flower }}"
+            - name: run_worker
+              value: "{{ .Values.api.env.run_worker }}"
+            - name: worker_concurrency
+              value: "{{ .Values.api.env.worker_concurrency }}"
+            - name: worker_queue
+              value: "{{ .Values.api.env.worker_queue }}"
+            - name: worker_process
+              value: "{{ .Values.api.env.worker_process }}"
+          volumeMounts:
+            - name: host-time
+              readOnly: true
+              mountPath: /etc/localtime
+            - name: {{ include "ezdata.fullname" . }}-env
+              readOnly: true
+              mountPath: /opt/ezdata/prod.env
+              subPath: prod.env
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30

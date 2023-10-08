@@ -2,28 +2,34 @@
 配置文件
 '''
 import os
-import json
 from dotenv import load_dotenv
 read_env = os.environ.get('read_env', True)
 if read_env not in [False, None, '', '0']:
     dotenv_path = os.environ.get('ENV', 'dev.env')
     # dotenv_path = os.environ.get('ENV', 'prod.env')
-    root_path = os.path.abspath(os.path.dirname(__file__)).split('src')[0]
+    root_path = os.path.abspath(os.path.dirname(__file__))
     dotenv_path = os.path.join(root_path, dotenv_path)
     load_dotenv(dotenv_path=dotenv_path)
 SYS_CONF = os.environ
-# mysql相关配置
+# 数据库相关配置
+DB_TYPE = SYS_CONF['DB_TYPE']
 DB_HOST = SYS_CONF['DB_HOST']
 DB_PORT = int(SYS_CONF['DB_PORT'])
 DB_USER = SYS_CONF['DB_USER']
 DB_PWD = SYS_CONF['DB_PWD']
 DB_NAME = SYS_CONF['DB_NAME']
 DB_CHARSET = SYS_CONF['DB_CHARSET']
-DB_TYPE = SYS_CONF['DB_TYPE']
 POOL_RECYCLE = int(SYS_CONF['POOL_RECYCLE'])  # session最大保持时间
 ECHO_SQL = SYS_CONF['ECHO_SQL'] == '1'  # 是否打印sql
+# 日志相关配置
+LOGGER_TYPE = SYS_CONF.get('LOGGER_TYPE', 'es')
+LOG_LEVEL = SYS_CONF.get('LOG_LEVEL', 'INFO')
+SYS_LOG_INDEX = SYS_CONF.get('SYS_LOG_INDEX', 'sys_logs')
+INTERFACE_LOG_INDEX = SYS_CONF.get('INTERFACE_LOG_INDEX', 'interface_logs')
+TASK_LOG_INDEX = SYS_CONF.get('TASK_LOG_INDEX', 'task_logs')
 # es 相关配置
-ES_HOSTS = json.loads(SYS_CONF['ES_HOSTS'])
+es_hosts = SYS_CONF.get('ES_HOSTS', '')
+ES_HOSTS = es_hosts.split(',')
 ES_CONF = {
     'hosts': ES_HOSTS
 }
@@ -31,16 +37,12 @@ ES_USER = SYS_CONF.get('ES_USER')
 ES_PWD = SYS_CONF.get('ES_PWD')
 if ES_USER not in [None, '']:
     ES_CONF['http_auth'] = (ES_USER, ES_PWD)
-# 日志相关配置
-LOG_LEVEL = SYS_CONF.get('LOG_LEVEL', 'INFO')
-SYS_LOG_INDEX = SYS_CONF.get('SYS_LOG_INDEX', 'sys_logs')
-INTERFACE_LOG_INDEX = SYS_CONF.get('INTERFACE_LOG_INDEX', 'interface_logs')
-TASK_LOG_INDEX = SYS_CONF.get('TASK_LOG_INDEX', 'task_logs')
-# redis 相关配置
+# 任务调度相关配置
+WORKER_TYPE = SYS_CONF.get('WORKER_TYPE', 'celery')
 REDIS_HOST = SYS_CONF['REDIS_HOST']
-REDIS_PORT = int(SYS_CONF['REDIS_PORT'])
+REDIS_PORT = SYS_CONF['REDIS_PORT']
 REDIS_PASS = SYS_CONF['REDIS_PWD']
-REDIS_DB = int(SYS_CONF['REDIS_DB'])
+REDIS_DB = SYS_CONF['REDIS_DB']
 # celery 配置
 CELERY_BACKEND_URL = f'redis://:{REDIS_PASS}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
 CELERY_BROKER_URL = f'redis://:{REDIS_PASS}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'

@@ -122,14 +122,15 @@ $RECYCLE.BIN/
 .idea*/
 .pytest_cache/
 datas/
+logs/
 tmp/
 *.config.py
 prod.env
 tests/etl_tests
-deploy/elasticsearch/data/*
-deploy/minio/
-deploy/mysql/
-deploy/nginx/html/*
+deploy/docker/elasticsearch/
+deploy/docker/minio/
+deploy/docker/mysql/
+deploy/docker/nginx/html/
 
 
 # celery相关文件

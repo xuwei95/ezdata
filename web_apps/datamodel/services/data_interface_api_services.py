@@ -12,8 +12,7 @@ from utils.etl_utils import get_reader_model, get_res_fields
 from utils.web_utils import validate_params
 import pandas as pd
 import io
-from utils.logger.eslogger import get_es_logger
-from config import INTERFACE_LOG_INDEX
+from utils.log_utils import get_interface_logger
 interface_log_keys = {
     'duration': '',
     'interface_id': '',
@@ -25,7 +24,7 @@ interface_log_keys = {
     'valid_time': '',
     'valid_fields': ''
 }
-interface_logger = get_es_logger(p_name='interface_log', index=INTERFACE_LOG_INDEX, **interface_log_keys)
+interface_logger = get_interface_logger(interface_log_keys)
 
 
 def serialize_data_interface_model(obj, ser_type='list'):

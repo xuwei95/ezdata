@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ezdata.fullname" . }}-scheduler
+  namespace: {{ include "ezdata.name" . }}
+  labels:
+    app: {{ include "ezdata.name" . }}-scheduler
+    app.kubernetes.io/name: {{ include "ezdata.name" . }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion }}
+    version: {{ .Chart.Version }}
+  annotations:
+    servicemesh.kubesphere.io/enabled: "false"
+spec:
+  ports:
+    - name: scheduler
+      protocol: TCP
+      port: 8002
+      targetPort: 8002
+      nodePort: {{ .Values.scheduler.service.nodePort.scheduler }}
+    - name: flower
+      protocol: TCP
+      port: 5555
+      targetPort: 5555
+      nodePort: {{ .Values.scheduler.service.nodePort.flower }}
+  selector:
+    app: {{ include "ezdata.name" . }}-scheduler
+    app.kubernetes.io/name: {{ include "ezdata.name" . }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion }}
+  clusterIP: {{ .Values.scheduler.service.clusterIP }}
+  clusterIPs:
+    - {{ .Values.scheduler.service.clusterIP }}
+  type: NodePort
+  sessionAffinity: None
+  externalTrafficPolicy: Cluster
+  ipFamilies:
+    - IPv4
+  ipFamilyPolicy: SingleStack
+  internalTrafficPolicy: Cluster

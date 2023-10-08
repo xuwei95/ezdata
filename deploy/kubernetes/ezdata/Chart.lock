@@ -1,0 +1,15 @@
+dependencies:
+- name: mysql
+  repository: https://charts.bitnami.com/bitnami
+  version: 9.4.1
+- name: redis
+  repository: https://charts.bitnami.com/bitnami
+  version: 17.10.1
+- name: elasticsearch
+  repository: https://helm.elastic.co
+  version: 7.17.3
+- name: minio
+  repository: https://charts.bitnami.com/bitnami
+  version: 11.10.13
+digest: sha256:6b72756918225d8c8e15354f0f458242db0719fdeac5af0e575a450d33cc1843
+generated: "2023-10-08T13:20:24.442227501+08:00"
