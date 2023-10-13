@@ -1,8 +1,23 @@
 version: "3"  # docker-compose版本
 services:
-  server: # docker-compose编排名称，一般同微服务名称，注意不要与其>他服务重名
+  # nginx
+  web:
+    image: "ezdata123/ezdata-web:1.0.1"     # 镜像名称
+    container_name: ezdata_web     # 容器名字
+    restart: always     # 开机自动重启
+    ports:
+      - "80:80"
+    volumes: # 目录映射（宿主机:容器内）
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/html/dist/_app.config.js:/usr/share/nginx/html/dist/_app.config.js
+      - ./nginx/html:/usr/share/nginx/html
+    command: ["nginx", "-g", "daemon off;"]
+    networks:
+      ezdata:
+        ipv4_address: 10.233.31.0
+  api:
     image: "ezdata123/ezdata:1.0.1"  # docker镜像名及版本
-    container_name: ezdata  # 服务容器
+    container_name: ezdata_master  # 服务容器
     volumes: # 挂载目录
       - ./ezdata:/opt/ezdata
     environment: # 配置环境变量
@@ -11,8 +26,8 @@ services:
       - ENV=deploy.env # 配置文件
       - run_web=1 # 是否运行web api
       - web_worker=4 # web api 并发数
-      - run_scheduler=1 # 是否运行scheduler api
-      - run_flower=1 # 是否运行celery flower监控
+      - run_scheduler=0 # 是否运行scheduler api
+      - run_flower=0 # 是否运行celery flower监控
       - run_worker=1 # 是否运行celery worker
       - worker_concurrency=4 # celery worker 并发数
       - worker_queue=default # celery worker 订阅队列
@@ -20,9 +35,6 @@ services:
     working_dir: /opt/ezdata
     ports:
       - 8001:8001 # web服务端口
-      - 8002:8002 # 任务调度端口
-      - 5555:5555 # flower监控端口，不开启可注释掉
-      - 9001:9001 # 守护进程web端口，不开启可注释掉
     command: /bin/bash -c "bash init.sh"
     privileged: true
     restart: always
@@ -30,39 +42,36 @@ services:
     tty: true
     networks:
       ezdata:
-        ipv4_address: 172.20.0.1
-  # nginx
-  nginx:
-    image: nginx     # 镜像名称
-    container_name: nginx     # 容器名字
-    restart: always     # 开机自动重启
+        ipv4_address: 10.233.31.1
+  scheduler: # docker-compose编排名称，一般同微服务名称，注意不要与其>他服务重名
+    image: "ezdata123/ezdata:1.0.1"  # docker镜像名及版本
+    container_name: ezdata_scheduler  # 服务容器
+    volumes: # 挂载目录
+      - ./ezdata:/opt/ezdata
+    environment: # 配置环境变量
+      - TZ=Asia/Shanghai  # 设置时区
+      - read_env=1 # 是否读取配置文件
+      - ENV=deploy.env # 配置文件
+      - run_web=0 # 是否运行web api
+      - web_worker=4 # web api 并发数
+      - run_scheduler=1 # 是否运行scheduler api
+      - run_flower=1 # 是否运行celery flower监控
+      - run_worker=0 # 是否运行celery worker
+      - worker_concurrency=4 # celery worker 并发数
+      - worker_queue=default # celery worker 订阅队列
+      - worker_process=prefork # celery worker 运行模式
+    working_dir: /opt/ezdata
     ports:
-      - "80:80"
-      - "443:443"
-    volumes: # 目录映射（宿主机:容器内）
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
-      - ./nginx/html:/usr/share/nginx/html
-    networks:
-      ezdata:
-        ipv4_address: 172.20.0.2
-  # 对象存储
-  minio:
-    image: minio/minio
-    volumes:
-      - ./minio:/data # 持久化地址
-    ports:
-      - "9000:9000"
-      - "19001:19001"
-    container_name: minio
+      - 8002:8002 # 任务调度端口
+      - 5555:5555 # flower监控端口，不开启可注释掉
+    command: /bin/bash -c "bash init.sh"
+    privileged: true
     restart: always
-    environment:
-      MINIO_ROOT_USER: minio # 账号
-      MINIO_ROOT_PASSWORD: ezdata123 #密码
-      MINIO_PROMETHEUS_AUTH_TYPE: public
-    command: server /data --console-address :19001
+    stdin_open: true
+    tty: true
     networks:
       ezdata:
-        ipv4_address: 172.20.0.3
+        ipv4_address: 10.233.31.2
   # 数据库
   mysql:
     image: amd64/mysql:8.0.22
@@ -82,7 +91,7 @@ services:
       - ./mysql:/var/lib/mysql
     networks:
       ezdata:
-        ipv4_address: 172.20.0.4
+        ipv4_address: 10.233.31.3
   redis:
     image: redis:6.0.9
     container_name: redis
@@ -94,9 +103,27 @@ services:
       redis-server --requirepass ezdata123 --appendonly yes
     networks:
       ezdata:
-        ipv4_address: 172.20.0.5
+        ipv4_address: 10.233.31.4
+  # 对象存储
+  minio:
+    image: minio/minio
+    volumes:
+      - ./minio:/data # 持久化地址
+    ports:
+      - "9000:9000"
+      - "19001:19001"
+    container_name: minio
+    restart: always
+    environment:
+      MINIO_ROOT_USER: minio # 账号
+      MINIO_ROOT_PASSWORD: ezdata123 #密码
+      MINIO_PROMETHEUS_AUTH_TYPE: public
+    command: server /data --console-address :19001
+    networks:
+      ezdata:
+        ipv4_address: 10.233.31.5
   elasticsearch:
-    image: arm64v8/elasticsearch:7.17.2 # arm64v8/elasticsearch:7.17.2
+    image: elasticsearch:7.17.2
     container_name: elasticsearch
     restart: always
     environment:
@@ -115,11 +142,11 @@ services:
       - '9300:9300'
     networks:
       ezdata:
-        ipv4_address: 172.20.0.6
+        ipv4_address: 10.233.31.6
 
 networks:
   ezdata:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.20.0.0/16
+        - subnet: 10.233.31.0/16

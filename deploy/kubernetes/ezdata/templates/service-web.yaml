@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ezdata.fullname" . }}-web
+  namespace: {{ include "ezdata.name" . }}
+  labels:
+    app: {{ include "ezdata.name" . }}-web
+    app.kubernetes.io/name: {{ include "ezdata.name" . }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion }}
+    version: {{ .Chart.Version }}
+  annotations:
+    servicemesh.kubesphere.io/enabled: "false"
+spec:
+  ports:
+    - name: web
+      protocol: TCP
+      port: 80
+      targetPort: 80
+      nodePort: {{ .Values.web.service.nodePort }}
+  selector:
+    app: {{ include "ezdata.name" . }}-web
+    app.kubernetes.io/name: {{ include "ezdata.name" . }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion }}
+  clusterIP: {{ .Values.web.service.clusterIP }}
+  clusterIPs:
+    - {{ .Values.web.service.clusterIP }}
+  type: {{ .Values.web.service.type }}
+  sessionAffinity: None
+  externalTrafficPolicy: Cluster
+  ipFamilies:
+    - IPv4
+  ipFamilyPolicy: SingleStack
+  internalTrafficPolicy: Cluster

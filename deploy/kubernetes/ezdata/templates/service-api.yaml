@@ -16,7 +16,6 @@ spec:
       protocol: TCP
       port: 8001
       targetPort: 8001
-      nodePort: {{ .Values.api.service.nodePort.api }}
   selector:
     app: {{ include "ezdata.name" . }}-api
     app.kubernetes.io/name: {{ include "ezdata.name" . }}
@@ -24,9 +23,8 @@ spec:
   clusterIP: {{ .Values.api.service.clusterIP }}
   clusterIPs:
     - {{ .Values.api.service.clusterIP }}
-  type: NodePort
+  type: {{ .Values.api.service.type }}
   sessionAffinity: None
-  externalTrafficPolicy: Cluster
   ipFamilies:
     - IPv4
   ipFamilyPolicy: SingleStack

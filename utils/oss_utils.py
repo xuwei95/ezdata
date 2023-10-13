@@ -1,7 +1,7 @@
 '''
 对象存储相关函数
 '''
-from config import OSS_TYPE, OSS_HOST, OSS_PORT, OSS_KEY, OSS_SECRET, OSS_BUCKET
+from config import OSS_TYPE, OSS_HOST, OSS_PUBLIC_HOST, OSS_PORT, OSS_KEY, OSS_SECRET, OSS_BUCKET
 from minio import Minio
 import io
 from utils.common_utils import md5
@@ -14,7 +14,7 @@ if OSS_TYPE == 'minio':
 
 
 def get_bucket_url():
-    return f'http://{OSS_HOST}:{OSS_PORT}/{OSS_BUCKET}/'
+    return f'http://{OSS_PUBLIC_HOST}:{OSS_PORT}/{OSS_BUCKET}/'
 
 
 def upload_content_to_oss(content, name='', file_type='jpg'):
@@ -29,5 +29,5 @@ def upload_content_to_oss(content, name='', file_type='jpg'):
     value_as_a_stream = io.BytesIO(content)
     save_name = '{}.{}'.format(hash, file_type) if name == '' else name
     ossClient.put_object(OSS_BUCKET, save_name, value_as_a_stream, length=len(content))
-    return f'http://{OSS_HOST}:{OSS_PORT}/{OSS_BUCKET}/{save_name}'
+    return f'http://{OSS_PUBLIC_HOST}:{OSS_PORT}/{OSS_BUCKET}/{save_name}'
 

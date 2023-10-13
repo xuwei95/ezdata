@@ -9,7 +9,7 @@ metadata:
     app.kubernetes.io/version: {{ .Chart.AppVersion }}
     version: {{ .Chart.Version }}
 spec:
-  replicas: {{ .Values.api.replicas }}
+  replicas: {{ .Values.scheduler.replicas }}
   selector:
     matchLabels:
       app: {{ include "ezdata.name" . }}-scheduler

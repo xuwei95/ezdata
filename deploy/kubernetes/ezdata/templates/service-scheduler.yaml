@@ -16,12 +16,10 @@ spec:
       protocol: TCP
       port: 8002
       targetPort: 8002
-      nodePort: {{ .Values.scheduler.service.nodePort.scheduler }}
     - name: flower
       protocol: TCP
       port: 5555
       targetPort: 5555
-      nodePort: {{ .Values.scheduler.service.nodePort.flower }}
   selector:
     app: {{ include "ezdata.name" . }}-scheduler
     app.kubernetes.io/name: {{ include "ezdata.name" . }}
@@ -29,9 +27,8 @@ spec:
   clusterIP: {{ .Values.scheduler.service.clusterIP }}
   clusterIPs:
     - {{ .Values.scheduler.service.clusterIP }}
-  type: NodePort
+  type: {{ .Values.scheduler.service.type }}
   sessionAffinity: None
-  externalTrafficPolicy: Cluster
   ipFamilies:
     - IPv4
   ipFamilyPolicy: SingleStack

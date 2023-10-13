@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "ezdata.fullname" . }}-web
+  namespace: {{ include "ezdata.name" . }}
+  labels:
+    app: {{ include "ezdata.name" . }}-web
+    app.kubernetes.io/name: {{ include "ezdata.name" . }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion }}
+    version: {{ .Chart.Version }}
+spec:
+  replicas: {{ .Values.web.replicas }}
+  selector:
+    matchLabels:
+      app: {{ include "ezdata.name" . }}-web
+      app.kubernetes.io/name: {{ include "ezdata.name" . }}
+      app.kubernetes.io/version: {{ .Chart.AppVersion }}
+      version: {{ .Chart.Version }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "ezdata.name" . }}-web
+        app.kubernetes.io/name: {{ include "ezdata.name" . }}
+        app.kubernetes.io/version: {{ .Chart.AppVersion }}
+        version: {{ .Chart.Version }}
+    spec:
+      volumes:
+        - name: host-time
+          hostPath:
+            path: /etc/localtime
+        - name: {{ include "ezdata.fullname" . }}-web-env
+          configMap:
+            name: {{ template "ezdata.fullname" . }}-web-env
+            items:
+              - key: nginx.conf
+                path: nginx.conf
+              - key: _app.config.js
+                path: _app.config.js
+      containers:
+        - name: container-ezdata
+          image: "{{ .Values.image.web }}:{{ .Values.image.tag }}"
+          command: ["nginx", "-g", "daemon off;"]
+          workingDir: //usr/share/nginx
+          ports:
+            - name: http-80
+              containerPort: 80
+              protocol: TCP
+          volumeMounts:
+            - name: host-time
+              readOnly: true
+              mountPath: /etc/localtime
+            - name: {{ template "ezdata.fullname" . }}-web-env
+              readOnly: true
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+            - name: {{ template "ezdata.fullname" . }}-web-env
+              readOnly: true
+              mountPath: /usr/share/nginx/html/dist/_app.config.js
+              subPath: _app.config.js
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30

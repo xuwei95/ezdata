@@ -4,10 +4,22 @@ image:
   repository: ezdata123/ezdata
   tag: 1.0.1
   pullPolicy: IfNotPresent
+  web: ezdata123/ezdata-web
 
+web:
+  replicas: "1"
+  env:
+   web_api: 10.233.31.1:8001
+   scheduler_api: 10.233.31.2:8002
+   VITE_GLOB_API_URL: "http://101.35.23.52/api"
+   VITE_GLOB_DOMAIN_URL: "http://101.35.23.52"
+  service:
+    type: NodePort
+    clusterIP: 10.233.31.0
+    nodePort: 80
 
 api:
-  replicas: "1"
+  replicas: "3"
   env:
     read_env: "1"
     ENV: prod.env
@@ -20,10 +32,8 @@ api:
     worker_queue: default
     worker_process: prefork
   service:
-    type: NodePort
-    clusterIP: 10.233.31.40
-    nodePort:
-      api: 38001
+    type: ClusterIP
+    clusterIP: 10.233.31.1
 
 scheduler:
   replicas: "1"
@@ -39,14 +49,11 @@ scheduler:
     worker_queue: default
     worker_process: prefork
   service:
-    type: NodePort
-    clusterIP: 10.233.31.41
-    nodePort:
-      scheduler: 38002
-      flower: 38555
+    type: ClusterIP
+    clusterIP: 10.233.31.2
 
 worker:
-  replicas: "1"
+  replicas: "3"
   env:
     read_env: "1"
     ENV: prod.env
@@ -61,7 +68,7 @@ worker:
 
 
 mysql:
-  enabled: false
+  enabled: true
   auth:
     username: "root"
     password: "ezdata123"
@@ -69,23 +76,23 @@ mysql:
     database: "ezdata"
   primary:
     service:
-      clusterIP: 10.233.16.242 # 服务ip
+      clusterIP: 10.233.31.3 # 服务ip
     persistence:
       enabled: false
       size: "20Gi"
       storageClass: "-"
 
 externalDatabase:
-  enabled: true
+  enabled: false
   type: "mysql"
-  host: "127.0.0.1"
+  host: "101.35.23.52"
   port: "33306"
   username: "root"
-  password: "ezdata123"
+  password: "Ezdata123"
   database: "ezdata"
 
 redis:
-  enabled: false
+  enabled: true
   auth:
     enabled: true
     password: "ezdata123"
@@ -96,33 +103,20 @@ redis:
     redis: 6379
   master:
     service:
-      clusterIP: 10.233.16.243
+      clusterIP: 10.233.31.4
   # 修改 storageClass 为 managed-nfs-storage
   storageClass: "managed-nfs-storage"
 
 externalRedis:
-  enabled: true
-  host: "127.0.0.1"
+  enabled: false
+  host: "101.35.23.52"
   port: 36379
   username: ""
   password: "Ezdata123"
   db: 1
 
-elasticsearch:
-  enabled: false
-  replicas: 1
-  service:
-    clusterIP: 10.233.16.244
-
-
-externalElasticSearch:
-  enabled: true
-  hosts: "127.0.0.1:39200"
-  username: "elastic"
-  password: "Ezdata123"
-
 minio:
-  enabled: false
+  enabled: true
   auth:
     rootUser: "minio"
     rootPassword: "ezdata123"
@@ -133,13 +127,27 @@ minio:
     annotations: {}
   defaultBuckets: "ezdata"
   service:
-    clusterIP: 10.233.16.245 # 服务ip
+    clusterIP: 10.233.31.5 # 服务ip
 
 externalMinio:
-  enabled: true
-  host: "127.0.0.1"
+  enabled: false
+  host: "101.35.23.52"
   port: 39000
   username: "minio"
   password: "Ezdata123"
   bucket: "ezdata"
+
+elasticsearch:
+  enabled: true
+  replicas: 1
+  service:
+    clusterIP: 10.233.31.6
+
+
+externalElasticSearch:
+  enabled: false
+  hosts: "[{\"host\": \"101.35.23.52\", \"port\": 39200}]"
+  username: "elastic"
+  password: "Ezdata123"
+
 

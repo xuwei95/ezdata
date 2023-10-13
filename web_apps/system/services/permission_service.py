@@ -9,6 +9,7 @@ from utils.auth import encode_auth_token, set_insert_user, set_update_user, get_
 from utils.web_utils import get_user_ip, validate_params
 from utils.common_utils import get_now_time, gen_json_response
 from utils.query_utils import get_base_query
+from config import LOGGER_TYPE
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy import or_
 
@@ -151,6 +152,9 @@ def get_permission_children(permission_obj, obj_list, ser_type='list'):
     child_objs = [i for i in obj_list if i.parent_id == permission_obj.id]
     for obj in child_objs:
         dic = serialize_permission(obj, ser_type)
+        # 根据是否开启es日志，过滤日志菜单
+        if obj.url == '/ops/log' and LOGGER_TYPE != "es":
+            continue
         child = get_permission_children(obj, obj_list, ser_type)
         if child:
             dic['children'] = child
@@ -206,7 +210,6 @@ class PerMissionService(object):
         for role_obj in role_obj_list:
             premissions = json.loads(role_obj.permissions)
             prem_id_list.extend(premissions)
-        print(66666, role_obj_list, prem_id_list)
         depart_obj = get_base_query(Depart).filter(Depart.org_code == org_code).first()
         if depart_obj:
             premissions = json.loads(depart_obj.permissions)
@@ -261,6 +264,15 @@ class PerMissionService(object):
         for obj in obj_list:
             dic = serialize_permission(obj, 'auth')
             result.append(dic)
+        # 根据是否开启es日志，添加日志权限
+        if LOGGER_TYPE == "es":
+            dic = {
+                "action": "task:log",
+                "describe": "查看任务日志",
+                "type": "1",
+                "status": "1"
+            }
+            result.append(dic)
         return result
 
     def get_user_auth(self, user_info):
@@ -275,6 +287,15 @@ class PerMissionService(object):
         result = []
         for obj in prem_objs:
             dic = serialize_permission(obj, 'auth')
+            result.append(dic)
+        # 根据是否开启es日志，添加日志权限
+        if LOGGER_TYPE == "es":
+            dic = {
+                "action": "task:log",
+                "describe": "查看任务日志",
+                "type": "1",
+                "status": "1"
+            }
             result.append(dic)
         return result
 

@@ -5,7 +5,7 @@ metadata:
   namespace: ezdata-helm
 data:
   prod.env: |-
-    # 数据库相关配置
+    # mysql相关配置
     DB_TYPE=mysql
     DB_CHARSET=utf8mb4
     POOL_RECYCLE=600
@@ -24,8 +24,22 @@ data:
     DB_PWD={{.Values.mysql.auth.password}}
     DB_NAME={{.Values.mysql.auth.database}}
     {{- end }}
-    # worker相关配置
-    WORKER_TYPE=celery
+    # es 相关配置
+    {{- if .Values.externalElasticSearch.enabled }}
+    ES_HOSTS={{.Values.externalElasticSearch.hosts}}
+    ES_USER={{.Values.externalElasticSearch.username}}
+    ES_PWD={{.Values.externalElasticSearch.password}}
+    {{- end }}
+    {{- if .Values.elasticsearch.enabled }}
+    ES_HOSTS="[{\"host\": \"{{.Values.elasticsearch.service.clusterIP}}\", \"port\": 9200}]"
+    ES_USER=
+    ES_PWD=
+    {{- end }}
+    # 日志相关配置
+    LOG_LEVEL=INFO
+    SYS_LOG_INDEX=sys_logs
+    TASK_LOG_INDEX=task_logs
+    INTERFACE_LOG_INDEX=interface_logs
     # redis 相关配置
     {{- if .Values.externalRedis.enabled }}
     REDIS_HOST={{.Values.externalRedis.host}}
@@ -58,23 +72,6 @@ data:
     OSS_KEY={{.Values.minio.auth.rootUser}}
     OSS_SECRET={{.Values.minio.auth.rootPassword}}
     OSS_BUCKET={{.Values.minio.defaultBuckets}}
-    {{- end }}
-    # 日志相关配置
-    LOGGER_TYPE=es
-    LOG_LEVEL=INFO
-    SYS_LOG_INDEX=sys_logs
-    TASK_LOG_INDEX=task_logs
-    INTERFACE_LOG_INDEX=interface_logs
-    # 若日志模式为es  elasticsearch相关配置
-    {{- if .Values.externalElasticSearch.enabled }}
-    ES_HOSTS={{.Values.externalElasticSearch.hosts}}
-    ES_USER={{.Values.externalElasticSearch.username}}
-    ES_PWD={{.Values.externalElasticSearch.password}}
-    {{- end }}
-    {{- if .Values.elasticsearch.enabled }}
-    ES_HOSTS={{.Values.elasticsearch.service.clusterIP}}:9200
-    ES_USER=
-    ES_PWD=
     {{- end }}
     # web相关配置
     # 是否启用token刷新机制

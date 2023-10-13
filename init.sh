@@ -1,4 +1,5 @@
 supervisord -c supervisord.ini
+python init_system.py
 if [ $run_web == 1 ]; then
   echo "开启web服务"
   # 执行命令，开启web服务

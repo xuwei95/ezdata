@@ -13,7 +13,7 @@ def get_sys_logger():
         'duration': 0
     }
     if LOGGER_TYPE == 'es':
-        logger = get_es_logger(p_name='system_log', index=TASK_LOG_INDEX, log_level=LOG_LEVEL, **sys_log_keys)
+        logger = get_es_logger(p_name='system_log', index=SYS_LOG_INDEX, log_level=LOG_LEVEL, **sys_log_keys)
     else:
         logger = get_logger(p_name='system_log', f_name=SYS_LOG_INDEX, log_level=LOG_LEVEL)
     return logger

@@ -1,0 +1,101 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: {{ include "ezdata.fullname" . }}-web-env
+  namespace: ezdata-helm
+  annotations:
+    kubesphere.io/creator: admin
+data:
+  _app.config.js: >-
+    window.__PRODUCTION__ADMIN__CONF__={"VITE_GLOB_APP_TITLE":"ezdata","VITE_GLOB_APP_SHORT_NAME":"Admin","VITE_GLOB_APP_CAS_BASE_URL":"http://cas.test.com:8443/cas","VITE_GLOB_APP_OPEN_SSO":"false","VITE_GLOB_APP_OPEN_QIANKUN":"true","VITE_GLOB_ONLINE_VIEW_URL":"http://fileview.jeecg.com/onlinePreview","VITE_GLOB_API_URL":"{{.Values.web.env.VITE_GLOB_API_URL}}","VITE_GLOB_DOMAIN_URL":"{{.Values.web.env.VITE_GLOB_DOMAIN_URL}}","VITE_GLOB_API_URL_PREFIX":""};Object.freeze(window.__PRODUCTION__ADMIN__CONF__);Object.defineProperty(window,"__PRODUCTION__ADMIN__CONF__",{configurable:false,writable:false,});
+  nginx.conf: |+
+    #user  nobody;
+    worker_processes  1;
+
+    #error_log  logs/error.log;
+    #error_log  logs/error.log  notice;
+    #error_log  logs/error.log  info;
+
+    #pid        logs/nginx.pid;
+
+
+    events {
+        worker_connections  1024;
+    }
+
+
+    http {
+        include       mime.types;
+        default_type  application/octet-stream;
+
+        gzip on;
+        gzip_static on;
+        gzip_min_length 1k;
+        gzip_buffers 4 32k;
+        gzip_http_version 1.1;
+        gzip_comp_level 2;
+        gzip_types text/plain application/x-javascript application/javascript text/javascript text/css application/xml;
+        gzip_vary on;
+        gzip_disable "MSIE [1-6].";
+        #log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+        #                  '$status $body_bytes_sent "$http_referer" '
+        #                  '"$http_user_agent" "$http_x_forwarded_for"';
+
+        #access_log  logs/access.log  main;
+
+        sendfile        on;
+        #tcp_nopush     on;
+
+        #keepalive_timeout  0;
+        keepalive_timeout  65;
+
+        #gzip  on;
+        upstream web_api {
+          server {{.Values.web.env.web_api}};
+        }
+        upstream scheduler_api {
+          server {{.Values.web.env.scheduler_api}};
+        }
+        server {
+            listen       80;
+            server_name  localhost;
+
+            #charset koi8-r;
+
+            #access_log  logs/host.access.log  main;
+
+           location / {
+                root   /usr/share/nginx/html/dist;
+                try_files $uri $uri/ @router;
+                index  index.html index.htm;
+            }
+            location /bigscreen {
+                alias   /usr/share/nginx/html/bigscreen;
+                try_files $uri $uri/ @router;
+                index  index.html index.htm;
+            }
+            location @router {
+                rewrite ^.*$ /index.html last;
+            }
+            location /api {
+                proxy_pass  http://web_api;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            }
+
+            location /api/scheduler {
+                proxy_pass  http://scheduler_api;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            }
+
+
+            error_page   500 502 503 504  /50x.html;
+            location = /50x.html {
+                root   html;
+            }
+
+        }
+
+    }
+
