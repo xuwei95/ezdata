@@ -22,14 +22,16 @@ def check_bucket():
     # 检查存储桶是否存在
     found = ossClient.bucket_exists(OSS_BUCKET)
     if found:
-        print("存储桶 'ezdata' 已存在")
+        return True
     else:
         try:
             # 创建新的存储桶
             ossClient.make_bucket(OSS_BUCKET)
             print(f"存储桶 '{OSS_BUCKET}' 创建成功")
+            return True
         except S3Error as err:
             print(f"存储桶 '{OSS_BUCKET}' 创建失败: {err}")
+            return False
 
 
 def upload_content_to_oss(content, name='', file_type='jpg'):
