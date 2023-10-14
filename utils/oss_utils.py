@@ -3,6 +3,7 @@
 '''
 from config import OSS_TYPE, OSS_HOST, OSS_PUBLIC_HOST, OSS_PORT, OSS_KEY, OSS_SECRET, OSS_BUCKET
 from minio import Minio
+from minio.error import S3Error
 import io
 from utils.common_utils import md5
 
@@ -15,6 +16,20 @@ if OSS_TYPE == 'minio':
 
 def get_bucket_url():
     return f'http://{OSS_PUBLIC_HOST}:{OSS_PORT}/{OSS_BUCKET}/'
+
+
+def check_bucket():
+    # 检查存储桶是否存在
+    found = ossClient.bucket_exists(OSS_BUCKET)
+    if found:
+        print("存储桶 'ezdata' 已存在")
+    else:
+        try:
+            # 创建新的存储桶
+            ossClient.make_bucket(OSS_BUCKET)
+            print(f"存储桶 '{OSS_BUCKET}' 创建成功")
+        except S3Error as err:
+            print(f"存储桶 '{OSS_BUCKET}' 创建失败: {err}")
 
 
 def upload_content_to_oss(content, name='', file_type='jpg'):

@@ -4,6 +4,7 @@ import os
 from config import DB_HOST, DB_PORT, DB_USER, DB_PWD, DB_NAME
 from utils.cache_utils import set_key_exp, get_key_value
 from utils.common_utils import gen_uuid
+from utils.oss_utils import check_bucket
 
 
 # 要检查的数据库名称和表名称
@@ -86,3 +87,4 @@ def init_tables():
 if __name__ == '__main__':
     init_db()
     init_tables()
+    check_bucket()
