@@ -13,7 +13,10 @@ docker import ezdata.tar ezdata:1.0
 docker save -o ezdata_1.0.tar ezdata:1.0
 ## 导入镜像文件
 docker load -i ezdata_1.0.tar
-
+## 上传镜像
+docker login
+docker tag local_image_name:tag docker_hub_username/repository_name:tag
+docker push docker_hub_username/repository_name:tag
 ## docker-compose
 ```
 # 启动
