@@ -19,7 +19,6 @@ services:
     container_name: ezdata_master  # 服务容器
     volumes: # 挂载目录
       - ./deploy.env:/opt/ezdata/deploy.env
-      - ./init_system.py:/opt/ezdata/init_system.py
     environment: # 配置环境变量
       - TZ=Asia/Shanghai  # 设置时区
       - read_env=1 # 是否读取配置文件
