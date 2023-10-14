@@ -9,7 +9,7 @@ services:
       - "80:80"
     volumes: # 目录映射（宿主机:容器内）
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf
-      - ./nginx/html/dist/_app.config.js:/usr/share/nginx/html/dist/_app.config.js
+      - ./nginx/_app.config.js:/usr/share/nginx/html/dist/_app.config.js
       - ./nginx/html:/usr/share/nginx/html
     command: ["nginx", "-g", "daemon off;"]
     networks:
