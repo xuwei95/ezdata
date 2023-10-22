@@ -96,11 +96,10 @@ class DataModelQueryApiService(object):
                 return gen_json_response(code=400, msg=res)
         return gen_json_response(msg='操作成功', extends={'success': True})
 
-    def query_obj_data(self, req_dict):
+    def query_obj_data(self, req_dict, use_auth=True):
         '''
         查询数据模型数据
         '''
-        user_info = get_auth_token_info()
         model_id = req_dict.get('id')
         page = int(req_dict.get('page', 1))
         pagesize = int(req_dict.get('pagesize', 10))
@@ -113,12 +112,14 @@ class DataModelQueryApiService(object):
         flag, extract_info = gen_extract_info(extract_info)
         if not flag:
             return gen_json_response(code=400, msg='未找到查询配置')
-        if user_info['username'] != 'admin':
-            model_conf = extract_info['model']
-            depart_list = model_conf.get('depart_list')
-            org_code = user_info.get('org_code')
-            if org_code not in depart_list:
-                return gen_json_response(code=400, msg='无权限访问此数据模型')
+        if use_auth:
+            user_info = get_auth_token_info()
+            if user_info['username'] != 'admin':
+                model_conf = extract_info['model']
+                depart_list = model_conf.get('depart_list')
+                org_code = user_info.get('org_code')
+                if org_code not in depart_list:
+                    return gen_json_response(code=400, msg='无权限访问此数据模型')
         flag, reader = get_reader_model(extract_info)
         if not flag:
             return gen_json_response(code=400, msg=reader)
@@ -148,3 +149,13 @@ class DataModelQueryApiService(object):
         return res_data
 
 
+if __name__ == '__main__':
+    res = DataModelQueryApiService().query_obj_data({
+        "id": "d88b859297224ebcba7fe21efe118ebb",
+        "page": 1,
+        "pagesize": 10,
+        "extract_rules": [],
+        "search_type": "",
+        "search_text": ""
+    }, False)
+    print(res)

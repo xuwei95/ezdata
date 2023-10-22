@@ -305,15 +305,3 @@ class DataSourceApiService(object):
         else:
             return gen_json_response(code=400, msg=f'连接失败:{reader}')
 
-
-if __name__ == '__main__':
-    req_dict = {"type": "mongodb", "conn_conf": {"host": "124.220.54.30", "port": 27017, "username": "root", "password": "Datacenter123", "database_name": "datacenter"}}
-    # req_dict = {
-    #     "type": "elasticsearch",
-    #     "conn_conf": {
-    #         "auth_type": 1,
-    #         "url": "101.35.23.52:9200"
-    #     }
-    # }
-    res = DataSourceApiService().connTest(req_dict)
-    print(res)
