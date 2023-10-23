@@ -391,9 +391,8 @@ class DataInterfaceApiService(object):
 
 if __name__ == '__main__':
     req_dict = {
-        "api_key": "9b5de31c473141f282fc9694613d4a1e",
+        "api_key": "58f764599d8c4a1aa530b7801ed9e493",
         "page": "10",
-        "sort[time]": "desc",
-        "equal[coin]": "BTC"
+        "symbol": "603273",
     }
     DataInterfaceApiService().query(req_dict, 'GET')
