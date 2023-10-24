@@ -54,6 +54,8 @@ spec:
               value: "{{ .Values.scheduler.env.read_env }}"
             - name: ENV
               value: "{{ .Values.scheduler.env.ENV }}"
+            - name: run_upgrade
+              value: "{{ .Values.scheduler.env.run_upgrade }}"
             - name: run_web
               value: "{{ .Values.scheduler.env.run_web }}"
             - name: web_worker

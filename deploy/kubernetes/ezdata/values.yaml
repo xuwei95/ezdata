@@ -23,6 +23,7 @@ api:
   env:
     read_env: "1"
     ENV: prod.env
+    run_upgrade: "1"
     run_web: "1"
     web_worker: "4"
     run_scheduler: "0"
@@ -40,6 +41,7 @@ scheduler:
   env:
     read_env: "1"
     ENV: prod.env
+    run_upgrade: "1"
     run_web: "0"
     web_worker: "4"
     run_scheduler: "1"
@@ -57,6 +59,7 @@ worker:
   env:
     read_env: "1"
     ENV: prod.env
+    run_upgrade: "1"
     run_web: "0"
     web_worker: "4"
     run_scheduler: "0"
@@ -85,10 +88,10 @@ mysql:
 externalDatabase:
   enabled: false
   type: "mysql"
-  host: "101.35.23.52"
-  port: "33306"
+  host: "127.0.0.1"
+  port: "3306"
   username: "root"
-  password: "Ezdata123"
+  password: "ezdata123"
   database: "ezdata"
 
 redis:
@@ -109,10 +112,10 @@ redis:
 
 externalRedis:
   enabled: false
-  host: "101.35.23.52"
-  port: 36379
+  host: "127.0.0.1"
+  port: 6379
   username: ""
-  password: "Ezdata123"
+  password: "ezdata123"
   db: 1
 
 minio:
@@ -131,10 +134,10 @@ minio:
 
 externalMinio:
   enabled: false
-  host: "101.35.23.52"
-  port: 39000
+  host: "127.0.0.1"
+  port: 9000
   username: "minio"
-  password: "Ezdata123"
+  password: "ezdata123"
   bucket: "ezdata"
 
 elasticsearch:
@@ -146,8 +149,8 @@ elasticsearch:
 
 externalElasticSearch:
   enabled: false
-  hosts: "[{\"host\": \"101.35.23.52\", \"port\": 39200}]"
+  hosts: "127.0.0.1:9200"
   username: "elastic"
-  password: "Ezdata123"
+  password: "ezdata123"
 
 

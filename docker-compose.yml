@@ -9,6 +9,7 @@ services:
       - TZ=Asia/Shanghai  # 设置时区
       - read_env=1 # 是否读取配置文件
       - ENV=dev.env # 配置文件
+      - run_upgrade=1
       - run_web=1 # 是否运行web api
       - web_worker=4 # web api 并发数
       - run_scheduler=1 # 是否运行scheduler api

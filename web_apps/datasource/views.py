@@ -122,7 +122,6 @@ def datasource_edit():
         },
         "conn_conf": {
             "name": "连接配置",
-            "required": True,
             "funcs": [validate_json]
         },
         "ext_params": {

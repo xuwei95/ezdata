@@ -1,11 +1,11 @@
 supervisord -c supervisord.ini
-python init_system.py
 if [ $run_upgrade == 1 ]; then
   echo "检查升级版本"
   # 执行命令，检查升级版本
   pip install --upgrade ez-etl
   pip install --upgrade akshare
 fi
+python init_system.py
 if [ $run_web == 1 ]; then
   echo "开启web服务"
   # 执行命令，开启web服务

@@ -51,6 +51,8 @@ spec:
               value: "{{ .Values.worker.env.read_env }}"
             - name: ENV
               value: "{{ .Values.worker.env.ENV }}"
+            - name: run_upgrade
+              value: "{{ .Values.worker.env.run_upgrade }}"
             - name: run_web
               value: "{{ .Values.worker.env.run_web }}"
             - name: web_worker
