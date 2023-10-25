@@ -31,7 +31,7 @@ data:
     ES_PWD={{.Values.externalElasticSearch.password}}
     {{- end }}
     {{- if .Values.elasticsearch.enabled }}
-    ES_HOSTS="[{\"host\": \"{{.Values.elasticsearch.service.clusterIP}}\", \"port\": 9200}]"
+    ES_HOSTS=Values.elasticsearch.service.clusterIP:9200
     ES_USER=
     ES_PWD=
     {{- end }}

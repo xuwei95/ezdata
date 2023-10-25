@@ -75,7 +75,7 @@ def init_tables():
                 with open(SQL_FILE, "r", encoding="utf-8") as file:
                     sql_script = file.read()
                 # 执行SQL脚本
-                for query in sql_script.split(';'):
+                for query in sql_script.split(';\n'):
                     print(query)
                     if query and query.strip() != '':
                         cursor.execute(query)
@@ -93,7 +93,7 @@ if __name__ == '__main__':
     retry_num = 3
     retry = 1
     flag = True
-    while retry <= retry_num:
+    while retry < retry_num:
         flag = init_db() and flag
         flag = init_tables() and flag
         flag = check_bucket() and flag
@@ -101,3 +101,4 @@ if __name__ == '__main__':
             break
         time.sleep(5)
         retry += 1
+        print(f"第{retry}次初始化")

@@ -60,34 +60,39 @@ class SysInfoService(object):
         :param req_dict:
         :return:
         '''
-        es_client = EsClient(**ES_CONF)
         # 任务执行数统计
         now = get_now_time()
         today = format_date(now, format='%Y-%m-%d 00:00:00', res_type='datetime')
         today_ts = format_date(now, format='%Y-%m-%d 00:00:00', res_type='timestamp') - 3600 * 8
         task_count = db.session.query(TaskInstance).filter(TaskInstance.start_time >= today).count()
         model_count = db.session.query(DataModel).filter(DataModel.del_flag == 0).count()
-        visit_query_dict = {
-            'index_name': SYS_LOG_INDEX,
-            'gte[@timestamp]': today_ts * 1000,
-            'pagesize': 0
-        }
-        es_query_tool = EsQueryTool(visit_query_dict)
-        res_data = es_query_tool.query(es=es_client)
-        if res_data.get('code') == 200:
-            visit_count = res_data['data']['total']
-        else:
+        try:
+            es_client = EsClient(**ES_CONF)
+            visit_query_dict = {
+                'index_name': SYS_LOG_INDEX,
+                'gte[@timestamp]': today_ts * 1000,
+                'pagesize': 0
+            }
+            es_query_tool = EsQueryTool(visit_query_dict)
+            res_data = es_query_tool.query(es=es_client)
+            if res_data.get('code') == 200:
+                visit_count = res_data['data']['total']
+            else:
+                visit_count = 0
+            interface_query_dict = {
+                'index_name': INTERFACE_LOG_INDEX,
+                'gte[@timestamp]': today_ts * 1000,
+                'pagesize': 0
+            }
+            es_query_tool = EsQueryTool(interface_query_dict)
+            res_data = es_query_tool.query(es=es_client)
+            if res_data.get('code') == 200:
+                interface_count = res_data['data']['total']
+            else:
+                interface_count = 0
+        except Exception as e:
+            print(f'es连接错误{e}')
             visit_count = 0
-        interface_query_dict = {
-            'index_name': INTERFACE_LOG_INDEX,
-            'gte[@timestamp]': today_ts * 1000,
-            'pagesize': 0
-        }
-        es_query_tool = EsQueryTool(interface_query_dict)
-        res_data = es_query_tool.query(es=es_client)
-        if res_data.get('code') == 200:
-            interface_count = res_data['data']['total']
-        else:
             interface_count = 0
         res_data = [
             {
