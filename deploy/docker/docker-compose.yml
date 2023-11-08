@@ -14,7 +14,7 @@ services:
     networks:
       ezdata:
         ipv4_address: 10.233.31.0
-  api:
+  master:
     image: "ezdata123/ezdata:1.0.1"  # docker镜像名及版本
     container_name: ezdata_master  # 服务容器
     volumes: # 挂载目录
