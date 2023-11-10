@@ -66,7 +66,7 @@ if __name__ == '__main__':
     params = {
         'code': 'print("Hello World")',
         'language': 'python',
-        'master': '124.220.57.72:8081',
+        'master': '127.0.0.1:8081',
         'concurrency': 1,
     }
     runner = FlinkTaskRunner(params, logger)

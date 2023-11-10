@@ -48,7 +48,7 @@ ezdata 是基于python后端和vue3前端开发的低代码数据处理和任务
 ![输入图片说明](https://raw.githubusercontent.com/xuwei95/ezdata_press/master/images/task_scheduler.png?raw=true "在这里输入图片标题")
 
 ##### dag任务工作流
-![输入图片说明](https://raw.githubusercontent.com/xuwei95/ezdata_press/master/images/dag.png?raw=true "在这里输入图片标题")
+![输入图片说明](https://raw.githubusercontent.com/xuwei95/ezdata_press/master/images/dag_detail.png?raw=true "在这里输入图片标题")
 
 ##### worker执行节点管理
 ![输入图片说明](https://raw.githubusercontent.com/xuwei95/ezdata_press/master/images/worker_ops.png?raw=true "在这里输入图片标题")
