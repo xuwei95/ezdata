@@ -1,7 +1,7 @@
 version: "3"  # docker-compose版本
 services:
   server: # docker-compose编排名称，一般同微服务名称，注意不要与其>他服务重名
-    image: "ezdata123/ezdata:1.0.1"  # docker镜像名及版本
+    image: "ezdata123/ezdata"  # docker镜像名及版本
     container_name: ezdata  # 服务容器
     volumes: # 挂载目录
       - /opt/ezdata:/opt/ezdata
