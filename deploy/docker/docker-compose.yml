@@ -2,7 +2,7 @@ version: "3"  # docker-compose版本
 services:
   # nginx
   web:
-    image: "ezdata123/ezdata-web"     # 镜像名称
+    image: "ezdata123/ezdata-web:1.0.1"     # 镜像名称
     container_name: ezdata_web     # 容器名字
     restart: always     # 开机自动重启
     ports:
@@ -15,7 +15,7 @@ services:
       ezdata:
         ipv4_address: 10.233.31.0
   master:
-    image: "ezdata123/ezdata"  # docker镜像名及版本
+    image: "ezdata123/ezdata:1.0.1"  # docker镜像名及版本
     container_name: ezdata_master  # 服务容器
     volumes: # 挂载目录
       - ./deploy.env:/opt/ezdata/deploy.env
@@ -49,7 +49,7 @@ services:
       - minio
       - elasticsearch
   scheduler: # docker-compose编排名称，一般同微服务名称，注意不要与其>他服务重名
-    image: "ezdata123/ezdata"  # docker镜像名及版本
+    image: "ezdata123/ezdata:1.0.1"  # docker镜像名及版本
     container_name: ezdata_scheduler  # 服务容器
     volumes: # 挂载目录
       - ./deploy.env:/opt/ezdata/deploy.env
