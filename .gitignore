@@ -127,6 +127,7 @@ tmp/
 *.config.py
 prod.env
 tests/etl_tests
+tests/llm_tests
 deploy/docker/elasticsearch/
 deploy/docker/minio/
 deploy/docker/mysql/

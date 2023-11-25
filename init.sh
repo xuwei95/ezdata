@@ -2,8 +2,9 @@ supervisord -c supervisord.ini
 if [ $run_upgrade == 1 ]; then
   echo "检查升级版本"
   # 执行命令，检查升级版本
-  pip install --upgrade ez-etl -i https://pypi.doubanio.com/simple
   pip install --upgrade akshare -i https://pypi.doubanio.com/simple
+  pip install --upgrade ccxt -i https://pypi.doubanio.com/simple
+  pip install --upgrade ez-etl[all] -i https://pypi.doubanio.com/simple
 fi
 python init_system.py
 if [ $run_web == 1 ]; then
