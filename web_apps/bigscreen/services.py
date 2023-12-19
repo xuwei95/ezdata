@@ -93,6 +93,7 @@ class ScreenService(object):
         obj.index_image = req_dict.get('indexImage', '')
         set_insert_user(obj)
         db.session.add(obj)
+        db.session.commit()
         db.session.flush()
         res_data = serialize_screen(obj, ser_type='list')
         return gen_json_response(data=res_data, msg='添加成功。')
@@ -121,6 +122,7 @@ class ScreenService(object):
             obj.index_image = index_image
         set_update_user(obj)
         db.session.add(obj)
+        db.session.commit()
         db.session.flush()
         return gen_json_response(code=200, msg='更新成功。')
 
@@ -138,6 +140,7 @@ class ScreenService(object):
             obj.project_name = project_name
         set_update_user(obj)
         db.session.add(obj)
+        db.session.commit()
         db.session.flush()
         return gen_json_response(code=200, msg='更新成功。')
 
@@ -152,6 +155,7 @@ class ScreenService(object):
         obj.state = req_dict.get('state')
         set_update_user(obj)
         db.session.add(obj)
+        db.session.commit()
         db.session.flush()
         return gen_json_response(code=200, msg='更新成功。')
 
@@ -171,5 +175,6 @@ class ScreenService(object):
             del_obj.del_flag = 1
             set_update_user(del_obj)
             db.session.add(del_obj)
+            db.session.commit()
             db.session.flush()
         return gen_json_response(code=200, msg='删除成功。')

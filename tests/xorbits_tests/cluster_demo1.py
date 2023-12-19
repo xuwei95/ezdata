@@ -5,6 +5,6 @@ import xorbits
 import xorbits.numpy as np
 # import numpy as np
 st = time.time()
-print(np.random.rand(100000, 10000).mean())
+print(np.random.rand(100000, 100000).mean())
 et = time.time()
 print(et - st)

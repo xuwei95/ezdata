@@ -217,6 +217,7 @@ def gen_add_api_code(params):
         ${gen_id_code}
         set_insert_user(obj)
         db.session.add(obj)
+        db.session.commit()
         db.session.flush()
         return gen_json_response(msg='添加成功', extends={'success': True})
     """
@@ -279,6 +280,7 @@ def gen_edit_api_code(params):
                 setattr(obj, key, req_dict[key])
         set_update_user(obj)
         db.session.add(obj)
+        db.session.commit()
         db.session.flush()
         return gen_json_response(msg='编辑成功', extends={'success': True})
     """
@@ -331,6 +333,7 @@ def gen_delete_api_code(params):
         del_obj.del_flag = 1
         set_update_user(del_obj)
         db.session.add(del_obj)
+        db.session.commit()
         db.session.flush()
         return gen_json_response(code=200, msg='删除成功', extends={'success': True})
     """
@@ -357,6 +360,7 @@ def gen_deleteBatch_api_code(params):
             del_obj.del_flag = 1
             set_update_user(del_obj)
             db.session.add(del_obj)
+            db.session.commit()
             db.session.flush()
         return gen_json_response(code=200, msg='删除成功', extends={'success': True})
     """
@@ -405,6 +409,7 @@ def gen_importExcel_api_code(params):
                 ${gen_id_code}
                 set_insert_user(obj)
                 db.session.add(obj)
+                db.session.commit()
                 db.session.flush()
             return gen_json_response(code=200, msg='导入成功', extends={'success': True})
         except Exception as e:

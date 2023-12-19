@@ -416,6 +416,7 @@ class TaskApiService(object):
         obj.id = gen_uuid(res_type='base')
         set_insert_user(obj)
         db.session.add(obj)
+        db.session.commit()
         db.session.flush()
         # 将任务加入调度
         if obj.status == 1:
@@ -448,6 +449,7 @@ class TaskApiService(object):
                 setattr(obj, key, req_dict[key])
         set_update_user(obj)
         db.session.add(obj)
+        db.session.commit()
         db.session.flush()
         if is_scheduler and obj.status == 1:
             # 将任务加入调度
@@ -471,6 +473,7 @@ class TaskApiService(object):
         obj.status = 1 if obj.status == 0 else 0
         set_update_user(obj)
         db.session.add(obj)
+        db.session.commit()
         db.session.flush()
         # 添加或删除定时任务job
         if obj.status == 1:
@@ -492,6 +495,7 @@ class TaskApiService(object):
         del_obj.del_flag = 1
         set_update_user(del_obj)
         db.session.add(del_obj)
+        db.session.commit()
         db.session.flush()
         scheduler_res = remove_job([obj_id])
         print(scheduler_res)
@@ -509,6 +513,7 @@ class TaskApiService(object):
             del_obj.del_flag = 1
             set_update_user(del_obj)
             db.session.add(del_obj)
+            db.session.commit()
             db.session.flush()
             scheduler_res = remove_job([del_obj.id])
             print(scheduler_res)
@@ -548,6 +553,7 @@ class TaskApiService(object):
                 obj.id = gen_uuid(res_type='base')
                 set_insert_user(obj)
                 db.session.add(obj)
+                db.session.commit()
                 db.session.flush()
             return gen_json_response(code=200, msg='导入成功', extends={'success': True})
         except Exception as e:

@@ -86,6 +86,7 @@ class CodeGenApiService(object):
         obj.id = gen_uuid(res_type='base')
         set_insert_user(obj)
         db.session.add(obj)
+        db.session.commit()
         db.session.flush()
         res_data = serialize_code_gen_model(obj, ser_type='list')
         return gen_json_response(data=res_data, msg='添加成功')
@@ -113,6 +114,7 @@ class CodeGenApiService(object):
                     setattr(obj, key, req_dict[key])
         set_update_user(obj)
         db.session.add(obj)
+        db.session.commit()
         db.session.flush()
         return gen_json_response(code=200, msg='更新成功')
 
@@ -131,6 +133,7 @@ class CodeGenApiService(object):
             del_obj.del_flag = 1
             set_update_user(del_obj)
             db.session.add(del_obj)
+            db.session.commit()
             db.session.flush()
         return gen_json_response(code=200, msg='删除成功')
 

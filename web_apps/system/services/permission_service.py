@@ -9,7 +9,7 @@ from utils.auth import encode_auth_token, set_insert_user, set_update_user, get_
 from utils.web_utils import get_user_ip, validate_params
 from utils.common_utils import get_now_time, gen_json_response
 from utils.query_utils import get_base_query
-from config import LOGGER_TYPE
+from config import SYS_CONF
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy import or_
 
@@ -153,7 +153,7 @@ def get_permission_children(permission_obj, obj_list, ser_type='list'):
     for obj in child_objs:
         dic = serialize_permission(obj, ser_type)
         # 根据是否开启es日志，过滤日志菜单
-        if obj.url == '/ops/log' and LOGGER_TYPE != "es":
+        if obj.url == '/ops/log' and SYS_CONF.get('LOGGER_TYPE') != "es":
             continue
         child = get_permission_children(obj, obj_list, ser_type)
         if child:
@@ -265,10 +265,19 @@ class PerMissionService(object):
             dic = serialize_permission(obj, 'auth')
             result.append(dic)
         # 根据是否开启es日志，添加日志权限
-        if LOGGER_TYPE == "es":
+        if SYS_CONF.get('LOGGER_TYPE') == "es":
             dic = {
                 "action": "task:log",
                 "describe": "查看任务日志",
+                "type": "1",
+                "status": "1"
+            }
+            result.append(dic)
+        # 根据是否开启llm模块，添加llm相关权限
+        if SYS_CONF.get('LLM_TYPE'):
+            dic = {
+                "action": "llm:data:chat",
+                "describe": "数据对话",
                 "type": "1",
                 "status": "1"
             }
@@ -289,10 +298,19 @@ class PerMissionService(object):
             dic = serialize_permission(obj, 'auth')
             result.append(dic)
         # 根据是否开启es日志，添加日志权限
-        if LOGGER_TYPE == "es":
+        if SYS_CONF.get('LOGGER_TYPE') == "es":
             dic = {
                 "action": "task:log",
                 "describe": "查看任务日志",
+                "type": "1",
+                "status": "1"
+            }
+            result.append(dic)
+        # 根据是否开启llm模块，添加llm相关权限
+        if SYS_CONF.get('LLM_TYPE'):
+            dic = {
+                "action": "llm:data:chat",
+                "describe": "数据对话",
                 "type": "1",
                 "status": "1"
             }
@@ -350,6 +368,7 @@ class PerMissionService(object):
         role_obj.permissions = json.dumps(permissionIds)
         set_insert_user(role_obj)
         db.session.add(role_obj)
+        db.session.commit()
         db.session.flush()
         return gen_json_response(msg='操作成功', extends={'success': True})
 
@@ -382,6 +401,7 @@ class PerMissionService(object):
         depart_obj.permissions = json.dumps(permissionIds)
         set_insert_user(depart_obj)
         db.session.add(depart_obj)
+        db.session.commit()
         db.session.flush()
         return gen_json_response(msg='操作成功', extends={'success': True})
 
@@ -397,6 +417,7 @@ class PerMissionService(object):
             setattr(obj, k, req_dict[k])
         set_insert_user(obj)
         db.session.add(obj)
+        db.session.commit()
         db.session.flush()
         return gen_json_response(msg='添加成功!', extends={'success': True})
 
@@ -417,6 +438,7 @@ class PerMissionService(object):
         obj.is_leaf = 1 if child_objs == [] else 0
         set_update_user(obj)
         db.session.add(obj)
+        db.session.commit()
         db.session.flush()
         return gen_json_response(msg='更新成功!', extends={'success': True})
 
@@ -435,5 +457,6 @@ class PerMissionService(object):
             del_obj.del_flag = 1
             set_update_user(del_obj)
             db.session.add(del_obj)
+            db.session.commit()
             db.session.flush()
         return gen_json_response(msg='删除成功!', extends={'success': True})

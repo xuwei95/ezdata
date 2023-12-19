@@ -221,10 +221,12 @@ class DepartService(object):
             setattr(obj, k, req_dict[k])
         set_insert_user(obj)
         db.session.add(obj)
+        db.session.commit()
         db.session.flush()
         if 'depart_code' not in req_dict:
             obj.org_code = f"org_{obj.id}"
         db.session.add(obj)
+        db.session.commit()
         db.session.flush()
         return gen_json_response(msg='添加成功!', extends={'success': True})
 
@@ -245,6 +247,7 @@ class DepartService(object):
         obj.is_leaf = 1 if child_objs == [] else 0
         set_update_user(obj)
         db.session.add(obj)
+        db.session.commit()
         db.session.flush()
         return gen_json_response(msg='更新成功!', extends={'success': True})
 
@@ -263,6 +266,7 @@ class DepartService(object):
             del_obj.del_flag = 1
             set_update_user(del_obj)
             db.session.add(del_obj)
+            db.session.commit()
             db.session.flush()
         return gen_json_response(msg='删除成功。', extends={'success': True})
 

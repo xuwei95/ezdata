@@ -1,6 +1,8 @@
 '''
 web app注册字典
 '''
+from config import SYS_CONF
+
 BLUEPRINT_DICT = {
     'sys': {
         'blueprint': 'web_apps.system.views.system_views.system_bp',
@@ -85,6 +87,11 @@ BLUEPRINT_DICT = {
     'alert_strategy': {
         'blueprint': 'web_apps.alert.strategy_views.alert_strategy_bp',
         'url_prefix': '/api/alert_strategy'
-    }
+    },
 }
-
+# 根据是否开启llm模块，添加llm模块
+if SYS_CONF.get('LLM_TYPE'):
+    BLUEPRINT_DICT['llm'] = {
+        'blueprint': 'web_apps.llm.views.llm_bp',
+        'url_prefix': '/api/llm'
+    }

@@ -66,6 +66,7 @@ class DataModelQueryApiService(object):
                 print(res)
             set_update_user(obj)
             db.session.add(obj)
+            db.session.commit()
             db.session.flush()
         if operate == 'create':
             field_objs = get_base_query(DataModelField).filter(DataModelField.datamodel_id == obj_id).all()
@@ -82,6 +83,7 @@ class DataModelQueryApiService(object):
                 obj.status = 1
                 set_update_user(obj)
                 db.session.add(obj)
+                db.session.commit()
                 db.session.flush()
             else:
                 return gen_json_response(code=400, msg=res)
@@ -91,6 +93,7 @@ class DataModelQueryApiService(object):
                 obj.status = 0
                 set_update_user(obj)
                 db.session.add(obj)
+                db.session.commit()
                 db.session.flush()
             else:
                 return gen_json_response(code=400, msg=res)

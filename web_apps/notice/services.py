@@ -138,6 +138,7 @@ class NoticeService(object):
         set_insert_user(obj)
         obj.sender = obj.create_by
         db.session.add(obj)
+        db.session.commit()
         db.session.flush()
         NoticeSendService().handle_notice(obj)
         return gen_json_response(msg='添加成功。', extends={'success': True})
@@ -163,6 +164,7 @@ class NoticeService(object):
             del_obj.del_flag = 1
             set_update_user(del_obj)
             db.session.add(del_obj)
+            db.session.commit()
             db.session.flush()
         return gen_json_response(msg='删除成功。')
 
@@ -218,6 +220,7 @@ class NoticeSendService(object):
             obj.read_flag = req_dict.get('read_flag')
         set_update_user(obj)
         db.session.add(obj)
+        db.session.commit()
         db.session.flush()
         return gen_json_response(msg='更新成功!')
 
@@ -244,6 +247,7 @@ class NoticeSendService(object):
             else:
                 set_insert_user(send_obj)
             db.session.add(send_obj)
+            db.session.commit()
             db.session.flush()
             print(f'send notice:{notice_id}, {user_id}')
         notice_obj.send_status = 1
@@ -253,6 +257,7 @@ class NoticeSendService(object):
         else:
             set_update_user(notice_obj)
         db.session.add(notice_obj)
+        db.session.commit()
         db.session.flush()
 
 

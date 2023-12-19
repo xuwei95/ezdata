@@ -34,6 +34,7 @@ def handle_alert_forward(alert_obj, forward_conf_list):
                     msg_abstract='系统告警转通知'
                 )
                 db.session.add(notice_obj)
+                db.session.commit()
                 db.session.flush()
                 NoticeSendService().handle_notice(notice_obj, is_sys=True)
             if forward_type == 'webhook':

@@ -56,6 +56,7 @@ class FileService(object):
             setattr(obj, k, req_dict[k])
         set_insert_user(obj)
         db.session.add(obj)
+        db.session.commit()
         db.session.flush()
         res_data = {
             'url': obj.url,
@@ -77,6 +78,7 @@ class FileService(object):
         else:
             set_update_user(obj)
         db.session.add(obj)
+        db.session.commit()
         db.session.flush()
         res_data = {
             'url': obj.url,
@@ -99,5 +101,6 @@ class FileService(object):
             del_obj.del_flag = 1
             set_update_user(del_obj)
             db.session.add(del_obj)
+            db.session.commit()
             db.session.flush()
         return gen_json_response(msg='删除成功。')

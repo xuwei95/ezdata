@@ -60,6 +60,7 @@ def get_task_instance(uuid, task_obj_id, set_params={}):
     for k, v in set_params.items():
         setattr(task_instance_obj, k, v)
     db.session.add(task_instance_obj)
+    db.session.commit()
     db.session.flush()
     return task_instance_obj
 
@@ -73,6 +74,7 @@ def update_task_instance(task_instance_obj, update_info=None):
     for k, v in update_info.items():
         setattr(task_instance_obj, k, v)
     db.session.add(task_instance_obj)
+    db.session.commit()
     db.session.flush()
 
 
@@ -120,6 +122,7 @@ def set_task_running_id(task_obj, running_id):
     '''
     task_obj.running_id = running_id
     db.session.add(task_obj)
+    db.session.commit()
     db.session.flush()
 
 

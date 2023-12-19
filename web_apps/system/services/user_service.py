@@ -194,6 +194,7 @@ class UserService(object):
             user_obj.depart_id_list = json.dumps(depart_id_list)
             set_update_user(user_obj)
             db.session.add(user_obj)
+            db.session.commit()
             db.session.flush()
         return gen_json_response(msg='操作成功。', extends={'success': True})
 
@@ -215,6 +216,7 @@ class UserService(object):
             user_obj.depart_id_list = json.dumps(depart_id_list)
             set_update_user(user_obj)
             db.session.add(user_obj)
+            db.session.commit()
             db.session.flush()
         return gen_json_response(msg='操作成功。', extends={'success': True})
     
@@ -232,6 +234,7 @@ class UserService(object):
         user_obj.tenant_id = tenant_id
         set_update_user(user_obj)
         db.session.add(user_obj)
+        db.session.commit()
         db.session.flush()
         role_id_list = json.loads(user_obj.role_id_list)
         role_objs = get_base_query(Role).filter(Role.id.in_(role_id_list))
@@ -317,6 +320,7 @@ class UserService(object):
             user_obj.role_id_list = json.dumps(role_id_list)
             set_update_user(user_obj)
             db.session.add(user_obj)
+            db.session.commit()
             db.session.flush()
         return gen_json_response(msg='操作成功。', extends={'success': True})
 
@@ -338,6 +342,7 @@ class UserService(object):
             user_obj.role_id_list = json.dumps(role_id_list)
             set_update_user(user_obj)
             db.session.add(user_obj)
+            db.session.commit()
             db.session.flush()
         return gen_json_response(msg='操作成功。', extends={'success': True})
 
@@ -356,6 +361,7 @@ class UserService(object):
             obj.status = status
             set_update_user(obj)
             db.session.add(obj)
+            db.session.commit()
             db.session.flush()
         return gen_json_response(msg='操作成功。', extends={'success': True})
 
@@ -377,6 +383,7 @@ class UserService(object):
             user.password = generate_password_hash(password)
             set_update_user(user)
             db.session.add(user)
+            db.session.commit()
             db.session.flush()
             res_data = gen_json_response(msg='修改成功!', extends={'success': True})
         return res_data
@@ -402,6 +409,7 @@ class UserService(object):
                 user.password = generate_password_hash(password)
                 set_update_user(user)
                 db.session.add(user)
+                db.session.commit()
                 db.session.flush()
                 res_data = gen_json_response(msg='修改成功!', extends={'success': True})
             else:
@@ -431,6 +439,7 @@ class UserService(object):
             user.login_ip = get_user_ip()
             set_insert_user(user, 'system')
             db.session.add(user)
+            db.session.commit()
             db.session.flush()
             role_id_list = json.loads(user.role_id_list)
             role_objs = get_base_query(Role).filter(Role.id.in_(role_id_list))
@@ -477,6 +486,7 @@ class UserService(object):
                 if tenant_objs:
                     user.tenant_id = str(tenant_objs[0].id)
             db.session.add(user)
+            db.session.commit()
             db.session.flush()
             role_id_list = json.loads(user.role_id_list)
             role_objs = get_base_query(Role).filter(Role.id.in_(role_id_list))
@@ -584,6 +594,7 @@ class UserService(object):
             setattr(obj, k, json.dumps(li))
         set_insert_user(obj)
         db.session.add(obj)
+        db.session.commit()
         db.session.flush()
         return gen_json_response(msg='添加成功。', extends={'success': True})
 
@@ -605,6 +616,7 @@ class UserService(object):
             setattr(obj, k, json.dumps(li))
         set_update_user(obj)
         db.session.add(obj)
+        db.session.commit()
         db.session.flush()
         return gen_json_response(msg='更新成功。', extends={'success': True})
 
@@ -623,6 +635,7 @@ class UserService(object):
                 setattr(user_obj, k, req_dict.get(k))
         set_update_user(user_obj)
         db.session.add(user_obj)
+        db.session.commit()
         db.session.flush()
         return gen_json_response(msg='更新成功。', extends={'success': True})
 
@@ -641,5 +654,6 @@ class UserService(object):
             del_obj.del_flag = 1
             set_update_user(del_obj)
             db.session.add(del_obj)
+            db.session.commit()
             db.session.flush()
         return gen_json_response(msg='删除成功。', extends={'success': True})

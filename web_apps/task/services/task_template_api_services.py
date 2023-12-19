@@ -128,6 +128,7 @@ class TaskTemplateApiService(object):
         obj.id = gen_uuid(res_type='base')
         set_insert_user(obj)
         db.session.add(obj)
+        db.session.commit()
         db.session.flush()
         return gen_json_response(msg='添加成功', extends={'success': True})
     
@@ -160,6 +161,7 @@ class TaskTemplateApiService(object):
             obj.icon = 'https://gw.alipayobjects.com/mdn/rms_43231b/afts/img/A*evDjT5vjkX0AAAAAAAAAAAAAARQnAQ'
         set_update_user(obj)
         db.session.add(obj)
+        db.session.commit()
         db.session.flush()
         return gen_json_response(msg='编辑成功', extends={'success': True})
     
@@ -174,6 +176,7 @@ class TaskTemplateApiService(object):
         del_obj.del_flag = 1
         set_update_user(del_obj)
         db.session.add(del_obj)
+        db.session.commit()
         db.session.flush()
         return gen_json_response(code=200, msg='删除成功', extends={'success': True})
     
@@ -189,6 +192,7 @@ class TaskTemplateApiService(object):
             del_obj.del_flag = 1
             set_update_user(del_obj)
             db.session.add(del_obj)
+            db.session.commit()
             db.session.flush()
         return gen_json_response(code=200, msg='删除成功', extends={'success': True})
 
@@ -203,6 +207,7 @@ class TaskTemplateApiService(object):
         obj.status = 1 if obj.status == 0 else 0
         set_update_user(obj)
         db.session.add(obj)
+        db.session.commit()
         db.session.flush()
         return gen_json_response(msg='操作成功', extends={'success': True})
 
@@ -248,6 +253,7 @@ class TaskTemplateApiService(object):
                 obj.id = gen_uuid(res_type='base')
                 set_insert_user(obj)
                 db.session.add(obj)
+                db.session.commit()
                 db.session.flush()
             return gen_json_response(code=200, msg='导入成功', extends={'success': True})
         except Exception as e:

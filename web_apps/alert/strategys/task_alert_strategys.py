@@ -50,6 +50,7 @@ def handle_task_fail_alert(task_conf):
             create_by='system'
         )
         db.session.add(alert_obj)
+        db.session.commit()
         db.session.flush()
         # 处理告警转发
         forward_conf_list = parse_json(alert_strategy_obj.forward_conf)

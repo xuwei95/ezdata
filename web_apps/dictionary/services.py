@@ -92,6 +92,7 @@ class DictService(object):
         obj.description = req_dict.get('description', '')
         set_insert_user(obj)
         db.session.add(obj)
+        db.session.commit()
         db.session.flush()
         return gen_json_response(code=200, msg='添加成功。')
 
@@ -114,6 +115,7 @@ class DictService(object):
         obj.description = req_dict.get('description', '')
         set_update_user(obj)
         db.session.add(obj)
+        db.session.commit()
         db.session.flush()
         return gen_json_response(code=200, msg='更新成功。')
 
@@ -132,6 +134,7 @@ class DictService(object):
             del_obj.del_flag = 1
             set_update_user(del_obj)
             db.session.add(del_obj)
+            db.session.commit()
             db.session.flush()
         return gen_json_response(code=200, msg='删除成功。')
 
@@ -179,6 +182,7 @@ class DictService(object):
         del_objs = db.session.query(Dict).filter(Dict.id.in_(del_ids)).all()
         for del_obj in del_objs:
             db.session.delete(del_obj)
+            db.session.commit()
             db.session.flush()
         return gen_json_response(msg='删除成功。')
 
@@ -202,6 +206,7 @@ class DictService(object):
             del_obj.del_flag = 0
             set_update_user(del_obj)
             db.session.add(del_obj)
+            db.session.commit()
             db.session.flush()
         return gen_json_response(msg='恢复成功！')
 
@@ -295,6 +300,7 @@ class DictItemService(object):
         obj.sort_no = req_dict.get('sort_no', 1)
         set_insert_user(obj)
         db.session.add(obj)
+        db.session.commit()
         db.session.flush()
         return gen_json_response(msg='添加成功!')
 
@@ -331,6 +337,7 @@ class DictItemService(object):
         obj.sort_no = req_dict.get('sort_no', 1)
         set_update_user(obj)
         db.session.add(obj)
+        db.session.commit()
         db.session.flush()
         return gen_json_response(msg='更新成功!')
 
@@ -349,6 +356,7 @@ class DictItemService(object):
             del_obj.del_flag = 1
             set_update_user(del_obj)
             db.session.add(del_obj)
+            db.session.commit()
             db.session.flush()
         return gen_json_response(msg='删除成功!')
 

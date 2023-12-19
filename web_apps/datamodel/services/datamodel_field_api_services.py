@@ -93,6 +93,7 @@ class DataModelFieldApiService(object):
                 field_obj.ext_params = json.dumps(parse_json(field.get('ext_params', {}), {}))
                 field_obj.is_sync = 1
                 db.session.add(field_obj)
+                db.session.commit()
                 db.session.flush()
         return gen_json_response(msg='同步成功！', extends={'success': True})
 
@@ -228,6 +229,7 @@ class DataModelFieldApiService(object):
         obj.id = gen_uuid(res_type='base')
         set_insert_user(obj)
         db.session.add(obj)
+        db.session.commit()
         db.session.flush()
         return gen_json_response(msg='添加成功', extends={'success': True})
     
@@ -259,6 +261,7 @@ class DataModelFieldApiService(object):
                 setattr(obj, key, req_dict[key])
         set_update_user(obj)
         db.session.add(obj)
+        db.session.commit()
         db.session.flush()
         return gen_json_response(msg='编辑成功', extends={'success': True})
     
@@ -273,6 +276,7 @@ class DataModelFieldApiService(object):
         del_obj.del_flag = 1
         set_update_user(del_obj)
         db.session.add(del_obj)
+        db.session.commit()
         db.session.flush()
         return gen_json_response(code=200, msg='删除成功', extends={'success': True})
     
@@ -288,6 +292,7 @@ class DataModelFieldApiService(object):
             del_obj.del_flag = 1
             set_update_user(del_obj)
             db.session.add(del_obj)
+            db.session.commit()
             db.session.flush()
         return gen_json_response(code=200, msg='删除成功', extends={'success': True})
     
@@ -341,6 +346,7 @@ class DataModelFieldApiService(object):
                 obj.id = gen_uuid(res_type='base')
                 set_insert_user(obj)
                 db.session.add(obj)
+                db.session.commit()
                 db.session.flush()
             return gen_json_response(code=200, msg='导入成功', extends={'success': True})
         except Exception as e:

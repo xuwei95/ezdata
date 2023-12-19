@@ -62,6 +62,7 @@ class ${model_value}(${extend_model}):
 
 if __name__ == '__main__':
     db.create_all()
+    db.session.commit()
     db.session.flush()
     """
     fields = params['fields']
