@@ -15,5 +15,5 @@ RUN apt install -y tzdata \
 WORKDIR /opt/ezdata
 ADD . /opt/ezdata
 RUN cd /opt/ezdata
-RUN pip install -r /opt/ezdata/requirements.txt
+RUN pip install -r /opt/ezdata/requirements.txt --no-deps --use-deprecated=legacy-resolver
 CMD ["tail -f /dev/null"]
