@@ -34,4 +34,4 @@ pandasai
 langchain
 faiss-cpu
 #其他
-ez-etl[all]
+ez-etl[all]>=1.0.22
