@@ -13,19 +13,23 @@ PyJWT==1.7.1
 SQLAlchemy
 flask_sqlalchemy
 # 工具库
-sshtunnel==0.4.0
-python-dateutil==2.8.2
-pandas==2.0.3
-xorbits==0.3.2
-pyarrow==12.0.0
-openpyxl==3.0.9
-retrying==1.3.3
+sshtunnel
+python-dateutil
+pandas>=2.0.3
+xorbits>=0.3.2
+pyarrow>=12.0.0
+openpyxl>=3.0.9
+retrying>=1.3.3
 xlrd==1.2.0
-pypinyin==0.44.0
+pypinyin
+pyecharts
 #中间件连接库
 minio==7.1.1
 pymysql==1.0.2
 elasticsearch==7.17.2
 redis==4.0.2
+# llm相关
+pandasai
+langchain
 #其他
 ez-etl[all]

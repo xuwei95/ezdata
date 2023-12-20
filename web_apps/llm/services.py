@@ -95,7 +95,7 @@ def data_chat(req_dict):
         "response_parser": MyResponseParser
     })
     question_prompt = "若不是返回数据，请使用中文回答对应问题。" \
-                      "如果问题是绘图相关需求，只允许使用pyecharts库绘制，请直接使用render_embed()函数返回对应html文本，禁止使用snapshot_selenium库。" \
+                      "如果问题是绘图相关需求，只允许使用pyecharts库绘制，请直接使用render_embed()函数返回对应html文本，禁止使用snapshot_相关函数。" \
                       "在生成代码时,禁止使用mock数据，如果返回值'result'中type是plot，请改为string"
     question = f"{question} {question_prompt}"
     result = agent.chat(question)
