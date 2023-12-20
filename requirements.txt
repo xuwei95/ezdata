@@ -10,8 +10,8 @@ flaREDACTEDapscheduler==1.12.2
 flask_cors==3.0.10
 gunicorn==20.1.0
 PyJWT==1.7.1
-SQLAlchemy
-flask_sqlalchemy
+SQLAlchemy>=2.0.23
+flask_sqlalchemy>=3.1.1
 # 工具库
 sshtunnel
 python-dateutil
@@ -28,6 +28,7 @@ minio==7.1.1
 pymysql==1.0.2
 elasticsearch==7.17.2
 redis==4.0.2
+kafka-python==2.0.2
 # llm相关
 pandasai
 langchain

@@ -6,7 +6,6 @@ LLM_TYPE = SYS_CONF.get('LLM_TYPE', 'openai')
 LLM_URL = SYS_CONF.get('LLM_URL', 'https://api.openai.com/v1')
 LLM_API_KEY = SYS_CONF.get('LLM_API_KEY', '')
 LLM_MODEL = SYS_CONF.get('LLM_MODEL', '')
-print(SYS_CONF)
 
 
 def get_llm():
