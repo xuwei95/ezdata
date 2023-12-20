@@ -82,3 +82,10 @@ data:
     SECRET_KEY='erwqefdscweer)qidq1'
     # xorbits集群地址 local为本地
     XORBITS_CLUSTER=local
+    # llm 相关配置
+    {{- if .Values.llm.enabled }}
+    LLM_TYPE={{.Values.llm.type}}
+    LLM_URL={{.Values.llm.url}}
+    LLM_API_KEY={{.Values.llm.api_key}}
+    LLM_MODEL={{.Values.llm.model}}
+    {{- end }}

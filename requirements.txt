@@ -31,5 +31,6 @@ redis==4.0.2
 # llm相关
 pandasai
 langchain
+faiss-cpu
 #其他
 ez-etl[all]
