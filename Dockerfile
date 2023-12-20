@@ -1,4 +1,4 @@
-FROM continuumio/miniconda3:latest
+FROM continuumio/miniconda3:23.3.1-0
 ENV LANG C.UTF-8
 ENV TZ=Asia/Shanghai
 ENV DEBIAN_FRONTEND=noninteractive
