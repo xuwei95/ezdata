@@ -1,3 +1,4 @@
+unlink /var/run/supervisor.sock
 supervisord -c supervisord.ini
 if [ $run_upgrade == 1 ]; then
   echo "检查升级版本"
