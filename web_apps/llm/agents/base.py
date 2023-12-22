@@ -150,6 +150,15 @@ class MyExplainPrompt(AbstractPrompt):
         self.set_var("code", code)
 
 
+class NoneCache:
+    """
+    空cache类
+    """
+
+    def __init__(self, filename="cache_db", abs_path=None):
+        pass
+
+
 class MyPandasAgent(Agent):
 
     def explain(self) -> str:

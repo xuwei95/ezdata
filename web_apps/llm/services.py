@@ -1,6 +1,6 @@
 import pandas as pd
 from pandasai import SmartDataframe
-from web_apps.llm.agents.base import MyPandasAgent, MyCorrectErrorPrompt, MyResponseParser
+from web_apps.llm.agents.base import MyPandasAgent, MyCorrectErrorPrompt, MyResponseParser, NoneCache
 from web_apps.llm.utils import get_llm
 from utils.etl_utils import get_reader_model
 from utils.common_utils import gen_json_response, parse_json
@@ -94,6 +94,8 @@ def data_chat(req_dict):
         },
         "response_parser": MyResponseParser
     })
+    # 将原本datalake中cache设为空，原生cache有并发锁问题，在web进程并发中会报错
+    agent._lake._cache = NoneCache()
     question_prompt = "若不是返回数据，请使用中文回答对应问题。" \
                       "如果问题是绘图相关需求，只允许使用pyecharts库绘制，请直接使用render_embed()函数返回对应html文本，禁止使用snapshot_相关函数。" \
                       "在生成代码时,禁止使用mock数据，如果返回值'result'中type是plot，请改为string"
