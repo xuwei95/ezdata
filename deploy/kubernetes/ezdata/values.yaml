@@ -158,6 +158,6 @@ llm:
   enabled: true
   type: openai
 #  url: https://api.openai.com/v1
-  url: http://ezdata.cloud/v1
+  url: https://api.openai-proxy.com/v1
   api_key: REDACTEDXXX
   model: gpt-3.5-turbo

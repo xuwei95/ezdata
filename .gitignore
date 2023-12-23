@@ -133,7 +133,7 @@ deploy/docker/minio/
 deploy/docker/mysql/
 deploy/docker/nginx/html/
 cache/
-
+exports/
 
 # celery相关文件
 *.pid
