@@ -145,8 +145,8 @@ def screen_delete():
     """
     删除
     """
-    req_dict = get_req_para(request)
-    print(req_dict)
+    args = request.args
+    req_dict = args.to_dict()
     res_data = ScreenService().delete_obj(req_dict)
     return jsonify(res_data)
 
