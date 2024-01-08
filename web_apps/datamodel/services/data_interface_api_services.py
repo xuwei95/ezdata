@@ -396,9 +396,10 @@ class DataInterfaceApiService(object):
 
 
 if __name__ == '__main__':
-    req_dict = {
-        "api_key": "58f764599d8c4a1aa530b7801ed9e493",
-        "page": "10",
-        "symbol": "603273",
-    }
-    DataInterfaceApiService().query(req_dict, 'GET')
+    from web_apps import app
+    with app.app_context():
+        req_dict = {
+            "api_key": "f282756633214b04b5a00b81b2aa5342",
+            "page": "10",
+        }
+        DataInterfaceApiService().query(req_dict, 'GET')

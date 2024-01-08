@@ -3,9 +3,14 @@ supervisord -c supervisord.ini
 if [ $run_upgrade == 1 ]; then
   echo "检查升级版本"
   # 执行命令，检查升级版本
-  pip install --upgrade akshare -i https://pypi.doubanio.com/simple
-  pip install --upgrade ccxt -i https://pypi.doubanio.com/simple
-  pip install --upgrade 'ez-etl[all]' -i https://pypi.doubanio.com/simple
+  # 按逗号切分字符串，遍历每个包名执行 pip install --upgrade 命令
+  IFS=',' read -ra package_list <<< "$upgrade_packages"
+  for package in "${package_list[@]}"; do
+      # 移除首尾空格
+      package=$(echo "$package" | awk '{$1=$1};1')
+      # 执行 pip install --upgrade 命令
+      pip install --upgrade "$package" -i https://pypi.doubanio.com/simple
+  done
 fi
 python init_system.py
 if [ $run_web == 1 ]; then

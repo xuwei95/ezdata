@@ -1,6 +1,51 @@
 from pandasai.prompts import AbstractPrompt
 from pandasai import Agent
 from pandasai.responses.response_parser import ResponseParser
+from pandasai.helpers.query_exec_tracker import QueryExecTracker, ResponseType
+from typing import Union, Optional
+import base64
+
+
+class MyQueryExecTracker(QueryExecTracker):
+
+    def __init__(
+            self,
+            server_config: Union[dict, None] = None,
+    ) -> None:
+        super().__init__(server_config)
+
+    def _format_response(self, result: ResponseType) -> ResponseType:
+        """
+        重写_format_response方法，将图像是html的类型转为string
+        Format output response
+        Args:
+            result (ResponseType): response returned after execution
+
+        Returns:
+            ResponseType: formatted response output
+        """
+        if result["type"] == "dataframe":
+            df_dict = self.convert_dataframe_to_dict(result["value"])
+            return {"type": result["type"], "value": df_dict}
+
+        elif result["type"] == "plot":
+            if isinstance(result["value"], str):
+                return {
+                    "type": 'string',
+                    "value": result["value"],
+                }
+            with open(result["value"], "rb") as image_file:
+                image_data = image_file.read()
+            # Encode the image data to Base64
+            base64_image = (
+                f"data:image/png;base64,{base64.b64encode(image_data).decode()}"
+            )
+            return {
+                "type": result["type"],
+                "value": base64_image,
+            }
+        else:
+            return result
 
 
 class MyResponseParser(ResponseParser):
@@ -150,16 +195,26 @@ class MyExplainPrompt(AbstractPrompt):
         self.set_var("code", code)
 
 
-class NoneCache:
-    """
-    空cache类
-    """
-
-    def __init__(self, filename="cache_db", abs_path=None):
-        pass
-
-
 class MyPandasAgent(Agent):
+
+    def chat(self, query: str, output_type: Optional[str] = None):
+        """
+        Simulate a chat interaction with the assistant on Dataframe.
+        """
+        try:
+            is_related = self.check_if_related_to_conversation(query)
+            self._lake.is_related_query(is_related)
+            # 重置QueryExecTracker类
+            self._lake._query_exec_tracker = MyQueryExecTracker(
+                server_config=self._lake._config.log_server,
+            )
+            return self._lake.chat(query, output_type=output_type)
+        except Exception as exception:
+            return (
+                "Unfortunately, I was not able to get your answers, "
+                "because of the following error:\n"
+                f"\n{exception}\n"
+            )
 
     def explain(self) -> str:
         """

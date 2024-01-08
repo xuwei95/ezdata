@@ -7,10 +7,12 @@ from utils.query_utils import get_base_query
 from utils.auth import set_insert_user, set_update_user, get_auth_token_info
 from utils.common_utils import gen_json_response, gen_uuid
 from web_apps.datasource.db_models import DataSource
+from web_apps.datamodel.db_models import DataModel
 from utils.web_utils import validate_params
 import pandas as pd
 import io
 from utils.etl_utils import get_reader_model
+from tasks.data_tasks import self_gen_datasource_model
 
 
 def serialize_datasource_model(obj, ser_type='list'):
@@ -133,6 +135,11 @@ class DataSourceApiService(object):
         db.session.add(obj)
         db.session.commit()
         db.session.flush()
+        # 如果开启了自动建模，针对数据源自动创建模型
+        auto_gen = req_dict.get('auto_gen', '0')
+        if str(auto_gen) == '1':
+            self_gen_datasource_model(obj.id)
+            # self_gen_datasource_model.apply_async(args=(obj.id,))
         return gen_json_response(msg='添加成功', extends={'success': True})
     
     def edit_obj(self, req_dict):
@@ -173,6 +180,11 @@ class DataSourceApiService(object):
         删除
         '''
         obj_id = req_dict['id']
+        # 判断是否存在关联数据模型，若有，不允许删除
+        exist_model_objs = db.session.query(DataModel).filter(DataModel.datasource_id == obj_id,
+                                                              DataModel.del_flag == 0).all()
+        if exist_model_objs != []:
+            return gen_json_response(code=400, msg='数据源存在关联数据模型，无法删除')
         del_obj = db.session.query(DataSource).filter(DataSource.id == obj_id).first()
         if del_obj is None:
             return gen_json_response(code=400, msg='未找到数据')
@@ -190,6 +202,11 @@ class DataSourceApiService(object):
         del_ids = req_dict.get('ids')
         if isinstance(del_ids, str):
             del_ids = del_ids.split(',')
+        # 判断是否存在关联数据模型，若有，不允许删除
+        exist_model_objs = db.session.query(DataModel).filter(DataModel.datasource_id.in_(del_ids),
+                                                              DataModel.del_flag == 0).all()
+        if exist_model_objs != []:
+            return gen_json_response(code=400, msg='数据源存在关联数据模型，无法删除')
         del_objs = db.session.query(DataSource).filter(DataSource.id.in_(del_ids)).all()
         for del_obj in del_objs:
             del_obj.del_flag = 1

@@ -1,6 +1,6 @@
 import pandas as pd
 from pandasai import SmartDataframe
-from web_apps.llm.agents.base import MyPandasAgent, MyCorrectErrorPrompt, MyResponseParser, NoneCache
+from web_apps.llm.agents.pandas_agent import MyPandasAgent, MyCorrectErrorPrompt, MyResponseParser
 from web_apps.llm.utils import get_llm
 from utils.etl_utils import get_reader_model
 from utils.common_utils import gen_json_response, parse_json
@@ -54,8 +54,9 @@ def parse_output(result, last_code, explanation):
         else:
             result_text += str(result)
     if isinstance(result, SmartDataframe):
-        result.fillna("")
-        data_li = result.to_dict(orient='records')
+        df = result.dataframe()
+        df.fillna("", inplace=True)
+        data_li = df.to_dict(orient='records')
         res_data['data'] = data_li
     res_data['text'] = result_text
     return gen_json_response(data=res_data)
@@ -94,12 +95,13 @@ def data_chat(req_dict):
         },
         "response_parser": MyResponseParser
     })
-    # 将原本datalake中cache设为空，原生cache有并发锁问题，在web进程并发中会报错
-    agent._lake._cache = NoneCache()
-    question_prompt = "若不是返回数据，请使用中文回答对应问题。" \
-                      "如果问题是绘图相关需求，只允许使用pyecharts库绘制，请直接使用render_embed()函数返回对应html文本，禁止使用snapshot_相关函数。" \
-                      "在生成代码时,禁止使用mock数据，如果返回值'result'中type是plot，请改为string"
-    question = f"{question} {question_prompt}"
+    question_prompt = "在回答问题前，对回答格式有以下要求：\n" \
+                      "1. 若不是返回数据，请使用中文回答对应问题。\n" \
+                      "2. 如果问题是绘图相关需求，只允许使用pyecharts库绘制，请直接使用render_embed()函数返回对应html文本\n" \
+                      "3. 如果问题是绘图相关需求，禁止使用snapshot_，.render()等保存图像相关函数保存任何内容到本地。\n" \
+                      "4. 在生成代码时,保持使用原始数据，禁止使用mock数据\n" \
+                      "基于以上要求，请回答以下问题：\n"
+    question = f"{question_prompt}{question}"
     result = agent.chat(question)
     last_code = agent.last_code_executed
     explanation = agent.explain()

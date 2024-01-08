@@ -1,0 +1,65 @@
+'''
+数据管理相关任务
+'''
+import json
+from celery_app import celery_app
+from web_apps.datasource.db_models import DataSource
+from web_apps.datamodel.db_models import DataModel
+from web_apps import db, app
+from utils.task_util import get_task_instance, update_task_instance, set_task_running_id, set_task_instance_running, set_task_instance_failed, set_task_instance_retry
+from utils.log_utils import get_task_logger
+from utils.common_utils import gen_uuid, get_now_time, parse_json
+from tasks.task_runners import runner_dict, DynamicTaskRunner
+from web_apps.alert.strategys.task_alert_strategys import handle_task_fail_alert
+
+
+@celery_app.task(bind=True)
+def self_gen_datasource_model(self, datasource_id):
+    '''
+    针对数据源自动创建模型
+    :return:
+    '''
+    with app.app_context():
+        uuid = self.request.id if self.request.id else gen_uuid()
+        worker = self.request.hostname if self.request.hostname else ''
+        logger = get_task_logger(p_name='self_gen_datasource_model', task_log_keys={'task_uuid': uuid})
+        logger.info(f'任务开始，任务id:{uuid}, 执行worker:{worker}')
+        try:
+            model_list = [
+                {
+                    'type': 'mysql_table',
+                    'model_conf': {
+                        "name": "test",
+                        "auth_type": "query,create,edit_fields,delete,extract,load"
+                    }
+                }
+            ]
+            for model in model_list:
+                exist_objs = db.session.query(DataModel).filter(DataModel.datasource_id == datasource_id,
+                                                                DataModel.del_flag == 0,
+                                                                DataModel.type == model['type']).all()
+                exist_objs = [i for i in exist_objs if parse_json(i.model_conf)['name'] == model['model_conf']['name']]
+                if exist_objs == []:
+                    model_obj = DataModel(
+                        id=gen_uuid(),
+                        name=model['model_conf']['name'],
+                        datasource_id=datasource_id,
+                        type=model['type'],
+                        status=1,
+                        model_conf=json.dumps(model['model_conf'], ensure_ascii=False),
+                        can_interface=1,
+                        create_by='system',
+                        description="数据源自动建模创建模型"
+                    )
+                    db.session.add(model_obj)
+                    db.session.commit()
+                    db.session.flush()
+                    logger.info(f"数据源自动建模创建模型{model}成功，模型id为{model_obj.id}")
+        except Exception as e:
+            logger.exception(e)
+
+
+if __name__ == '__main__':
+    a = self_gen_datasource_model('fdf0938c7d5a44eca94ba093cc8be6c8')
+
+
