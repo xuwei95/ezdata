@@ -176,6 +176,7 @@ class DataModelApiService(object):
         name = req_dict.get('name', '')
         if name != '':
             exist_obj = db.session.query(DataModel).filter(
+                DataModel.datasource_id == req_dict.get('datasource_id', ''),
                 DataModel.name == name,
                 DataModel.del_flag == 0).first()
             if exist_obj:
@@ -235,7 +236,7 @@ class DataModelApiService(object):
         exist_query = db.session.query(DataModel).filter(DataModel.id != obj_id, DataModel.del_flag == 0)
         name = req_dict.get('name', '')
         if name != '':
-            exist_query = exist_query.filter(DataModel.name == name)
+            exist_query = exist_query.filter(DataModel.datasource_id == req_dict.get('datasource_id', ''), DataModel.name == name)
         exist_obj = exist_query.first()
         if exist_obj:
             return gen_json_response(code=400, msg='数据已存在')

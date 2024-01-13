@@ -240,3 +240,24 @@ def datasource_connect():
         return jsonify(gen_json_response(code=400, msg=not_valid))
     res_data = DataSourceApiService().connTest(req_dict)
     return jsonify(res_data)
+
+
+@datasource_bp.route('/sync_models', methods=['POST'])
+@validate_user
+@validate_permissions(['datasource:sync_models'])
+def datasource_sync_models():
+    '''
+    数据源自动建模
+    '''
+    req_dict = get_req_para(request)
+    verify_dict = {
+        "datasource_id": {
+            "name": "数据源id",
+            "required": True
+        }
+    }
+    not_valid = validate_params(req_dict, verify_dict)
+    if not_valid:
+        return jsonify(gen_json_response(code=400, msg=not_valid))
+    res_data = DataSourceApiService().syncModels(req_dict)
+    return jsonify(res_data)

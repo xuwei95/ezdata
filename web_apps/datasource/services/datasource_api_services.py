@@ -138,8 +138,8 @@ class DataSourceApiService(object):
         # 如果开启了自动建模，针对数据源自动创建模型
         auto_gen = req_dict.get('auto_gen', '0')
         if str(auto_gen) == '1':
-            self_gen_datasource_model(obj.id)
-            # self_gen_datasource_model.apply_async(args=(obj.id,))
+            # self_gen_datasource_model(obj.id)
+            self_gen_datasource_model.apply_async(args=(obj.id,))
         return gen_json_response(msg='添加成功', extends={'success': True})
     
     def edit_obj(self, req_dict):
@@ -326,4 +326,12 @@ class DataSourceApiService(object):
                 return gen_json_response(code=400, msg=f'连接失败:{res}')
         else:
             return gen_json_response(code=400, msg=f'连接失败:{reader}')
+
+    def syncModels(self, req_dict):
+        '''
+        自动建模
+        '''
+        datasource_id = req_dict.get('datasource_id')
+        self_gen_datasource_model.apply_async(args=(datasource_id,))
+        return gen_json_response(msg='同步成功', extends={'success': True})
 

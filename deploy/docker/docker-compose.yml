@@ -2,7 +2,7 @@ version: "3"  # docker-compose版本
 services:
   # nginx
   web:
-    image: "ezdata123/ezdata-web:1.0.2"     # 镜像名称
+    image: "ezdata123/ezdata-web:latest"     # 镜像名称
     container_name: ezdata_web     # 容器名字
     restart: always     # 开机自动重启
     ports:
@@ -15,7 +15,7 @@ services:
       ezdata:
         ipv4_address: 10.233.31.0
   master:
-    image: "ezdata123/ezdata:1.0.2"  # docker镜像名及版本
+    image: "ezdata123/ezdata:latest"  # docker镜像名及版本
     container_name: ezdata_master  # 服务容器
     volumes: # 挂载目录
       - ./deploy.env:/opt/ezdata/deploy.env
@@ -24,6 +24,7 @@ services:
       - read_env=1 # 是否读取配置文件
       - ENV=deploy.env # 配置文件
       - run_upgrade=1 # 是否自动升级依赖
+      - upgrade_packages=akshare,ccxt,ez-etl[all]
       - run_web=1 # 是否运行web api
       - web_worker=4 # web api 并发数
       - run_scheduler=0 # 是否运行scheduler api
@@ -49,7 +50,7 @@ services:
       - minio
       - elasticsearch
   scheduler: # docker-compose编排名称，一般同微服务名称，注意不要与其>他服务重名
-    image: "ezdata123/ezdata:1.0.2"  # docker镜像名及版本
+    image: "ezdata123/ezdata:latest"  # docker镜像名及版本
     container_name: ezdata_scheduler  # 服务容器
     volumes: # 挂载目录
       - ./deploy.env:/opt/ezdata/deploy.env
@@ -58,6 +59,7 @@ services:
       - read_env=1 # 是否读取配置文件
       - ENV=deploy.env # 配置文件
       - run_upgrade=1 # 是否自动升级依赖
+      - upgrade_packages=akshare,ccxt,ez-etl[all]
       - run_web=0 # 是否运行web api
       - web_worker=4 # web api 并发数
       - run_scheduler=1 # 是否运行scheduler api

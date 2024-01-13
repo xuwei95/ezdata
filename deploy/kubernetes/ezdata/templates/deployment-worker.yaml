@@ -53,6 +53,8 @@ spec:
               value: "{{ .Values.worker.env.ENV }}"
             - name: run_upgrade
               value: "{{ .Values.worker.env.run_upgrade }}"
+            - name: upgrade_packages
+              value: "{{ .Values.api.env.upgrade_packages }}"
             - name: run_web
               value: "{{ .Values.worker.env.run_web }}"
             - name: web_worker

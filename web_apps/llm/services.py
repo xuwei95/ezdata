@@ -54,7 +54,7 @@ def parse_output(result, last_code, explanation):
         else:
             result_text += str(result)
     if isinstance(result, SmartDataframe):
-        df = result.dataframe()
+        df = result.dataframe
         df.fillna("", inplace=True)
         data_li = df.to_dict(orient='records')
         res_data['data'] = data_li

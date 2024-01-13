@@ -6,11 +6,12 @@ from celery_app import celery_app
 from web_apps.datasource.db_models import DataSource
 from web_apps.datamodel.db_models import DataModel
 from web_apps import db, app
-from utils.task_util import get_task_instance, update_task_instance, set_task_running_id, set_task_instance_running, set_task_instance_failed, set_task_instance_retry
 from utils.log_utils import get_task_logger
-from utils.common_utils import gen_uuid, get_now_time, parse_json
-from tasks.task_runners import runner_dict, DynamicTaskRunner
-from web_apps.alert.strategys.task_alert_strategys import handle_task_fail_alert
+from utils.common_utils import gen_uuid, parse_json
+from utils.etl_utils import get_reader_model
+# from utils.task_util import get_task_instance, update_task_instance, set_task_running_id, set_task_instance_running, set_task_instance_failed, set_task_instance_retry
+# from tasks.task_runners import runner_dict, DynamicTaskRunner
+# from web_apps.alert.strategys.task_alert_strategys import handle_task_fail_alert
 
 
 @celery_app.task(bind=True)
@@ -25,15 +26,27 @@ def self_gen_datasource_model(self, datasource_id):
         logger = get_task_logger(p_name='self_gen_datasource_model', task_log_keys={'task_uuid': uuid})
         logger.info(f'任务开始，任务id:{uuid}, 执行worker:{worker}')
         try:
-            model_list = [
-                {
-                    'type': 'mysql_table',
-                    'model_conf': {
-                        "name": "test",
-                        "auth_type": "query,create,edit_fields,delete,extract,load"
-                    }
+            datasource_obj = db.session.query(DataSource).filter(DataSource.id == datasource_id).first()
+            model_info = {
+                'source': {
+                    "name": "",
+                    "type": datasource_obj.type,
+                    "conn_conf": parse_json(datasource_obj.conn_conf),
+                    "ext_params": {}
+                },
+                'model': {},
+                'extract_info': {
+                    'batch_size': 1,
+                    'extract_rules': []
                 }
-            ]
+            }
+            flag, reader = get_reader_model(model_info)
+            if flag:
+                flag, res = reader.connect()
+            if not flag:
+                logger.info('数据源连接失败')
+                return
+            model_list = reader.gen_models()
             for model in model_list:
                 exist_objs = db.session.query(DataModel).filter(DataModel.datasource_id == datasource_id,
                                                                 DataModel.del_flag == 0,
