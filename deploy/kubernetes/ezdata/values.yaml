@@ -24,7 +24,7 @@ api:
     read_env: "1"
     ENV: prod.env
     run_upgrade: "1"
-    upgrade_packages: "akshare,ccxt,ez-etl[all]"
+    upgrade_packages: "akshare,ccxt,ez-etl"
     run_web: "1"
     web_worker: "4"
     run_scheduler: "0"
@@ -43,7 +43,7 @@ scheduler:
     read_env: "1"
     ENV: prod.env
     run_upgrade: "1"
-    upgrade_packages: "akshare,ccxt,ez-etl[all]"
+    upgrade_packages: "akshare,ccxt,ez-etl"
     run_web: "0"
     web_worker: "4"
     run_scheduler: "1"
@@ -62,7 +62,7 @@ worker:
     read_env: "1"
     ENV: prod.env
     run_upgrade: "1"
-    upgrade_packages: "akshare,ccxt,ez-etl[all]"
+    upgrade_packages: "akshare,ccxt,ez-etl"
     run_web: "0"
     web_worker: "4"
     run_scheduler: "0"
@@ -134,10 +134,12 @@ minio:
   defaultBuckets: "ezdata"
   service:
     clusterIP: 10.233.31.5 # 服务ip
+    publicIP: 101.35.23.52
 
 externalMinio:
   enabled: false
   host: "127.0.0.1"
+  publicIP: "127.0.0.1"
   port: 9000
   username: "minio"
   password: "ezdata123"

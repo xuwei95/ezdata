@@ -61,6 +61,7 @@ data:
     OSS_TYPE=minio
     {{- if .Values.externalMinio.enabled }}
     OSS_HOST={{.Values.externalMinio.host}}
+    OSS_PUBLIC_HOST={{.Values.externalMinio.publicIP}}
     OSS_PORT={{.Values.externalMinio.port}}
     OSS_KEY={{.Values.externalMinio.username}}
     OSS_SECRET={{.Values.externalMinio.password}}
@@ -68,6 +69,7 @@ data:
     {{- end }}
     {{- if .Values.minio.enabled }}
     OSS_HOST={{.Values.minio.service.clusterIP}}
+    OSS_PUBLIC_HOST={{.Values.minio.service.publicIP}}
     OSS_PORT=9000
     OSS_KEY={{.Values.minio.auth.rootUser}}
     OSS_SECRET={{.Values.minio.auth.rootPassword}}
