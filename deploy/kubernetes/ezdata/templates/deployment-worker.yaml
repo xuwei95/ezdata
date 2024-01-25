@@ -25,9 +25,6 @@ spec:
         version: {{ .Chart.Version }}
     spec:
       volumes:
-        - name: host-time
-          hostPath:
-            path: /etc/localtime
         - name: {{ include "ezdata.fullname" . }}-env
           configMap:
             name: {{ template "ezdata.fullname" . }}-env

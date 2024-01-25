@@ -75,9 +75,6 @@ spec:
             - name: worker_process
               value: "{{ .Values.scheduler.env.worker_process }}"
           volumeMounts:
-            - name: host-time
-              readOnly: true
-              mountPath: /etc/localtime
             - name: {{ include "ezdata.fullname" . }}-env
               readOnly: true
               mountPath: /opt/ezdata/prod.env

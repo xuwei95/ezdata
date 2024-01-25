@@ -46,9 +46,6 @@ spec:
               containerPort: 80
               protocol: TCP
           volumeMounts:
-            - name: host-time
-              readOnly: true
-              mountPath: /etc/localtime
             - name: {{ template "ezdata.fullname" . }}-web-env
               readOnly: true
               mountPath: /etc/nginx/nginx.conf
