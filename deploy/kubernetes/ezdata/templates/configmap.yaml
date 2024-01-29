@@ -36,6 +36,7 @@ data:
     ES_PWD=
     {{- end }}
     # 日志相关配置
+    LOGGER_TYPE=es
     LOG_LEVEL=INFO
     SYS_LOG_INDEX=sys_logs
     TASK_LOG_INDEX=task_logs
