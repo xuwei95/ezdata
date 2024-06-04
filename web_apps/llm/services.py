@@ -1,17 +1,29 @@
 import pandas as pd
-from pandasai import SmartDataframe
-from web_apps.llm.agents.pandas_agent import MyPandasAgent, MyCorrectErrorPrompt, MyResponseParser
+from web_apps.llm.agents.data_extract_agent import DataExtractAgent
+from web_apps.llm.agents.data_analysis_agent import DataAnalysisAgent
 from web_apps.llm.utils import get_llm
 from utils.etl_utils import get_reader_model
 from utils.common_utils import gen_json_response, parse_json
 
 
-def gen_query_info_df(query_info):
+def llm_query_data(reader, llm, query_prompt, max_size=10000):
+    '''
+    使用llm查询数据
+    '''
+    agent = DataExtractAgent(llm, reader)
+    res = agent.run(query_prompt)
+    llm_result = agent.llm_result
+    return True, res, llm_result
+
+
+def gen_query_info_dfs(query_info, llm):
     '''
     根据查询信息生成dataframe数据框
     '''
     model_id = query_info.get('id')
     pagesize = int(query_info.get('pagesize', 10000))
+    ai_query = query_info.get('ai_query', False)
+    query_prompt = query_info.get('query_prompt', '')
     extract_info = {
         'model_id': model_id,
         'extract_rules': parse_json(query_info.get('extract_rules', [])),
@@ -20,15 +32,19 @@ def gen_query_info_df(query_info):
     }
     flag, reader = get_reader_model(extract_info)
     if not flag:
-        return False, reader
-    flag, res_data = reader.read_page(pagesize=pagesize)
-    if not flag:
-        return False, res_data
-    df = pd.DataFrame(res_data['data']['records'])
-    return True, df
+        return False, reader, ''
+    if ai_query and query_prompt != '':
+        _flag, res, llm_result = llm_query_data(reader, llm, query_prompt, max_size=pagesize)
+        return True, res['value'], llm_result
+    else:
+        flag, res_data = reader.read_page(pagesize=pagesize)
+        if not flag:
+            return False, res_data, ''
+        dfs = [pd.DataFrame(res_data['data']['records'])]
+        return True, dfs, ''
 
 
-def parse_output(result, last_code, explanation):
+def parse_output(result, llm_result='', llm_query_result=''):
     '''
     解析返回结果
     '''
@@ -38,26 +54,21 @@ def parse_output(result, last_code, explanation):
         'html': '',
     }
     result_text = f"""
-{explanation}
-根据以上解释，我生成了以下代码并执行:
-
-```python
-{last_code}
-```
+{llm_query_result}
+{llm_result}
 
 最终结果如下:
 
 """
-    if isinstance(result, str):
-        if '<!DOCTYPE html>' in result:
-            res_data['html'] = result
-        else:
-            result_text += str(result)
-    if isinstance(result, SmartDataframe):
-        df = result.dataframe
+    if result['type'] == 'html':
+        res_data['html'] = result['value']
+    elif result['type'] == 'dataframe':
+        df = result['value']
         df.fillna("", inplace=True)
         data_li = df.to_dict(orient='records')
         res_data['data'] = data_li
+    else:
+        result_text += result['value']
     res_data['text'] = result_text
     return gen_json_response(data=res_data)
 
@@ -76,36 +87,19 @@ def data_chat(req_dict):
             'html': '',
         }
         return gen_json_response(data=res_data)
-    flag, df = gen_query_info_df(query_info)
+    flag, dfs, llm_query_result = gen_query_info_dfs(query_info, _llm)
     if not flag:
         res_data = {
-            'text': f'数据查询错误:{df}',
+            'text': f'数据抽取错误:{dfs}',
             'data': [],
             'html': '',
         }
         return gen_json_response(data=res_data)
-    print(df)
-    agent = MyPandasAgent([df], config={
-        "llm": _llm,
-        "enable_cache": False,
-        "open_charts": False,
-        "custom_whitelisted_dependencies": ["pyecharts"],
-        "custom_prompts": {
-            "correct_error": MyCorrectErrorPrompt(),
-        },
-        "response_parser": MyResponseParser
-    })
-    question_prompt = "在回答问题前，对回答格式有以下要求：\n" \
-                      "1. 若不是返回数据，请使用中文回答对应问题。\n" \
-                      "2. 如果问题是绘图相关需求，只允许使用pyecharts库绘制，请直接使用render_embed()函数返回对应html文本\n" \
-                      "3. 如果问题是绘图相关需求，禁止使用snapshot_，.render()等保存图像相关函数保存任何内容到本地。\n" \
-                      "4. 在生成代码时,保持使用原始数据，禁止使用mock数据\n" \
-                      "基于以上要求，请回答以下问题：\n"
-    question = f"{question_prompt}{question}"
-    result = agent.chat(question)
-    last_code = agent.last_code_executed
-    explanation = agent.explain()
-    response = parse_output(result, last_code, explanation)
+    print(dfs)
+    agent = DataAnalysisAgent(_llm, dfs)
+    result = agent.run(question)
+    llm_result = agent.llm_result
+    response = parse_output(result, llm_result, llm_query_result)
     return response
 
 

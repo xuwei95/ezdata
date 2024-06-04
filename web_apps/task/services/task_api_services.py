@@ -115,13 +115,13 @@ class TaskApiService(object):
         try:
             week = cron_list[5]
             week_map = {
-                '1': 'mon',
-                '2': 'tue',
-                '3': 'wed',
-                '4': 'thu',
-                '5': 'fri',
-                '6': 'sat',
-                '7': 'sun'
+                '1': 'sun',
+                '2': 'mon',
+                '3': 'tue',
+                '4': 'wed',
+                '5': 'thu',
+                '6': 'fri',
+                '7': 'sat'
             }
             if week != '*':
                 week_li = week.split(',')

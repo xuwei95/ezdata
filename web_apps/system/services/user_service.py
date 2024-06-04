@@ -7,7 +7,7 @@ from web_apps import db
 from models import User, Role, PerMission, Depart, Tenant
 from utils.auth import encode_auth_token, decode_auth_token, set_insert_user, set_update_user
 from utils.web_utils import get_user_ip
-from utils.common_utils import get_now_time, gen_json_response
+from utils.common_utils import get_now_time, gen_json_response, parse_json, format_date
 from utils.query_utils import get_base_query
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy import or_
@@ -72,8 +72,9 @@ def serialize_user(obj, ser_type='list'):
             'login_times': obj.login_times,
             'login_time': obj.login_time,
             'login_ip': obj.login_ip,
-            'valid_start_time': obj.valid_start_time,
-            'valid_end_time': obj.valid_end_time
+            'valid_start_time': format_date(obj.valid_start_time),
+            'valid_end_time': format_date(obj.valid_end_time),
+            'valid_time': [format_date(obj.valid_start_time, default=''), format_date(obj.valid_end_time, default='')],
         }
     return dic
 
@@ -533,16 +534,37 @@ class UserService(object):
         获取列表
         '''
         role_id = req_dict.get('role_id', '#')
-        search_text = req_dict.get('search_text', '')
         page = req_dict.get('page', 1)
         pagesize = req_dict.get('pagesize', 10)
-        query = get_base_query(User)
+        sort_column = req_dict.get('column', "")
+        order = req_dict.get('order', "desc")
+        sortInfoString = req_dict.get('sortInfoString')
+        if sortInfoString:
+            sortInfoString = parse_json(sortInfoString)
+            sort_column = sortInfoString[-1]['column']
+            order = sortInfoString[-1]['order']
+        if sort_column == 'valid_end_time':
+            if order.upper() == 'DESC':
+                query = get_base_query(User, sort_create_time=False, sort_no=False).order_by(User.valid_end_time.desc())
+            else:
+                query = get_base_query(User, sort_create_time=False, sort_no=False).order_by(User.valid_end_time.asc())
+        else:
+            query = get_base_query(User)
         if role_id not in ['#', '']:
             like_text = f'%"{role_id}"%'
             query = query.filter(User.role_id_list.like(like_text))
-        if search_text != '':
-            search_text = f"%{search_text}%"
-            query = query.filter(User.username.like(search_text) | User.nickname.like(search_text))
+        username = req_dict.get('username', '')
+        if username != '':
+            search_text = f"%{username}%"
+            query = query.filter(User.username.like(search_text))
+        nickname = req_dict.get('nickname', '')
+        if nickname != '':
+            search_text = f"%{nickname}%"
+            query = query.filter(User.nickname.like(search_text))
+        phone = req_dict.get('phone', '')
+        if phone != '':
+            search_text = f"%{phone}%"
+            query = query.filter(User.phone.like(search_text))
         total = query.count()
         page = int(page)
         pagesize = int(pagesize)

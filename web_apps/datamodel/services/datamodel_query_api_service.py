@@ -11,6 +11,8 @@ from web_apps.datamodel.services.datamodel_service import gen_extract_info, gen_
 from utils.query_utils import get_base_query
 from utils.etl_utils import get_reader_model, get_res_fields
 from tasks.task_runners.etl_tasks import MyEtlTask
+from web_apps.llm.utils import get_llm
+from web_apps.llm.services import llm_query_data
 
 
 class DataModelQueryApiService(object):
@@ -126,6 +128,22 @@ class DataModelQueryApiService(object):
         flag, reader = get_reader_model(extract_info)
         if not flag:
             return gen_json_response(code=400, msg=reader)
+        ai_query = req_dict.get('ai_query', False)
+        query_prompt = req_dict.get('query_prompt', '')
+        if ai_query and query_prompt != '':
+            _llm = get_llm()
+            if _llm is None:
+                return gen_json_response(code=400, msg='未找到对应llm配置')
+            _flag, res, llm_result = llm_query_data(reader, _llm, query_prompt, max_size=pagesize)
+            df = res['value']
+            df.fillna("", inplace=True)
+            data_li = df.to_dict(orient='records')
+            res_data = {
+                'records': data_li,
+                'total': len(data_li),
+                'llm_result': llm_result
+            }
+            return gen_json_response(data=res_data)
         flag, res_data = reader.read_page(page=page, pagesize=pagesize)
         if not flag:
             return gen_json_response(code=400, msg=res_data)

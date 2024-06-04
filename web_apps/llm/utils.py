@@ -1,4 +1,6 @@
 from langchain.chat_models import ChatOpenAI
+from web_apps.llm.llms.ali_bailian_llm import AliBailianLLM
+from web_apps.llm.llms.dify_llm import DifyLLM
 from config import SYS_CONF
 
 # llm相关配置
@@ -14,5 +16,15 @@ def get_llm():
             model_name=LLM_MODEL,
             openai_api_key=LLM_API_KEY,
             openai_api_base=LLM_URL
+        )
+    if LLM_TYPE == 'ali_bailian':
+        return AliBailianLLM(
+            model_name=LLM_MODEL,
+            api_key=LLM_API_KEY
+        )
+    if LLM_TYPE == 'dify':
+        return DifyLLM(
+            url=LLM_URL,
+            api_key=LLM_API_KEY
         )
     return None

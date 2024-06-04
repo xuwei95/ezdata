@@ -30,8 +30,6 @@ elasticsearch==7.17.2
 redis==4.0.2
 kafka-python==2.0.2
 # llm相关
-pandasai
 langchain
-faiss-cpu
 #其他
 ez-etl[all]>=1.0.23
