@@ -141,7 +141,10 @@ class DataModelQueryApiService(object):
             res_data = {
                 'records': data_li,
                 'total': len(data_li),
-                'llm_result': llm_result
+                'llm_result': llm_result,
+                'fields': get_res_fields(data_li),
+                'extract_rules': reader.get_extract_rules(),
+                'search_type_list': reader.get_search_type_list()
             }
             return gen_json_response(data=res_data)
         flag, res_data = reader.read_page(page=page, pagesize=pagesize)
