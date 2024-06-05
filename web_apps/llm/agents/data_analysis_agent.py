@@ -176,7 +176,7 @@ Fix the python code above and return the new python code
 
     def run(self, prompt):
         self.question = prompt
-        code = agent.generate_code(prompt)
+        code = self.generate_code(prompt)
         retry_count = 0
         result = None
         while retry_count <= self.max_retry:
