@@ -5,8 +5,8 @@ import os
 from dotenv import load_dotenv
 read_env = os.environ.get('read_env', True)
 if read_env not in [False, None, '', '0']:
-    dotenv_path = os.environ.get('ENV', 'dev.env')
-    # dotenv_path = os.environ.get('ENV', 'prod.env')
+    # dotenv_path = os.environ.get('ENV', 'dev.env')
+    dotenv_path = os.environ.get('ENV', 'prod.env')
     root_path = os.path.abspath(os.path.dirname(__file__))
     dotenv_path = os.path.join(root_path, dotenv_path)
     load_dotenv(dotenv_path=dotenv_path)

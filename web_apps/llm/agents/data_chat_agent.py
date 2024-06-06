@@ -1,9 +1,8 @@
 from web_apps.llm.utils import extract_code
 import traceback
-import pandas as pd
 
 
-class DataExtractAgent:
+class DataChatAgent:
     def __init__(self, llm, reader, retry=3, model_list=[]):
         self.llm = llm
         self.reader = reader
@@ -26,7 +25,7 @@ class DataExtractAgent:
         return info_prompt
 
     def generate_code(self, prompt):
-        result_example_prompt = '{ "type": "dataframe", "value": pd.DataFrame({...}) }'
+        result_example_prompt = '{ "type": "string", "value": "100" } or { "type": "dataframe", "value": pd.DataFrame({...}) } or { "type": "html", "value": line.render_embed() }'
         prompt = f"""
 我有一个数据读取对象reader，对象信息为：
 {self.gen_info_prompt()}
@@ -38,7 +37,7 @@ Update this initial code:
 # Write code here
 
 # Declare result var: 
-type (must be "dataframe"), value must be a pd.DataFrame. Example: result = {result_example_prompt}
+type (possible values "string", "dataframe", "html"). Example: {result_example_prompt}
 
 ```
 
@@ -50,6 +49,7 @@ Variable `reader` is already declared.
 
 At the end, declare "result" variable as a dictionary of type and value.
 
+If you are asked to plot a chart, use "pyecharts" for charts, use the render_embed() function to return the corresponding html type and the html content value.
 
 Generate python code and return full updated code:
 生成代码前请使用中文解释大致逻辑
@@ -100,9 +100,7 @@ Fix the python code above and return the new python code
                 raise ValueError("No result returned")
             else:
                 result = environment['result']
-                if not isinstance(result['value'], pd.DataFrame):
-                    raise ValueError(f'Value type {type(result["value"])} must match with type {result["type"]}')
-                return environment['result']
+                return result
         except Exception as e:
             self.last_code_executed = code
             raise e
