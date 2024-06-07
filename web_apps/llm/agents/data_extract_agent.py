@@ -12,18 +12,20 @@ class DataExtractAgent:
         self.code_exception = ''
         self.max_retry = retry
         self.model_list = model_list
+        self.info_prompt = ''
 
     def gen_info_prompt(self):
         '''
         生成信息提示
         :return:
         '''
-        info_prompt = self.reader.get_info_prompt(self.model_list)
+        if self.info_prompt == '':
+            self.info_prompt = self.reader.get_info_prompt(self.model_list)
         # if len(info_prompt) > self.max_tokens:
         #     # 提示过长，使用llm判断需要取哪些模型提示信息
         #     prompt = f"""你是一个数据读取器，
         #     """
-        return info_prompt
+        return self.info_prompt
 
     def generate_code(self, prompt):
         result_example_prompt = '{ "type": "dataframe", "value": pd.DataFrame({...}) }'
