@@ -3,6 +3,7 @@ import ast
 from langchain.chat_models import ChatOpenAI
 from web_apps.llm.llms.ali_bailian_llm import AliBailianLLM
 from web_apps.llm.llms.dify_llm import DifyLLM
+from web_apps.llm.llms.gradio_llm import GradioLLM
 from config import SYS_CONF
 
 # llm相关配置
@@ -28,6 +29,10 @@ def get_llm():
         return DifyLLM(
             url=LLM_URL,
             api_key=LLM_API_KEY
+        )
+    if LLM_TYPE == 'gradio':
+        return GradioLLM(
+            url=LLM_URL
         )
     return None
 
