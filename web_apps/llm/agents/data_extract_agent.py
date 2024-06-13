@@ -4,15 +4,15 @@ import pandas as pd
 
 
 class DataExtractAgent:
-    def __init__(self, llm, reader, retry=3, model_list=[]):
+    def __init__(self, llm, reader, retry=3):
         self.llm = llm
         self.reader = reader
         self.question = ''
         self.last_code_executed = ''
         self.code_exception = ''
         self.max_retry = retry
-        self.model_list = model_list
         self.info_prompt = ''
+        self.question = ''
 
     def gen_info_prompt(self):
         '''
@@ -20,7 +20,7 @@ class DataExtractAgent:
         :return:
         '''
         if self.info_prompt == '':
-            self.info_prompt = self.reader.get_info_prompt(self.model_list)
+            self.info_prompt = self.reader.get_info_prompt(self.question)
         # if len(info_prompt) > self.max_tokens:
         #     # 提示过长，使用llm判断需要取哪些模型提示信息
         #     prompt = f"""你是一个数据读取器，
