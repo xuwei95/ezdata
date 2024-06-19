@@ -4,31 +4,13 @@ from flask import Blueprint, request, jsonify, Response
 from utils.common_utils import gen_json_response, gen_uuid
 from utils.logger.logger import get_logger
 from utils.web_utils import get_req_para
-from utils.auth import validate_user, validate_permissions, set_insert_user, set_update_user, get_auth_token_info
+from utils.auth import validate_user, set_insert_user, set_update_user, get_auth_token_info
 from web_apps import db
 from web_apps.llm.db_models import ChatHistory
 from web_apps.llm.utils import get_llm
-from web_apps.llm.services import data_chat
+from web_apps.llm.services import data_chat, data_chat_generate
 logger = get_logger(p_name='system_log', f_name='llm', log_level='INFO')
 llm_bp = Blueprint('llm', __name__)
-
-
-@llm_bp.route('/data_chat', methods=['POST'])
-@validate_user
-def llm_data_chat():
-    try:
-        req_dict = get_req_para(request)
-        print(req_dict)
-        res_data = data_chat(req_dict)
-        return jsonify(res_data)
-    except Exception as e:
-        logger.exception(e)
-        res_data = {
-            'text': str(e)[:200],
-            'data': [],
-            'html': '',
-        }
-        return gen_json_response(data=res_data)
 
 
 @llm_bp.route('/chat/history/get', methods=['GET'])
@@ -88,25 +70,52 @@ def save_llm_chat_history():
     return jsonify(res_data)
 
 
-@llm_bp.route('/chat/send', methods=['GET'])
+@llm_bp.route('/chat', methods=['GET'])
 @validate_user
-def llm_chat_send():
+def llm_chat():
+    '''
+    llm对话接口
+    '''
     req_dict = get_req_para(request)
     message = req_dict.get('message', '')
     topic_id = req_dict.get('topicId', gen_uuid())
 
-    # 当请求类型为GET时，开始SSE流
     def generate():
         llm = get_llm()
         result = llm(message)
         data = {'content': result, 'type': 'text'}
         t = f"id:{topic_id}\ndata:{json.dumps(data, ensure_ascii=False)}"
         yield f"{t}\n\n"
-        # data = {'content': '\n最终结果如下：', 'type': 'text'}
-        # t = f"id:{topic_id}\ndata:{json.dumps(data, ensure_ascii=False)}"
-        # yield f"{t}\n\n"
-        # data = {'content': [{'a': 1, 'b': 2}, {'a': 3, 'b': 4}], 'type': 'data'}
-        # yield f"id:{topic_id}\ndata:{json.dumps(data, ensure_ascii=False)}\n\n"
         yield f"id:[DONE]\ndata:[DONE]\n\n"
 
     return Response(generate(), mimetype='text/event-stream')
+
+
+@llm_bp.route('/data/chat/sync', methods=['POST'])
+@validate_user
+def llm_data_chat():
+    '''
+    数据对话同步接口
+    '''
+    try:
+        req_dict = get_req_para(request)
+        res_data = data_chat(req_dict)
+        return jsonify(res_data)
+    except Exception as e:
+        logger.exception(e)
+        res_data = {
+            'text': str(e)[:200],
+            'data': [],
+            'html': '',
+        }
+        return gen_json_response(data=res_data)
+
+
+@llm_bp.route('/data/chat', methods=['GET'])
+@validate_user
+def llm_data_chat_stream():
+    '''
+    数据对话流式接口
+    '''
+    req_dict = get_req_para(request)
+    return Response(data_chat_generate(req_dict), mimetype='text/event-stream')

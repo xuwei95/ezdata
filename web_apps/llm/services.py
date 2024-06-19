@@ -1,15 +1,17 @@
-import pandas as pd
+import json
+from web_apps import app
 from web_apps.llm.agents.data_chat_agent import DataChatAgent
+from web_apps.llm.agents.data_extract_agent import DataExtractAgent
 from web_apps.llm.utils import get_llm
 from utils.etl_utils import get_reader_model
-from utils.common_utils import gen_json_response, parse_json
+from utils.common_utils import gen_json_response, gen_uuid
 
 
 def llm_query_data(reader, llm, query_prompt, max_size=10000):
     '''
     使用llm查询数据
     '''
-    agent = DataChatAgent(llm, reader)
+    agent = DataExtractAgent(llm, reader)
     res = agent.run(query_prompt)
     llm_result = agent.llm_result
     return True, res, llm_result
@@ -76,3 +78,30 @@ def data_chat(req_dict):
     return response
 
 
+def data_chat_generate(req_dict):
+    '''
+    数据对话-流式接口
+    '''
+    with app.app_context():
+        message = req_dict['message']
+        model_id = req_dict.get('model_id', 'e222b61c62be4d09908a5bc94aebf22d')
+        topic_id = req_dict.get('topicId', gen_uuid())
+        _llm = get_llm()
+        if _llm is None:
+            data = {'content': '未找到对应llm配置!', 'type': 'text'}
+            t = f"id:{topic_id}\ndata:{json.dumps(data, ensure_ascii=False)}"
+            yield f"{t}\n\n"
+            yield f"id:[ERR]\ndata:[ERR]\n\n"
+            return
+        flag, reader = get_reader_model({'model_id': model_id})
+        if not flag:
+            data = {'content': '未找到数据读取对象!', 'type': 'text'}
+            t = f"id:{topic_id}\ndata:{json.dumps(data, ensure_ascii=False)}"
+            yield f"{t}\n\n"
+            yield f"id:[ERR]\ndata:[ERR]\n\n"
+        else:
+            agent = DataChatAgent(_llm, reader)
+            for data in agent.chat(message):
+                t = f"id:{topic_id}\ndata:{json.dumps(data, ensure_ascii=False)}"
+                yield f"{t}\n\n"
+            yield f"id:[DONE]\ndata:[DONE]\n\n"

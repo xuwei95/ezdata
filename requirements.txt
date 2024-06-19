@@ -1,3 +1,4 @@
+# encoding: utf-8
 python-dotenv
 celery==5.2.7
 celery_once==3.0.1
@@ -32,4 +33,5 @@ kafka-python==2.0.2
 # llm相关
 langchain
 #其他
-ez-etl[all]>=1.0.23
+ez-etl[all]
+gradio

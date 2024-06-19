@@ -124,3 +124,43 @@ Fix the python code above and return the new python code
                 code = self.fix_code()
         return result
 
+    def parse_result(self, result):
+        if result['type'] == 'html':
+            return {'content': result['value'], 'type': 'html'}
+        elif result['type'] == 'dataframe':
+            df = result['value']
+            df.fillna("", inplace=True)
+            data_li = df.to_dict(orient='records')
+            return {'content': data_li, 'type': 'data'}
+        else:
+            return {'content': result['value'], 'type': 'text'}
+
+    def chat(self, prompt):
+        self.question = prompt
+        data = {'content': '开始生成处理代码\n', 'type': 'text'}
+        yield data
+        code = self.generate_code(prompt)
+        data = {'content': self.llm_result + '\n', 'type': 'text'}
+        yield data
+        retry_count = 0
+        result = None
+        while retry_count <= self.max_retry:
+            try:
+                data = {'content': '执行处理代码\n', 'type': 'text'}
+                yield data
+                result = self.execute_code(code)
+                data = {'content': '处理完成，最终结果如下：\n', 'type': 'text'}
+                yield data
+                data = self.parse_result(result)
+                yield data
+                break
+            except Exception as e:
+                traceback_errors = traceback.format_exc()
+                self.code_exception = traceback_errors
+                data = {'content': f'执行代码报错：{e}，修复处理代码\n', 'type': 'text'}
+                yield data
+                retry_count += 1
+                code = self.fix_code()
+                data = {'content': self.llm_result + '\n', 'type': 'text'}
+                yield data
+        return result
