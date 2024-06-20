@@ -138,24 +138,26 @@ Fix the python code above and return the new python code
 
     def chat(self, prompt):
         self.question = prompt
-        data = {'content': '开始生成处理代码\n', 'type': 'text'}
+        data = {'content': {'title': '生成处理代码', 'content': '开始生成处理代码'}, 'type': 'flow'}
         yield data
         code = self.generate_code(prompt)
-        # todo: 暂时模拟打字机效果
-        for c in self.llm_result:
-            data = {'content': c, 'type': 'text'}
-            yield data
-            time.sleep(0.02)
-        data = {'content': '\n', 'type': 'text'}
+        data = {'content': {'title': '处理代码生成成功', 'content': self.llm_result}, 'type': 'flow'}
         yield data
         retry_count = 0
         result = None
         while retry_count <= self.max_retry:
             try:
-                data = {'content': '执行处理代码\n', 'type': 'text'}
+                data = {'content': {'title': '执行处理代码', 'content': '开始执行处理代码'}, 'type': 'flow'}
                 yield data
                 result = self.execute_code(code)
-                data = {'content': '处理完成，最终结果如下：\n', 'type': 'text'}
+                data = {'content': {'title': '处理完成', 'content': '处理完成'}, 'type': 'flow'}
+                yield data
+                # todo: 暂时模拟打字机效果
+                for c in self.llm_result:
+                    data = {'content': c, 'type': 'text'}
+                    yield data
+                    time.sleep(0.02)
+                data = {'content': '\n', 'type': 'text'}
                 yield data
                 data = self.parse_result(result)
                 yield data
@@ -163,15 +165,10 @@ Fix the python code above and return the new python code
             except Exception as e:
                 traceback_errors = traceback.format_exc()
                 self.code_exception = traceback_errors
-                data = {'content': f'执行代码报错：{e}，修复处理代码\n', 'type': 'text'}
+                data = {'content': {'title': '执行代码出错，修复代码', 'content': f'执行代码报错：{self.code_exception}'}, 'type': 'flow'}
                 yield data
                 retry_count += 1
                 code = self.fix_code()
-                # todo: 暂时模拟打字机效果
-                for c in self.llm_result:
-                    data = {'content': c, 'type': 'text'}
-                    yield data
-                    time.sleep(0.02)
-                data = {'content': '\n', 'type': 'text'}
+                data = {'content': {'title': '修复处理代码成功', 'content': self.llm_result}, 'type': 'flow'}
                 yield data
         return result
