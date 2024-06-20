@@ -1,5 +1,6 @@
 from web_apps.llm.utils import extract_code
 import traceback
+import time
 
 
 class DataChatAgent:
@@ -140,7 +141,12 @@ Fix the python code above and return the new python code
         data = {'content': '开始生成处理代码\n', 'type': 'text'}
         yield data
         code = self.generate_code(prompt)
-        data = {'content': self.llm_result + '\n', 'type': 'text'}
+        # todo: 暂时模拟打字机效果
+        for c in self.llm_result:
+            data = {'content': c, 'type': 'text'}
+            yield data
+            time.sleep(0.02)
+        data = {'content': '\n', 'type': 'text'}
         yield data
         retry_count = 0
         result = None
@@ -161,6 +167,11 @@ Fix the python code above and return the new python code
                 yield data
                 retry_count += 1
                 code = self.fix_code()
-                data = {'content': self.llm_result + '\n', 'type': 'text'}
+                # todo: 暂时模拟打字机效果
+                for c in self.llm_result:
+                    data = {'content': c, 'type': 'text'}
+                    yield data
+                    time.sleep(0.02)
+                data = {'content': '\n', 'type': 'text'}
                 yield data
         return result

@@ -83,9 +83,12 @@ def llm_chat():
     def generate():
         llm = get_llm()
         result = llm(message)
-        data = {'content': result, 'type': 'text'}
-        t = f"id:{topic_id}\ndata:{json.dumps(data, ensure_ascii=False)}"
-        yield f"{t}\n\n"
+        # todo: 暂时模拟打字机效果
+        for c in result:
+            data = {'content': c, 'type': 'text'}
+            t = f"id:{topic_id}\ndata:{json.dumps(data, ensure_ascii=False)}"
+            yield f"{t}\n\n"
+            time.sleep(0.02)
         yield f"id:[DONE]\ndata:[DONE]\n\n"
 
     return Response(generate(), mimetype='text/event-stream')
