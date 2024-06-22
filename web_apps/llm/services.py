@@ -7,7 +7,7 @@ from utils.etl_utils import get_reader_model
 from utils.common_utils import gen_json_response, gen_uuid
 
 
-def llm_query_data(reader, llm, query_prompt, max_size=10000):
+def llm_query_data(reader, llm, query_prompt):
     '''
     使用llm查询数据
     '''

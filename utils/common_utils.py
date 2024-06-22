@@ -89,8 +89,10 @@ def get_now_time(res_type='int'):
     t = time.time()
     if res_type == 'int':
         return int(t)
+    if res_type == 'ms':
+        return int(t * 1000)
     if res_type == 'ns':
-        return int(t) * 1000000000
+        return int(t * 1000000000)
     if res_type == 'datetime':
         # t = timestamp_to_date(t)
         # t = format_date(int(t), res_type='datetime')
