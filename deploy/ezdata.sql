@@ -11,7 +11,7 @@
  Target Server Version : 80022
  File Encoding         : 65001
 
- Date: 24/12/2023 17:04:42
+ Date: 23/06/2024 00:21:39
 */
 
 SET NAMES utf8mb4;
@@ -253,10 +253,11 @@ CREATE TABLE `datamodel` (
 -- ----------------------------
 BEGIN;
 INSERT INTO `datamodel` VALUES ('', 1, 0, 'admin', '2023-08-10 07:53:46', 'admin', '2023-09-15 17:48:53', '77b5008db89348348360893720a01b80', '任务实例表binlog流', 'fdf0938c7d5a44eca94ba093cc8be6c8', 'mysql_binlog', 1, '{\n  \"listen_dbs\": \"ezdata\",\n  \"listen_tables\": \"task_instance\",\n  \"auth_type\": \"extract\",\n  \"only_events\": \"write,update\"\n}', '{}', 0, '[]');
-INSERT INTO `datamodel` VALUES ('', 1, 0, 'admin', '2023-10-24 06:52:59', 'admin', '2023-12-24 09:02:31', 'a7f25e1805a44ea5a546158da95ad726', '任务执行历史索引', '10a0f8f11faa41968f5e75ee5afce4e7', 'elasticsearch_index', 0, '{\n  \"name\": \"task_instance_history\",\n  \"auth_type\": \"query,create,edit_fields,delete,extract,load\"\n}', '{}', 1, '[]');
+INSERT INTO `datamodel` VALUES ('', 1, 0, 'admin', '2024-06-22 16:12:31', '', '2024-06-22 16:12:31', '8a862fdf980245459ac9ef89734c166f', 'sql示例', 'fdf0938c7d5a44eca94ba093cc8be6c8', 'sql', 1, '{\n  \"name\": \"\",\n  \"sql\": \"select * from sys_dict\",\n  \"auth_type\": \"query,custom_sql,extract\"\n}', '{}', 1, '[]');
+INSERT INTO `datamodel` VALUES ('', 1, 0, 'admin', '2023-10-24 06:52:59', 'admin', '2024-06-22 16:12:36', 'a7f25e1805a44ea5a546158da95ad726', '任务执行历史索引', '10a0f8f11faa41968f5e75ee5afce4e7', 'elasticsearch_index', 1, '{\n  \"name\": \"task_instance_history\",\n  \"auth_type\": \"query,create,edit_fields,delete,extract,load\"\n}', '{}', 1, '[]');
 INSERT INTO `datamodel` VALUES ('', 1, 0, 'admin', '2023-10-22 07:09:49', 'admin', '2023-10-24 06:46:46', 'd88b859297224ebcba7fe21efe118ebb', '股票历史数据接口', 'c4eccdd3fd294ac6b9d663519df485bb', 'akshare_api', 1, '{\n  \"auth_type\": \"query,extract\",\n  \"method\": \"stock_zh_a_hist\"\n}', '{}', 1, '[]');
 INSERT INTO `datamodel` VALUES ('', 10, 0, 'admin', '2023-10-24 06:23:11', 'admin', '2023-12-23 16:47:15', 'e222b61c62be4d09908a5bc94aebf22d', 'excel文件', 'd018f252ef6740e89e387d32de4c412f', 'file_table', 1, '{\n  \"auth_type\": \"query,extract\"\n}', '{}', 1, '[]');
-INSERT INTO `datamodel` VALUES ('', 1, 0, 'admin', '2023-10-24 06:50:19', 'admin', '2023-12-24 09:02:19', 'f4f58112235f4625a72f880a373ff697', '股票历史数据索引', '10a0f8f11faa41968f5e75ee5afce4e7', 'elasticsearch_index', 0, '{\n  \"name\": \"stock_history\",\n  \"auth_type\": \"query,create,edit_fields,delete,extract,load\"\n}', '{}', 1, '[]');
+INSERT INTO `datamodel` VALUES ('', 1, 0, 'admin', '2023-10-24 06:50:19', 'admin', '2024-06-22 16:12:41', 'f4f58112235f4625a72f880a373ff697', '股票历史数据索引', '10a0f8f11faa41968f5e75ee5afce4e7', 'elasticsearch_index', 1, '{\n  \"name\": \"stock_history\",\n  \"auth_type\": \"query,create,edit_fields,delete,extract,load\"\n}', '{}', 1, '[]');
 COMMIT;
 
 -- ----------------------------
@@ -335,6 +336,32 @@ INSERT INTO `datasource` VALUES ('', 1, 0, 'admin', '2023-09-16 07:12:38', 'admi
 INSERT INTO `datasource` VALUES ('', 1, 0, 'admin', '2023-10-22 06:38:51', 'admin', '2023-10-24 05:55:51', 'c4eccdd3fd294ac6b9d663519df485bb', 'akshare数据接口', 'akshare', '{}', 1, '{}');
 INSERT INTO `datasource` VALUES ('', 10, 0, 'admin', '2023-08-10 07:31:27', 'admin', '2023-12-23 16:47:28', 'd018f252ef6740e89e387d32de4c412f', 'excel文件示例', 'file', '{\n  \"path\": \"examples/demo.xlsx\"\n}', 1, '{}');
 INSERT INTO `datasource` VALUES ('', 1, 0, 'admin', '2023-08-10 07:38:11', 'admin', '2023-10-24 07:11:51', 'fdf0938c7d5a44eca94ba093cc8be6c8', '系统mysql', 'mysql', '{\n  \"host\": \"10.233.31.3\",\n  \"port\": 3306,\n  \"username\": \"root\",\n  \"password\": \"ezdata123\",\n  \"database_name\": \"ezdata\"\n}', 1, '{}');
+COMMIT;
+
+-- ----------------------------
+-- Table structure for llm_chat_history
+-- ----------------------------
+DROP TABLE IF EXISTS `llm_chat_history`;
+CREATE TABLE `llm_chat_history` (
+  `description` text COLLATE utf8mb4_general_ci COMMENT '简介',
+  `sort_no` float DEFAULT NULL COMMENT '排序',
+  `del_flag` smallint DEFAULT NULL COMMENT '软删除标记',
+  `create_by` varchar(100) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '创建者',
+  `create_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_by` varchar(100) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '修改者',
+  `update_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '修改时间',
+  `id` varchar(36) COLLATE utf8mb4_general_ci NOT NULL COMMENT '主键',
+  `user_id` varchar(200) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '用户id',
+  `user_name` varchar(100) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '用户名',
+  `content` text COLLATE utf8mb4_general_ci COMMENT '内容',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- ----------------------------
+-- Records of llm_chat_history
+-- ----------------------------
+BEGIN;
+INSERT INTO `llm_chat_history` VALUES ('', 1, 0, 'admin', '2024-06-18 15:45:35', 'admin', '2024-06-22 08:24:39', '37d5252d-dbf2-402a-98cf-d0904a2295bd', '1', 'admin', '{\"active\":1002,\"usingContext\":true,\"history\":[{\"uuid\":1002,\"title\":\"[ { \\\"title\\\": \\\"生成处理代码\\\", \\\"content\\\": \\\"开始生成处理代码\\\" }, { \\\"title\\\": \\\"处理代码生成成功\\\", \\\"content\\\": \\\"首先，我们需要导入必要的库，这里主要是`pandas`用于数据处理。然后，我们将使用`reader`对象的`df`属性来获取数据，并按照日期对数据进行排序。最后，我们将结果以字典的形式返回，其中包含数据的类型和值。\\\\n\\\\n以下是具体的步骤和代码：\\\\n\\\\n1. 导入`pandas`库。\\\\n2. 获取`reader`对象的`df`属性。\\\\n3. 使用`df.sort_values(by=\'日期\')`按照日期列对数据进行排序。\\\\n4. 将排序后的DataFrame作为结果返回。\\\\n\\\\n现在，让我们将这些步骤转换为代码：\\\\n\\\\n```python\\\\n# 导入pandas库\\\\nimport pandas as pd\\\\n\\\\n# 获取reader对象的df属性\\\\ndf = reader.df\\\\n\\\\n# 按日期列排序DataFrame\\\\nsorted_df = df.sort_values(by=\'日期\')\\\\n\\\\n# 将排序后的DataFrame作为结果返回\\\\nresult = {\\\\n \\\\\\\"type\\\\\\\": \\\\\\\"dataframe\\\\\\\",\\\\n \\\\\\\"value\\\\\\\": sorted_df\\\\n}\\\\n```\\\\n\\\\n这段代码会按照要求返回一个字典，其中包含排序后的DataFrame。\\\" }, { \\\"title\\\": \\\"执行处理代码\\\", \\\"content\\\": \\\"开始执行处理代码\\\" }, { \\\"title\\\": \\\"处理完成\\\", \\\"content\\\": \\\"处理完成\\\" } ]用vue3 antd的a-collapse组件展示这些数据\",\"isEdit\":false}],\"chat\":[{\"uuid\":1002,\"data\":[{\"dateTime\":\"2024/6/22 16:24:22\",\"text\":\"[ { \\\"title\\\": \\\"生成处理代码\\\", \\\"content\\\": \\\"开始生成处理代码\\\" }, { \\\"title\\\": \\\"处理代码生成成功\\\", \\\"content\\\": \\\"首先，我们需要导入必要的库，这里主要是`pandas`用于数据处理。然后，我们将使用`reader`对象的`df`属性来获取数据，并按照日期对数据进行排序。最后，我们将结果以字典的形式返回，其中包含数据的类型和值。\\\\n\\\\n以下是具体的步骤和代码：\\\\n\\\\n1. 导入`pandas`库。\\\\n2. 获取`reader`对象的`df`属性。\\\\n3. 使用`df.sort_values(by=\'日期\')`按照日期列对数据进行排序。\\\\n4. 将排序后的DataFrame作为结果返回。\\\\n\\\\n现在，让我们将这些步骤转换为代码：\\\\n\\\\n```python\\\\n# 导入pandas库\\\\nimport pandas as pd\\\\n\\\\n# 获取reader对象的df属性\\\\ndf = reader.df\\\\n\\\\n# 按日期列排序DataFrame\\\\nsorted_df = df.sort_values(by=\'日期\')\\\\n\\\\n# 将排序后的DataFrame作为结果返回\\\\nresult = {\\\\n \\\\\\\"type\\\\\\\": \\\\\\\"dataframe\\\\\\\",\\\\n \\\\\\\"value\\\\\\\": sorted_df\\\\n}\\\\n```\\\\n\\\\n这段代码会按照要求返回一个字典，其中包含排序后的DataFrame。\\\" }, { \\\"title\\\": \\\"执行处理代码\\\", \\\"content\\\": \\\"开始执行处理代码\\\" }, { \\\"title\\\": \\\"处理完成\\\", \\\"content\\\": \\\"处理完成\\\" } ]用vue3 antd的a-collapse组件展示这些数据\",\"inversion\":true,\"error\":false,\"conversationOptions\":null,\"requestOptions\":{\"prompt\":\"[ { \\\"title\\\": \\\"生成处理代码\\\", \\\"content\\\": \\\"开始生成处理代码\\\" }, { \\\"title\\\": \\\"处理代码生成成功\\\", \\\"content\\\": \\\"首先，我们需要导入必要的库，这里主要是`pandas`用于数据处理。然后，我们将使用`reader`对象的`df`属性来获取数据，并按照日期对数据进行排序。最后，我们将结果以字典的形式返回，其中包含数据的类型和值。\\\\n\\\\n以下是具体的步骤和代码：\\\\n\\\\n1. 导入`pandas`库。\\\\n2. 获取`reader`对象的`df`属性。\\\\n3. 使用`df.sort_values(by=\'日期\')`按照日期列对数据进行排序。\\\\n4. 将排序后的DataFrame作为结果返回。\\\\n\\\\n现在，让我们将这些步骤转换为代码：\\\\n\\\\n```python\\\\n# 导入pandas库\\\\nimport pandas as pd\\\\n\\\\n# 获取reader对象的df属性\\\\ndf = reader.df\\\\n\\\\n# 按日期列排序DataFrame\\\\nsorted_df = df.sort_values(by=\'日期\')\\\\n\\\\n# 将排序后的DataFrame作为结果返回\\\\nresult = {\\\\n \\\\\\\"type\\\\\\\": \\\\\\\"dataframe\\\\\\\",\\\\n \\\\\\\"value\\\\\\\": sorted_df\\\\n}\\\\n```\\\\n\\\\n这段代码会按照要求返回一个字典，其中包含排序后的DataFrame。\\\" }, { \\\"title\\\": \\\"执行处理代码\\\", \\\"content\\\": \\\"开始执行处理代码\\\" }, { \\\"title\\\": \\\"处理完成\\\", \\\"content\\\": \\\"处理完成\\\" } ]用vue3 antd的a-collapse组件展示这些数据\",\"options\":null}},{\"dateTime\":\"2024/6/22 16:24:35\",\"text\":\"```python\\n# 导入必要的库\\nimport pandas as pd\\n\\n# 假设reader是一个已经定义好的对象，并且df是其中包含数据的DataFrame\\n# 获取reader对象的df属性\\n# df = reader.df\\n\\n# 按照日期列对数据进行排序\\n# df_sorted = df.sort_values(by=\'日期\')\\n\\n# 将排序后的DataFrame作为结果返回\\n# return df_sorted\\n```\",\"table_data\":[],\"html_data\":\"\",\"chat_flow\":[],\"inversion\":false,\"error\":false,\"loading\":false,\"conversationOptions\":{\"parentMessageId\":\"ee078a13-e2f8-4c37-ba66-16ac48f3264a\"},\"requestOptions\":{\"prompt\":\"[ { \\\"title\\\": \\\"生成处理代码\\\", \\\"content\\\": \\\"开始生成处理代码\\\" }, { \\\"title\\\": \\\"处理代码生成成功\\\", \\\"content\\\": \\\"首先，我们需要导入必要的库，这里主要是`pandas`用于数据处理。然后，我们将使用`reader`对象的`df`属性来获取数据，并按照日期对数据进行排序。最后，我们将结果以字典的形式返回，其中包含数据的类型和值。\\\\n\\\\n以下是具体的步骤和代码：\\\\n\\\\n1. 导入`pandas`库。\\\\n2. 获取`reader`对象的`df`属性。\\\\n3. 使用`df.sort_values(by=\'日期\')`按照日期列对数据进行排序。\\\\n4. 将排序后的DataFrame作为结果返回。\\\\n\\\\n现在，让我们将这些步骤转换为代码：\\\\n\\\\n```python\\\\n# 导入pandas库\\\\nimport pandas as pd\\\\n\\\\n# 获取reader对象的df属性\\\\ndf = reader.df\\\\n\\\\n# 按日期列排序DataFrame\\\\nsorted_df = df.sort_values(by=\'日期\')\\\\n\\\\n# 将排序后的DataFrame作为结果返回\\\\nresult = {\\\\n \\\\\\\"type\\\\\\\": \\\\\\\"dataframe\\\\\\\",\\\\n \\\\\\\"value\\\\\\\": sorted_df\\\\n}\\\\n```\\\\n\\\\n这段代码会按照要求返回一个字典，其中包含排序后的DataFrame。\\\" }, { \\\"title\\\": \\\"执行处理代码\\\", \\\"content\\\": \\\"开始执行处理代码\\\" }, { \\\"title\\\": \\\"处理完成\\\", \\\"content\\\": \\\"处理完成\\\" } ]用vue3 antd的a-collapse组件展示这些数据\",\"options\":{}}}]}]}');
 COMMIT;
 
 -- ----------------------------
@@ -1882,7 +1909,7 @@ CREATE TABLE `sys_user` (
 -- Records of sys_user
 -- ----------------------------
 BEGIN;
-INSERT INTO `sys_user` VALUES (1, '', 1, 0, 'system', '2022-10-31 09:41:34', 'admin', '2023-12-24 09:03:07', 'admin', 'pbkdf2:sha256:260000$uPkgXU614UEZVupq$f796a5bc254e02bfc78526a092ead4057073493f0115a9df56288f852cfb228a', 'admin', '', '2003-03-12 05:56:00', 1, '', '', 'org_5', 1, 2, NULL, NULL, '20213916', '[\"5\", \"7\"]', '[\"a1\"]', '[\"12\", \"14\"]', '', 743, 1703404488, '121.225.228.112', NULL, NULL, '[\"1\"]', 1);
+INSERT INTO `sys_user` VALUES (1, '', 1, 0, 'system', '2022-10-31 09:41:34', 'admin', '2024-06-22 16:13:57', 'admin', 'pbkdf2:sha256:260000$uPkgXU614UEZVupq$f796a5bc254e02bfc78526a092ead4057073493f0115a9df56288f852cfb228a', 'admin', '', '2003-03-12 05:56:00', 1, '', '', 'org_5', 1, 2, NULL, NULL, '20213916', '[\"5\", \"7\"]', '[\"a1\"]', '[\"12\", \"14\"]', '', 744, 1719072837, '122.96.32.58', NULL, NULL, '[\"1\"]', 1);
 INSERT INTO `sys_user` VALUES (6, '', 1, 0, 'admin', '2023-04-27 14:52:16', 'admin', '2023-09-14 01:38:33', 'preview', 'pbkdf2:sha256:260000$t4Gm48smy9rPudxM$5e65784bf7616ad5c09e9b85e0c3a0984e965c3aaad38e4ca3fa936011eb0f76', '预览用户', '', '2023-09-13 20:36:00', 0, NULL, NULL, 'org_5', 1, 2, NULL, NULL, '00002', '[\"5\"]', '[]', '[\"11\"]', '', 1, 1682617624, '172.18.0.1', NULL, NULL, '[]', NULL);
 INSERT INTO `sys_user` VALUES (7, '', 1, 0, 'admin', '2023-04-27 14:54:05', 'admin', '2023-10-24 07:03:16', 'test1', 'pbkdf2:sha256:260000$VHkgoxdY1LJ4ml66$0dac1b13d19f2965d4e986ff0395aa43bf9766be2e3bd1b8fec7b5947dd65563', 'test1', NULL, '2023-09-13 20:36:00', 0, NULL, NULL, 'org_6', 1, 1, NULL, NULL, '202139160124', '[\"6\"]', '[]', '[\"13\"]', '', 3, 1694674855, '122.243.31.180', NULL, NULL, '[]', NULL);
 INSERT INTO `sys_user` VALUES (8, '', 1, 0, 'admin', '2023-04-27 17:40:41', 'admin', '2023-09-13 12:36:33', 'dev1', 'pbkdf2:sha256:260000$3J8QC8NiR8TzyeN8$ff8228e7e8b41194e22a00282e08a2cf762667d3fd3e70a1681bcddc191ff9b4', '开发一', NULL, '2023-09-13 20:36:00', 1, NULL, NULL, 'org_7', 1, 2, NULL, NULL, '0000', '[\"7\"]', '[\"a1\"]', '[\"14\"]', '', 1, 1682617321, '172.18.0.1', NULL, NULL, '[\"1\"]', NULL);
