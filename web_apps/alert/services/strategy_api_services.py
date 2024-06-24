@@ -45,11 +45,10 @@ def serialize_alert_strategy_model(obj, ser_type='list'):
     return dic
 
     
-class AlertStrategyApiService(object):
-    def __init__(self):
-        pass
-        
-    def get_obj_list(self, req_dict):
+class AlertStrategyApiService:
+
+    @staticmethod
+    def get_obj_list(req_dict):
         '''
         获取列表
         '''
@@ -77,8 +76,9 @@ class AlertStrategyApiService(object):
             'total': total
         }
         return gen_json_response(data=res_data)
-    
-    def get_obj_all_list(self, req_dict):
+
+    @staticmethod
+    def get_obj_all_list(req_dict):
         '''
         获取全量列表
         '''
@@ -93,8 +93,9 @@ class AlertStrategyApiService(object):
             dic = serialize_alert_strategy_model(obj, ser_type='all_list')
             result.append(dic)
         return gen_json_response(data=result)
-    
-    def get_obj_detail(self, req_dict):
+
+    @staticmethod
+    def get_obj_detail(req_dict):
         '''
         获取详情
         '''
@@ -106,8 +107,9 @@ class AlertStrategyApiService(object):
             return gen_json_response(code=400, msg='未找到数据')
         dic = serialize_alert_strategy_model(obj, ser_type='detail')
         return gen_json_response(data=dic)
-    
-    def add_obj(self, req_dict):
+
+    @staticmethod
+    def add_obj(req_dict):
         '''
         添加
         '''
@@ -124,8 +126,9 @@ class AlertStrategyApiService(object):
         db.session.commit()
         db.session.flush()
         return gen_json_response(msg='添加成功', extends={'success': True})
-    
-    def edit_obj(self, req_dict):
+
+    @staticmethod
+    def edit_obj(req_dict):
         '''
         编辑
         '''
@@ -144,8 +147,9 @@ class AlertStrategyApiService(object):
         db.session.commit()
         db.session.flush()
         return gen_json_response(msg='编辑成功', extends={'success': True})
-    
-    def delete_obj(self, req_dict):
+
+    @staticmethod
+    def delete_obj(req_dict):
         '''
         删除
         '''
@@ -159,8 +163,9 @@ class AlertStrategyApiService(object):
         db.session.commit()
         db.session.flush()
         return gen_json_response(code=200, msg='删除成功', extends={'success': True})
-    
-    def delete_batch(self, req_dict):
+
+    @staticmethod
+    def delete_batch(req_dict):
         '''
         批量删除
         '''
@@ -175,8 +180,9 @@ class AlertStrategyApiService(object):
             db.session.commit()
             db.session.flush()
         return gen_json_response(code=200, msg='删除成功', extends={'success': True})
-    
-    def importExcel(self, file):
+
+    @staticmethod
+    def importExcel(file):
         '''
         excel导入
         '''
@@ -217,7 +223,8 @@ class AlertStrategyApiService(object):
         except Exception as e:
             return gen_json_response(code=500, msg=f'导入错误{e}')
 
-    def exportXls(self, req_dict):
+    @staticmethod
+    def exportXls(req_dict):
         '''
         导出excel
         '''

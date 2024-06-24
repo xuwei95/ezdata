@@ -5,7 +5,7 @@ from config import CELERY_DEFAULT_QUEUE
 from tasks import task_dict
 from web_apps.scheduler.services.scheduler_service import get_jobs, add_or_modify_job, remove_job, run_task, publish_task
 from flask_apscheduler.utils import job_to_dict
-from utils.common_utils import gen_json_response
+from utils.common_utils import gen_json_response, format_date
 
 
 class JobApiService(object):
@@ -23,7 +23,7 @@ class JobApiService(object):
         for job in job_list[(page-1) * pagesize: page*pagesize]:
             dic = job_to_dict(job)
             if 'next_run_time' in dic:
-                dic['next_run_time'] = dic['next_run_time'].strftime('%Y-%m-%d %H:%M:%S')
+                dic['next_run_time'] = format_date(dic['next_run_time'])
             result.append(dic)
         res_data = {
             'records': result,
@@ -34,7 +34,7 @@ class JobApiService(object):
     def get_obj_info(self, req_dict):
         job_id = req_dict.get('id')
         dic = job_to_dict(job_id)
-        dic['next_run_time'] = dic['next_run_time'].strftime('%Y-%m-%d %H:%M:%S')
+        dic['next_run_time'] = format_date(dic['next_run_time'])
         return gen_json_response(data=dic)
 
     def start_job(self, req_dict):

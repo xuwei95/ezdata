@@ -23,7 +23,7 @@ def alert_list():
     not_valid = validate_params(req_dict, verify_dict)
     if not_valid:
         return jsonify(gen_json_response(code=400, msg=not_valid))
-    res_data = AlertApiService().get_obj_list(req_dict)
+    res_data = AlertApiService.get_obj_list(req_dict)
     return jsonify(res_data)
     
 
@@ -40,7 +40,7 @@ def alert_all_list():
     not_valid = validate_params(req_dict, verify_dict)
     if not_valid:
         return jsonify(gen_json_response(code=400, msg=not_valid))
-    res_data = AlertApiService().get_obj_all_list(req_dict)
+    res_data = AlertApiService.get_obj_all_list(req_dict)
     return jsonify(res_data)
     
 
@@ -61,7 +61,7 @@ def alert_detail():
     not_valid = validate_params(req_dict, verify_dict)
     if not_valid:
         return jsonify(gen_json_response(code=400, msg=not_valid))
-    res_data = AlertApiService().get_obj_detail(req_dict)
+    res_data = AlertApiService.get_obj_detail(req_dict)
     return jsonify(res_data)
     
 
@@ -78,7 +78,7 @@ def alert_add():
     not_valid = validate_params(req_dict, verify_dict)
     if not_valid:
         return jsonify(gen_json_response(code=400, msg=not_valid))
-    res_data = AlertApiService().add_obj(req_dict)
+    res_data = AlertApiService.add_obj(req_dict)
     return jsonify(res_data)
     
 
@@ -99,7 +99,7 @@ def alert_edit():
     not_valid = validate_params(req_dict, verify_dict)
     if not_valid:
         return jsonify(gen_json_response(code=400, msg=not_valid))
-    res_data = AlertApiService().edit_obj(req_dict)
+    res_data = AlertApiService.edit_obj(req_dict)
     return jsonify(res_data)
     
 
@@ -120,7 +120,7 @@ def alert_delete():
     not_valid = validate_params(req_dict, verify_dict)
     if not_valid:
         return jsonify(gen_json_response(code=400, msg=not_valid))
-    res_data = AlertApiService().delete_obj(req_dict)
+    res_data = AlertApiService.delete_obj(req_dict)
     return jsonify(res_data)
     
 
@@ -141,7 +141,7 @@ def alert_deleteBatch():
     not_valid = validate_params(req_dict, verify_dict)
     if not_valid:
         return jsonify(gen_json_response(code=400, msg=not_valid))
-    res_data = AlertApiService().delete_batch(req_dict)
+    res_data = AlertApiService.delete_batch(req_dict)
     return jsonify(res_data)
     
 
@@ -156,7 +156,7 @@ def alert_importExcel():
     if file == '':
         res_data = gen_json_response(code=400, msg='请上传文件')
     else:
-        res_data = AlertApiService().importExcel(file)
+        res_data = AlertApiService.importExcel(file)
     return jsonify(res_data)
     
 
@@ -178,7 +178,7 @@ def alert_exportXls():
     if not_valid:
         return jsonify(gen_json_response(code=400, msg=not_valid))
     try:
-        output_file = AlertApiService().exportXls(req_dict)
+        output_file = AlertApiService.exportXls(req_dict)
         return generate_download_file(output_file, 'output')
     except Exception as e:
         return jsonify(gen_json_response(code=500, msg=f"未知错误：{e}"))
