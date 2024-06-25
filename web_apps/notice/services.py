@@ -209,19 +209,27 @@ class NoticeSendService(object):
         :return:
         '''
         send_id = req_dict.get('send_id')
-        print(send_id)
-        obj = db.session.query(NoticeSend).filter(NoticeSend.id == send_id).first()
-        print(obj)
-        if obj is None:
-            return gen_json_response(msg='找不到该对象！')
-        if 'star_flag' in req_dict:
-            obj.star_flag = req_dict.get('star_flag')
-        if 'read_flag' in req_dict:
-            obj.read_flag = req_dict.get('read_flag')
-        set_update_user(obj)
-        db.session.add(obj)
-        db.session.commit()
-        db.session.flush()
+        if send_id:
+            obj = db.session.query(NoticeSend).filter(NoticeSend.id == send_id).first()
+            if obj is None:
+                return gen_json_response(msg='找不到该对象！')
+            if 'star_flag' in req_dict:
+                obj.star_flag = req_dict.get('star_flag')
+                set_update_user(obj)
+                db.session.add(obj)
+                db.session.commit()
+                db.session.flush()
+        anntId = req_dict.get('anntId')
+        if anntId:
+            obj = db.session.query(NoticeSend).filter(NoticeSend.id == anntId).first()
+            if obj is None:
+                return gen_json_response(msg='找不到该对象！')
+            else:
+                obj.read_flag = 1
+                set_update_user(obj)
+                db.session.add(obj)
+                db.session.commit()
+                db.session.flush()
         return gen_json_response(msg='更新成功!')
 
     def handle_notice(self, notice_obj, is_sys=False):

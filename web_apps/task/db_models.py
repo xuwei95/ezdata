@@ -5,6 +5,7 @@ from web_apps import db
 from models import BaseModel
 from sqlalchemy.dialects.mysql import LONGTEXT
 import datetime
+from celery import states
 from config import CELERY_DEFAULT_QUEUE
 
 
@@ -81,6 +82,8 @@ class TaskInstance(db.Model):
 
 
 if __name__ == '__main__':
-    db.create_all()
-    db.session.commit()
-    db.session.flush()
+    from web_apps import app
+    with app.app_context():
+        db.create_all()
+        db.session.commit()
+        db.session.flush()

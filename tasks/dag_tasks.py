@@ -162,7 +162,6 @@ def dag_node_task(self, node_id, task_id, parent_uuid):
             logger.exception(e)
             set_task_instance_failed(task_instance_obj, f'处理失败:{str(e)[:1000]}')
             retries = self.request.retries
-            print('retry', retries)
             if retries < retry:
                 logger.info(f'任务出错，第{retries + 1}次重试')
                 set_task_instance_retry(task_instance_obj, retries + 1)
