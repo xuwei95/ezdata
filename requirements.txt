@@ -31,7 +31,7 @@ elasticsearch==7.17.2
 redis==4.0.2
 kafka-python==2.0.2
 # llm相关
-langchain
+langchain==0.0.351
 gradio_client==1.0.1
 dashscope==1.19.2
 #其他

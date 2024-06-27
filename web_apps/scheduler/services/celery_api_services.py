@@ -2,7 +2,7 @@
 celery flower api封装
 '''
 import json
-from utils.common_utils import request_url, gen_json_response
+from utils.common_utils import request_url, gen_json_response, format_date
 from config import FLOWER_API_URL
 
 
@@ -90,6 +90,10 @@ class CeleryApiService(object):
                     'name': k,
                     **res_data[k]
                 }
+                active = dic['active']
+                for d in active:
+                    d['start_time'] = format_date(int(d['start_time']))
+                dic['active'] = active
                 data_li.append(dic)
         total = len(data_li)
         res_data = {
