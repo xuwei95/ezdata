@@ -92,7 +92,7 @@ class CeleryApiService(object):
                 }
                 active = dic['active']
                 for d in active:
-                    d['start_time'] = format_date(int(d['start_time']))
+                    d['start_time'] = format_date(int(d.get('time_start')))
                 dic['active'] = active
                 data_li.append(dic)
         total = len(data_li)
@@ -268,7 +268,7 @@ if __name__ == '__main__':
     # print(res)
     # res = CeleryApiService().autoscale_concurrency({'worker_name': 'celery@localhost', 'min': 1, 'max': 5})
     # print(res)
-    res = CeleryApiService().get_task_list({'pagesize': 9})
+    res = CeleryApiService().get_worker_list({})
     print(res)
     # res = CeleryApiService().get_task_info({'task_id': '38ad2b0c-7e69-4e81-8a3e-6376ec249d12'})
     # print(res)
