@@ -83,6 +83,8 @@ data:
     TOKEN_EXP_TIME=86400
     # 服务私钥
     SECRET_KEY='erwqefdscweer)qidq1'
+    # 历史记录保存时长
+    SAVE_DAYS=30
     # xorbits集群地址 local为本地
     XORBITS_CLUSTER=local
     # llm 相关配置

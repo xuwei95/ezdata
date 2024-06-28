@@ -53,6 +53,9 @@ class JobApiService(object):
             del_ids = req_dict.get('ids')
         else:
             del_ids = req_dict
+        has_self = [i for i in del_ids if str(i).startswith('self_')]
+        if has_self != []:
+            return gen_json_response(code=400, msg="含有内置定时任务，禁止删除!")
         for del_id in del_ids:
             remove_job(del_id)
         return gen_json_response(msg="删除成功!", extends={'success': True})

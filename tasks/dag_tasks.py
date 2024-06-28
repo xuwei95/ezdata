@@ -233,7 +233,7 @@ def dag_task(self, task_id):
             #         update_task_instance(task_instance_obj, {'progress': (process_num / len(dag_nodes)) * 100})
             #         logger.info(f'已完成节点任务数：{process_num}， 总节点任务数：{len(dag_nodes)}')
             #     time.sleep(10)
-            update_task_instance(task_instance_obj, {'status': 'success', 'progress': 100, 'closed': 1, 'result': '成功', 'end_time': get_now_time('datetime')})
+            update_task_instance(task_instance_obj, {'status': 'SUCCESS', 'progress': 100, 'closed': 1, 'result': '成功', 'end_time': get_now_time('datetime')})
         except Exception as e:
             logger.exception(e)
             set_task_instance_failed(task_instance_obj, f'处理失败:{str(e)[:1000]}')

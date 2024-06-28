@@ -112,4 +112,32 @@ def init_scheduler():
     初始化常驻定时任务
     :return:
     '''
-    pass
+    # 每10分钟执行一次同步任务状态
+    func_args = {
+        'func': 'self_scan_unclosed_tasks'
+    }
+    trigger = {
+        'trigger': 'interval',
+        'seconds': 600
+    }
+    # # 直接执行
+    add_or_modify_job(job_id='self_scan_unclosed_tasks', trigger=trigger, func=run_task, if_exist='remove',
+                      args=func_args)
+
+    # 每天0点执行一次清理任务
+    cron_list = '0 0 0 1/1 * * *'.split(' ')
+    trigger = {
+        'trigger': 'cron',
+        'second': cron_list[0],
+        'minute': cron_list[1],
+        'hour': cron_list[2],
+        'day': cron_list[3],
+        'month': cron_list[4],
+        'day_of_week': cron_list[5],
+        'year': cron_list[6]
+    }
+    func_args = {
+        'func': 'self_remove_task_history',
+    }
+    add_or_modify_job(job_id='self_remove_task_history', trigger=trigger, func=publish_task, if_exist='remove',
+                      args=func_args)

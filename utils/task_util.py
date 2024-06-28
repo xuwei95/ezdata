@@ -55,7 +55,7 @@ def get_task_instance(uuid, task_obj_id, set_params={}):
             id=uuid,
             task_id=task_obj_id,
             start_time=get_now_time('datetime'),
-            status='running'
+            status='STARTED'
         )
     for k, v in set_params.items():
         setattr(task_instance_obj, k, v)
@@ -83,7 +83,7 @@ def set_task_instance_running(task_instance_obj, task_obj, set_params={}):
     任务开始运行时将任务信息带入任务实例
     '''
     update_info = {
-        'status': 'running',
+        'status': 'STARTED',
         'result': '处理中',
         **set_params
     }
@@ -95,7 +95,7 @@ def set_task_instance_failed(task_instance_obj, result):
     任务实例失败时写入信息
     '''
     update_info = {
-        'status': 'failed',
+        'status': 'FAILURE',
         'result':  result,
         'closed': 1,
         'end_time': get_now_time('datetime')
@@ -108,7 +108,7 @@ def set_task_instance_retry(task_instance_obj, retry_num=0):
     任务实例重试时写入信息
     '''
     update_info = {
-        'status': 'failed',
+        'status': 'RETRY',
         'retry_num':  retry_num
     }
     update_task_instance(task_instance_obj, update_info)

@@ -47,7 +47,7 @@ def normal_task(self, task_id):
                 runner_code = task_template_obj.runner_code
                 task_runner = DynamicTaskRunner(params=params, logger=logger, runner_code=runner_code)
             task_runner.run()
-            update_task_instance(task_instance_obj, {'status': 'success', 'progress': 100, 'closed': 1, 'result': '成功',
+            update_task_instance(task_instance_obj, {'status': 'SUCCESS', 'progress': 100, 'closed': 1, 'result': '成功',
                                                      'end_time': get_now_time('datetime')})
         except Exception as e:
             logger.exception(e)

@@ -6,7 +6,7 @@ from web_apps import db
 from utils.query_utils import get_base_query
 from utils.auth import set_insert_user, set_update_user
 from utils.common_utils import gen_json_response, gen_uuid
-from web_apps.task.db_models import TaskTemplate
+from web_apps.task.db_models import TaskTemplate, Task
 from utils.web_utils import validate_params
 import pandas as pd
 import io
@@ -164,7 +164,14 @@ class TaskTemplateApiService(object):
         db.session.commit()
         db.session.flush()
         return gen_json_response(msg='编辑成功', extends={'success': True})
-    
+
+    def check_link_tasks(self, id):
+        '''
+        判断是否有关联任务，若有禁止删除
+        '''
+        link_task = db.session.query(Task).filter(Task.del_flag == 0, Task.template_id == id).first()
+        return link_task
+
     def delete_obj(self, req_dict):
         '''
         删除
@@ -173,6 +180,9 @@ class TaskTemplateApiService(object):
         del_obj = db.session.query(TaskTemplate).filter(TaskTemplate.id == obj_id).first()
         if del_obj is None:
             return gen_json_response(code=400, msg='未找到数据')
+        link_task = self.check_link_tasks(del_obj.id)
+        if link_task:
+            return gen_json_response(code=400, msg='模板下存在关联任务，禁止删除')
         del_obj.del_flag = 1
         set_update_user(del_obj)
         db.session.add(del_obj)
@@ -187,6 +197,9 @@ class TaskTemplateApiService(object):
         del_ids = req_dict.get('ids')
         if isinstance(del_ids, str):
             del_ids = del_ids.split(',')
+        link_tasks = [self.check_link_tasks(id) for id in del_ids]
+        if link_tasks != []:
+            return gen_json_response(code=400, msg='模板下存在关联任务，禁止删除')
         del_objs = db.session.query(TaskTemplate).filter(TaskTemplate.id.in_(del_ids)).all()
         for del_obj in del_objs:
             del_obj.del_flag = 1
