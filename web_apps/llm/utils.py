@@ -1,6 +1,6 @@
 import re
 import ast
-from langchain.chat_models import ChatOpenAI
+from langchain.llms.openai import OpenAIChat
 from web_apps.llm.llms.ali_bailian_llm import AliBailianLLM
 from web_apps.llm.llms.dify_llm import DifyLLM
 from web_apps.llm.llms.gradio_llm import GradioLLM
@@ -15,10 +15,10 @@ LLM_MODEL = SYS_CONF.get('LLM_MODEL', '')
 
 def get_llm():
     if LLM_TYPE == 'openai':
-        return ChatOpenAI(
+        return OpenAIChat(
             model_name=LLM_MODEL,
-            openai_api_key=LLM_API_KEY,
-            openai_api_base=LLM_URL
+            api_key=LLM_API_KEY,
+            api_base=LLM_URL
         )
     if LLM_TYPE == 'ali_bailian':
         return AliBailianLLM(
@@ -88,3 +88,9 @@ def extract_code(response: str, separator: str = "```") -> str:
         code = code.split(separator)[1]
     code = polish_code(code)
     return code
+
+
+if __name__ == '__main__':
+    llm = get_llm()
+    res = llm("hello")
+    print(res)
