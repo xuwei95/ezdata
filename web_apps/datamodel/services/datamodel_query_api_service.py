@@ -134,7 +134,7 @@ class DataModelQueryApiService(object):
             _llm = get_llm()
             if _llm is None:
                 return gen_json_response(code=400, msg='未找到对应llm配置')
-            _flag, res, llm_result = llm_query_data(reader, _llm, query_prompt, max_size=pagesize)
+            _flag, res, llm_result = llm_query_data(reader, _llm, query_prompt)
             df = res['value']
             df.fillna("", inplace=True)
             data_li = df.to_dict(orient='records')

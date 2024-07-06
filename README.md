@@ -3,7 +3,10 @@ ezdata
 
 项目介绍
 -----------------------------------
-ezdata 是基于python后端和vue3前端开发的数据处理分析和任务调度系统。
+
+ezdata 是基于python后端和vue3前端开发的数据处理分析和任务调度系统。  
+
+![输入图片说明](https://raw.githubusercontent.com/xuwei95/ezdata_press/master/images/ezdata.gif?raw=true "在这里输入图片标题")
 
 其主要功能如下
 - 多数据源管理，支持连接文件，关系型数据库，nosql数据库，时序数据库，图数据库等多种数据源。
