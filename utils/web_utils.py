@@ -101,7 +101,7 @@ def generate_download_file(output_file, filename):
     # as_attachment：是否在headers中添加Content-Disposition
     # attachment_filename：下载时使用的文件名
     # conditional: 是否支持断点续传
-    fv = send_file(output_file, as_attachment=True, attachment_filename=filename, conditional=True)
+    fv = send_file(output_file, as_attachment=True, download_name=filename, conditional=True)
     fv.headers['Access-Control-Expose-Headers'] = 'Content-Disposition'
     fv.headers['Content-Disposition'] += "; filename*=utf-8''{}".format(filename)
     fv.headers["Cache-Control"] = "no_store"

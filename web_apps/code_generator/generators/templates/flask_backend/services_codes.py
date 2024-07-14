@@ -104,7 +104,8 @@ def gen_list_api_code(params):
     :return:
     '''
     base_code = """
-    def get_obj_list(self, req_dict):
+    @staticmethod
+    def get_obj_list(req_dict):
         '''
         获取列表
         '''
@@ -151,7 +152,8 @@ def gen_all_list_api_code(params):
     :return:
     '''
     base_code = """
-    def get_obj_all_list(self, req_dict):
+    @staticmethod
+    def get_obj_all_list(req_dict):
         '''
         获取全量列表
         '''
@@ -179,7 +181,8 @@ def gen_detail_api_code(params):
     :return:
     '''
     base_code = """
-    def get_obj_detail(self, req_dict):
+    @staticmethod
+    def get_obj_detail(req_dict):
         '''
         获取详情
         '''
@@ -203,7 +206,8 @@ def gen_add_api_code(params):
     :return:
     '''
     base_code = """
-    def add_obj(self, req_dict):
+    @staticmethod
+    def add_obj(req_dict):
         '''
         添加
         '''
@@ -264,7 +268,8 @@ def gen_edit_api_code(params):
     :return:
     '''
     base_code = """
-    def edit_obj(self, req_dict):
+    @staticmethod
+    def edit_obj(req_dict):
         '''
         编辑
         '''
@@ -322,7 +327,8 @@ def gen_delete_api_code(params):
     :return:
     '''
     base_code = """
-    def delete_obj(self, req_dict):
+    @staticmethod
+    def delete_obj(req_dict):
         '''
         删除
         '''
@@ -348,7 +354,8 @@ def gen_deleteBatch_api_code(params):
     :return:
     '''
     base_code = """
-    def delete_batch(self, req_dict):
+    @staticmethod
+    def delete_batch(req_dict):
         '''
         批量删除
         '''
@@ -375,7 +382,8 @@ def gen_importExcel_api_code(params):
     :return:
     '''
     base_code = """
-    def importExcel(self, file):
+    @staticmethod
+    def importExcel(file):
         '''
         excel导入
         '''
@@ -472,7 +480,8 @@ def gen_exportXls_api_code(params):
     :return:
     '''
     base_code = """
-    def exportXls(self, req_dict):
+    @staticmethod
+    def exportXls(req_dict):
         '''
         导出excel
         '''

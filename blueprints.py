@@ -88,6 +88,18 @@ BLUEPRINT_DICT = {
         'blueprint': 'web_apps.alert.strategy_views.alert_strategy_bp',
         'url_prefix': '/api/alert_strategy'
     },
+    'rag_dataset': {
+        'blueprint': 'web_apps.rag.views.dataset_views.dataset_bp',
+        'url_prefix': '/api/rag/dataset'
+    },
+    'rag_document': {
+        'blueprint': 'web_apps.rag.views.document_views.document_bp',
+        'url_prefix': '/api/rag/document'
+    },
+    'rag_chunk': {
+        'blueprint': 'web_apps.rag.views.chunk_views.chunk_bp',
+        'url_prefix': '/api/rag/chunk'
+    },
 }
 # 根据是否开启llm模块，添加llm模块
 if SYS_CONF.get('LLM_TYPE'):

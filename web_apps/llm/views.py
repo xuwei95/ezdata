@@ -3,7 +3,7 @@ import time
 from flask import Blueprint, request, jsonify, Response
 from utils.common_utils import gen_json_response, gen_uuid
 from utils.logger.logger import get_logger
-from utils.web_utils import get_req_para
+from utils.web_utils import get_req_para, validate_params
 from utils.auth import validate_user, set_insert_user, set_update_user, get_auth_token_info
 from web_apps import db
 from web_apps.llm.db_models import ChatHistory
@@ -26,13 +26,14 @@ def get_llm_chat_history():
             'history': [{'uuid': 1002, 'title': '新建聊天', 'isEdit': False}],
             'chat': [{'uuid': 1002, 'data': []}],
         }
+        history = json.dumps(history, ensure_ascii=False)
     else:
-        history = json.loads(history_obj.content)
+        history = history_obj.content
     res_data = {
         "success": True,
         "msg": "",
         "code": 200,
-        "data": history,
+        "data": {'content': history},
         "timestamp": int(time.time() * 1000)
     }
     return jsonify(res_data)
@@ -64,7 +65,7 @@ def save_llm_chat_history():
         db.session.flush()
     res_data = {
         "success": True,
-        "msg": "",
+        "msg": "保存成功",
         "code": 200,
     }
     return jsonify(res_data)
