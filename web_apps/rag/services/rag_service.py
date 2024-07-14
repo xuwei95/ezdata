@@ -23,7 +23,7 @@ def train_qa_info(question, answer, metadata=None):
         datamodel_id = metadata.get('datamodel_id')
         datasource_id = metadata.get('datasource_id')
         if datamodel_id is not None:
-            datamodel_obj = db.session.query(DataModel.id == datamodel_id).first()
+            datamodel_obj = db.session.query(DataModel).filter(DataModel.id == datamodel_id).first()
             if datamodel_obj:
                 datasource_id = datamodel_obj.datasource_id
         chunk_obj = Chunk(
@@ -62,7 +62,7 @@ def train_datamodel(datamodel_id, metadata=None):
     with app.app_context():
         datasource_id = metadata.get('datasource_id')
         if datamodel_id is not None:
-            datamodel_obj = db.session.query(DataModel.id == datamodel_id).first()
+            datamodel_obj = db.session.query(DataModel).filter(DataModel.id == datamodel_id).first()
             if datamodel_obj:
                 datasource_id = datamodel_obj.datasource_id
         flag, reader = get_reader_model({'model_id': datamodel_id})
