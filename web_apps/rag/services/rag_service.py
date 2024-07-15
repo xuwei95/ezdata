@@ -73,8 +73,9 @@ def train_datamodel(datamodel_id, metadata=None):
         for chunk in chunks:
             content = chunk.strip()
             _hash = md5(content)
+            _uuid = gen_uuid()
             chunk_obj = Chunk(
-                id=gen_uuid(),
+                id=_uuid,
                 datasource_id=datasource_id,
                 datamodel_id=datamodel_id,
                 chunk_type='chunk',
@@ -88,6 +89,7 @@ def train_datamodel(datamodel_id, metadata=None):
             # 加入向量数据库
             vector_index = get_vector_index()
             meta_data = {
+                'uuid': _uuid,
                 'hash': _hash,
                 'datasource_id': datasource_id,
                 'datamodel_id': datamodel_id

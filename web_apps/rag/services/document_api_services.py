@@ -32,7 +32,7 @@ def serialize_document_model(obj, ser_type='list'):
             dic.pop(k)
     elif ser_type == 'all_list':
         res = {}
-        for k in ['id']:
+        for k in ['id', 'name']:
             if k in ['meta_data', 'chunk_strategy']:
                 res[k] = json.loads(dic[k])
             else:

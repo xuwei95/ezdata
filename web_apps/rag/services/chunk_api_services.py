@@ -117,19 +117,6 @@ class ChunkApiService(object):
         return gen_json_response(data=res_data)
     
     @staticmethod
-    def get_obj_all_list(req_dict):
-        '''
-        获取全量列表
-        '''
-        query = get_base_query(Chunk)
-        obj_list = query.all()
-        result = []
-        for obj in obj_list:
-            dic = serialize_chunk_model(obj, ser_type='all_list')
-            result.append(dic)
-        return gen_json_response(data=result)
-    
-    @staticmethod
     def get_obj_detail(req_dict):
         '''
         获取详情

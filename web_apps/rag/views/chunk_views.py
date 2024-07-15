@@ -28,23 +28,6 @@ def chunk_list():
     return jsonify(res_data)
     
 
-@chunk_bp.route('/queryAllList', methods=['GET'])
-@validate_user
-@validate_permissions([])
-def chunk_all_list():
-    '''
-    全量列表查询接口
-    '''
-    req_dict = get_req_para(request)
-    verify_dict = {
-    }
-    not_valid = validate_params(req_dict, verify_dict)
-    if not_valid:
-        return jsonify(gen_json_response(code=400, msg=not_valid))
-    res_data = ChunkApiService.get_obj_all_list(req_dict)
-    return jsonify(res_data)
-    
-
 @chunk_bp.route('/queryById', methods=['GET'])
 @validate_user
 @validate_permissions([])
