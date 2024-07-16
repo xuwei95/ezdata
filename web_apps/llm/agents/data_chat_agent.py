@@ -4,9 +4,11 @@ from utils.common_utils import get_now_time
 
 
 class DataChatAgent:
-    def __init__(self, llm, reader, retry=3):
+    def __init__(self, llm, reader, knowledge='', answer='', retry=3):
         self.llm = llm
         self.reader = reader
+        self.knowledge = knowledge
+        self.answer = answer
         self.question = ''
         self.last_code_executed = ''
         self.code_exception = ''
@@ -21,10 +23,6 @@ class DataChatAgent:
         '''
         if self.info_prompt == '':
             self.info_prompt = self.reader.get_info_prompt(self.question)
-        # if len(info_prompt) > self.max_tokens:
-        #     # 提示过长，使用llm判断需要取哪些模型提示信息
-        #     prompt = f"""你是一个数据读取器，
-        #     """
         return self.info_prompt
 
     def generate_code(self, prompt):
@@ -57,6 +55,8 @@ If you are asked to plot a chart, use "pyecharts" for charts, use the render_emb
 Generate python code and return full updated code:
 生成代码前请使用中文解释大致逻辑
 """
+        if self.knowledge != '':
+            prompt = f"利用知识库信息:\n{self.knowledge}\n回答以下问题:\n{prompt}"
         self.llm_result = self.llm(prompt)
         code = extract_code(self.llm_result)
         return code
@@ -78,6 +78,8 @@ the code running throws an exception:
 Fix the python code above and return the new python code
 生成代码前请使用中文解释大致逻辑
         """
+        if self.knowledge != '':
+            fix_code_prompt = f"利用知识库信息:\n{self.knowledge}\n回答以下问题:\n{fix_code_prompt}"
         self.llm_result = self.llm(fix_code_prompt)
         new_code = extract_code(self.llm_result)
         return new_code
@@ -110,14 +112,20 @@ Fix the python code above and return the new python code
 
     def run(self, prompt):
         self.question = prompt
-        code = self.generate_code(prompt)
         retry_count = 0
         result = None
+        code = ''
         while retry_count <= self.max_retry:
             try:
-                print(code)
+                if retry_count == 0:
+                    if self.answer != '':
+                        self.gen_info_prompt()  # 执行一次部分数据模型初始化
+                        self.llm_result = self.answer
+                        code = extract_code(self.answer)
+                    else:
+                        code = self.generate_code(prompt)
                 result = self.execute_code(code)
-                break
+                return result
             except Exception as e:
                 traceback_errors = traceback.format_exc()
                 self.code_exception = traceback_errors
@@ -138,15 +146,27 @@ Fix the python code above and return the new python code
 
     def chat(self, prompt):
         self.question = prompt
-        data = {'content': {'title': '生成处理代码', 'content': '开始生成处理代码', 'time': get_now_time(res_type='datetime')}, 'type': 'flow'}
-        yield data
-        code = self.generate_code(prompt)
-        data = {'content': {'title': '处理代码生成成功', 'content': self.llm_result, 'time': get_now_time(res_type='datetime')}, 'type': 'flow'}
-        yield data
         retry_count = 0
         result = None
+        code = ''
         while retry_count <= self.max_retry:
             try:
+                if retry_count == 0:
+                    if self.answer != '':
+                        data = {'content': {'title': '生成处理代码', 'content': '发现知识库中答案，直接使用',
+                                            'time': get_now_time(res_type='datetime')}, 'type': 'flow'}
+                        yield data
+                        self.gen_info_prompt()  # 执行一次部分数据模型初始化
+                        self.llm_result = self.answer
+                        code = extract_code(self.answer)
+                    else:
+                        data = {'content': {'title': '生成处理代码', 'content': '开始生成处理代码',
+                                            'time': get_now_time(res_type='datetime')}, 'type': 'flow'}
+                        yield data
+                        code = self.generate_code(prompt)
+                    data = {'content': {'title': '处理代码生成成功', 'content': self.llm_result,
+                                        'time': get_now_time(res_type='datetime')}, 'type': 'flow'}
+                    yield data
                 data = {'content': {'title': '执行处理代码', 'content': f"```python\n{code}\n```", 'time': get_now_time(res_type='datetime')}, 'type': 'flow'}
                 yield data
                 result = self.execute_code(code)

@@ -5,6 +5,7 @@ from web_apps.llm.agents.data_extract_agent import DataExtractAgent
 from web_apps.llm.utils import get_llm
 from utils.etl_utils import get_reader_model
 from utils.common_utils import gen_json_response, gen_uuid
+from web_apps.rag.services.rag_service import get_star_qa_answer
 
 
 def llm_query_data(reader, llm, query_prompt):
@@ -100,7 +101,10 @@ def data_chat_generate(req_dict):
             yield f"{t}\n\n"
             yield f"id:[ERR]\ndata:[ERR]\n\n"
         else:
-            agent = DataChatAgent(_llm, reader)
+            # 查询是否有已标记的正确答案
+            answer = get_star_qa_answer(message, metadata={'datamodel_id': model_id})
+            print(answer)
+            agent = DataChatAgent(_llm, reader, answer=answer)
             for data in agent.chat(message):
                 t = f"id:{topic_id}\ndata:{json.dumps(data, ensure_ascii=False)}"
                 yield f"{t}\n\n"

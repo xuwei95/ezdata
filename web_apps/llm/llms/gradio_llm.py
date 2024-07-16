@@ -8,16 +8,17 @@ gradio_url = "https://s5k.cn/api/v1/studio/ZhipuAI/glm-4-9b-chat-vllm/gradio/"
 
 class GradioLLM(LLM):
     url = gradio_url
+    messages = []
 
     def _call(self, prompt: str, stop: Optional[List[str]] = None, run_manager: Optional[CallbackManagerForLLMRun] = None,):
         client = Client(self.url)
         result = client.predict(
             prompt,
-            [],
+            self.messages,
             api_name="/predict_1"
         )
-        message = result[1][0][-1]
-        return message
+        self.messages = result[1]
+        return self.messages[-1][-1]
 
     @property
     def _llm_type(self):

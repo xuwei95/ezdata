@@ -8,6 +8,24 @@ from web_apps.rag.db_models import Dataset, Document, Chunk
 from web_apps.datamodel.db_models import DataModel
 
 
+def get_star_qa_answer(question, metadata=None):
+    '''
+    获取知识库中的标记的问题答案
+    '''
+    if metadata is None:
+        metadata = {}
+    with app.app_context():
+        question = question.strip()
+        question_hash = md5(question)
+        query = db.session.query(Chunk).filter(Chunk.del_flag == 0).filter(Chunk.question_hash == question_hash)
+        if 'datamodel_id' in metadata:
+            query = query.filter(Chunk.datamodel_id == metadata['datamodel_id'])
+        chunk_obj = query.first()
+        if chunk_obj is not None:
+            return chunk_obj.answer
+    return ''
+
+
 def train_qa_info(question, answer, metadata=None):
     '''
     将问答信息训练加入知识库

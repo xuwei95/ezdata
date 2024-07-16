@@ -14,8 +14,7 @@ from typing import (
     TypeVar,
     Union,
 )
-
-from web_apps.rag.document import BaseDocumentTransformer, Document
+from langchain_core.documents import BaseDocumentTransformer, Document
 
 logger = logging.getLogger(__name__)
 
