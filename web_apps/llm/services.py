@@ -4,8 +4,8 @@ from web_apps.llm.agents.data_chat_agent import DataChatAgent
 from web_apps.llm.agents.data_extract_agent import DataExtractAgent
 from web_apps.llm.utils import get_llm
 from utils.etl_utils import get_reader_model
-from utils.common_utils import gen_json_response, gen_uuid
-from web_apps.rag.services.rag_service import get_star_qa_answer
+from utils.common_utils import gen_json_response, gen_uuid, get_now_time
+from web_apps.rag.services.rag_service import get_star_qa_answer, get_knowledge
 
 
 def llm_query_data(reader, llm, query_prompt):
@@ -101,10 +101,15 @@ def data_chat_generate(req_dict):
             yield f"{t}\n\n"
             yield f"id:[ERR]\ndata:[ERR]\n\n"
         else:
-            # 查询是否有已标记的正确答案
+            data = {'content': {'title': '检索知识库', 'content': '正在检索知识库', 'time': get_now_time(res_type='datetime')},
+                    'type': 'flow'}
+            t = f"id:{topic_id}\ndata:{json.dumps(data, ensure_ascii=False)}"
+            yield f"{t}\n\n"
+            # 查询知识库中是否有已标记的正确答案
             answer = get_star_qa_answer(message, metadata={'datamodel_id': model_id})
-            print(answer)
-            agent = DataChatAgent(_llm, reader, answer=answer)
+            # 检索知识库中相关知识
+            knowledge = get_knowledge(message, metadata={'datamodel_id': model_id})
+            agent = DataChatAgent(_llm, reader, knowledge=knowledge, answer=answer)
             for data in agent.chat(message):
                 t = f"id:{topic_id}\ndata:{json.dumps(data, ensure_ascii=False)}"
                 yield f"{t}\n\n"

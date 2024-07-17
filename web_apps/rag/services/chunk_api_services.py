@@ -54,54 +54,42 @@ class ChunkApiService(object):
         page = int(req_dict.get('page', 1))
         pagesize = int(req_dict.get('pagesize', 10))
         query = get_base_query(Chunk)
-        
-        # 名称 查询逻辑
-        name = req_dict.get('name', '')
-        if name != '':
-            # query = query.filter(Chunk.name.like("%" + name + "%"))
-            pass
+
 
         # 分段类型 查询逻辑
         chunk_type = req_dict.get('chunk_type', '')
         if chunk_type != '':
-            # query = query.filter(Chunk.chunk_type.like("%" + chunk_type + "%"))
-            pass
+            query = query.filter(Chunk.chunk_type.like("%" + chunk_type + "%"))
 
         # 所属数据集 查询逻辑
         dataset_id = req_dict.get('dataset_id', '')
         if dataset_id != '':
-            # query = query.filter(Chunk.dataset_id.like("%" + dataset_id + "%"))
-            pass
+            query = query.filter(Chunk.dataset_id == dataset_id)
 
         # 所属文档 查询逻辑
         document_id = req_dict.get('document_id', '')
         if document_id != '':
-            # query = query.filter(Chunk.document_id.like("%" + document_id + "%"))
-            pass
+            query = query.filter(Chunk.document_id == document_id)
 
         # 所属数据源 查询逻辑
         datasource_id = req_dict.get('datasource_id', '')
         if datasource_id != '':
-            # query = query.filter(Chunk.datasource_id.like("%" + datasource_id + "%"))
-            pass
+            query = query.filter(Chunk.datasource_id == datasource_id)
 
         # 所属数据模型 查询逻辑
         datamodel_id = req_dict.get('datamodel_id', '')
         if datamodel_id != '':
-            # query = query.filter(Chunk.datamodel_id.like("%" + datamodel_id + "%"))
-            pass
+            query = query.filter(Chunk.datamodel_id == datamodel_id)
 
         # 关键词 查询逻辑
         content = req_dict.get('content', '')
         if content != '':
-            # query = query.filter(Chunk.content.like("%" + content + "%"))
-            pass
+            query = query.filter(Chunk.content.like("%" + content + "%"))
 
         # 状态 查询逻辑
         status = req_dict.get('status', '')
         if status != '':
-            # query = query.filter(Chunk.status.like("%" + status + "%"))
-            pass
+            query = query.filter(Chunk.status == status)
         total = query.count()
         query = query.offset((page - 1) * pagesize)
         query = query.limit(pagesize)

@@ -8,6 +8,33 @@ from web_apps.rag.db_models import Dataset, Document, Chunk
 from web_apps.datamodel.db_models import DataModel
 
 
+def get_knowledge(question, metadata=None):
+    '''
+    根据问题查询知识库知识
+    '''
+    if metadata is None:
+        metadata = {}
+    with app.app_context():
+        vector_index = get_vector_index()
+        score_threshold = metadata.get('score_threshold', 0.8)
+        k = metadata.get('k', 3)
+        search_kwargs = {
+            'filter': {},
+            'score_threshold': score_threshold,
+            'k': k
+        }
+        if 'datamodel_id' in metadata:
+            search_kwargs['filter']['datamodel_id'] = metadata['datamodel_id']
+        kwargs = {
+            'search_kwargs': search_kwargs
+        }
+        documents = vector_index.search(question, **kwargs)
+        if documents == []:
+            return ''
+        knowledge = '\n'.join([d.page_content for d in documents])
+        return knowledge.strip()
+
+
 def get_star_qa_answer(question, metadata=None):
     '''
     获取知识库中的标记的问题答案
@@ -116,9 +143,18 @@ def train_datamodel(datamodel_id, metadata=None):
 
 
 if __name__ == '__main__':
-    datamodel_id = '8a862fdf980245459ac9ef89734c166f'
+    # metadata = {
+    #     'user_name': 'admin'
+    # }
+    # datamodel_id = '8a862fdf980245459ac9ef89734c166f'
+    # train_datamodel(datamodel_id, metadata)
+    # metadata = {
+    #     'datamodel_id': 'e222b61c62be4d09908a5bc94aebf22d',
+    # }
+    # res = get_knowledge('根据数据画出k线图', metadata)
+    # print(res)
     metadata = {
-        'datasource_id': '8a862fdf980245459ac9ef89734c166f',
-        'user_name': 'admin'
+        'datamodel_id': '8a862fdf980245459ac9ef89734c166f',
     }
-    train_datamodel(datamodel_id, metadata)
+    res = get_knowledge('字典项最多的字典是哪个', metadata)
+    print(res)

@@ -58,26 +58,22 @@ class DocumentApiService(object):
         # 名称 查询逻辑
         name = req_dict.get('name', '')
         if name != '':
-            # query = query.filter(Document.name.like("%" + name + "%"))
-            pass
+            query = query.filter(Document.name.like("%" + name + "%"))
 
         # 文档类型 查询逻辑
         document_type = req_dict.get('document_type', '')
         if document_type != '':
-            # query = query.filter(Document.document_type.like("%" + document_type + "%"))
-            pass
+            query = query.filter(Document.document_type == document_type)
 
         # 所属数据集 查询逻辑
         dataset_id = req_dict.get('dataset_id', '')
         if dataset_id != '':
-            # query = query.filter(Document.dataset_id.like("%" + dataset_id + "%"))
-            pass
+            query = query.filter(Document.dataset_id == dataset_id)
 
         # 状态 查询逻辑
         status = req_dict.get('status', '')
         if status != '':
-            # query = query.filter(Document.status.like("%" + status + "%"))
-            pass
+            query = query.filter(Document.status == status)
         total = query.count()
         query = query.offset((page - 1) * pagesize)
         query = query.limit(pagesize)
