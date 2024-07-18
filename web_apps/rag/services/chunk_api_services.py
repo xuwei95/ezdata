@@ -7,6 +7,7 @@ from utils.query_utils import get_base_query
 from utils.auth import set_insert_user, set_update_user, get_auth_token_info
 from utils.common_utils import gen_json_response, gen_uuid
 from web_apps.rag.db_models import Chunk
+from web_apps.rag.services.rag_service import add_chunk, delete_chunk
 
     
 def serialize_chunk_model(obj, ser_type='list'):
@@ -54,8 +55,6 @@ class ChunkApiService(object):
         page = int(req_dict.get('page', 1))
         pagesize = int(req_dict.get('pagesize', 10))
         query = get_base_query(Chunk)
-
-
         # 分段类型 查询逻辑
         chunk_type = req_dict.get('chunk_type', '')
         if chunk_type != '':
@@ -123,18 +122,7 @@ class ChunkApiService(object):
         '''
         添加
         '''
-        
-        obj = Chunk()
-        for key in req_dict:
-            if key in []:
-                setattr(obj, key, json.dumps(req_dict[key], ensure_ascii=False, indent=2))
-            else:
-                setattr(obj, key, req_dict[key])
-        obj.id = gen_uuid(res_type='base')
-        set_insert_user(obj)
-        db.session.add(obj)
-        db.session.commit()
-        db.session.flush()
+        add_chunk(req_dict)
         return gen_json_response(msg='添加成功', extends={'success': True})
     
     @staticmethod
@@ -143,19 +131,10 @@ class ChunkApiService(object):
         编辑
         '''
         obj_id = req_dict.get('id')
-        
         obj = db.session.query(Chunk).filter(Chunk.id == obj_id).first()
         if obj is None:
             return gen_json_response(code=400, msg='未找到数据')
-        for key in req_dict:
-            if key in []:
-                setattr(obj, key, json.dumps(req_dict[key], ensure_ascii=False, indent=2))
-            else:
-                setattr(obj, key, req_dict[key])
-        set_update_user(obj)
-        db.session.add(obj)
-        db.session.commit()
-        db.session.flush()
+        add_chunk(req_dict)
         return gen_json_response(msg='编辑成功', extends={'success': True})
     
     @staticmethod
@@ -172,6 +151,7 @@ class ChunkApiService(object):
         db.session.add(del_obj)
         db.session.commit()
         db.session.flush()
+        delete_chunk(obj_id)
         return gen_json_response(code=200, msg='删除成功', extends={'success': True})
     
     @staticmethod
@@ -189,4 +169,5 @@ class ChunkApiService(object):
             db.session.add(del_obj)
             db.session.commit()
             db.session.flush()
+            delete_chunk(del_obj.id)
         return gen_json_response(code=200, msg='删除成功', extends={'success': True})

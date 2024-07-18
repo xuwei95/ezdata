@@ -1,5 +1,5 @@
 from web_apps import db, app
-from utils.auth import set_insert_user
+from utils.auth import set_insert_user, set_update_user
 from utils.etl_utils import get_reader_model
 from utils.common_utils import gen_uuid, md5
 from web_apps.rag.splitter.text_splitter import RecursiveCharacterTextSplitter
@@ -47,6 +47,8 @@ def get_star_qa_answer(question, metadata=None):
         query = db.session.query(Chunk).filter(Chunk.del_flag == 0).filter(Chunk.question_hash == question_hash)
         if 'datamodel_id' in metadata:
             query = query.filter(Chunk.datamodel_id == metadata['datamodel_id'])
+        if 'dataset_id' in metadata:
+            query = query.filter(Chunk.datamodel_id == metadata['dataset_id'])
         chunk_obj = query.first()
         if chunk_obj is not None:
             return chunk_obj.answer
@@ -64,38 +66,140 @@ def train_qa_info(question, answer, metadata=None):
         content = f"问题: {question}\n答案: {answer}"
         _hash = md5(content)
         question_hash = md5(question)
-        _uuid = gen_uuid()
         datamodel_id = metadata.get('datamodel_id')
         datasource_id = metadata.get('datasource_id')
         if datamodel_id is not None:
             datamodel_obj = db.session.query(DataModel).filter(DataModel.id == datamodel_id).first()
             if datamodel_obj:
                 datasource_id = datamodel_obj.datasource_id
-        chunk_obj = Chunk(
-            id=_uuid,
-            datasource_id=datasource_id,
-            datamodel_id=datamodel_id,
-            chunk_type='qa',
-            question=question,
-            question_hash=question_hash,
-            answer=answer,
-            content=content,
-            hash=_hash,
-            star_flag=metadata.get('star_flag', 0)
-        )
-        set_insert_user(chunk_obj, metadata.get('user_name'))
+        document_id = metadata.get('document_id')
+        dataset_id = metadata.get('dataset_id')
+        if document_id:
+            document_obj = db.session.query(Document).filter(Document.id == document_id).first()
+            if document_obj:
+                dataset_id = document_obj.dataset_id
+        chunk_obj = db.session.query(Chunk).filter(
+            Chunk.datamodel_id == datamodel_id,
+            Chunk.document_id == document_id,
+            Chunk.question_hash == question_hash,
+        ).first()
+        print(chunk_obj)
+        if chunk_obj is None:
+            _uuid = gen_uuid()
+            chunk_obj = Chunk(
+                id=_uuid,
+                dataset_id=dataset_id,
+                document_id=document_id,
+                datasource_id=datasource_id,
+                datamodel_id=datamodel_id,
+                chunk_type='qa',
+                question=question,
+                question_hash=question_hash,
+            )
+            set_insert_user(chunk_obj, metadata.get('user_name'))
+        else:
+            _uuid = chunk_obj.id
+            if chunk_obj.hash == _hash and chunk_obj.del_flag == 0:
+                # 发现完全相同问答，不处理
+                print('发现完全相同问答，不处理')
+                return
+            chunk_obj.del_flag = 0
+            set_update_user(chunk_obj, metadata.get('user_name'))
+        chunk_obj.answer = answer,
+        chunk_obj.content = content,
+        chunk_obj.hash = _hash,
+        chunk_obj.star_flag = metadata.get('star_flag', 0)
         db.session.add(chunk_obj)
         db.session.flush()
         db.session.commit()
         # 加入向量数据库
         vector_index = get_vector_index()
         meta_data = {
-            'uuid': _uuid,
             'hash': _hash,
             'datasource_id': datasource_id,
-            'datamodel_id': datamodel_id
+            'datamodel_id': datamodel_id,
+            'dataset_id': dataset_id,
+            'document_id': document_id,
         }
-        vector_index.add_texts([content], metadatas=[meta_data])
+        vector_index.add_texts([content], metadatas=[meta_data], ids=[_uuid])
+
+
+def add_chunk(chunk_dict):
+    '''
+    将chunk加入知识库
+    '''
+    with app.app_context():
+        chunk_type = chunk_dict.get('chunk_type',  'chunk')
+        question = chunk_dict.get('question')
+        answer = chunk_dict.get('answer')
+        if chunk_type == 'qa' and question and answer:
+            question = question.strip()
+            content = f"问题: {question}\n答案: {answer}"
+            question_hash = md5(question)
+        else:
+            content = chunk_dict.get('content', '')
+            question_hash = None
+        _hash = md5(content)
+        datamodel_id = chunk_dict.get('datamodel_id')
+        datasource_id = chunk_dict.get('datasource_id')
+        if datamodel_id is not None:
+            datamodel_obj = db.session.query(DataModel).filter(DataModel.id == datamodel_id).first()
+            if datamodel_obj:
+                datasource_id = datamodel_obj.datasource_id
+        document_id = chunk_dict.get('document_id')
+        dataset_id = chunk_dict.get('dataset_id')
+        if document_id:
+            document_obj = db.session.query(Document).filter(Document.id == document_id).first()
+            if document_obj:
+                dataset_id = document_obj.dataset_id
+        chunk_obj = None
+        if 'id' in chunk_dict:
+            chunk_obj = Chunk.query.filter(Chunk.del_flag == 0, Chunk.id == chunk_dict['id']).first()
+        if chunk_obj is None:
+            _uuid = gen_uuid()
+            chunk_obj = Chunk(
+                id=_uuid,
+            )
+            set_insert_user(chunk_obj, chunk_dict.get('user_name'))
+        else:
+            _uuid = chunk_obj.id
+            set_update_user(chunk_obj, chunk_dict.get('user_name'))
+        chunk_obj.dataset_id = dataset_id,
+        chunk_obj.document_id = document_id,
+        chunk_obj.datasource_id = datasource_id,
+        chunk_obj.datamodel_id = datamodel_id,
+        chunk_obj.chunk_type = chunk_type,
+        chunk_obj.question = question,
+        chunk_obj.question_hash = question_hash,
+        chunk_obj.answer = answer,
+        chunk_obj.content = content,
+        chunk_obj.hash = _hash,
+        chunk_obj.star_flag = chunk_dict.get('star_flag', 0)
+        db.session.add(chunk_obj)
+        db.session.flush()
+        db.session.commit()
+        # 加入向量数据库
+        vector_index = get_vector_index()
+        meta_data = {
+            'hash': _hash,
+            'datasource_id': datasource_id,
+            'datamodel_id': datamodel_id,
+            'dataset_id': dataset_id,
+            'document_id': document_id,
+        }
+        vector_index.add_texts([content], metadatas=[meta_data], ids=[_uuid])
+
+
+def delete_chunk(id):
+    '''
+    删除知识段
+    '''
+    with app.app_context():
+        vector_index = get_vector_index()
+        try:
+            vector_index.delete_by_ids([id])
+        except Exception as e:
+            print(e)
 
 
 def train_datamodel(datamodel_id, metadata=None):
@@ -119,27 +223,34 @@ def train_datamodel(datamodel_id, metadata=None):
             content = chunk.strip()
             _hash = md5(content)
             _uuid = gen_uuid()
-            chunk_obj = Chunk(
-                id=_uuid,
-                datasource_id=datasource_id,
-                datamodel_id=datamodel_id,
-                chunk_type='chunk',
-                content=content,
-                hash=_hash
-            )
-            set_insert_user(chunk_obj, metadata.get('user_name'))
+            chunk_obj = db.session.query(Chunk).filter(
+                Chunk.datamodel_id == datamodel_id,
+                Chunk.hash == _hash,
+            ).first()
+            if chunk_obj is None:
+                chunk_obj = Chunk(
+                    id=_uuid,
+                    datasource_id=datasource_id,
+                    datamodel_id=datamodel_id,
+                    chunk_type='chunk',
+                    content=content,
+                    hash=_hash
+                )
+                set_insert_user(chunk_obj, metadata.get('user_name'))
+            else:
+                chunk_obj.del_flag = 0
+                set_update_user(chunk_obj, metadata.get('user_name'))
             db.session.add(chunk_obj)
             db.session.flush()
             db.session.commit()
             # 加入向量数据库
             vector_index = get_vector_index()
             meta_data = {
-                'uuid': _uuid,
                 'hash': _hash,
                 'datasource_id': datasource_id,
                 'datamodel_id': datamodel_id
             }
-            vector_index.add_texts([content], metadatas=[meta_data])
+            vector_index.add_texts([content], metadatas=[meta_data], ids=[_uuid])
 
 
 if __name__ == '__main__':
@@ -158,3 +269,4 @@ if __name__ == '__main__':
     }
     res = get_knowledge('字典项最多的字典是哪个', metadata)
     print(res)
+    # delete_chunk('')
