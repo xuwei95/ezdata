@@ -22,7 +22,7 @@ def serialize_task_template_model(obj, ser_type='list'):
     dic = obj.to_dict()
     if ser_type == 'list':
         res = {}
-        for k in ['id', 'name', 'code', 'icon', 'type', 'component', 'params', 'runner_type', 'runner_code', 'status', 'create_by', 'create_time', 'update_by', 'update_time', 'del_flag', 'sort_no', 'description']:
+        for k in ['id', 'name', 'code', 'icon', 'type', 'component', 'params', 'runner_type', 'runner_code', 'status', 'create_by', 'create_time', 'update_by', 'update_time', 'del_flag', 'sort_no', 'description', 'built_in']:
             if k in []:
                 res[k] = json.loads(dic[k])
             else:
@@ -165,11 +165,11 @@ class TaskTemplateApiService(object):
         db.session.flush()
         return gen_json_response(msg='编辑成功', extends={'success': True})
 
-    def check_link_tasks(self, id):
+    def check_link_tasks(self, code):
         '''
         判断是否有关联任务，若有禁止删除
         '''
-        link_task = db.session.query(Task).filter(Task.del_flag == 0, Task.template_id == id).first()
+        link_task = db.session.query(Task).filter(Task.del_flag == 0, Task.template_code == code).first()
         return link_task
 
     def delete_obj(self, req_dict):
@@ -180,9 +180,11 @@ class TaskTemplateApiService(object):
         del_obj = db.session.query(TaskTemplate).filter(TaskTemplate.id == obj_id).first()
         if del_obj is None:
             return gen_json_response(code=400, msg='未找到数据')
-        link_task = self.check_link_tasks(del_obj.id)
+        link_task = self.check_link_tasks(del_obj.code)
         if link_task:
             return gen_json_response(code=400, msg='模板下存在关联任务，禁止删除')
+        if del_obj.built_in == 1:
+            return gen_json_response(code=400, msg='内置模版，禁止删除')
         del_obj.del_flag = 1
         set_update_user(del_obj)
         db.session.add(del_obj)
@@ -197,10 +199,13 @@ class TaskTemplateApiService(object):
         del_ids = req_dict.get('ids')
         if isinstance(del_ids, str):
             del_ids = del_ids.split(',')
-        link_tasks = [self.check_link_tasks(id) for id in del_ids]
+        del_objs = db.session.query(TaskTemplate).filter(TaskTemplate.id.in_(del_ids)).all()
+        link_tasks = [self.check_link_tasks(obj.code) for obj in del_objs]
         if link_tasks != []:
             return gen_json_response(code=400, msg='模板下存在关联任务，禁止删除')
-        del_objs = db.session.query(TaskTemplate).filter(TaskTemplate.id.in_(del_ids)).all()
+        has_built_in = [i for i in del_objs if i.built_in == 1] != []
+        if has_built_in:
+            return gen_json_response(code=400, msg='含有内置模版，禁止删除')
         for del_obj in del_objs:
             del_obj.del_flag = 1
             set_update_user(del_obj)

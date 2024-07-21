@@ -23,6 +23,7 @@ class TaskTemplate(BaseModel):
     runner_code = db.Column(db.Text, nullable=True, default='', comment='模版配置')
     component = db.Column(db.String(500), nullable=True, default='', comment='任务组件')
     params = db.Column(db.Text, nullable=True, default='{}', comment='模版配置')
+    built_in = db.Column(db.SmallInteger, nullable=True, default=0, comment='是否内置 1是 0不是')
     status = db.Column(db.SmallInteger, nullable=True, default=1, comment='状态')
 
 
@@ -38,6 +39,7 @@ class Task(BaseModel):
     name = db.Column(db.String(100), nullable=True, default='', comment='名称')
     params = db.Column(LONGTEXT, nullable=True, default='{}', comment='参数')
     status = db.Column(db.SmallInteger, nullable=True, default=0, comment='状态')
+    built_in = db.Column(db.SmallInteger, nullable=True, default=0, comment='是否内置 1是 0不是')
     trigger_type = db.Column(db.SmallInteger, nullable=True, default=1, comment='触发方式，1单次2定时')
     trigger_date = db.Column(db.String(100), default='[]', comment='触发始末时间')
     crontab = db.Column(db.String(500), nullable=True, default='', comment='定时设置')

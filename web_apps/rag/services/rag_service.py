@@ -1,11 +1,12 @@
 from web_apps import db, app
 from utils.auth import set_insert_user, set_update_user
 from utils.etl_utils import get_reader_model
-from utils.common_utils import gen_uuid, md5
+from utils.common_utils import gen_uuid, md5, parse_json
 from web_apps.rag.splitter.text_splitter import RecursiveCharacterTextSplitter
 from web_apps.rag.utils import get_vector_index
-from web_apps.rag.db_models import Dataset, Document, Chunk
+from web_apps.rag.db_models import Document, Chunk
 from web_apps.datamodel.db_models import DataModel
+from web_apps.rag.extractor.extract_processor import ExtractProcessor, ExtractSetting
 
 
 def get_knowledge(question, metadata=None):
@@ -78,12 +79,14 @@ def train_qa_info(question, answer, metadata=None):
             document_obj = db.session.query(Document).filter(Document.id == document_id).first()
             if document_obj:
                 dataset_id = document_obj.dataset_id
-        chunk_obj = db.session.query(Chunk).filter(
-            Chunk.datamodel_id == datamodel_id,
-            Chunk.document_id == document_id,
+        query = db.session.query(Chunk).filter(
             Chunk.question_hash == question_hash,
-        ).first()
-        print(chunk_obj)
+        )
+        if datamodel_id:
+            query = query.filter(Chunk.datamodel_id == datamodel_id)
+        if document_id:
+            query = query.filter(Chunk.document_id == document_id)
+        chunk_obj = query.first()
         if chunk_obj is None:
             _uuid = gen_uuid()
             chunk_obj = Chunk(
@@ -202,10 +205,12 @@ def delete_chunk(id):
             print(e)
 
 
-def train_datamodel(datamodel_id, metadata=None):
+def train_datamodel(datamodel_id, metadata=None, chunk_strategy=None):
     '''
     将数据模型训练加入知识库
     '''
+    if chunk_strategy is None:
+        chunk_strategy = {'chunk_size': 1024}
     if metadata is None:
         metadata = {}
     with app.app_context():
@@ -217,17 +222,17 @@ def train_datamodel(datamodel_id, metadata=None):
         flag, reader = get_reader_model({'model_id': datamodel_id})
         info_prompt = reader.get_info_prompt('')
         metadata_text = info_prompt.split('# MetaData:')[1] if '# MetaData:' in info_prompt else info_prompt
-        spliter = RecursiveCharacterTextSplitter(separators=['\n\n'], chunk_size=1024)
+        spliter = RecursiveCharacterTextSplitter(separators=['\n\n'], chunk_size=chunk_strategy.get('chunk_size', 1024))
         chunks = spliter.split_text(metadata_text)
         for chunk in chunks:
             content = chunk.strip()
             _hash = md5(content)
-            _uuid = gen_uuid()
             chunk_obj = db.session.query(Chunk).filter(
                 Chunk.datamodel_id == datamodel_id,
                 Chunk.hash == _hash,
             ).first()
             if chunk_obj is None:
+                _uuid = gen_uuid()
                 chunk_obj = Chunk(
                     id=_uuid,
                     datasource_id=datasource_id,
@@ -238,6 +243,7 @@ def train_datamodel(datamodel_id, metadata=None):
                 )
                 set_insert_user(chunk_obj, metadata.get('user_name'))
             else:
+                _uuid = chunk_obj.id
                 chunk_obj.del_flag = 0
                 set_update_user(chunk_obj, metadata.get('user_name'))
             db.session.add(chunk_obj)
@@ -247,6 +253,77 @@ def train_datamodel(datamodel_id, metadata=None):
             vector_index = get_vector_index()
             meta_data = {
                 'hash': _hash,
+                'datasource_id': datasource_id,
+                'datamodel_id': datamodel_id
+            }
+            vector_index.add_texts([content], metadatas=[meta_data], ids=[_uuid])
+
+
+def train_document(document_id, metadata=None,):
+    '''
+    将文档训练加入知识库
+    '''
+    if metadata is None:
+        metadata = {}
+    with app.app_context():
+        datasource_id = metadata.get('datasource_id')
+        datamodel_id = metadata.get('datamodel_id')
+        if datamodel_id is not None:
+            datamodel_obj = db.session.query(DataModel).filter(DataModel.id == datamodel_id).first()
+            if datamodel_obj:
+                datasource_id = datamodel_obj.datasource_id
+        document_obj = db.session.query(Document).filter(Document.id == document_id).first()
+        if document_obj is None:
+            return
+        dataset_id = document_obj.dataset_id
+        # 解析文件
+        meta_data = parse_json(document_obj.meta_data)
+        chunk_strategy = parse_json(document_obj.chunk_strategy)
+        extract_setting = ExtractSetting(
+            datasource_type=document_obj.document_type,
+            upload_file=meta_data.get('upload_file'),
+            notion_info=meta_data.get('notion_info'),
+            website_info=meta_data.get('website_info')
+        )
+        documents = ExtractProcessor.extract(extract_setting)
+        spliter = RecursiveCharacterTextSplitter(chunk_size=chunk_strategy.get('chunk_size', 1024))
+        chunks = spliter.split_documents(documents)
+        position = 1
+        for chunk in chunks:
+            content = chunk.strip()
+            _hash = md5(content)
+            chunk_obj = db.session.query(Chunk).filter(
+                Chunk.document_id == document_id,
+                Chunk.hash == _hash,
+            ).first()
+            if chunk_obj is None:
+                _uuid = gen_uuid()
+                chunk_obj = Chunk(
+                    id=_uuid,
+                    dataset_id=dataset_id,
+                    document_id=document_id,
+                    datasource_id=datasource_id,
+                    datamodel_id=datamodel_id,
+                    chunk_type='chunk',
+                    content=content,
+                    hash=_hash,
+                    position=position
+                )
+                set_insert_user(chunk_obj, metadata.get('user_name'))
+            else:
+                _uuid = chunk_obj.id
+                chunk_obj.del_flag = 0
+                chunk_obj.position = position
+                set_update_user(chunk_obj, metadata.get('user_name'))
+            db.session.add(chunk_obj)
+            db.session.flush()
+            db.session.commit()
+            # 加入向量数据库
+            vector_index = get_vector_index()
+            meta_data = {
+                'hash': _hash,
+                'dataset_id': dataset_id,
+                'document_id': document_id,
                 'datasource_id': datasource_id,
                 'datamodel_id': datamodel_id
             }

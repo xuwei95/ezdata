@@ -13,6 +13,7 @@ from utils.etl_utils import get_reader_model, get_res_fields
 from tasks.task_runners.etl_tasks import MyEtlTask
 from web_apps.llm.utils import get_llm
 from web_apps.llm.services import llm_query_data
+from web_apps.rag.services.rag_service import train_datamodel
 
 
 class DataModelQueryApiService(object):
@@ -99,6 +100,8 @@ class DataModelQueryApiService(object):
                 db.session.flush()
             else:
                 return gen_json_response(code=400, msg=res)
+        if operate == 'train':
+            train_datamodel(obj.id, {})
         return gen_json_response(msg='操作成功', extends={'success': True})
 
     def query_obj_data(self, req_dict, use_auth=True):

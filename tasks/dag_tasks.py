@@ -113,7 +113,7 @@ def dag_node_task(self, node_id, task_id, parent_uuid):
     '''
     with app.app_context():
         uuid = self.request.id if self.request.id else gen_uuid()
-        logger = get_task_logger(p_name='normal_task',task_log_keys={'task_uuid': uuid})
+        logger = get_task_logger(p_name='dag_node_task', task_log_keys={'task_uuid': uuid})
         worker = self.request.hostname if self.request.hostname else ''
         logger.info(f'任务开始，任务id:{uuid}, 执行worker:{worker}')
         try:

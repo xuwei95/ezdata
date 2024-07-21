@@ -74,7 +74,7 @@ def self_remove_task_history(self):
     with app.app_context():
         uuid = self.request.id if self.request.id else gen_uuid()
         worker = self.request.hostname if self.request.hostname else ''
-        logger = get_task_logger(p_name='self_scan_unclosed_tasks', task_log_keys={'task_uuid': uuid})
+        logger = get_task_logger(p_name='self_remove_task_history', task_log_keys={'task_uuid': uuid})
         logger.info(f'任务开始，任务id:{uuid}, 执行worker:{worker}')
         save_days = int(SYS_CONF.get('SAVE_DSYS', 7))
         # 计算n天前的日期

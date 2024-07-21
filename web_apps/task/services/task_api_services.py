@@ -25,7 +25,7 @@ def serialize_task_model(obj, ser_type='list'):
     dic = obj.to_dict()
     if ser_type == 'list':
         res = {}
-        for k in ['id', 'template_code', 'name', 'params', 'run_type', 'status', 'trigger_type', 'trigger_date', 'priority', 'retry', 'countdown', 'run_queue', 'running_id', 'alert_strategy_ids', 'crontab', 'create_by', 'create_time', 'update_by', 'update_time', 'del_flag', 'sort_no', 'description']:
+        for k in ['id', 'template_code', 'name', 'params', 'run_type', 'status', 'trigger_type', 'trigger_date', 'priority', 'retry', 'countdown', 'run_queue', 'running_id', 'alert_strategy_ids', 'crontab', 'create_by', 'create_time', 'update_by', 'update_time', 'del_flag', 'sort_no', 'description', 'built_in']:
             if k in ['params', 'trigger_date']:
                 res[k] = json.loads(dic[k])
             else:
@@ -492,6 +492,8 @@ class TaskApiService(object):
         del_obj = db.session.query(Task).filter(Task.id == obj_id).first()
         if del_obj is None:
             return gen_json_response(code=400, msg='未找到数据')
+        if del_obj.built_in == 1:
+            return gen_json_response(code=400, msg='内置任务，禁止删除')
         del_obj.del_flag = 1
         set_update_user(del_obj)
         db.session.add(del_obj)
@@ -509,6 +511,9 @@ class TaskApiService(object):
         if isinstance(del_ids, str):
             del_ids = del_ids.split(',')
         del_objs = db.session.query(Task).filter(Task.id.in_(del_ids)).all()
+        has_built_in = [i for i in del_objs if i.built_in == 1] != []
+        if has_built_in:
+            return gen_json_response(code=400, msg='含有内置任务，禁止删除')
         for del_obj in del_objs:
             del_obj.del_flag = 1
             set_update_user(del_obj)
