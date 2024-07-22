@@ -283,8 +283,8 @@ def train_document(document_id, metadata=None,):
         if document_obj.document_type == 'upload_file':
             file_name = meta_data.get('upload_file').split('/')[-1]
             setting_args['upload_file'] = file_name
-        elif document_obj.document_type == 'website_info':
-            setting_args['path'] = metadata.get('path')
+        else:
+            setting_args['website_info'] = metadata
         extract_setting = ExtractSetting(
             datasource_type=document_obj.document_type,
             **setting_args
