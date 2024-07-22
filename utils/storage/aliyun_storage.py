@@ -2,7 +2,6 @@ from collections.abc import Generator
 from contextlib import closing
 
 import oss2 as aliyun_s3
-from flask import Flask
 
 from utils.storage.base_storage import BaseStorage
 
@@ -11,10 +10,9 @@ class AliyunStorage(BaseStorage):
     """Implementation for aliyun storage.
     """
 
-    def __init__(self, app: Flask):
-        super().__init__(app)
+    def __init__(self, app_config):
+        super().__init__(app_config)
 
-        app_config = self.app.config
         self.bucket_name = app_config.get('ALIYUN_OSS_BUCKET_NAME')
         oss_auth_method = aliyun_s3.Auth
         region = None

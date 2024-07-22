@@ -4,7 +4,6 @@ import json
 from collections.abc import Generator
 from contextlib import closing
 
-from flask import Flask
 from google.cloud import storage as GoogleCloudStorage
 
 from utils.storage.base_storage import BaseStorage
@@ -13,9 +12,9 @@ from utils.storage.base_storage import BaseStorage
 class GoogleStorage(BaseStorage):
     """Implementation for google storage.
     """
-    def __init__(self, app: Flask):
-        super().__init__(app)
-        app_config = self.app.config
+
+    def __init__(self, app_config):
+        super().__init__(app_config)
         self.bucket_name = app_config.get('GOOGLE_STORAGE_BUCKET_NAME')
         service_account_json_str = app_config.get('GOOGLE_STORAGE_SERVICE_ACCOUNT_JSON_BASE64')
         # if service_account_json_str is empty, use Application Default Credentials

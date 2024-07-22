@@ -134,6 +134,7 @@ deploy/docker/mysql/
 deploy/docker/nginx/html/
 cache/
 exports/
+static/
 
 # celery相关文件
 *.pid

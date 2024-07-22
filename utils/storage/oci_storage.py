@@ -3,15 +3,13 @@ from contextlib import closing
 
 import boto3
 from botocore.exceptions import ClientError
-from flask import Flask
 
 from utils.storage.base_storage import BaseStorage
 
 
 class OCIStorage(BaseStorage):
-    def __init__(self, app: Flask):
-        super().__init__(app)
-        app_config = self.app.config
+    def __init__(self, app_config):
+        super().__init__(app_config)
         self.bucket_name = app_config.get('OCI_BUCKET_NAME')
         self.client = boto3.client(
                     's3',

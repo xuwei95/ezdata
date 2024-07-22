@@ -279,15 +279,20 @@ def train_document(document_id, metadata=None,):
         # 解析文件
         meta_data = parse_json(document_obj.meta_data)
         chunk_strategy = parse_json(document_obj.chunk_strategy)
+        setting_args = {}
+        if document_obj.document_type == 'upload_file':
+            file_name = meta_data.get('upload_file').split('/')[-1]
+            setting_args['upload_file'] = file_name
+        elif document_obj.document_type == 'website_info':
+            setting_args['path'] = metadata.get('path')
         extract_setting = ExtractSetting(
             datasource_type=document_obj.document_type,
-            upload_file=meta_data.get('upload_file'),
-            notion_info=meta_data.get('notion_info'),
-            website_info=meta_data.get('website_info')
+            **setting_args
         )
         documents = ExtractProcessor.extract(extract_setting)
+        content = '\n'.join([i.page_content for i in documents])
         spliter = RecursiveCharacterTextSplitter(chunk_size=chunk_strategy.get('chunk_size', 1024))
-        chunks = spliter.split_documents(documents)
+        chunks = spliter.split_text(content)
         position = 1
         for chunk in chunks:
             content = chunk.strip()
@@ -328,6 +333,7 @@ def train_document(document_id, metadata=None,):
                 'datamodel_id': datamodel_id
             }
             vector_index.add_texts([content], metadatas=[meta_data], ids=[_uuid])
+            position += 1
 
 
 if __name__ == '__main__':
@@ -341,9 +347,13 @@ if __name__ == '__main__':
     # }
     # res = get_knowledge('根据数据画出k线图', metadata)
     # print(res)
-    metadata = {
-        'datamodel_id': '8a862fdf980245459ac9ef89734c166f',
-    }
-    res = get_knowledge('字典项最多的字典是哪个', metadata)
-    print(res)
+    # metadata = {
+    #     'datamodel_id': '8a862fdf980245459ac9ef89734c166f',
+    # }
+    # res = get_knowledge('字典项最多的字典是哪个', metadata)
+    # print(res)
     # delete_chunk('')
+    metadata = {
+        'user_name': 'system',
+    }
+    train_document('597510855a6f45b68fe196dc9e74126d', metadata)

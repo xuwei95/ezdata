@@ -1,6 +1,5 @@
 from collections.abc import Generator
 
-from flask import Flask
 from qcloud_cos import CosConfig, CosS3Client
 
 from utils.storage.base_storage import BaseStorage
@@ -10,9 +9,8 @@ class TencentStorage(BaseStorage):
     """Implementation for tencent cos storage.
     """
 
-    def __init__(self, app: Flask):
-        super().__init__(app)
-        app_config = self.app.config
+    def __init__(self, app_config):
+        super().__init__(app_config)
         self.bucket_name = app_config.get('TENCENT_COS_BUCKET_NAME')
         config = CosConfig(
             Region=app_config.get('TENCENT_COS_REGION'),

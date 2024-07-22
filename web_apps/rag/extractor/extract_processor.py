@@ -92,9 +92,9 @@ class ExtractProcessor:
                     storage.download(extract_setting.upload_file, file_path)
                 input_file = Path(file_path)
                 file_extension = input_file.suffix.lower()
-                etl_type = current_app.config['ETL_TYPE']
-                unstructured_api_url = current_app.config['UNSTRUCTURED_API_URL']
-                unstructured_api_key = current_app.config['UNSTRUCTURED_API_KEY']
+                etl_type = current_app.config.get('ETL_TYPE', '')
+                unstructured_api_url = current_app.config.get('UNSTRUCTURED_API_URL', '')
+                unstructured_api_key = current_app.config.get('UNSTRUCTURED_API_KEY', '')
                 if etl_type == 'Unstructured':
                     if file_extension == '.xlsx' or file_extension == '.xls':
                         extractor = ExcelExtractor(file_path)

@@ -12,9 +12,8 @@ class AzureStorage(BaseStorage):
     """Implementation for azure storage.
     """
 
-    def __init__(self, app: Flask):
-        super().__init__(app)
-        app_config = self.app.config
+    def __init__(self, app_config):
+        super().__init__(app_config)
         self.bucket_name = app_config.get('AZURE_BLOB_CONTAINER_NAME')
         self.account_url = app_config.get('AZURE_BLOB_ACCOUNT_URL')
         self.account_name = app_config.get('AZURE_BLOB_ACCOUNT_NAME')

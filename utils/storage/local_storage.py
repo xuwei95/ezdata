@@ -11,11 +11,11 @@ class LocalStorage(BaseStorage):
     """Implementation for local storage.
     """
 
-    def __init__(self, app: Flask):
-        super().__init__(app)
-        folder = self.app.config.get('STORAGE_LOCAL_PATH')
+    def __init__(self, app_config):
+        super().__init__(app_config)
+        folder = self.app_config.get('STORAGE_LOCAL_PATH', 'static')
         if not os.path.isabs(folder):
-            folder = os.path.join(app.root_path, folder)
+            folder = os.path.join(os.path.abspath(os.path.dirname(__file__)), folder)
         self.folder = folder
 
     def save(self, filename, data):
