@@ -9,7 +9,7 @@ from web_apps.datamodel.db_models import DataModel
 from web_apps.rag.extractor.extract_processor import ExtractProcessor, ExtractSetting
 
 
-def get_knowledge(question, metadata=None):
+def get_knowledge(question, metadata=None, res_type='text'):
     '''
     根据问题查询知识库知识
     '''
@@ -24,12 +24,16 @@ def get_knowledge(question, metadata=None):
             'score_threshold': score_threshold,
             'k': k
         }
+        if 'dataset_id' in metadata:
+            search_kwargs['filter']['dataset_id'] = metadata['dataset_id']
         if 'datamodel_id' in metadata:
             search_kwargs['filter']['datamodel_id'] = metadata['datamodel_id']
         kwargs = {
             'search_kwargs': search_kwargs
         }
         documents = vector_index.search(question, **kwargs)
+        if res_type == 'documents':
+            return documents
         if documents == []:
             return ''
         knowledge = '\n'.join([d.page_content for d in documents])

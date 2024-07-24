@@ -58,7 +58,7 @@ class ChunkApiService(object):
         # 分段类型 查询逻辑
         chunk_type = req_dict.get('chunk_type', '')
         if chunk_type != '':
-            query = query.filter(Chunk.chunk_type.like("%" + chunk_type + "%"))
+            query = query.filter(Chunk.chunk_type == chunk_type)
 
         # 所属数据集 查询逻辑
         dataset_id = req_dict.get('dataset_id', '')
@@ -90,9 +90,14 @@ class ChunkApiService(object):
         if status != '':
             query = query.filter(Chunk.status == status)
         total = query.count()
-        query = query.offset((page - 1) * pagesize)
-        query = query.limit(pagesize)
-        obj_list = query.all()
+        if req_dict.get('show_all') and document_id != '':
+            # 展示文档下全部chunk，按position排序
+            obj_list = query.all()
+            obj_list = sorted(obj_list, key=lambda obj: obj.position)
+        else:
+            query = query.offset((page - 1) * pagesize)
+            query = query.limit(pagesize)
+            obj_list = query.all()
         result = []
         for obj in obj_list:
             dic = serialize_chunk_model(obj, ser_type='list')

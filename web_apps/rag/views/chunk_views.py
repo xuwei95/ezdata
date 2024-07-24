@@ -4,12 +4,42 @@
 from flask import jsonify, request
 from flask import Blueprint
 from utils.auth import validate_user, validate_permissions
-from utils.web_utils import get_req_para, validate_params, generate_download_file
+from utils.web_utils import get_req_para, validate_params
 from utils.common_utils import gen_json_response
 from web_apps.rag.services.chunk_api_services import ChunkApiService
-from web_apps.rag.services.rag_service import train_qa_info
+from web_apps.rag.services.rag_service import train_qa_info, get_knowledge
 chunk_bp = Blueprint('chunk', __name__)
-    
+
+
+@chunk_bp.route('/retrieval', methods=['GET'])
+@validate_user
+@validate_permissions([])
+def chunk_retrieval_list():
+    '''
+    检索查询接口
+    '''
+    req_dict = get_req_para(request)
+    verify_dict = {}
+    not_valid = validate_params(req_dict, verify_dict)
+    if not_valid:
+        return jsonify(gen_json_response(code=400, msg=not_valid))
+    query = req_dict.get('query')
+    if query in [None, '']:
+        res_data = {
+            'total': 0,
+            'records': []
+        }
+        return gen_json_response(res_data)
+    documents = get_knowledge(query, req_dict, res_type='documents')
+    print(documents)
+    data_li = [{'page_content': i.page_content, **i.metadata} for i in documents]
+    print(data_li)
+    res_data = {
+        'total': len(documents),
+        'records': data_li
+    }
+    return gen_json_response(res_data)
+
 
 @chunk_bp.route('/list', methods=['GET'])
 @validate_user
@@ -26,7 +56,6 @@ def chunk_list():
         return jsonify(gen_json_response(code=400, msg=not_valid))
     res_data = ChunkApiService.get_obj_list(req_dict)
     return jsonify(res_data)
-    
 
 @chunk_bp.route('/queryById', methods=['GET'])
 @validate_user
