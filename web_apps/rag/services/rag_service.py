@@ -3,7 +3,7 @@ from utils.auth import set_insert_user, set_update_user
 from utils.etl_utils import get_reader_model
 from utils.common_utils import gen_uuid, md5, parse_json
 from web_apps.rag.splitter.text_splitter import RecursiveCharacterTextSplitter
-from web_apps.rag.utils import get_vector_index
+from web_apps.rag.utils import get_vector_index, get_rerank_runner
 from web_apps.rag.db_models import Document, Chunk
 from web_apps.datamodel.db_models import DataModel
 from web_apps.rag.extractor.extract_processor import ExtractProcessor, ExtractSetting
@@ -17,8 +17,11 @@ def get_knowledge(question, metadata=None, res_type='text'):
         metadata = {}
     with app.app_context():
         vector_index = get_vector_index()
-        score_threshold = metadata.get('score_threshold', 0.8)
-        k = metadata.get('k', 3)
+        if 'score_threshold' in metadata:
+            score_threshold = float(metadata['score_threshold'])
+        else:
+            score_threshold = 0.1
+        k = int(metadata.get('k', 5))
         search_kwargs = {
             'filter': {},
             'score_threshold': score_threshold,
@@ -32,6 +35,9 @@ def get_knowledge(question, metadata=None, res_type='text'):
             'search_kwargs': search_kwargs
         }
         documents = vector_index.search(question, **kwargs)
+        if str(metadata.get('rerank')) == '1':
+            rerank_runner = get_rerank_runner()
+            documents = rerank_runner.run(question, documents, top_n=k,  score_threshold=score_threshold)
         if res_type == 'documents':
             return documents
         if documents == []:
@@ -346,18 +352,19 @@ if __name__ == '__main__':
     # }
     # datamodel_id = '8a862fdf980245459ac9ef89734c166f'
     # train_datamodel(datamodel_id, metadata)
-    # metadata = {
-    #     'datamodel_id': 'e222b61c62be4d09908a5bc94aebf22d',
-    # }
-    # res = get_knowledge('根据数据画出k线图', metadata)
-    # print(res)
+    metadata = {
+        'rerank': '1',
+        'datamodel_id': 'e222b61c62be4d09908a5bc94aebf22d',
+    }
+    res = get_knowledge('根据数据画出k线图', metadata)
+    print(res)
     # metadata = {
     #     'datamodel_id': '8a862fdf980245459ac9ef89734c166f',
     # }
     # res = get_knowledge('字典项最多的字典是哪个', metadata)
     # print(res)
     # delete_chunk('')
-    metadata = {
-        'user_name': 'system',
-    }
-    train_document('597510855a6f45b68fe196dc9e74126d', metadata)
+    # metadata = {
+    #     'user_name': 'system',
+    # }
+    # train_document('597510855a6f45b68fe196dc9e74126d', metadata)

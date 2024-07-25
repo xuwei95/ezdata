@@ -1,6 +1,7 @@
 '''
 rag模块数据模型
 '''
+import pickle
 from web_apps import db
 from models import BaseModel
 
@@ -48,6 +49,21 @@ class Chunk(BaseModel):
     position = db.Column(db.Integer, nullable=True, default=1, comment='分段位置')
     status = db.Column(db.SmallInteger, nullable=True, default=1, comment='状态( 1已同步 0未同步)', index=True)
     star_flag = db.Column(db.SmallInteger, default=0, comment='标星状态( 1为标星 0没有标星)', index=True)
+
+
+class Embedding(db.Model):
+    __tablename__ = 'rag_embedding'
+
+    id = db.Column(db.String(36), primary_key=True)
+    hash = db.Column(db.String(32), nullable=False, index=True)
+    embedding = db.Column(db.LargeBinary, nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.text('CURRENT_TIMESTAMP(0)'))
+
+    def set_embedding(self, embedding_data: list[float]):
+        self.embedding = pickle.dumps(embedding_data, protocol=pickle.HIGHEST_PROTOCOL)
+
+    def get_embedding(self) -> list[float]:
+        return pickle.loads(self.embedding)
 
 
 if __name__ == '__main__':
