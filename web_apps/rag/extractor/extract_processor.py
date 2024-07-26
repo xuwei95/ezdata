@@ -27,7 +27,7 @@ from web_apps.rag.extractor.unstructured.unstructured_text_extractor import Unst
 from web_apps.rag.extractor.unstructured.unstructured_xml_extractor import UnstructuredXmlExtractor
 from web_apps.rag.extractor.word_extractor import WordExtractor
 from langchain_core.documents import Document
-from utils.ext_storage import storage
+from utils.storage_utils import storage
 
 SUPPORT_URL_CONTENT_TYPES = ['application/pdf', 'text/plain', 'application/json']
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"

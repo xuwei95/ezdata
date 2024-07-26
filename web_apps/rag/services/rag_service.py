@@ -20,7 +20,7 @@ def get_knowledge(question, metadata=None, res_type='text'):
         if 'score_threshold' in metadata:
             score_threshold = float(metadata['score_threshold'])
         else:
-            score_threshold = 0.1
+            score_threshold = 0
         k = int(metadata.get('k', 5))
         search_kwargs = {
             'filter': {},
@@ -34,6 +34,8 @@ def get_knowledge(question, metadata=None, res_type='text'):
         kwargs = {
             'search_kwargs': search_kwargs
         }
+        if score_threshold > 0:
+            kwargs['search_type'] = 'similarity_score_threshold'
         documents = vector_index.search(question, **kwargs)
         if str(metadata.get('rerank')) == '1':
             rerank_runner = get_rerank_runner()

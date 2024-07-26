@@ -1,0 +1,22 @@
+# ezetl 中间件链接库
+xorbits>=0.3.2
+pyarrow>=12.0.0
+pymysql==1.0.2
+elasticsearch>=7.15.2
+redis==4.0.2
+kafka-python==2.0.2
+mysql-replication==0.27
+minio==7.1.1
+akshare
+ccxt
+psycopg2-binary
+pymssql
+cx_oracle
+clickhouse-sqlalchemy
+thrift
+thrift_sasl
+pyhive
+py2neo
+prometheus-api-client
+mongoengine
+influxdb==5.3.1

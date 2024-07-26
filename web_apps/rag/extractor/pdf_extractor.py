@@ -5,7 +5,7 @@ from typing import Optional
 from web_apps.rag.extractor.blod.blod import Blob
 from web_apps.rag.extractor.extractor_base import BaseExtractor
 from langchain_core.documents import Document
-from utils.ext_storage import storage
+from utils.storage_utils import storage
 
 
 class PdfExtractor(BaseExtractor):

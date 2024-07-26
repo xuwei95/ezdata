@@ -2,7 +2,7 @@ import datetime
 import json
 from web_apps.rag.extractor.firecrawl.firecrawl_app import FirecrawlApp
 from utils.cache_utils import redis_cli
-from utils.ext_storage import storage
+from utils.storage_utils import storage
 api_key = ''
 base_url = ''
 

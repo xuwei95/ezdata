@@ -1,7 +1,7 @@
 import json
 import time
 import requests
-from utils.ext_storage import storage
+from utils.storage_utils import storage
 
 
 class FirecrawlApp:

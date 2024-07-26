@@ -13,7 +13,7 @@ from flask import current_app
 from web_apps.rag.extractor.extractor_base import BaseExtractor
 from langchain_core.documents import Document
 from web_apps import db
-from utils.ext_storage import storage
+from utils.storage_utils import storage
 
 
 class WordExtractor(BaseExtractor):
