@@ -7,7 +7,7 @@ from utils.auth import validate_user
 from utils.web_utils import get_req_para, validate_params
 from utils.common_utils import gen_json_response
 from web_apps.bigscreen.services import ScreenService
-from utils.oss_utils import upload_content_to_oss, get_bucket_url
+from utils.storage_utils import storage
 screen_bp = Blueprint('screen', __name__)
 
 
@@ -18,7 +18,7 @@ def get_oss_info():
     """
     req_dict = get_req_para(request)
     print(req_dict)
-    bucket_url = get_bucket_url()
+    bucket_url = storage.get_download_url('')
     res_data = gen_json_response(data={'bucketURL': bucket_url})
     return jsonify(res_data)
 
@@ -58,7 +58,7 @@ def screen_upload():
         file_type = file.filename.split('.')[-1]
         content = file.read()
         print(content)
-        file_url = upload_content_to_oss(content, name=file_name, file_type=file_type)
+        file_url = storage.save(file_name, content)
     else:
         res_data = gen_json_response(code=400, msg='文件获取失败')
         return jsonify(res_data)

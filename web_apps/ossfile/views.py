@@ -6,8 +6,9 @@ from flask import Blueprint
 from utils.auth import validate_user, validate_permissions
 from utils.web_utils import get_req_para, validate_params
 from utils.common_utils import gen_json_response
-from utils.oss_utils import upload_content_to_oss
 from web_apps.ossfile.services import FileService
+from utils.storage_utils import storage
+from config import SYS_CONF
 file_bp = Blueprint('file', __name__)
 
 
@@ -36,7 +37,8 @@ def file_upload():
     if file != '':
         file_type = file.filename.split('.')[-1]
         content = file.read()
-        file_url = upload_content_to_oss(content, name=file_name, file_type=file_type)
+        storage.save(file_name, content)
+        file_url = storage.get_download_url(file_name)
     else:
         res_data = gen_json_response(code=400, msg='文件获取失败')
         return jsonify(res_data)

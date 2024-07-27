@@ -12,8 +12,8 @@ from config import SYS_CONF
 
 class Storage:
     def __init__(self):
-        storage_type = SYS_CONF.get('STORAGE_TYPE', 'local')
-        if storage_type == 's3':
+        self.storage_type = SYS_CONF.get('STORAGE_TYPE', 'local')
+        if self.storage_type == 's3':
             self.storage_runner = S3Storage(SYS_CONF)
         # elif storage_type == 'azure-blob':
         #     self.storage_runner = AzureStorage(
@@ -55,6 +55,13 @@ class Storage:
 
     def download(self, filename, target_filepath):
         self.storage_runner.download(filename, target_filepath)
+
+    def get_download_url(self, filename):
+        if self.storage_type == 's3':
+            url = f"{SYS_CONF.get('STORAGE_PUBLIC_ENDPOINT') if 'STORAGE_PUBLIC_ENDPOINT' in SYS_CONF else SYS_CONF.get('S3_ENDPOINT')}/{SYS_CONF.get('S3_BUCKET_NAME')}/{filename}"
+        else:
+            url = f"{SYS_CONF.get('STORAGE_PUBLIC_ENDPOINT') if 'STORAGE_PUBLIC_ENDPOINT' in SYS_CONF else '/api'}/static/{filename}"
+        return url
 
     def exists(self, filename):
         return self.storage_runner.exists(filename)
