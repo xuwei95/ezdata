@@ -33,8 +33,8 @@ def file_upload():
     """
     req_dict = get_req_para(request)
     file = request.files.get('file', '')
-    file_name = req_dict.get('file_name', '')
     if file != '':
+        file_name = req_dict.get('file_name', file.filename)
         file_type = file.filename.split('.')[-1]
         content = file.read()
         storage.save(file_name, content)
