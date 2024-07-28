@@ -7,6 +7,7 @@ from utils.query_utils import get_base_query
 from utils.auth import set_insert_user, set_update_user, get_auth_token_info
 from utils.common_utils import gen_json_response, gen_uuid
 from web_apps.rag.db_models import Document
+from web_apps.rag.services.rag_service import train_document
 
     
 def serialize_document_model(obj, ser_type='list'):
@@ -132,6 +133,8 @@ class DocumentApiService(object):
         db.session.add(obj)
         db.session.commit()
         db.session.flush()
+        # 训练文档
+        train_document(obj.id, metadata={})
         return gen_json_response(msg='添加成功', extends={'success': True})
     
     @staticmethod

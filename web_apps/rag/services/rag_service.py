@@ -25,7 +25,8 @@ def get_knowledge(question, metadata=None, res_type='text'):
         search_kwargs = {
             'filter': {},
             'score_threshold': score_threshold,
-            'k': k
+            'k': k,
+            'search_type': 'similarity_score_threshold'
         }
         if 'dataset_id' in metadata:
             search_kwargs['filter']['dataset_id'] = metadata['dataset_id']
@@ -34,8 +35,6 @@ def get_knowledge(question, metadata=None, res_type='text'):
         kwargs = {
             'search_kwargs': search_kwargs
         }
-        if score_threshold > 0:
-            kwargs['search_type'] = 'similarity_score_threshold'
         documents = vector_index.search(question, **kwargs)
         if str(metadata.get('rerank')) == '1':
             rerank_runner = get_rerank_runner()
@@ -130,7 +129,7 @@ def train_qa_info(question, answer, metadata=None):
         # 加入向量数据库
         vector_index = get_vector_index()
         meta_data = {
-            'hash': _hash,
+            'chunk_id': _uuid,
             'datasource_id': datasource_id,
             'datamodel_id': datamodel_id,
             'dataset_id': dataset_id,
@@ -196,7 +195,7 @@ def add_chunk(chunk_dict):
         # 加入向量数据库
         vector_index = get_vector_index()
         meta_data = {
-            'hash': _hash,
+            'chunk_id': _uuid,
             'datasource_id': datasource_id,
             'datamodel_id': datamodel_id,
             'dataset_id': dataset_id,
@@ -264,14 +263,14 @@ def train_datamodel(datamodel_id, metadata=None, chunk_strategy=None):
             # 加入向量数据库
             vector_index = get_vector_index()
             meta_data = {
-                'hash': _hash,
+                'chunk_id': _uuid,
                 'datasource_id': datasource_id,
                 'datamodel_id': datamodel_id
             }
             vector_index.add_texts([content], metadatas=[meta_data], ids=[_uuid])
 
 
-def train_document(document_id, metadata=None,):
+def train_document(document_id, metadata=None):
     '''
     将文档训练加入知识库
     '''
@@ -338,7 +337,7 @@ def train_document(document_id, metadata=None,):
             # 加入向量数据库
             vector_index = get_vector_index()
             meta_data = {
-                'hash': _hash,
+                'chunk_id': _uuid,
                 'dataset_id': dataset_id,
                 'document_id': document_id,
                 'datasource_id': datasource_id,
