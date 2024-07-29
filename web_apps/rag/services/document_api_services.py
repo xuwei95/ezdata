@@ -134,7 +134,8 @@ class DocumentApiService(object):
         db.session.commit()
         db.session.flush()
         # 训练文档
-        self_train_rag_data.apply_async(args=(obj.id, {}, 'document',))
+        user_info = get_auth_token_info()
+        self_train_rag_data.apply_async(args=(obj.id, {'user_name': user_info['username']}, 'document',))
         return gen_json_response(msg='添加成功', extends={'success': True})
     
     @staticmethod

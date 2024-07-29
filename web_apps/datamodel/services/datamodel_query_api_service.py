@@ -102,7 +102,8 @@ class DataModelQueryApiService(object):
                 return gen_json_response(code=400, msg=res)
         if operate == 'train':
             # 训练数据模型
-            self_train_rag_data.apply_async(args=(obj.id, {}, 'datamodel',))
+            user_info = get_auth_token_info()
+            self_train_rag_data.apply_async(args=(obj.id, {'user_name': user_info['username']}, 'datamodel',))
         return gen_json_response(msg='操作成功', extends={'success': True})
 
     def query_obj_data(self, req_dict, use_auth=True):
