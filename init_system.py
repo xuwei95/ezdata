@@ -2,10 +2,9 @@ import pymysql
 import os
 import time
 # 导入MySQL数据库连接配置
-from config import DB_HOST, DB_PORT, DB_USER, DB_PWD, DB_NAME
+from config import DB_HOST, DB_PORT, DB_USER, DB_PWD, DB_NAME, SYS_CONF
 from utils.cache_utils import set_key_exp, get_key_value
 from utils.common_utils import gen_uuid
-from utils.oss_utils import check_bucket
 
 
 # 要检查的数据库名称和表名称
@@ -89,6 +88,22 @@ def init_tables():
         return False
 
 
+def check_storge():
+    try:
+        if SYS_CONF.get('STORAGE_TYPE') == 's3':
+            bucket_name = SYS_CONF.get('S3_BUCKET_NAME')
+            from utils.storage_utils import storage
+            s3_client = storage.storage_runner.client
+            try:
+                s3_client.head_bucket(Bucket=bucket_name)
+            except:
+                s3_client.create_bucket(Bucket=bucket_name)
+    except Exception as e:
+        print(f"初始化存储异常{e}")
+        return False
+    return True
+
+
 if __name__ == '__main__':
     retry_num = 3
     retry = 1
@@ -96,7 +111,7 @@ if __name__ == '__main__':
     while retry < retry_num:
         flag = init_db() and flag
         flag = init_tables() and flag
-        flag = check_bucket() and flag
+        flag = check_storge() and flag
         if flag:
             break
         time.sleep(5)
