@@ -25,7 +25,7 @@ class Document(BaseModel):
     dataset_id = db.Column(db.String(36), nullable=True, default='', comment='数据集id', index=True)
     document_type = db.Column(db.String(32), nullable=True, default='', comment='文档类型')
     name = db.Column(db.String(200), nullable=True, default='', comment='名称', index=True)
-    status = db.Column(db.SmallInteger, nullable=True, default=1, comment='状态( 1为启用 0禁用)', index=True)
+    status = db.Column(db.SmallInteger, nullable=True, default=1, comment='状态( 1待训练，2训练中，3训练成功，4训练失败)', index=True)
     meta_data = db.Column(db.Text, nullable=True, default='{}', comment='文档元信息')
     chunk_strategy = db.Column(db.Text, nullable=True, default='{}', comment='分段策略')
 

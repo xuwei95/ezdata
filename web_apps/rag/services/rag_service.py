@@ -37,8 +37,12 @@ def get_knowledge(question, metadata=None, res_type='text'):
         }
         documents = vector_index.search(question, **kwargs)
         if str(metadata.get('rerank')) == '1':
+            if 'rerank_score_threshold' in metadata:
+                rerank_score_threshold = float(metadata['rerank_score_threshold'])
+            else:
+                rerank_score_threshold = 0
             rerank_runner = get_rerank_runner()
-            documents = rerank_runner.run(question, documents, top_n=k,  score_threshold=score_threshold)
+            documents = rerank_runner.run(question, documents, top_n=k,  score_threshold=rerank_score_threshold)
         if res_type == 'documents':
             return documents
         if documents == []:
@@ -286,65 +290,84 @@ def train_document(document_id, metadata=None):
         document_obj = db.session.query(Document).filter(Document.id == document_id).first()
         if document_obj is None:
             return
-        dataset_id = document_obj.dataset_id
-        # 解析文件
-        meta_data = parse_json(document_obj.meta_data)
-        chunk_strategy = parse_json(document_obj.chunk_strategy)
-        setting_args = {}
-        if document_obj.document_type == 'upload_file':
-            file_name = meta_data.get('upload_file').split('/')[-1]
-            setting_args['upload_file'] = file_name
-        else:
-            setting_args['website_info'] = metadata
-        extract_setting = ExtractSetting(
-            datasource_type=document_obj.document_type,
-            **setting_args
-        )
-        documents = ExtractProcessor.extract(extract_setting)
-        content = '\n'.join([i.page_content for i in documents])
-        spliter = RecursiveCharacterTextSplitter(chunk_size=chunk_strategy.get('chunk_size', 1024))
-        chunks = spliter.split_text(content)
-        position = 1
-        for chunk in chunks:
-            content = chunk.strip()
-            _hash = md5(content)
-            chunk_obj = db.session.query(Chunk).filter(
-                Chunk.document_id == document_id,
-                Chunk.hash == _hash,
-            ).first()
-            if chunk_obj is None:
-                _uuid = gen_uuid()
-                chunk_obj = Chunk(
-                    id=_uuid,
-                    dataset_id=dataset_id,
-                    document_id=document_id,
-                    datasource_id=datasource_id,
-                    datamodel_id=datamodel_id,
-                    chunk_type='chunk',
-                    content=content,
-                    hash=_hash,
-                    position=position
-                )
-                set_insert_user(chunk_obj, metadata.get('user_name'))
+        # 标记训练中
+        document_obj.status = 2
+        db.session.add(document_obj)
+        db.session.flush()
+        db.session.commit()
+        try:
+            dataset_id = document_obj.dataset_id
+            # 解析文件
+            meta_data = parse_json(document_obj.meta_data)
+            chunk_strategy = parse_json(document_obj.chunk_strategy)
+            setting_args = {}
+            if document_obj.document_type == 'upload_file':
+                file_name = meta_data.get('upload_file').split('/')[-1]
+                setting_args['upload_file'] = file_name
             else:
-                _uuid = chunk_obj.id
-                chunk_obj.del_flag = 0
-                chunk_obj.position = position
-                set_update_user(chunk_obj, metadata.get('user_name'))
-            db.session.add(chunk_obj)
+                setting_args['website_info'] = metadata
+            extract_setting = ExtractSetting(
+                datasource_type=document_obj.document_type,
+                **setting_args
+            )
+            documents = ExtractProcessor.extract(extract_setting)
+            content = '\n'.join([i.page_content for i in documents])
+            spliter = RecursiveCharacterTextSplitter(chunk_size=chunk_strategy.get('chunk_size', 1024))
+            chunks = spliter.split_text(content)
+            position = 1
+            for chunk in chunks:
+                content = chunk.strip()
+                _hash = md5(content)
+                chunk_obj = db.session.query(Chunk).filter(
+                    Chunk.document_id == document_id,
+                    Chunk.hash == _hash,
+                ).first()
+                if chunk_obj is None:
+                    _uuid = gen_uuid()
+                    chunk_obj = Chunk(
+                        id=_uuid,
+                        dataset_id=dataset_id,
+                        document_id=document_id,
+                        datasource_id=datasource_id,
+                        datamodel_id=datamodel_id,
+                        chunk_type='chunk',
+                        content=content,
+                        hash=_hash,
+                        position=position
+                    )
+                    set_insert_user(chunk_obj, metadata.get('user_name'))
+                else:
+                    _uuid = chunk_obj.id
+                    chunk_obj.del_flag = 0
+                    chunk_obj.position = position
+                    set_update_user(chunk_obj, metadata.get('user_name'))
+                db.session.add(chunk_obj)
+                db.session.flush()
+                db.session.commit()
+                # 加入向量数据库
+                vector_index = get_vector_index()
+                meta_data = {
+                    'chunk_id': _uuid,
+                    'dataset_id': dataset_id,
+                    'document_id': document_id,
+                    'datasource_id': datasource_id,
+                    'datamodel_id': datamodel_id
+                }
+                vector_index.add_texts([content], metadatas=[meta_data], ids=[_uuid])
+                position += 1
+            # 标记训练成功
+            document_obj.status = 3
+            db.session.add(document_obj)
             db.session.flush()
             db.session.commit()
-            # 加入向量数据库
-            vector_index = get_vector_index()
-            meta_data = {
-                'chunk_id': _uuid,
-                'dataset_id': dataset_id,
-                'document_id': document_id,
-                'datasource_id': datasource_id,
-                'datamodel_id': datamodel_id
-            }
-            vector_index.add_texts([content], metadatas=[meta_data], ids=[_uuid])
-            position += 1
+        except Exception as e:
+            print(e)
+            # 标记训练失败
+            document_obj.status = 4
+            db.session.add(document_obj)
+            db.session.flush()
+            db.session.commit()
+
 
 
 if __name__ == '__main__':
