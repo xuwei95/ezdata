@@ -8,7 +8,25 @@ from utils.web_utils import get_req_para, validate_params, generate_download_fil
 from utils.common_utils import gen_json_response
 from web_apps.rag.services.document_api_services import DocumentApiService
 document_bp = Blueprint('document', __name__)
-    
+
+
+@document_bp.route('/train', methods=['POST'])
+@validate_user
+@validate_permissions([])
+def document_train():
+    '''
+    训练知识库
+    '''
+    req_dict = get_req_para(request)
+    verify_dict = {
+    }
+    not_valid = validate_params(req_dict, verify_dict)
+    if not_valid:
+        return jsonify(gen_json_response(code=400, msg=not_valid))
+    res_data = DocumentApiService.train_obj(req_dict)
+    return jsonify(res_data)
+
+
 
 @document_bp.route('/list', methods=['GET'])
 @validate_user

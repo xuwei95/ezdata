@@ -115,7 +115,21 @@ class DocumentApiService(object):
             return gen_json_response(code=400, msg='未找到数据')
         dic = serialize_document_model(obj, ser_type='detail')
         return gen_json_response(data=dic)
-    
+
+    @staticmethod
+    def train_obj(req_dict):
+        '''
+        训练知识库
+        '''
+        obj_id = req_dict.get('id')
+        obj = db.session.query(Document).filter(Document.id == obj_id).first()
+        if obj is None:
+            return gen_json_response(code=400, msg='未找到数据')
+        # 训练文档
+        user_info = get_auth_token_info()
+        self_train_rag_data.apply_async(args=(obj.id, {'user_name': user_info['username']}, 'document',))
+        return gen_json_response(msg='任务发送成功', extends={'success': True})
+
     @staticmethod
     def add_obj(req_dict):
         '''
