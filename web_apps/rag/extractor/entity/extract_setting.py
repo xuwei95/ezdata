@@ -20,10 +20,10 @@ class WebsiteInfo(BaseModel):
     """
     website import info.
     """
-    provider: str
-    job_id: str
+    provider: str = 'firecrawl'
+    job_id: str = ''
     url: str
-    mode: str
+    mode: str = 'scrape'
     only_main_content: bool = False
 
     class Config:

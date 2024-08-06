@@ -7,6 +7,7 @@ from web_apps.rag.utils import get_vector_index, get_rerank_runner
 from web_apps.rag.db_models import Document, Chunk
 from web_apps.datamodel.db_models import DataModel
 from web_apps.rag.extractor.extract_processor import ExtractProcessor, ExtractSetting
+from web_apps.rag.extractor.entity.extract_setting import WebsiteInfo
 
 
 def get_knowledge(question, metadata=None, res_type='text'):
@@ -305,7 +306,9 @@ def train_document(document_id, metadata=None):
                 file_name = meta_data.get('upload_file').split('/')[-1]
                 setting_args['upload_file'] = file_name
             else:
-                setting_args['website_info'] = metadata
+                setting_args['website_info'] = WebsiteInfo(
+                    url=meta_data.get('url')
+                )
             extract_setting = ExtractSetting(
                 datasource_type=document_obj.document_type,
                 **setting_args
@@ -376,19 +379,19 @@ if __name__ == '__main__':
     # }
     # datamodel_id = '8a862fdf980245459ac9ef89734c166f'
     # train_datamodel(datamodel_id, metadata)
-    metadata = {
-        'rerank': '1',
-        'datamodel_id': 'e222b61c62be4d09908a5bc94aebf22d',
-    }
-    res = get_knowledge('根据数据画出k线图', metadata)
-    print(res)
+    # metadata = {
+    #     'rerank': '1',
+    #     'datamodel_id': 'e222b61c62be4d09908a5bc94aebf22d',
+    # }
+    # res = get_knowledge('根据数据画出k线图', metadata)
+    # print(res)
     # metadata = {
     #     'datamodel_id': '8a862fdf980245459ac9ef89734c166f',
     # }
     # res = get_knowledge('字典项最多的字典是哪个', metadata)
     # print(res)
     # delete_chunk('')
-    # metadata = {
-    #     'user_name': 'system',
-    # }
-    # train_document('597510855a6f45b68fe196dc9e74126d', metadata)
+    metadata = {
+        'user_name': 'system',
+    }
+    train_document('23dee8a4c03244cba197b90cc41faea1', metadata)

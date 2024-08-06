@@ -3,8 +3,9 @@ import json
 from web_apps.rag.extractor.firecrawl.firecrawl_app import FirecrawlApp
 from utils.cache_utils import redis_cli
 from utils.storage_utils import storage
-api_key = ''
-base_url = ''
+from config import SYS_CONF
+api_key = SYS_CONF.get('FIRECRAWL_API_KEY', '')
+base_url = SYS_CONF.get('FIRECRAWL_URL', 'https://api.firecrawl.dev')
 
 
 class WebsiteService:
