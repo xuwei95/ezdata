@@ -10,6 +10,19 @@ from web_apps.rag.extractor.extract_processor import ExtractProcessor, ExtractSe
 from web_apps.rag.extractor.entity.extract_setting import WebsiteInfo
 
 
+vector_index = get_vector_index()
+
+
+def query_knowledge(question, search_kwargs, search_type='vector'):
+    if search_type == 'vector':
+        kwargs = {
+            'search_kwargs': search_kwargs,
+            'search_type': 'similarity_score_threshold'
+        }
+        documents = vector_index.search(question, **kwargs)
+        return documents
+
+
 def get_knowledge(question, metadata=None, res_type='text'):
     '''
     根据问题查询知识库知识
@@ -17,33 +30,49 @@ def get_knowledge(question, metadata=None, res_type='text'):
     if metadata is None:
         metadata = {}
     with app.app_context():
-        vector_index = get_vector_index()
         if 'score_threshold' in metadata:
             score_threshold = float(metadata['score_threshold'])
         else:
             score_threshold = 0
         k = int(metadata.get('k', 5))
+        use_rerank = str(metadata.get('rerank')) == '1'
         search_kwargs = {
             'filter': {},
             'score_threshold': score_threshold,
-            'k': k,
-            'search_type': 'similarity_score_threshold'
+            'k': k
         }
-        if 'dataset_id' in metadata:
-            search_kwargs['filter']['dataset_id'] = metadata['dataset_id']
         if 'datamodel_id' in metadata:
             search_kwargs['filter']['datamodel_id'] = metadata['datamodel_id']
-        kwargs = {
-            'search_kwargs': search_kwargs
-        }
-        documents = vector_index.search(question, **kwargs)
-        if str(metadata.get('rerank')) == '1':
+        documents = []
+        dataset_ids = []
+        if 'dataset_id' in metadata:
+            dataset_ids = metadata['dataset_id'].split(',')
+        # todo：多线程和全文检索
+        if dataset_ids != []:
+            for dataset_id in dataset_ids:
+                search_kwargs['filter']['dataset_id'] = dataset_id
+                documents = query_knowledge(question, search_kwargs)
+        else:
+            documents += query_knowledge(question, search_kwargs)
+        if use_rerank:
+            # 调用rerank模型重排序
             if 'rerank_score_threshold' in metadata:
                 rerank_score_threshold = float(metadata['rerank_score_threshold'])
             else:
                 rerank_score_threshold = 0
             rerank_runner = get_rerank_runner()
             documents = rerank_runner.run(question, documents, top_n=k,  score_threshold=rerank_score_threshold)
+        elif len(documents) > k:
+            # 去重后按分数排序取topk返回
+            doc_id = []
+            unique_documents = []
+            for document in documents:
+                _hash = md5(document.page_content)
+                if _hash not in doc_id:
+                    doc_id.append(_hash)
+                    unique_documents.append(document)
+            documents = unique_documents
+            documents = sorted(documents, key=lambda x: x.metadata.get('score', 0), reverse=True)[:k]
         if res_type == 'documents':
             return documents
         if documents == []:

@@ -1,5 +1,6 @@
 from langchain.embeddings import DashScopeEmbeddings
 from web_apps.rag.vector_index.es_vector_index import EsVectorIndex
+from web_apps.rag.text_index.es_text_index import EsTextIndex
 from web_apps.rag.embedding.cached_embedding import CacheEmbeddings
 from web_apps.rag.rerank.rerank import RerankRunner
 from web_apps.rag.rerank.dashscope_rerank import DashScopeRerankModel
@@ -29,6 +30,12 @@ def get_vector_index():
     embeddings = get_embeddings()
     if VECTOR_STORE_TYPE == 'elasticsearch':
         return EsVectorIndex(embeddings)
+    return None
+
+
+def get_text_index():
+    if VECTOR_STORE_TYPE == 'elasticsearch':
+        return EsTextIndex()
     return None
 
 

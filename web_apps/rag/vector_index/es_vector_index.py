@@ -1,6 +1,6 @@
 from web_apps.rag.vector_index import BaseVectorIndex
 from langchain.vectorstores import VectorStore
-from langchain import ElasticVectorSearch
+from langchain.vectorstores.elastic_vector_search import ElasticVectorSearch
 from config import SYS_CONF
 
 VECTOR_STORE_URL = SYS_CONF.get('VECTOR_STORE_URL', '')
@@ -21,3 +21,4 @@ class EsVectorIndex(BaseVectorIndex):
             embedding=self._embeddings
         )
         return self._vector_store
+

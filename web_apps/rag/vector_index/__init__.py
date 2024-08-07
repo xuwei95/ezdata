@@ -24,7 +24,7 @@ class BaseVectorIndex(ABC):
             score_threshold = search_kwargs.get("score_threshold")
             if (score_threshold is None) or (not isinstance(score_threshold, float)):
                 search_kwargs['score_threshold'] = .0
-            docs_with_similarity = vector_store.similarity_search_with_relevance_scores(
+            docs_with_similarity = vector_store.similarity_search_with_score(
                 query, **search_kwargs
             )
             docs = []
