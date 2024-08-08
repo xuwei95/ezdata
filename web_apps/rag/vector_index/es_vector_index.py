@@ -3,8 +3,8 @@ from langchain.vectorstores import VectorStore
 from langchain.vectorstores.elastic_vector_search import ElasticVectorSearch
 from config import SYS_CONF
 
-VECTOR_STORE_URL = SYS_CONF.get('VECTOR_STORE_URL', '')
-VECTOR_STORE_INDEX = SYS_CONF.get('VECTOR_STORE_INDEX', '')
+VECTOR_STORE_URL = SYS_CONF.get('ES_HOSTS', '')
+VECTOR_STORE_INDEX = SYS_CONF.get('RAG_STORE_INDEX', 'rag_store_index')
 
 
 class EsVectorIndex(BaseVectorIndex):

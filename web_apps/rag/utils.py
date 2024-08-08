@@ -6,20 +6,19 @@ from web_apps.rag.rerank.rerank import RerankRunner
 from web_apps.rag.rerank.dashscope_rerank import DashScopeRerankModel
 from config import SYS_CONF
 
-# rag相关配置
 # embeddings
 EMBEDDING_TYPE = SYS_CONF.get('EMBEDDING_TYPE', 'dashscope')
-EMBEDDING_API_KEY = SYS_CONF.get('EMBEDDING_API_KEY', '')
-# 向量存储
+# 知识存储
 VECTOR_STORE_TYPE = SYS_CONF.get('VECTOR_STORE_TYPE', 'elasticsearch')
+TEXT_STORE_TYPE = SYS_CONF.get('TEXT_STORE_TYPE', 'elasticsearch')
 # rerank
-RERANK_TYPE = SYS_CONF.get('RERANK_TYPE')
+RERANK_TYPE = SYS_CONF.get('RERANK_TYPE', 'dashscope')
 
 
 def get_embeddings():
     embeddings = None
     if EMBEDDING_TYPE == 'dashscope':
-        embeddings = DashScopeEmbeddings(dashscope_api_key=EMBEDDING_API_KEY,
+        embeddings = DashScopeEmbeddings(dashscope_api_key=SYS_CONF.get('DASHSCOPE_API_KEY'),
                                          model=SYS_CONF.get('EMBEDDING_MODEL', 'text-embedding-v1'))
     if str(SYS_CONF.get('EMBEDDING_CACHE')) == '1' and embeddings is not None:
         embeddings = CacheEmbeddings(embeddings)
@@ -34,7 +33,7 @@ def get_vector_index():
 
 
 def get_text_index():
-    if VECTOR_STORE_TYPE == 'elasticsearch':
+    if TEXT_STORE_TYPE == 'elasticsearch':
         return EsTextIndex()
     return None
 
@@ -42,8 +41,13 @@ def get_text_index():
 def get_rerank_runner():
     rerank_model = None
     if RERANK_TYPE == 'dashscope':
-        rerank_model = DashScopeRerankModel(SYS_CONF.get('RERANK_API_KEY'))
+        rerank_model = DashScopeRerankModel(SYS_CONF.get('DASHSCOPE_API_KEY'))
     if rerank_model:
         rerank_runner = RerankRunner(rerank_model)
         return rerank_runner
     return None
+
+
+vector_index = get_vector_index()
+text_index = get_text_index()
+rerank_runner = get_rerank_runner()
