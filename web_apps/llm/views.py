@@ -9,6 +9,7 @@ from web_apps import db
 from web_apps.llm.db_models import ChatHistory
 from web_apps.llm.utils import get_llm
 from web_apps.llm.services import data_chat, data_chat_generate
+from web_apps.rag.services.rag_service import get_knowledge
 logger = get_logger(p_name='system_log', f_name='llm', log_level='INFO')
 llm_bp = Blueprint('llm', __name__)
 
@@ -81,9 +82,16 @@ def llm_chat():
     message = req_dict.get('message', '')
     topic_id = req_dict.get('topicId', gen_uuid())
 
+    # 查询知识库，若有相关知识，改写prompt
+    knowledge = get_knowledge(message, metadata={'dataset_id': '1'})
+    if knowledge != '':
+        prompt = f"结合知识库信息，回答用户的问题,若知识库中无相关信息，请尝试直接回答。\n知识库：{knowledge}\n用户问题：{message}\n回答："
+    else:
+        prompt = message
+
     def generate():
         llm = get_llm()
-        for c in llm.stream(message):
+        for c in llm.stream(prompt):
             data = {'content': c, 'type': 'text'}
             t = f"id:{topic_id}\ndata:{json.dumps(data, ensure_ascii=False)}"
             yield f"{t}\n\n"

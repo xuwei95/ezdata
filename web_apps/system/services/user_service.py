@@ -472,7 +472,7 @@ class UserService(object):
             login_time = get_now_time()
             user.login_time = login_time
             user.login_times = user.login_times + 1
-            user.login_ip = get_user_ip()
+            user.login_ip = get_user_ip().split(',')[0]
             # 默认登录部门为用户所属部门列表的第一个
             depart_id_list = json.loads(user.depart_id_list)
             if depart_id_list != []:

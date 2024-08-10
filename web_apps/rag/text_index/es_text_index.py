@@ -34,7 +34,7 @@ def _default_query(question, filter: Optional[dict]) -> Dict:
     if filter:
         for key, value in filter.items():
             query["bool"]["must"].append(
-                {"match": {f"metadata.{key}.keyword": value}}
+                {"term": {f"metadata.{key}.keyword": value}}
             )
     return query
 
