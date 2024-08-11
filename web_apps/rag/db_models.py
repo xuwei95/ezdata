@@ -13,6 +13,7 @@ class Dataset(BaseModel):
     __tablename__ = 'rag_dataset'
     id = db.Column(db.String(36), primary_key=True, nullable=False, default='', comment='id')
     name = db.Column(db.String(200), nullable=True, default='', comment='名称', index=True)
+    built_in = db.Column(db.SmallInteger, nullable=True, default=0, comment='是否内置 1是 0不是')
     status = db.Column(db.SmallInteger, nullable=True, default=1, comment='状态( 1为启用 0禁用)', index=True)
 
 

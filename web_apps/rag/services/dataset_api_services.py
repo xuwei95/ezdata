@@ -162,6 +162,8 @@ class DatasetApiService(object):
         del_obj = db.session.query(Dataset).filter(Dataset.id == obj_id).first()
         if del_obj is None:
             return gen_json_response(code=400, msg='未找到数据')
+        if del_obj.built_in == 1:
+            return gen_json_response(code=400, msg='内置数据集，禁止删除')
         del_obj.del_flag = 1
         set_update_user(del_obj)
         db.session.add(del_obj)
@@ -177,6 +179,9 @@ class DatasetApiService(object):
         if isinstance(del_ids, str):
             del_ids = del_ids.split(',')
         del_objs = db.session.query(Dataset).filter(Dataset.id.in_(del_ids)).all()
+        has_built_in = [i for i in del_objs if i.built_in == 1] != []
+        if has_built_in:
+            return gen_json_response(code=400, msg='含有内置数据集，禁止删除')
         for del_obj in del_objs:
             del_obj.del_flag = 1
             set_update_user(del_obj)

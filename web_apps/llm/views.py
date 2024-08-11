@@ -1,7 +1,7 @@
 import json
 import time
 from flask import Blueprint, request, jsonify, Response
-from utils.common_utils import gen_json_response, gen_uuid
+from utils.common_utils import gen_json_response, gen_uuid, parse_json
 from utils.logger.logger import get_logger
 from utils.web_utils import get_req_para, validate_params
 from utils.auth import validate_user, set_insert_user, set_update_user, get_auth_token_info
@@ -80,17 +80,22 @@ def llm_chat():
     '''
     req_dict = get_req_para(request)
     message = req_dict.get('message', '')
-    topic_id = req_dict.get('topicId', gen_uuid())
-
+    topic_id = req_dict.get('topicId', '')
+    chat_config = parse_json(req_dict.get('chatConfig'), {})
+    prompt = message
     # 查询知识库，若有相关知识，改写prompt
-    knowledge = get_knowledge(message, metadata={'dataset_id': '1'})
-    if knowledge != '':
-        prompt = f"结合知识库信息，回答用户的问题,若知识库中无相关信息，请尝试直接回答。\n知识库：{knowledge}\n用户问题：{message}\n回答："
-    else:
-        prompt = message
+    rag_config = parse_json(chat_config.get('rag'), {})
+    rag_enable = rag_config.get('enable', False)
+    if rag_enable:
+        rag_metadata = parse_json(chat_config.get('rag'), {'dataset_id': '1'})
+        knowledge = get_knowledge(message, metadata=rag_metadata)
+        if knowledge != '':
+            prompt = f"结合知识库信息，回答用户的问题,若知识库中无相关信息，请尝试直接回答。\n知识库：{knowledge}\n用户问题：{message}\n回答："
+    print(prompt)
+
+    llm = get_llm(conversation_id=topic_id)
 
     def generate():
-        llm = get_llm()
         for c in llm.stream(prompt):
             data = {'content': c, 'type': 'text'}
             t = f"id:{topic_id}\ndata:{json.dumps(data, ensure_ascii=False)}"

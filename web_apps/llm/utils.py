@@ -13,7 +13,7 @@ LLM_API_KEY = SYS_CONF.get('LLM_API_KEY', '')
 LLM_MODEL = SYS_CONF.get('LLM_MODEL', '')
 
 
-def get_llm():
+def get_llm(conversation_id=''):
     if LLM_TYPE == 'openai':
         return OpenAIChat(
             model_name=LLM_MODEL,
@@ -27,6 +27,7 @@ def get_llm():
         )
     if LLM_TYPE == 'dify':
         return DifyLLM(
+            conversation_id=conversation_id,
             url=LLM_URL,
             api_key=LLM_API_KEY
         )

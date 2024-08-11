@@ -74,7 +74,7 @@ class User(BaseModel):
     verify_token = db.Column(db.String(50), default='', comment='验证token')
     login_times = db.Column(db.Integer, default=0, comment='登录次数')
     login_time = db.Column(db.Integer, comment='上次登录时间')
-    login_ip = db.Column(db.String(30), comment='上次登录IP')
+    login_ip = db.Column(db.String(500), comment='上次登录IP')
     valid_start_time = db.Column(db.Integer, comment='有效期(开始)')
     valid_end_time = db.Column(db.Integer, comment='有效期（结束）')
 
