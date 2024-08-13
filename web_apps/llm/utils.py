@@ -1,9 +1,9 @@
 import re
 import ast
-from langchain.llms.openai import OpenAIChat
-from web_apps.llm.llms.ali_bailian_llm import AliBailianLLM
-from web_apps.llm.llms.dify_llm import DifyLLM
-from web_apps.llm.llms.gradio_llm import GradioLLM
+from langchain_community.chat_models.openai import ChatOpenAI
+from langchain_community.chat_models.tongyi import ChatTongyi
+from web_apps.llm.llms.dify_llm import DifyChatModel
+from web_apps.llm.llms.gradio_llm import GradioChatModel
 from config import SYS_CONF
 
 # llm相关配置
@@ -15,24 +15,24 @@ LLM_MODEL = SYS_CONF.get('LLM_MODEL', '')
 
 def get_llm(conversation_id=''):
     if LLM_TYPE == 'openai':
-        return OpenAIChat(
+        return ChatOpenAI(
             model_name=LLM_MODEL,
-            api_key=LLM_API_KEY,
-            api_base=LLM_URL
+            openai_api_key=LLM_API_KEY,
+            openai_api_base=LLM_URL
         )
-    if LLM_TYPE == 'ali_bailian':
-        return AliBailianLLM(
+    if LLM_TYPE == 'tongyi':
+        return ChatTongyi(
             model_name=LLM_MODEL,
             api_key=LLM_API_KEY
         )
     if LLM_TYPE == 'dify':
-        return DifyLLM(
+        return DifyChatModel(
             conversation_id=conversation_id,
             url=LLM_URL,
             api_key=LLM_API_KEY
         )
     if LLM_TYPE == 'gradio':
-        return GradioLLM(
+        return GradioChatModel(
             url=LLM_URL
         )
     return None

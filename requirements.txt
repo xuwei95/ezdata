@@ -33,8 +33,10 @@ redis==4.0.2
 kafka-python==2.0.2
 # llm相关
 pydantic==2.7.3
-langchain==0.0.351
-openai==0.28.0
+langchain==0.2.13
+langchain-community==0.2.12
+langchain-openai==0.1.21
+openai==1.40.6
 gradio_client==1.0.1
 dashscope==1.19.2
 # rag相关

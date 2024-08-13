@@ -1,4 +1,4 @@
-from langchain.embeddings import DashScopeEmbeddings
+from langchain_community.embeddings import DashScopeEmbeddings
 from web_apps.rag.vector_index.es_vector_index import EsVectorIndex
 from web_apps.rag.text_index.es_text_index import EsTextIndex
 from web_apps.rag.embedding.cached_embedding import CacheEmbeddings

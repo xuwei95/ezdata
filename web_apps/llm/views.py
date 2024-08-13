@@ -97,7 +97,7 @@ def llm_chat():
 
     def generate():
         for c in llm.stream(prompt):
-            data = {'content': c, 'type': 'text'}
+            data = {'content': c.content, 'type': 'text'}
             t = f"id:{topic_id}\ndata:{json.dumps(data, ensure_ascii=False)}"
             yield f"{t}\n\n"
         yield f"id:[DONE]\ndata:[DONE]\n\n"

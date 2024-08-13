@@ -85,7 +85,7 @@ def data_chat_generate(req_dict):
     '''
     with app.app_context():
         message = req_dict['message']
-        model_id = req_dict.get('model_id', 'e222b61c62be4d09908a5bc94aebf22d')
+        model_id = req_dict.get('model_id', '')
         topic_id = req_dict.get('topicId', gen_uuid())
         _llm = get_llm()
         if _llm is None:

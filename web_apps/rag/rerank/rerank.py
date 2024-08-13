@@ -43,11 +43,9 @@ class RerankRunner:
             if result['score'] >= score_threshold:
                 rerank_document = Document(
                     page_content=result['text'],
-                    metadata={
-                        'score': result['score'],
-                        **documents[result['index']].metadata
-                    }
+                    metadata=documents[result['index']].metadata
                 )
+                rerank_document.metadata['score'] = result['score']
                 rerank_documents.append(rerank_document)
 
         return rerank_documents

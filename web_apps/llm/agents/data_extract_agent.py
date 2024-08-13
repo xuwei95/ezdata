@@ -56,7 +56,7 @@ At the end, declare "result" variable as a dictionary of type and value.
 Generate python code and return full updated code:
 生成代码前请使用中文解释大致逻辑
 """
-        self.llm_result = self.llm(prompt)
+        self.llm_result = self.llm.invoke(prompt).content
         code = extract_code(self.llm_result)
         return code
 
@@ -77,7 +77,7 @@ the code running throws an exception:
 Fix the python code above and return the new python code
 生成代码前请使用中文解释大致逻辑
         """
-        self.llm_result = self.llm(fix_code_prompt)
+        self.llm_result = self.llm.invoke(fix_code_prompt).content
         new_code = extract_code(self.llm_result)
         return new_code
 

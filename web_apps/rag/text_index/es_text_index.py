@@ -26,7 +26,7 @@ def _default_query(question, filter: Optional[dict]) -> Dict:
     query = {
         "bool": {
             "must": [
-                {"match": {"content": question}}
+                {"match": {"text": question}}
             ]
         }
     }

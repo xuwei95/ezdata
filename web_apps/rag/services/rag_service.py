@@ -48,10 +48,10 @@ def query_knowledge(question, search_kwargs):
             'search_type': 'similarity_score_threshold'
         }
         documents = []
-        if retrieval_type in ['all', 'vector']:
+        if retrieval_type in ['all', 'vector'] and vector_index is not None:
             # 向量检索
             documents += vector_index.search(question, **kwargs)
-        if retrieval_type in ['all', 'keyword']:
+        if retrieval_type in ['all', 'keyword'] and text_index is not None:
             # 全文检索
             documents += text_index.search(question, **kwargs)
         return documents
@@ -95,7 +95,7 @@ def get_knowledge(question, metadata=None, res_type='text'):
                 _search_kwargs['filter']['datamodel_id'] = datamodel_id
                 search_kwargs_list.append(_search_kwargs)
         if len(search_kwargs_list) <= 1:
-            documents = query_knowledge(question, search_kwargs)
+            documents = query_knowledge(question, search_kwargs_list[0])
         else:
             # 多线程召回
             documents = []  # 存储所有文档的总列表
@@ -118,7 +118,7 @@ def get_knowledge(question, metadata=None, res_type='text'):
         documents = unique_documents
         if len(documents) > k:
             # 召回数量过多，重排序取 topk
-            if str(metadata.get('rerank')) == '1':
+            if str(metadata.get('rerank')) == '1' and rerank_runner is not None:
                 # 调用rerank模型重排序
                 if 'rerank_score_threshold' in metadata:
                     rerank_score_threshold = float(metadata['rerank_score_threshold'])
