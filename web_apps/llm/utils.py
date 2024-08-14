@@ -1,6 +1,6 @@
 import re
 import ast
-from langchain_community.chat_models.openai import ChatOpenAI
+from langchain_openai import ChatOpenAI
 from langchain_community.chat_models.tongyi import ChatTongyi
 from web_apps.llm.llms.dify_llm import DifyChatModel
 from web_apps.llm.llms.gradio_llm import GradioChatModel
