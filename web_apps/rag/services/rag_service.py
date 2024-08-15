@@ -80,7 +80,7 @@ def get_knowledge(question, metadata=None, res_type='text'):
             datamodel_ids = metadata['datamodel_id'].split(',')
         dataset_ids = []
         if 'dataset_id' in metadata:
-            dataset_ids = metadata['dataset_id'].split(',')
+            dataset_ids = metadata['dataset_id'].split(',') if isinstance(metadata['dataset_id'], str) else metadata['dataset_id']
         search_kwargs_list = []
         if dataset_ids == [] and datamodel_ids == []:
             search_kwargs_list = [search_kwargs]
