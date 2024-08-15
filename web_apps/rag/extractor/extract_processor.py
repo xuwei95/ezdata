@@ -26,6 +26,7 @@ from web_apps.rag.extractor.unstructured.unstructured_pptx_extractor import Unst
 from web_apps.rag.extractor.unstructured.unstructured_text_extractor import UnstructuredTextExtractor
 from web_apps.rag.extractor.unstructured.unstructured_xml_extractor import UnstructuredXmlExtractor
 from web_apps.rag.extractor.word_extractor import WordExtractor
+from web_apps.rag.extractor.http_url_extractor import HttpUrlExtractor
 from langchain_core.documents import Document
 from utils.storage_utils import storage
 
@@ -161,6 +162,9 @@ class ExtractProcessor:
                 )
                 return extractor.extract()
             else:
-                raise ValueError(f"Unsupported website provider: {extract_setting.website_info.provider}")
+                extractor = HttpUrlExtractor(
+                    url=extract_setting.website_info.url
+                )
+                return extractor.extract()
         else:
             raise ValueError(f"Unsupported datasource type: {extract_setting.datasource_type}")

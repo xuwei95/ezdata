@@ -42,4 +42,5 @@ dashscope==1.19.2
 # rag相关
 unstructured==0.10.27
 python-docx==1.1.2
-pypdfium2
+pypdfium2==4.30.0
+html2text==2024.2.26

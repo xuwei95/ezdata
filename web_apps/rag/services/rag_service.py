@@ -376,7 +376,8 @@ def train_document(document_id, metadata=None):
                 setting_args['upload_file'] = file_name
             else:
                 setting_args['website_info'] = WebsiteInfo(
-                    url=meta_data.get('url')
+                    url=meta_data.get('url'),
+                    provider=meta_data.get('provider', 'base')
                 )
             extract_setting = ExtractSetting(
                 datasource_type=document_obj.document_type,
@@ -453,15 +454,15 @@ if __name__ == '__main__':
     # }
     # res = get_knowledge('根据数据画出k线图', metadata)
     # print(res)
-    metadata = {
-        'retrieval_type': 'all',
-        'dataset_id': '0e0e85ffc5564674b59da8a563d5a2a3',
-        'datamodel_id': '8a862fdf980245459ac9ef89734c166f',
-    }
-    res = get_knowledge('字典项最多的字典是哪个', metadata)
-    print(res)
-    # delete_chunk('')
     # metadata = {
-    #     'user_name': 'system',
+    #     'retrieval_type': 'all',
+    #     'dataset_id': '0e0e85ffc5564674b59da8a563d5a2a3',
+    #     'datamodel_id': '8a862fdf980245459ac9ef89734c166f',
     # }
-    # train_document('23dee8a4c03244cba197b90cc41faea1', metadata)
+    # res = get_knowledge('字典项最多的字典是哪个', metadata)
+    # print(res)
+    # delete_chunk('')
+    metadata = {
+        'user_name': 'system',
+    }
+    train_document('4612c5625cb44f528a09a885255ed6f7', metadata)

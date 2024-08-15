@@ -1,8 +1,7 @@
 """Abstract interface for document loader implementations."""
-from bs4 import BeautifulSoup
-
 from web_apps.rag.extractor.extractor_base import BaseExtractor
 from langchain_core.documents import Document
+import html2text as ht
 
 
 class HtmlExtractor(BaseExtractor):
@@ -27,8 +26,11 @@ class HtmlExtractor(BaseExtractor):
 
     def _load_as_text(self) -> str:
         with open(self._file_path, "rb") as fp:
-            soup = BeautifulSoup(fp, 'html.parser')
-            text = soup.get_text()
-            text = text.strip() if text else ''
-
-        return text
+            # 转为markdown格式
+            html = fp.read().decode()
+            text_maker = ht.HTML2Text()
+            text_maker.bypass_tables = False
+            text_maker.ignore_links = False
+            text_maker.ignore_images = False
+            text = text_maker.handle(html)
+            return text
