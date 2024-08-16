@@ -17,4 +17,5 @@ RUN git clone https://github.com/xuwei95/ezdata.git
 WORKDIR /opt/ezdata
 RUN cd /opt/ezdata
 RUN pip install -r /opt/ezdata/requirements.txt -i https://pypi.doubanio.com/simple --use-deprecated=legacy-resolver
+RUN pip install -r /opt/ezdata/exetl/requirements.txt -i https://pypi.doubanio.com/simple --use-deprecated=legacy-resolver
 CMD ["tail -f /dev/null"]
