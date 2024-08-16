@@ -13,7 +13,7 @@ RUN apt install -y tzdata \
     && echo ${TZ} > /etc/timezone \
     && dpkg-reconfigure --frontend noninteractive tzdata \
     && rm -rf /var/lib/apt/lists/* \
-RUN git clone https://github.com/xuwei95/ezdata.git
+RUN git clone https://github.com/xuwei95/ezdata.git /opt/ezdata
 WORKDIR /opt/ezdata
 RUN cd /opt/ezdata
 RUN pip install -r /opt/ezdata/requirements.txt -i https://pypi.doubanio.com/simple --use-deprecated=legacy-resolver
