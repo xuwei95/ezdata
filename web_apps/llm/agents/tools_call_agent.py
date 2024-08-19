@@ -1,7 +1,10 @@
-from web_apps.llm.utils import get_llm
 from langchain_core.prompts import ChatPromptTemplate
-from langchain.agents import create_tool_calling_agent, initialize_agent, AgentExecutor
+from langchain.agents.loading import AGENT_TO_CLASS
+from langchain.agents.agent_types import AgentType
+from langchain.agents import create_tool_calling_agent
+from web_apps.llm.utils import get_llm
 from utils.common_utils import get_now_time
+from web_apps.llm.agents.agent_exector import ToolsAgentExecutor
 
 
 class ToolsCallAgent:
@@ -18,12 +21,14 @@ class ToolsCallAgent:
                 ("human", "{input}"),
                 ("placeholder", "{agent_scratchpad}"),
             ])
-            function_call_agent = create_tool_calling_agent(self.llm, tools, pre_prompt)
-            self.agent_executor = AgentExecutor(agent=function_call_agent, tools=tools, verbose=True)
+            self.agent = create_tool_calling_agent(self.llm, tools, pre_prompt)
         else:
-            self.agent_executor = initialize_agent(tools=tools, llm=self.llm,
-                                                   agent="structured-chat-zero-shot-react-description",
-                                                   verbose=True)
+            agent_cls = AGENT_TO_CLASS[AgentType.STRUCTURED_CHAT_ZERO_SHOT_REACT_DESCRIPTION]
+            self.agent = agent_cls.from_llm_and_tools(
+                llm,
+                tools
+            )
+        self.agent_executor = ToolsAgentExecutor(agent=self.agent, tools=tools, verbose=True)
 
     def run(self, prompt):
         '''
@@ -66,6 +71,40 @@ if __name__ == '__main__':
     import json
     from pydantic import BaseModel, Field
     from langchain_core.tools import Tool, StructuredTool, tool
+    import requests
+
+
+    @tool
+    def get_url_content(url: str) -> str:
+        '''
+        请求url, 获取内容结果
+        :param url:
+        :param retry:
+        :return:
+        '''
+        try:
+            res = requests.get(url)
+            return res.text
+        except Exception as e:
+            return f"请求失败：{e}"
+
+
+    @tool
+    def parse_content(content: str) -> dict:
+        '''
+        解析内容结果
+        :return:
+        '''
+        try:
+            return {
+                'type': 'agent_output',
+                'output': content
+                }
+        except Exception as e:
+            return {
+                'type': 'function error',
+                'output': f"{e}"
+                }
 
 
     def add(x: float, y: float) -> float:
@@ -109,13 +148,12 @@ if __name__ == '__main__':
 
         return json.dumps(weather_answer)
 
-
     tools = [
         StructuredTool(
             name="add",
             func=add,
             args_schema=AddInputSchema,
-            description="将 'x' 和 'y' 相加。",
+            description="将 'x' 和 'y' 相加。"
         ),
         multiply,
         exponentiate,
@@ -123,14 +161,17 @@ if __name__ == '__main__':
             name="weather_function",
             func=weather_function,
             description="查询location城市天气",
-        )
+        ),
+        get_url_content,
+        parse_content
     ]
     agent = ToolsCallAgent(tools=tools)
     # res = agent.run('3*3=?')
     # print(res)
     # res = agent.run('无锡天气')
     # print(res)
-    res = agent.chat('3的5次方加上5乘以3')
+    # res = agent.chat('3的5次方加上5乘以3')
     # res = agent.chat('无锡天气')
+    res = agent.chat('https://akshare.akfamily.xyz/data/bond/bond.html 获取其内容,并解析其内容')
     for chunk in res:
         print(chunk)
