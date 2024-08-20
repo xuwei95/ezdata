@@ -8,10 +8,19 @@ from utils.auth import validate_user, set_insert_user, set_update_user, get_auth
 from web_apps import db
 from web_apps.llm.db_models import ChatHistory
 from web_apps.llm.utils import get_llm
-from web_apps.llm.services import data_chat, data_chat_generate
+from web_apps.llm.services import data_chat, data_chat_generate, get_tool_list
 from web_apps.rag.services.rag_service import get_knowledge
+from web_apps.llm.tools import get_tools
+from web_apps.llm.agents.tools_call_agent import ToolsCallAgent
 logger = get_logger(p_name='system_log', f_name='llm', log_level='INFO')
 llm_bp = Blueprint('llm', __name__)
+
+
+@llm_bp.route('/tool/list', methods=['GET'])
+@validate_user
+def tool_list():
+    res_data = get_tool_list()
+    return jsonify(res_data)
 
 
 @llm_bp.route('/chat/history/get', methods=['GET'])
@@ -92,14 +101,26 @@ def llm_chat():
         if knowledge != '':
             prompt = f"结合知识库信息，回答用户的问题,若知识库中无相关信息，请尝试直接回答。\n知识库：{knowledge}\n用户问题：{message}\n回答："
     print(prompt)
-
     llm = get_llm(conversation_id=topic_id)
 
     def generate():
-        for c in llm.stream(prompt):
-            data = {'content': c.content, 'type': 'text'}
-            t = f"id:{topic_id}\ndata:{json.dumps(data, ensure_ascii=False)}"
-            yield f"{t}\n\n"
+        # 判断是否使用工具调用
+        agent_config = parse_json(chat_config.get('agent'), {})
+        agent_enable = agent_config.get('enable', False)
+        tools = agent_config.get('tools', [])
+        if agent_enable and tools != []:
+            # agent工具调用模式
+            tools = get_tools(tools)
+            agent = ToolsCallAgent(tools, llm=llm)
+            for chunk in agent.chat(prompt):
+                t = f"id:{topic_id}\ndata:{json.dumps(chunk, ensure_ascii=False)}"
+                yield f"{t}\n\n"
+        else:
+            # 直接使用llm回答
+            for c in llm.stream(prompt):
+                data = {'content': c.content, 'type': 'text'}
+                t = f"id:{topic_id}\ndata:{json.dumps(data, ensure_ascii=False)}"
+                yield f"{t}\n\n"
         yield f"id:[DONE]\ndata:[DONE]\n\n"
 
     return Response(generate(), mimetype='text/event-stream')

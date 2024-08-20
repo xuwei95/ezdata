@@ -6,6 +6,21 @@ from web_apps.llm.utils import get_llm
 from utils.etl_utils import get_reader_model
 from utils.common_utils import gen_json_response, gen_uuid, get_now_time
 from web_apps.rag.services.rag_service import get_star_qa_answer, get_knowledge
+from web_apps.llm.tools import tools_map
+
+
+def get_tool_list():
+    '''
+    获取工具列表
+    '''
+    result = []
+    for k, v in tools_map.items():
+        dic = {
+            'name': v['name'],
+            'value': k
+        }
+        result.append(dic)
+    return gen_json_response(data=result)
 
 
 def llm_query_data(reader, llm, query_prompt):

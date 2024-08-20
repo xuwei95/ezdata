@@ -10,6 +10,7 @@ from typing import (
     Optional,
     Tuple,
 )
+from utils.common_utils import gen_uuid
 
 
 class ToolsAgentExecutor(AgentExecutor, ABC):
@@ -19,20 +20,33 @@ class ToolsAgentExecutor(AgentExecutor, ABC):
         """
         Serialize the input data for non-serializable or too-long strings.
         """
-        try:
-            # Try to JSON serialize the value
-            json.dumps(value)
-            if len(str(value)) > 1000:
+        if isinstance(value, dict):
+            return {k: self.serialize_value(v) for k, v in value.items()}
+        else:
+            try:
+                # Try to JSON serialize the value
+                json.dumps(value)
+                if len(str(value)) > 1000:
+                    # Replace with a reference string
+                    ref_key = f"object({type(value)}):{str(value)[:100]}"
+                    self.object_map[ref_key] = value
+                    return ref_key
+                return value
+            except Exception as e:  # Value is not serializable
                 # Replace with a reference string
-                ref_key = f"obj_{str(value)[:1000]}"
+                ref_key = f"object({type(value)}):{gen_uuid('base')}"
                 self.object_map[ref_key] = value
                 return ref_key
-            return value
-        except Exception as e:  # Value is not serializable
-            # Replace with a reference string
-            ref_key = f"obj_{value}"
-            self.object_map[ref_key] = value
-            return ref_key
+
+    def de_serialize_value(self, value):
+        """
+        DeSerialize the input data for non-serializable or too-long strings.
+        """
+        if isinstance(value, dict):
+            output = {k: self.de_serialize_value(v) for k, v in value.items()}
+        else:
+            output = self.object_map.get(f"{value}", value)
+        return output
 
     def _perform_agent_action(
             self,
@@ -51,8 +65,8 @@ class ToolsAgentExecutor(AgentExecutor, ABC):
             tool_run_kwargs = self.agent.tool_run_logging_kwargs()
             if return_direct:
                 tool_run_kwargs["llm_prefix"] = ""
-            agent_action.tool_input = {k: self.object_map.get(f"obj_{v}", v) for k, v in
-                                       agent_action.tool_input.items()}
+            # 反序列化无法json序列化或超长的值和对象传入工具执行
+            agent_action.tool_input = self.de_serialize_value(agent_action.tool_input)
             observation = tool.run(
                 agent_action.tool_input,
                 verbose=self.verbose,
@@ -61,10 +75,7 @@ class ToolsAgentExecutor(AgentExecutor, ABC):
                 **tool_run_kwargs,
             )
             # 序列化无法json序列化或超长的值和对象
-            if isinstance(observation, dict):
-                observation = {k: self.serialize_value(v) for k, v in observation.items()}
-            else:
-                observation = self.serialize_value(observation)
+            observation = self.serialize_value(observation)
             print(observation)
         else:
             tool_run_kwargs = self.agent.tool_run_logging_kwargs()
@@ -93,7 +104,8 @@ class ToolsAgentExecutor(AgentExecutor, ABC):
         if agent_action.tool in name_to_tool_map:
             # 如果工具指定了是结果工具，或工具返回的是一个字典，并且字典中包含'type'键，且键的值为'agent_output'，则返回该字典中的'output作为最终结果
             break_flag = name_to_tool_map[agent_action.tool].return_direct
-            output = self.object_map.get(f"{observation}", observation)
+            # 反序列化无法json序列化或超长的值和对象
+            output = self.de_serialize_value(observation)
             if isinstance(output, dict) and 'type' in output and output['type'] == 'agent_output':
                 output = output['output']
                 break_flag = True

@@ -63,6 +63,9 @@ class ToolsCallAgent:
                                     'time': get_now_time(res_type='datetime')}, 'type': 'flow'}
                 yield data
             if 'output' in chunk:
+                data = {'content': {'title': f"处理完成", 'content': f"处理完成",
+                                    'time': get_now_time(res_type='datetime')}, 'type': 'flow'}
+                yield data
                 data = {'content': chunk['output'], 'type': 'text'}
                 yield data
 
@@ -148,6 +151,34 @@ if __name__ == '__main__':
 
         return json.dumps(weather_answer)
 
+
+    @tool
+    def get_llm_tool() -> object:
+        '''
+        返回一个大语言模型对象
+        '''
+        return get_llm()
+
+
+    @tool
+    def parse_content(llm, content: str) -> dict:
+        """
+        使用大语言模型解析总结内容结果
+        llm: BaseChatModel  # 大语言模型对象
+        content: '待解析的内容字符串'
+        """
+        try:
+            prompt = f"总结以下内容，转为200字左右文案\n{content[:1000]}"
+            result = llm.invoke(prompt)
+            return {
+                'type': 'agent_output',
+                'output': result.content
+            }
+        except Exception as e:
+            return {
+                'type': 'function_error',
+                'output': f"{e}"
+            }
     tools = [
         StructuredTool(
             name="add",
