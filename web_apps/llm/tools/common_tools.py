@@ -1,6 +1,6 @@
 from langchain_core.tools import tool
-from utils.common_utils import get_now_time, format_date, request_url
-import html2text
+from utils.common_utils import get_now_time, format_date
+from web_apps.rag.extractor.http_url_extractor import HttpUrlExtractor
 from web_apps.llm.utils import get_llm
 
 
@@ -18,18 +18,14 @@ def get_url_content(url: str) -> str:
     '''
     请求网络url获取内容
     '''
-    res = request_url(url)
-    html = res.text
-    text_maker = html2text.HTML2Text()
-    text_maker.bypass_tables = False
-    text_maker.ignore_links = False
-    text_maker.ignore_images = False
-    text = text_maker.handle(html)
+    extractor = HttpUrlExtractor(url=url)
+    documents = extractor.extract()
+    text = '\n'.join([d.page_content for d in documents])
     return text
 
 
 @tool
-def summary_content(content: str, max_length: int = 2000, length: int = 500) -> str:
+def summary_content(content: str, max_length: int = 4000, length: int = 500) -> str:
     '''
     使用大模型输出所给内容的总结摘要
     content: 内容
@@ -40,6 +36,19 @@ def summary_content(content: str, max_length: int = 2000, length: int = 500) -> 
     prompt = f"总结一下内容，生成一篇{length}字左右内容摘要:\n{content[:max_length]}"
     result = llm.invoke(prompt).content
     return result
+
+
+@tool
+def network_search(keyword: str) -> str:
+    '''
+    搜索互联网获取相关信息，获取内容后，需调用summary_content工具进行总结
+    keyword: 搜索关键词
+    '''
+    url = f'https://www.baidu.com/s?wd={keyword}'
+    extractor = HttpUrlExtractor(url=url)
+    documents = extractor.extract()
+    text = '\n'.join([d.page_content for d in documents])
+    return text
 
 
 if __name__ == '__main__':

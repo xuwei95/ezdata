@@ -1,4 +1,4 @@
-from web_apps.llm.tools.common_tools import get_time, get_url_content, summary_content
+from web_apps.llm.tools.common_tools import get_time, get_url_content, summary_content, network_search
 tools_map = {
     'now_time': {
         'name': '获取当前时间',
@@ -11,6 +11,10 @@ tools_map = {
     'summary_content': {
         'name': '内容总结摘要',
         'tool': summary_content
+    },
+    'network_search': {
+        'name': '网络搜索',
+        'tool': network_search
     }
 }
 

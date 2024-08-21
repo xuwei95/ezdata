@@ -19,17 +19,23 @@ class HttpUrlExtractor(BaseExtractor):
     """
 
     def __init__(
-        self,
-        url: str
+            self,
+            url,
+            headers=None
     ):
         """Initialize with url."""
+        if headers is None:
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
+            }
         self._url = url
+        self._headers = headers
 
     def extract(self) -> list[Document]:
         url_suffix = Path(self._url).suffix
 
         # Use requests to get the content and a NamedTemporaryFile to store it
-        with requests.get(self._url, stream=True) as response, \
+        with requests.get(self._url, headers=self._headers, stream=True) as response, \
                 NamedTemporaryFile(delete=False, suffix=url_suffix) as temp_file:
             try:
                 # Check if the request was successful

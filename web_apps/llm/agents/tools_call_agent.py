@@ -17,7 +17,7 @@ class ToolsCallAgent:
         # 对有function call 功能llm使用function call 否则使用react agent
         if hasattr(self.llm, "bind_tools"):
             pre_prompt = ChatPromptTemplate.from_messages([
-                ("system", "你是一个有用的助手"),
+                ("system", "你是一个有用的助手, 在调用工具时，若遇到 object(<class 'XXX'>):XXX 形式变量，代表无法序列化的代指变量，传给后续工具时清保持此输入字符串"),
                 ("human", "{input}"),
                 ("placeholder", "{agent_scratchpad}"),
             ])
