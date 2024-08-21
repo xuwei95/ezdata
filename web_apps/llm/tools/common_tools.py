@@ -48,6 +48,8 @@ def network_search(keyword: str) -> str:
     extractor = HttpUrlExtractor(url=url)
     documents = extractor.extract()
     text = '\n'.join([d.page_content for d in documents])
+    if '百度为您找到以下结果' in text:
+        text = text.split('百度为您找到以下结果')[1]
     return text
 
 

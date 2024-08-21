@@ -40,9 +40,10 @@ def get_tools(names):
 
 if __name__ == '__main__':
     from web_apps.llm.agents.tools_call_agent import ToolsCallAgent
-    tools = get_tools(['now_time', 'get_url_content'])
+    tools = get_tools(['now_time', 'get_url_content', 'summary_content', 'network_search'])
     agent = ToolsCallAgent(tools=tools)
     # res = agent.chat('现在几点了？')
-    res = agent.chat('获取https://akshare.akfamily.xyz/data/fund/fund_private.html 内容并总结为200字左右文案')
+    res = agent.chat('南京天气')
+    # res = agent.chat('获取https://akshare.akfamily.xyz/data/fund/fund_private.html 内容并总结为200字左右文案')
     for i in res:
         print(i)
