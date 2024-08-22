@@ -14,17 +14,6 @@ def get_time(format: str = '%Y-%m-%d %H:%M:%S') -> str:
 
 
 @tool
-def get_url_content(url: str) -> str:
-    '''
-    请求网络url获取内容
-    '''
-    extractor = HttpUrlExtractor(url=url)
-    documents = extractor.extract()
-    text = '\n'.join([d.page_content for d in documents])
-    return text
-
-
-@tool
 def summary_content(content: str, max_length: int = 4000, length: int = 500) -> str:
     '''
     使用大模型输出所给内容的总结摘要
@@ -38,19 +27,40 @@ def summary_content(content: str, max_length: int = 4000, length: int = 500) -> 
     return result
 
 
-@tool
+@tool(return_direct=True)
+def get_url_content(url: str) -> str:
+    '''
+    请求网络url获取内容
+    '''
+    extractor = HttpUrlExtractor(
+        url=url,
+        ignore_links=True,
+        ignore_images=True
+    )
+    documents = extractor.extract()
+    text = '\n'.join([d.page_content for d in documents])
+    return summary_content(text)
+
+
+@tool(return_direct=True)
 def network_search(keyword: str) -> str:
     '''
-    搜索互联网获取相关信息，获取内容后，需调用summary_content工具进行总结
+    搜索互联网获取相关信息
     keyword: 搜索关键词
     '''
     url = f'https://www.baidu.com/s?wd={keyword}'
-    extractor = HttpUrlExtractor(url=url)
+    extractor = HttpUrlExtractor(
+        url=url,
+        ignore_links=True,
+        ignore_images=True
+    )
     documents = extractor.extract()
     text = '\n'.join([d.page_content for d in documents])
     if '百度为您找到以下结果' in text:
         text = text.split('百度为您找到以下结果')[1]
-    return text
+    if '相关搜索' in text:
+        text = text.split('相关搜索')[0]
+    return summary_content(text)
 
 
 if __name__ == '__main__':

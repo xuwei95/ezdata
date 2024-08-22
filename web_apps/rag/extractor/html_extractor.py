@@ -16,10 +16,14 @@ class HtmlExtractor(BaseExtractor):
 
     def __init__(
         self,
-        file_path: str
+        file_path: str,
+        ignore_links: bool = False,
+        ignore_images: bool = False
     ):
         """Initialize with file path."""
         self._file_path = file_path
+        self.ignore_links = ignore_links
+        self.ignore_images = ignore_images
 
     def extract(self) -> list[Document]:
         return [Document(page_content=self._load_as_text())]
@@ -30,7 +34,7 @@ class HtmlExtractor(BaseExtractor):
             html = fp.read().decode()
             text_maker = ht.HTML2Text()
             text_maker.bypass_tables = False
-            text_maker.ignore_links = False
-            text_maker.ignore_images = False
+            text_maker.ignore_links = self.ignore_links
+            text_maker.ignore_images = self.ignore_images
             text = text_maker.handle(html)
             return text

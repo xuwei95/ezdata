@@ -21,7 +21,9 @@ class HttpUrlExtractor(BaseExtractor):
     def __init__(
             self,
             url,
-            headers=None
+            headers=None,
+            ignore_links: bool = False,
+            ignore_images: bool = False
     ):
         """Initialize with url."""
         if headers is None:
@@ -30,6 +32,9 @@ class HttpUrlExtractor(BaseExtractor):
             }
         self._url = url
         self._headers = headers
+        self.ignore_links = ignore_links
+        self.ignore_images = ignore_images
+
 
     def extract(self) -> list[Document]:
         url_suffix = Path(self._url).suffix
@@ -60,7 +65,7 @@ class HttpUrlExtractor(BaseExtractor):
                 elif file_extension == '.csv':
                     extractor = CSVExtractor(file_path, autodetect_encoding=True)
                 else:
-                    extractor = HtmlExtractor(file_path)
+                    extractor = HtmlExtractor(file_path, ignore_links=self.ignore_links, ignore_images=self.ignore_images)
                 documents = extractor.extract()
                 # Close the file after writing to ensure all data is written
                 temp_file.close()

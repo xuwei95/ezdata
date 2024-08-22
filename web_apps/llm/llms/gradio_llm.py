@@ -8,14 +8,16 @@ from langchain_core.outputs import (
     ChatResult,
 )
 from gradio_client import Client
+from abc import ABC
 
 gradio_url = "https://s5k.cn/api/v1/studio/ZhipuAI/glm-4-9b-chat-vllm/gradio/"
 
 
-class GradioChatModel(BaseChatModel):
+class GradioChatModel(BaseChatModel, ABC):
     url = gradio_url
     messages = []
     is_first = True
+    client: Optional[Client] = None
 
     def transform_messages(self, messages: List[BaseMessage]):
         for i in range(len(messages) - 1):
@@ -35,12 +37,13 @@ class GradioChatModel(BaseChatModel):
         run_manager: Optional[CallbackManagerForLLMRun] = None,
         **kwargs: Any,
     ) -> ChatResult:
+        if self.client is None:
+            self.client = Client(self.url)
         if self.is_first:
             self.transform_messages(messages)
         generations = []
-        client = Client(self.url)
         question = str(messages[-1].content)
-        result = client.predict(
+        result = self.client.predict(
             question,
             self.messages,
             api_name="/predict_1"
