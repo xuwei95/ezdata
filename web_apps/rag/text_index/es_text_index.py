@@ -11,7 +11,7 @@ import uuid
 from langchain_core.documents import Document
 
 elasticsearch_url = SYS_CONF.get('ES_HOSTS', '')
-index_name = SYS_CONF.get('RAG_STORE_INDEX', 'rag_store_index')
+index_name = SYS_CONF.get('TEXT_STORE_INDEX', 'rag_text_index')
 
 
 def _default_text_mapping() -> Dict:

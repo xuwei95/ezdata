@@ -18,8 +18,9 @@ def add_chunks_to_store(contents, metadatas):
     '''
     with app.app_context():
         ids = [i['chunk_id'] for i in metadatas]
-        vector_index.add_texts(contents, metadatas=metadatas, ids=ids)
-        if TEXT_STORE_TYPE != VECTOR_STORE_TYPE:
+        if vector_index is not None:
+            vector_index.add_texts(contents, metadatas=metadatas, ids=ids)
+        if text_index is not None:
             # 添加全文索引
             text_index.add_texts(contents, metadatas=metadatas, ids=ids)
 
@@ -30,8 +31,10 @@ def delete_chunk(id):
     '''
     with app.app_context():
         try:
-            vector_index.delete_by_ids([id])
-            if TEXT_STORE_TYPE != VECTOR_STORE_TYPE:
+            if vector_index is not None:
+                # 从向量索引中删除
+                vector_index.delete_by_ids([id])
+            if text_index is not None:
                 # 从全文索引中删除
                 text_index.delete_by_ids([id])
         except Exception as e:
@@ -50,10 +53,16 @@ def query_knowledge(question, search_kwargs):
         documents = []
         if retrieval_type in ['all', 'vector'] and vector_index is not None:
             # 向量检索
-            documents += vector_index.search(question, **kwargs)
+            try:
+                documents += vector_index.search(question, **kwargs)
+            except Exception as e:
+                print(e)
         if retrieval_type in ['all', 'keyword'] and text_index is not None:
             # 全文检索
-            documents += text_index.search(question, **kwargs)
+            try:
+                documents += text_index.search(question, **kwargs)
+            except Exception as e:
+                print(e)
         return documents
 
 
@@ -465,4 +474,4 @@ if __name__ == '__main__':
     metadata = {
         'user_name': 'system',
     }
-    train_document('4612c5625cb44f528a09a885255ed6f7', metadata)
+    train_document('cb5d2213cf4d469c95110332d5755ef9', metadata)

@@ -7,12 +7,12 @@ from web_apps.rag.rerank.dashscope_rerank import DashScopeRerankModel
 from config import SYS_CONF
 
 # embeddings
-EMBEDDING_TYPE = SYS_CONF.get('EMBEDDING_TYPE', 'dashscope')
+EMBEDDING_TYPE = SYS_CONF.get('EMBEDDING_TYPE', '')
 # 知识存储
-VECTOR_STORE_TYPE = SYS_CONF.get('VECTOR_STORE_TYPE', 'elasticsearch')
+VECTOR_STORE_TYPE = SYS_CONF.get('VECTOR_STORE_TYPE', '')
 TEXT_STORE_TYPE = SYS_CONF.get('TEXT_STORE_TYPE', 'elasticsearch')
 # rerank
-RERANK_TYPE = SYS_CONF.get('RERANK_TYPE', 'dashscope')
+RERANK_TYPE = SYS_CONF.get('RERANK_TYPE', '')
 
 
 def get_embeddings():

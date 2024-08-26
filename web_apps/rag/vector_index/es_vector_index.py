@@ -4,7 +4,7 @@ from langchain_community.vectorstores import ElasticVectorSearch
 from config import SYS_CONF
 
 VECTOR_STORE_URL = SYS_CONF.get('ES_HOSTS', '')
-VECTOR_STORE_INDEX = SYS_CONF.get('RAG_STORE_INDEX', 'rag_store_index')
+VECTOR_STORE_INDEX = SYS_CONF.get('VECTOR_STORE_INDEX', 'rag_store_index')
 
 
 class EsVectorIndex(BaseVectorIndex):
