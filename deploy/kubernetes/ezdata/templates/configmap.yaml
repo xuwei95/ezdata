@@ -31,7 +31,7 @@ data:
     ES_PWD={{.Values.externalElasticSearch.password}}
     {{- end }}
     {{- if .Values.elasticsearch.enabled }}
-    ES_HOSTS={{.Values.elasticsearch.service.clusterIP}}:9200
+    ES_HOSTS=http://{{.Values.elasticsearch.service.clusterIP}}:9200
     ES_USER=
     ES_PWD=
     {{- end }}
@@ -94,3 +94,16 @@ data:
     LLM_API_KEY={{.Values.llm.api_key}}
     LLM_MODEL={{.Values.llm.model}}
     {{- end }}
+    # rag 相关配置
+    EMBEDDING_TYPE={{.Values.rag.EMBEDDING_TYPE}}
+    EMBEDDING_MODEL={{.Values.rag.EMBEDDING_MODEL}}
+    EMBEDDING_CACHE={{.Values.rag.EMBEDDING_CACHE}}
+    VECTOR_STORE_TYPE={{.Values.rag.VECTOR_STORE_TYPE}}
+    VECTOR_STORE_INDEX={{.Values.rag.VECTOR_STORE_INDEX}}
+    TEXT_STORE_TYPE={{.Values.rag.TEXT_STORE_TYPE}}
+    TEXT_STORE_INDEX={{.Values.rag.TEXT_STORE_INDEX}}
+    RERANK_TYPE={{.Values.rag.RERANK_TYPE}}
+    DASHSCOPE_API_KEY={{.Values.rag.DASHSCOPE_API_KEY}}
+    # firecrawl
+    FIRECRAWL_API_KEY={{.Values.rag.FIRECRAWL_API_KEY}}
+    FIRECRAWL_URL={{.Values.rag.FIRECRAWL_URL}}

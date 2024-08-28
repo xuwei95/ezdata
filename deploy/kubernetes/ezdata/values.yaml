@@ -11,8 +11,8 @@ web:
   env:
    web_api: 10.233.31.1:8001
    scheduler_api: 10.233.31.2:8002
-   VITE_GLOB_API_URL: "http://101.35.23.52/api"
-   VITE_GLOB_DOMAIN_URL: "http://101.35.23.52"
+   VITE_GLOB_API_URL: "http://127.0.0.1/api"
+   VITE_GLOB_DOMAIN_URL: "http://127.0.0.1"
   service:
     type: NodePort
     clusterIP: 10.233.31.0
@@ -154,9 +154,7 @@ elasticsearch:
 
 externalElasticSearch:
   enabled: false
-  hosts: "127.0.0.1:9200"
-  username: "elastic"
-  password: "ezdata123"
+  hosts: "http://elastic:ezdata123@127.0.0.1:9200"
 
 
 llm:
@@ -167,3 +165,17 @@ llm:
 #  model: gpt-3.5-turbo
   type: gradio
   url: https://s5k.cn/api/v1/studio/ZhipuAI/glm-4-9b-chat-vllm/gradio/
+
+rag:
+  # EMBEDDING_TYPE=dashscope
+  EMBEDDING_MODEL: text-embedding-v3
+  EMBEDDING_CACHE: 1
+  # VECTOR_STORE_TYPE=elasticsearch
+  VECTOR_STORE_INDEX: rag_vector_index
+  TEXT_STORE_TYPE: elasticsearch
+  TEXT_STORE_INDEX: rag_text_index
+  # RERANK_TYPE=dashscope
+  DASHSCOPE_API_KEY: REDACTEDXXXX
+  # firecrawl
+  FIRECRAWL_API_KEY: fc-XXXX
+  FIRECRAWL_URL: https://api.firecrawl.dev
