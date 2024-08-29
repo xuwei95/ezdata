@@ -10,7 +10,7 @@ services:
       - read_env=1 # 是否读取配置文件
       - ENV=dev.env # 配置文件
       - run_upgrade=1 # 是否启动时升级依赖库
-      - upgrade_packages=akshare,ccxt,ez-etl[all] # 启动时升级依赖库列表
+      - upgrade_packages=akshare,ccxt # 启动时升级依赖库列表
       - run_web=1 # 是否运行web api
       - web_worker=4 # web api 并发数
       - run_scheduler=1 # 是否运行scheduler api

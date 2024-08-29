@@ -16,6 +16,6 @@ RUN apt install -y tzdata \
 RUN git clone https://github.com/xuwei95/ezdata.git /opt/ezdata
 WORKDIR /opt/ezdata
 RUN cd /opt/ezdata
-RUN pip install -r requirements.txt -i https://pypi.doubanio.com/simple --use-deprecated=legacy-resolver
-RUN pip install -r ezetl/requirements.txt -i https://pypi.doubanio.com/simple --use-deprecated=legacy-resolver
+RUN pip install -r requirements.txt --use-deprecated=legacy-resolver
+RUN pip install -r ezetl/requirements.txt
 CMD ["tail -f /dev/null"]

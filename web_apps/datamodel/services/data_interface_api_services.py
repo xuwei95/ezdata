@@ -13,6 +13,8 @@ from utils.web_utils import validate_params
 import pandas as pd
 import io
 from utils.log_utils import get_interface_logger
+from web_apps.llm.utils import get_llm
+from web_apps.llm.services import llm_query_data
 interface_log_keys = {
     'duration': '',
     'interface_id': '',
@@ -126,6 +128,27 @@ class DataInterfaceApiService(object):
         flag, reader = get_reader_model(interface_info)
         if not flag:
             return gen_json_response(code=400, msg=reader)
+        ai_query = req_dict.get('ai_query', False)
+        query_prompt = req_dict.get('query_prompt', '')
+        if ai_query and query_prompt != '':
+            _llm = get_llm()
+            if _llm is None:
+                return gen_json_response(code=400, msg='未找到对应llm配置')
+            _flag, res, llm_result = llm_query_data(reader, _llm, query_prompt)
+            df = res['value']
+            for col in df.select_dtypes(include=['datetime']).columns:
+                df[col] = df[col].astype(str)
+            df.fillna("", inplace=True)
+            data_li = df.to_dict(orient='records')
+            res_data = {
+                'records': data_li,
+                'total': len(data_li),
+                'llm_result': llm_result,
+                'fields': get_res_fields(data_li),
+                'extract_rules': reader.get_extract_rules(),
+                'search_type_list': reader.get_search_type_list()
+            }
+            return gen_json_response(data=res_data)
         flag, res_data = reader.read_page(page=page, pagesize=pagesize)
         # 记录接口日志
         interface_log_info = {}

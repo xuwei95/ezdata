@@ -25,12 +25,6 @@ class BaseFileModel(DataModel):
         except Exception as e:
             return False, str(e)
 
-    def get_df(self, file_obj, nrows=None):
-        '''
-        获取pandas df
-        '''
-        return pd.DataFrame([])
-
     def get_info_prompt(self, model_prompt=''):
         '''
         获取使用提示及元数据信息

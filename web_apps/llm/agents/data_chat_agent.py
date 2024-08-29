@@ -138,6 +138,8 @@ Fix the python code above and return the new python code
             return {'content': result['value'], 'type': 'html'}
         elif result['type'] == 'dataframe':
             df = result['value']
+            for col in df.select_dtypes(include=['datetime']).columns:
+                df[col] = df[col].astype(str)
             df.fillna("", inplace=True)
             data_li = df.to_dict(orient='records')
             return {'content': data_li, 'type': 'data'}
