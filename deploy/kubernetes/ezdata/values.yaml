@@ -19,12 +19,12 @@ web:
     nodePort: 80
 
 api:
-  replicas: "3"
+  replicas: "1"
   env:
     read_env: "1"
     ENV: prod.env
     run_upgrade: "1"
-    upgrade_packages: "akshare,ccxt,ez-etl"
+    upgrade_packages: "akshare,ccxt"
     run_web: "1"
     web_worker: "4"
     run_scheduler: "0"
@@ -43,7 +43,7 @@ scheduler:
     read_env: "1"
     ENV: prod.env
     run_upgrade: "1"
-    upgrade_packages: "akshare,ccxt,ez-etl"
+    upgrade_packages: "akshare,ccxt"
     run_web: "0"
     web_worker: "4"
     run_scheduler: "1"
@@ -57,12 +57,12 @@ scheduler:
     clusterIP: 10.233.31.2
 
 worker:
-  replicas: "3"
+  replicas: "1"
   env:
     read_env: "1"
     ENV: prod.env
     run_upgrade: "1"
-    upgrade_packages: "akshare,ccxt,ez-etl"
+    upgrade_packages: "akshare,ccxt"
     run_web: "0"
     web_worker: "4"
     run_scheduler: "0"
