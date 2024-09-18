@@ -1,10 +1,10 @@
-from web_apps.llm.utils import extract_code
+from web_apps.llm.llm_utils import extract_code
 import traceback
 from utils.common_utils import get_now_time
 
 
 class DataChatAgent:
-    def __init__(self, llm, reader, knowledge='', answer='', retry=3):
+    def __init__(self, llm, reader, knowledge='', answer='', retry=1):
         self.llm = llm
         self.reader = reader
         self.knowledge = knowledge
@@ -125,6 +125,7 @@ Fix the python code above and return the new python code
                     else:
                         code = self.generate_code(prompt)
                 result = self.execute_code(code)
+                result = self.parse_result(result)
                 return result
             except Exception as e:
                 traceback_errors = traceback.format_exc()

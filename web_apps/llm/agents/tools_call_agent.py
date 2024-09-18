@@ -2,7 +2,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain.agents.loading import AGENT_TO_CLASS
 from langchain.agents.agent_types import AgentType
 from langchain.agents import create_tool_calling_agent
-from web_apps.llm.utils import get_llm
+from web_apps.llm.llm_utils import get_llm
 from utils.common_utils import get_now_time
 from web_apps.llm.agents.agent_exector import ToolsAgentExecutor
 

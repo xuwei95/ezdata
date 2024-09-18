@@ -86,7 +86,7 @@ def get_knowledge(question, metadata=None, res_type='text'):
         }
         datamodel_ids = []
         if 'datamodel_id' in metadata:
-            datamodel_ids = metadata['datamodel_id'].split(',')
+            datamodel_ids = metadata['datamodel_id'].split(',') if isinstance(metadata['datamodel_id'], str) else metadata['datamodel_id']
         dataset_ids = []
         if 'dataset_id' in metadata:
             dataset_ids = metadata['dataset_id'].split(',') if isinstance(metadata['dataset_id'], str) else metadata['dataset_id']

@@ -1,4 +1,4 @@
-from web_apps.llm.utils import extract_code
+from web_apps.llm.llm_utils import extract_code
 import traceback
 import pandas as pd
 

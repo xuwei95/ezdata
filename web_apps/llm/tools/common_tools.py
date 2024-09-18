@@ -1,7 +1,7 @@
 from langchain_core.tools import tool
 from utils.common_utils import get_now_time, format_date
 from web_apps.rag.extractor.http_url_extractor import HttpUrlExtractor
-from web_apps.llm.utils import get_llm
+from web_apps.llm.llm_utils import get_llm
 
 
 @tool
