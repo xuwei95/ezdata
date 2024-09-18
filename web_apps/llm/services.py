@@ -183,8 +183,26 @@ def data_chat_generate(req_dict):
 
 if __name__ == '__main__':
     req_dict = {
-        'message': '查询sys_dict 表前10条数据',
-        'chatConfig': {"rag":{"enable":True,"dataset_id":["1"],"k":3,"retrieval_type":"vector","score_threshold":0.1,"rerank":"0","rerank_score_threshold":0},"agent":{"enable":False,"tools":[]},"data_chat":{"enable":True,"datamodel_id":["8a862fdf980245459ac9ef89734c166f","22016439fbd0431887641544a0cf5cf4"]}}
+        "message": '查询sys_dict 表前10条数据',
+        "chatConfig": {
+            "rag": {
+                "enable": True,
+                "dataset_id": ["1"],
+                "k": 3,
+                "retrieval_type": "vector",
+                "score_threshold": 0.1,
+                "rerank": "0",
+                "rerank_score_threshold": 0
+            },
+            "agent": {
+                "enable": False,
+                "tools": []
+            },
+            "data_chat": {
+                "enable": True,
+                "datamodel_id": ["8a862fdf980245459ac9ef89734c166f", "22016439fbd0431887641544a0cf5cf4"]
+            }
+        }
     }
     for i in chat_generate(req_dict):
         print(i)
