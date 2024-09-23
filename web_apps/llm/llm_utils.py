@@ -13,23 +13,33 @@ LLM_API_KEY = SYS_CONF.get('LLM_API_KEY', '')
 LLM_MODEL = SYS_CONF.get('LLM_MODEL', '')
 
 
-def get_llm(conversation_id=''):
+def get_llm(llm_config=None):
+    if llm_config is None:
+        llm_config = {
+            'temperature': 0.5,
+            'top_p': 0.8,
+            'max_tokens': 4000
+        }
     if LLM_TYPE == 'openai':
         return ChatOpenAI(
             model_name=LLM_MODEL,
             openai_api_key=LLM_API_KEY,
-            openai_api_base=LLM_URL
+            openai_api_base=LLM_URL,
+            temperature=llm_config.get('temperature', 0.5),
+            top_p=llm_config.get('top_p', 0.8),
+            max_tokens=llm_config.get('max_tokens', 4000)
         )
     if LLM_TYPE == 'tongyi':
         return ChatTongyi(
             model_name=LLM_MODEL,
-            api_key=LLM_API_KEY
+            api_key=LLM_API_KEY,
+            top_p=llm_config.get('top_p', 0.8)
         )
     if LLM_TYPE == 'dify':
         return DifyChatModel(
-            conversation_id=conversation_id,
             url=LLM_URL,
-            api_key=LLM_API_KEY
+            api_key=LLM_API_KEY,
+            conversation_id=llm_config.get('conversation_id', '')
         )
     if LLM_TYPE == 'gradio':
         return GradioChatModel(

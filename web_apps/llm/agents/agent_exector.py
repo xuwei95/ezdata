@@ -26,15 +26,15 @@ class ToolsAgentExecutor(AgentExecutor, ABC):
             try:
                 # Try to JSON serialize the value
                 json.dumps(value)
-                if len(str(value)) > 1000:
+                if len(str(value)) > 2000:
                     # Replace with a reference string
-                    ref_key = f"object({type(value)}):{str(value)[:100]}"
+                    ref_key = f"object({type(value)}):{str(value)[:200]}"
                     self.object_map[ref_key] = value
                     return ref_key
                 return value
             except Exception as e:  # Value is not serializable
                 # Replace with a reference string
-                ref_key = f"object({type(value)}):{gen_uuid('base')}"
+                ref_key = f"object({type(value)}):{gen_uuid('base')[:16]}"
                 self.object_map[ref_key] = value
                 return ref_key
 

@@ -110,6 +110,19 @@ Fix the python code above and return the new python code
             self.last_code_executed = code
             raise e
 
+    def parse_result(self, result):
+        if result['type'] == 'html':
+            return {'content': result['value'], 'type': 'html'}
+        elif result['type'] == 'dataframe':
+            df = result['value']
+            for col in df.select_dtypes(include=['datetime']).columns:
+                df[col] = df[col].astype(str)
+            df.fillna("", inplace=True)
+            data_li = df.to_dict(orient='records')
+            return {'content': data_li, 'type': 'data'}
+        else:
+            return {'content': result['value'], 'type': 'text'}
+
     def run(self, prompt):
         self.question = prompt
         retry_count = 0
@@ -133,19 +146,6 @@ Fix the python code above and return the new python code
                 retry_count += 1
                 code = self.fix_code()
         return result
-
-    def parse_result(self, result):
-        if result['type'] == 'html':
-            return {'content': result['value'], 'type': 'html'}
-        elif result['type'] == 'dataframe':
-            df = result['value']
-            for col in df.select_dtypes(include=['datetime']).columns:
-                df[col] = df[col].astype(str)
-            df.fillna("", inplace=True)
-            data_li = df.to_dict(orient='records')
-            return {'content': data_li, 'type': 'data'}
-        else:
-            return {'content': result['value'], 'type': 'text'}
 
     def chat(self, prompt):
         self.question = prompt

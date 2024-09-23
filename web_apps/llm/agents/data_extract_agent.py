@@ -4,7 +4,7 @@ import pandas as pd
 
 
 class DataExtractAgent:
-    def __init__(self, llm, reader, retry=3):
+    def __init__(self, llm, reader, retry=1):
         self.llm = llm
         self.reader = reader
         self.question = ''

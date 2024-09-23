@@ -83,7 +83,7 @@ def chat_generate(req_dict):
             knowledge = get_knowledge(message, metadata=rag_metadata)
             if knowledge != '':
                 prompt = f"结合知识库信息，回答用户的问题,若知识库中无相关信息，请尝试直接回答。\n知识库：{knowledge}\n用户问题：{message}\n回答："
-        llm = get_llm(conversation_id=topic_id)
+        llm = get_llm({'conversation_id': topic_id})
         # 判断是否使用工具调用
         agent_config = parse_json(chat_config.get('agent'), {})
         agent_enable = agent_config.get('enable', False)
