@@ -56,7 +56,7 @@ es_client._client: python elasticsearch库client实例，可用此对象，执�
 # 使用示例：
 实例化此类的reader对象，查询数据转为dataframe：
 query_dict = {query_example}
-res = es_client._client.search(index=reader.index_name, body=query_dict)
+res = reader.es_client._client.search(index=reader.index_name, body=query_dict)
 data_li = [i.get('_source') for i in res['hits'].get('hits')]
 df = pd.DataFrame(data_li)
 
