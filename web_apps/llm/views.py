@@ -7,7 +7,7 @@ from utils.web_utils import get_req_para
 from utils.auth import validate_user, set_insert_user, set_update_user, get_auth_token_info
 from web_apps import db
 from web_apps.llm.db_models import ChatHistory
-from web_apps.llm.services import chat_generate, data_chat, data_chat_generate, get_tool_list
+from web_apps.llm.services.llm_services import chat_generate, data_chat, data_chat_generate, get_tool_list
 logger = get_logger(p_name='system_log', f_name='llm', log_level='INFO')
 llm_bp = Blueprint('llm', __name__)
 

@@ -12,7 +12,7 @@ from utils.query_utils import get_base_query
 from utils.etl_utils import get_reader_model, get_res_fields
 from tasks.task_runners.etl_tasks import MyEtlTask
 from web_apps.llm.llm_utils import get_llm
-from web_apps.llm.services import llm_query_data
+from web_apps.llm.services.llm_services import llm_query_data
 from tasks.data_tasks import self_train_rag_data
 
 

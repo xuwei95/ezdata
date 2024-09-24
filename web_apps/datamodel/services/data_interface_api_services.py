@@ -14,7 +14,7 @@ import pandas as pd
 import io
 from utils.log_utils import get_interface_logger
 from web_apps.llm.llm_utils import get_llm
-from web_apps.llm.services import llm_query_data
+from web_apps.llm.services.llm_services import llm_query_data
 interface_log_keys = {
     'duration': '',
     'interface_id': '',

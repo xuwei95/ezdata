@@ -154,7 +154,7 @@ def get_star_qa_answer(question, metadata=None):
     with app.app_context():
         question = question.strip()
         question_hash = md5(question)
-        query = db.session.query(Chunk).filter(Chunk.del_flag == 0).filter(Chunk.question_hash == question_hash)
+        query = db.session.query(Chunk).filter(Chunk.del_flag == 0, Chunk.star_flag == 1).filter(Chunk.question_hash == question_hash)
         if 'datamodel_id' in metadata:
             query = query.filter(Chunk.datamodel_id == metadata['datamodel_id'])
         if 'dataset_id' in metadata:
