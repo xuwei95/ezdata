@@ -100,10 +100,12 @@ BLUEPRINT_DICT = {
         'blueprint': 'web_apps.rag.views.chunk_views.chunk_bp',
         'url_prefix': '/api/rag/chunk'
     },
-}
-# 根据是否开启llm模块，添加llm模块
-if SYS_CONF.get('LLM_TYPE'):
-    BLUEPRINT_DICT['llm'] = {
+    'llm': {
         'blueprint': 'web_apps.llm.views.llm_bp',
         'url_prefix': '/api/llm'
-    }
+    },
+    'llm_chat_app': {
+        'blueprint': 'web_apps.llm.app_views.chat_app_bp',
+        'url_prefix': '/api/llm/chat_app'
+    },
+}

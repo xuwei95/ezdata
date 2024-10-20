@@ -5,8 +5,9 @@ import json
 from web_apps import db
 from utils.query_utils import get_base_query
 from utils.auth import set_insert_user, set_update_user, get_auth_token_info
-from utils.common_utils import gen_json_response, gen_uuid
-from web_apps.llm.db_models import ChatApp
+from utils.common_utils import gen_json_response, gen_uuid, parse_json, get_now_time
+from web_apps.llm.db_models import ChatApp, ChatAppToken
+from web_apps.llm.services.llm_services import chat_generate
 
 
 def serialize_chat_app_model(obj, ser_type='list'):
@@ -27,7 +28,7 @@ def serialize_chat_app_model(obj, ser_type='list'):
                 res[k] = dic[k]
         return res
     elif ser_type == 'detail':
-        for k in ['chat_config']:
+        for k in ['chat_config', 'depart_list']:
             dic[k] = json.loads(dic[k])
         for k in []:
             dic.pop(k)
@@ -48,6 +49,65 @@ class ChatAppApiService(object):
         pass
 
     @staticmethod
+    def chat(req_dict):
+        '''
+        应用对话
+        '''
+        stream = req_dict.get('stream', False)
+        api_key = req_dict.get('api_key', '')
+        message = req_dict.get('message', '')
+        chat_token = db.session.query(ChatAppToken).filter(ChatAppToken.api_key == api_key).first()
+        if chat_token is None:
+            return gen_json_response(code=500, msg='api_key错误')
+        chat_app = db.session.query(ChatApp).filter(ChatApp.id == chat_token.app_id).first()
+        if chat_app is None:
+            return gen_json_response(code=500, msg='未找到应用')
+        chat_config = parse_json(chat_app.chat_config)
+        req_data = {
+            'message': message,
+            'chatConfig': chat_config
+        }
+        return chat_generate(req_data)
+
+    @staticmethod
+    def apply_token(req_dict):
+        '''
+        申请api_key
+        '''
+        app_id = req_dict.get('api_id', '')
+        obj = ChatAppToken()
+        obj.id = gen_uuid(res_type='base')
+        obj.app_id = app_id
+        obj.api_key = gen_uuid(res_type='base')
+        user_info = get_auth_token_info()
+        obj.apply_user_id = user_info.get('id')
+        obj.apply_user = user_info.get('username')
+        obj.apply_time = get_now_time()
+        obj.valid_time = 86400 * 365 * 100
+        obj.status = 1
+        set_insert_user(obj)
+        db.session.add(obj)
+        db.session.commit()
+        db.session.flush()
+        return gen_json_response(msg='添加成功', extends={'success': True})
+
+    @staticmethod
+    def api_key_list(req_dict):
+        '''
+        api_key列表
+        '''
+        app_id = req_dict.get('api_id', '')
+        user_info = get_auth_token_info()
+        apply_user_id = user_info['id']
+        chat_tokens = db.session.query(ChatAppToken).filter(ChatAppToken.app_id == app_id,
+                                                            ChatAppToken.apply_user_id == apply_user_id).all()
+        res_data = {
+            'records': [i.to_dict() for i in chat_tokens],
+            'total': len(chat_tokens)
+        }
+        return gen_json_response(data=res_data)
+
+    @staticmethod
     def get_obj_list(req_dict):
         '''
         获取列表
@@ -59,50 +119,17 @@ class ChatAppApiService(object):
         # 名称 查询逻辑
         name = req_dict.get('name', '')
         if name != '':
-            # query = query.filter(ChatApp.name.like("%" + name + "%"))
-            pass
+            query = query.filter(ChatApp.name.like("%" + name + "%"))
 
-        # 分段类型 查询逻辑
-        chunk_type = req_dict.get('chunk_type', '')
-        if chunk_type != '':
-            # query = query.filter(ChatApp.chunk_type.like("%" + chunk_type + "%"))
-            pass
-
-        # 所属数据集 查询逻辑
-        dataset_id = req_dict.get('dataset_id', '')
-        if dataset_id != '':
-            # query = query.filter(ChatApp.dataset_id.like("%" + dataset_id + "%"))
-            pass
-
-        # 所属文档 查询逻辑
-        document_id = req_dict.get('document_id', '')
-        if document_id != '':
-            # query = query.filter(ChatApp.document_id.like("%" + document_id + "%"))
-            pass
-
-        # 所属数据源 查询逻辑
-        datasource_id = req_dict.get('datasource_id', '')
-        if datasource_id != '':
-            # query = query.filter(ChatApp.datasource_id.like("%" + datasource_id + "%"))
-            pass
-
-        # 所属数据模型 查询逻辑
-        datamodel_id = req_dict.get('datamodel_id', '')
-        if datamodel_id != '':
-            # query = query.filter(ChatApp.datamodel_id.like("%" + datamodel_id + "%"))
-            pass
-
-        # 关键词 查询逻辑
-        content = req_dict.get('content', '')
-        if content != '':
-            # query = query.filter(ChatApp.content.like("%" + content + "%"))
-            pass
+        # 类型 查询逻辑
+        _type = req_dict.get('type', '')
+        if _type != '':
+            query = query.filter(ChatApp.type == _type)
 
         # 状态 查询逻辑
-        status = req_dict.get('status', '')
-        if status != '':
-            # query = query.filter(ChatApp.status.like("%" + status + "%"))
-            pass
+        state = req_dict.get('state', '')
+        if state != '':
+            query = query.filter(ChatApp.state == state)
         total = query.count()
         query = query.offset((page - 1) * pagesize)
         query = query.limit(pagesize)
@@ -161,6 +188,11 @@ class ChatAppApiService(object):
         for key in req_dict:
             if key in ['chat_config']:
                 setattr(obj, key, json.dumps(req_dict[key], ensure_ascii=False, indent=2))
+            elif key == 'depart_list':
+                li = req_dict.get(key, "").split(',')
+                if li == ['']:
+                    li = []
+                setattr(obj, key, json.dumps(li))
             else:
                 setattr(obj, key, req_dict[key])
         obj.id = gen_uuid(res_type='base')
@@ -190,6 +222,11 @@ class ChatAppApiService(object):
         for key in req_dict:
             if key in ['chat_config']:
                 setattr(obj, key, json.dumps(req_dict[key], ensure_ascii=False, indent=2))
+            elif key == 'depart_list':
+                li = req_dict.get(key, "").split(',')
+                if li == ['']:
+                    li = []
+                setattr(obj, key, json.dumps(li))
             else:
                 setattr(obj, key, req_dict[key])
         set_update_user(obj)

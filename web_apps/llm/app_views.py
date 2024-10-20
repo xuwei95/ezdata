@@ -1,7 +1,7 @@
 '''
 对话应用管理模块api
 '''
-from flask import jsonify, request
+from flask import jsonify, request, Response
 from flask import Blueprint
 from utils.auth import validate_user, validate_permissions
 from utils.web_utils import get_req_para, validate_params, generate_download_file
@@ -9,6 +9,20 @@ from utils.common_utils import gen_json_response
 from web_apps.llm.services.app_services import ChatAppApiService
 
 chat_app_bp = Blueprint('chat_app', __name__)
+
+
+@chat_app_bp.route('/chat', methods=['GET'])
+@validate_user
+def llm_chat():
+    '''
+    llm对话接口
+    '''
+    req_dict = get_req_para(request)
+    stream = req_dict.get('stream', False)
+    if stream:
+        return Response(ChatAppApiService.chat(req_dict), mimetype='text/event-stream')
+    else:
+        return ChatAppApiService.chat(req_dict)
 
 
 @chat_app_bp.route('/list', methods=['GET'])

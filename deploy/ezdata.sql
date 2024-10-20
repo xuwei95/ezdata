@@ -11,7 +11,7 @@
  Target Server Version : 80022
  File Encoding         : 65001
 
- Date: 24/08/2024 02:09:46
+ Date: 20/10/2024 16:18:13
 */
 
 SET NAMES utf8mb4;
@@ -334,8 +334,8 @@ COMMIT;
 -- ----------------------------
 DROP TABLE IF EXISTS `embeddings`;
 CREATE TABLE `embeddings` (
-  `id` varchar(36) COLLATE utf8mb4_general_ci NOT NULL,
-  `hash` varchar(64) COLLATE utf8mb4_general_ci NOT NULL,
+  `id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+  `hash` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
   `embedding` blob NOT NULL,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -349,20 +349,80 @@ BEGIN;
 COMMIT;
 
 -- ----------------------------
--- Table structure for llm_chat_history
+-- Table structure for llm_chat_app
 -- ----------------------------
-DROP TABLE IF EXISTS `llm_chat_history`;
-CREATE TABLE `llm_chat_history` (
+DROP TABLE IF EXISTS `llm_chat_app`;
+CREATE TABLE `llm_chat_app` (
   `id` varchar(36) COLLATE utf8mb4_general_ci NOT NULL COMMENT '主键',
-  `user_id` varchar(200) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '用户id',
-  `user_name` varchar(100) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '用户名',
-  `content` longtext COLLATE utf8mb4_general_ci COMMENT '内容',
+  `name` varchar(255) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '名称',
+  `icon` varchar(500) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '图标',
+  `type` varchar(200) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '类型',
+  `state` smallint DEFAULT NULL COMMENT '状态[0未发布,1已发布]',
+  `depart_list` text COLLATE utf8mb4_general_ci COMMENT '关联部门列表',
+  `chat_config` longtext COLLATE utf8mb4_general_ci COMMENT '对话配置',
   `description` text COLLATE utf8mb4_general_ci COMMENT '简介',
   `sort_no` float DEFAULT NULL COMMENT '排序',
   `del_flag` smallint DEFAULT NULL COMMENT '软删除标记',
   `create_by` varchar(100) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '创建者',
   `create_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `update_by` varchar(100) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '修改者',
+  `update_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '修改时间',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- ----------------------------
+-- Records of llm_chat_app
+-- ----------------------------
+BEGIN;
+COMMIT;
+
+-- ----------------------------
+-- Table structure for llm_chat_app_token
+-- ----------------------------
+DROP TABLE IF EXISTS `llm_chat_app_token`;
+CREATE TABLE `llm_chat_app_token` (
+  `id` varchar(36) COLLATE utf8mb4_general_ci NOT NULL COMMENT '主键',
+  `app_id` varchar(36) COLLATE utf8mb4_general_ci NOT NULL COMMENT '所属对话appid',
+  `api_key` varchar(36) COLLATE utf8mb4_general_ci NOT NULL COMMENT 'api_key',
+  `valid_time` bigint DEFAULT NULL COMMENT '有效期限',
+  `apply_user_id` int DEFAULT NULL COMMENT '申请人id',
+  `apply_user` varchar(100) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '申请人',
+  `apply_time` bigint DEFAULT NULL COMMENT '申请时间',
+  `apply_time_length` varchar(50) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '申请时长',
+  `status` smallint NOT NULL COMMENT '状态0禁用1启用',
+  `description` text COLLATE utf8mb4_general_ci COMMENT '简介',
+  `sort_no` float DEFAULT NULL COMMENT '排序',
+  `del_flag` smallint DEFAULT NULL COMMENT '软删除标记',
+  `create_by` varchar(100) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '创建者',
+  `create_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_by` varchar(100) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '修改者',
+  `update_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '修改时间',
+  PRIMARY KEY (`id`),
+  KEY `ix_llm_chat_app_token_app_id` (`app_id`),
+  KEY `ix_llm_chat_app_token_api_key` (`api_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- ----------------------------
+-- Records of llm_chat_app_token
+-- ----------------------------
+BEGIN;
+COMMIT;
+
+-- ----------------------------
+-- Table structure for llm_chat_history
+-- ----------------------------
+DROP TABLE IF EXISTS `llm_chat_history`;
+CREATE TABLE `llm_chat_history` (
+  `id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '主键',
+  `user_id` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '用户id',
+  `user_name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '用户名',
+  `content` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci COMMENT '内容',
+  `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci COMMENT '简介',
+  `sort_no` float DEFAULT NULL COMMENT '排序',
+  `del_flag` smallint DEFAULT NULL COMMENT '软删除标记',
+  `create_by` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '创建者',
+  `create_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_by` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '修改者',
   `update_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '修改时间',
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -379,26 +439,26 @@ COMMIT;
 -- ----------------------------
 DROP TABLE IF EXISTS `rag_chunk`;
 CREATE TABLE `rag_chunk` (
-  `id` varchar(36) COLLATE utf8mb4_general_ci NOT NULL COMMENT '主键',
-  `dataset_id` varchar(36) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '数据集id',
-  `document_id` varchar(36) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '文档id',
-  `datasource_id` varchar(36) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '数据源id',
-  `datamodel_id` varchar(36) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '数据模型id',
-  `chunk_type` varchar(32) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '类型(chunk：文本分段 qa：问答对)',
-  `question` text COLLATE utf8mb4_general_ci COMMENT '问题',
-  `question_hash` varchar(32) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '问题hash',
-  `answer` text COLLATE utf8mb4_general_ci COMMENT '问题回答',
-  `content` text COLLATE utf8mb4_general_ci COMMENT '内容',
-  `hash` varchar(32) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '内容hash',
+  `id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '主键',
+  `dataset_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '数据集id',
+  `document_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '文档id',
+  `datasource_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '数据源id',
+  `datamodel_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '数据模型id',
+  `chunk_type` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '类型(chunk：文本分段 qa：问答对)',
+  `question` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci COMMENT '问题',
+  `question_hash` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '问题hash',
+  `answer` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci COMMENT '问题回答',
+  `content` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci COMMENT '内容',
+  `hash` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '内容hash',
   `position` int DEFAULT NULL COMMENT '分段位置',
   `status` smallint DEFAULT NULL COMMENT '状态( 1已同步 0未同步)',
   `star_flag` smallint DEFAULT NULL COMMENT '标星状态( 1为标星 0没有标星)',
-  `description` text COLLATE utf8mb4_general_ci COMMENT '简介',
+  `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci COMMENT '简介',
   `sort_no` float DEFAULT NULL COMMENT '排序',
   `del_flag` smallint DEFAULT NULL COMMENT '软删除标记',
-  `create_by` varchar(100) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '创建者',
+  `create_by` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '创建者',
   `create_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `update_by` varchar(100) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '修改者',
+  `update_by` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '修改者',
   `update_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '修改时间',
   PRIMARY KEY (`id`),
   KEY `ix_rag_chunk_document_id` (`document_id`),
@@ -423,15 +483,15 @@ COMMIT;
 -- ----------------------------
 DROP TABLE IF EXISTS `rag_dataset`;
 CREATE TABLE `rag_dataset` (
-  `id` varchar(36) COLLATE utf8mb4_general_ci NOT NULL COMMENT 'id',
-  `name` varchar(200) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '名称',
+  `id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT 'id',
+  `name` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '名称',
   `status` smallint DEFAULT NULL COMMENT '状态( 1为启用 0禁用)',
-  `description` text COLLATE utf8mb4_general_ci COMMENT '简介',
+  `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci COMMENT '简介',
   `sort_no` float DEFAULT NULL COMMENT '排序',
   `del_flag` smallint DEFAULT NULL COMMENT '软删除标记',
-  `create_by` varchar(100) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '创建者',
+  `create_by` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '创建者',
   `create_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `update_by` varchar(100) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '修改者',
+  `update_by` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '修改者',
   `update_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '修改时间',
   `built_in` smallint DEFAULT NULL COMMENT '是否内置',
   PRIMARY KEY (`id`),
@@ -452,19 +512,19 @@ COMMIT;
 -- ----------------------------
 DROP TABLE IF EXISTS `rag_document`;
 CREATE TABLE `rag_document` (
-  `id` varchar(36) COLLATE utf8mb4_general_ci NOT NULL COMMENT 'id',
-  `dataset_id` varchar(36) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '数据集id',
-  `document_type` varchar(32) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '文档类型',
-  `name` varchar(200) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '名称',
+  `id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT 'id',
+  `dataset_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '数据集id',
+  `document_type` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '文档类型',
+  `name` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '名称',
   `status` smallint DEFAULT NULL COMMENT '状态( 1为启用 0禁用)',
-  `meta_data` text COLLATE utf8mb4_general_ci COMMENT '文档元信息',
-  `chunk_strategy` text COLLATE utf8mb4_general_ci COMMENT '分段策略',
-  `description` text COLLATE utf8mb4_general_ci COMMENT '简介',
+  `meta_data` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci COMMENT '文档元信息',
+  `chunk_strategy` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci COMMENT '分段策略',
+  `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci COMMENT '简介',
   `sort_no` float DEFAULT NULL COMMENT '排序',
   `del_flag` smallint DEFAULT NULL COMMENT '软删除标记',
-  `create_by` varchar(100) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '创建者',
+  `create_by` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '创建者',
   `create_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `update_by` varchar(100) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '修改者',
+  `update_by` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '修改者',
   `update_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '修改时间',
   PRIMARY KEY (`id`),
   KEY `ix_rag_document_dataset_id` (`dataset_id`),
@@ -483,8 +543,8 @@ COMMIT;
 -- ----------------------------
 DROP TABLE IF EXISTS `rag_embedding`;
 CREATE TABLE `rag_embedding` (
-  `id` varchar(36) COLLATE utf8mb4_general_ci NOT NULL,
-  `hash` varchar(64) COLLATE utf8mb4_general_ci NOT NULL,
+  `id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+  `hash` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
   `embedding` blob NOT NULL,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -1786,7 +1846,7 @@ CREATE TABLE `sys_permission` (
   `internal_or_external` smallint DEFAULT NULL COMMENT '外链菜单打开方式 0/内部打开 1/外部打开',
   PRIMARY KEY (`id`),
   KEY `ix_sys_permission_name` (`name`)
-) ENGINE=InnoDB AUTO_INCREMENT=125 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=127 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- ----------------------------
 -- Records of sys_permission
@@ -1809,7 +1869,7 @@ INSERT INTO `sys_permission` VALUES (16, '', 2.92, 0, 'admin', '2022-11-01 08:34
 INSERT INTO `sys_permission` VALUES (17, '', 2.91, 0, 'admin', '2022-11-01 08:35:30', 'admin', '2022-11-11 05:42:51', '对象存储', 4, '/system/ossfile', 'system/ossfile/index', '', '', 1, NULL, 1, 0, 'ant-design:file-add-outlined', 1, 1, 0, 0, 0, 0, 1, 0);
 INSERT INTO `sys_permission` VALUES (18, '', 3, 0, 'admin', '2022-11-01 09:27:13', 'admin', '2022-11-09 01:40:15', '个人中心', 4, '/system/account/setting', 'system/account/setting/index', '', '', 1, NULL, 1, 0, 'ant-design:user-outlined', 1, 1, 0, 1, 0, 0, 1, 0);
 INSERT INTO `sys_permission` VALUES (19, '', 2.945, 0, 'admin', '2022-11-10 06:10:27', 'admin', '2022-11-10 06:10:59', '租户管理', 4, '/system/tenant', 'system/tenant/index', '', '', 1, NULL, 1, 0, 'ant-design:appstore-twotone', 1, 1, 0, 0, 0, 0, 1, 0);
-INSERT INTO `sys_permission` VALUES (20, '', 9.3, 0, 'admin', '2023-12-23 16:20:54', 'admin', '2023-12-23 16:24:45', '数据可视化', NULL, '/visualization', 'layouts/default/index', '', '', 0, NULL, 1, 0, 'chart|svg', 1, 0, 0, 0, 0, 0, 1, 0);
+INSERT INTO `sys_permission` VALUES (20, '', 8, 0, 'admin', '2023-12-23 16:20:54', 'admin', '2024-10-20 07:45:45', '数据可视化', NULL, '/visualization', 'layouts/default/index', '', '', 0, NULL, 1, 0, 'chart|svg', 1, 0, 0, 0, 0, 0, 1, 0);
 INSERT INTO `sys_permission` VALUES (21, '', 1, 0, 'admin', '2022-11-16 14:06:40', 'admin', '2023-04-15 08:12:43', '大屏设计器', 20, '/visualization/bigscreen', '{{ window._CONFIG[\'domianURL\'] }}/bigscreen/#/token_login?token=${token}', '', '', 1, NULL, 1, 0, 'ant-design:dot-chart-outlined', 1, 1, 0, 0, 0, 0, 1, 0);
 INSERT INTO `sys_permission` VALUES (22, '', 1, 0, '2222', '2022-11-19 19:23:40', 'admin', '2023-05-04 09:33:18', '部门用户管理', 13, '', '', '', '', 2, 'user-depart:user', 1, 1, NULL, 1, 1, 1, 1, 1, 0, 1, 1);
 INSERT INTO `sys_permission` VALUES (23, '', 8, 0, 'admin', '2022-11-21 16:11:58', 'admin', '2023-04-19 17:27:27', '开发工具', NULL, '/devtools', 'layouts/default/index', '', '', 0, NULL, 1, 0, 'dev|svg', 1, 0, 0, 0, 0, 0, 1, 0);
@@ -1824,7 +1884,7 @@ INSERT INTO `sys_permission` VALUES (33, '', 8, 0, 'admin', '2023-03-08 03:36:25
 INSERT INTO `sys_permission` VALUES (34, '', 1, 0, 'admin', '2023-03-11 04:32:24', 'admin', '2023-04-19 17:14:51', '任务工作流调度', 31, '/task/dag', '/task/dag_task/index', '', '', 1, NULL, 1, 0, 'dag_task|svg', 1, 1, 0, 0, 0, 0, 1, 0);
 INSERT INTO `sys_permission` VALUES (35, '', 1, 0, 'admin', '2023-03-13 16:35:00', 'admin', '2023-03-14 09:49:30', '任务工作流详情', 31, '/task/dag/detail', '/task/dag_task/dag-editor/index', '', '', 1, NULL, 1, 0, NULL, 1, 1, 0, 1, 0, 0, 1, 0);
 INSERT INTO `sys_permission` VALUES (37, '', 1, 0, 'admin', '2023-04-03 13:00:54', 'admin', '2023-04-20 07:49:24', '算法管理', 25, '/algorithm/index', '/algorithm/index', '', '', 1, NULL, 1, 0, 'algorithm|svg', 1, 1, 0, 0, 0, 0, 1, 0);
-INSERT INTO `sys_permission` VALUES (38, '', 9.1, 0, 'admin', '2023-04-11 17:37:35', 'admin', '2023-06-19 16:54:57', '运维监控', NULL, '/ops', 'layouts/default/index', '', '', 0, NULL, 1, 0, 'ops|svg', 1, 0, 0, 0, 0, 0, 1, 0);
+INSERT INTO `sys_permission` VALUES (38, '', 8.5, 0, 'admin', '2023-04-11 17:37:35', 'admin', '2024-10-20 07:46:04', '运维监控', NULL, '/ops', 'layouts/default/index', '', '', 0, NULL, 1, 0, 'ops|svg', 1, 0, 0, 0, 0, 0, 1, 0);
 INSERT INTO `sys_permission` VALUES (39, '', 1, 0, 'admin', '2023-04-11 17:38:12', 'admin', '2023-04-20 08:02:26', 'worker管理', 38, '/ops/worker', '/ops/workerManage/index', '', '', 1, NULL, 1, 0, 'worker|svg', 1, 1, 0, 0, 0, 0, 1, 0);
 INSERT INTO `sys_permission` VALUES (40, '', 1, 0, 'admin', '2023-04-12 06:24:56', 'admin', '2023-04-20 07:58:53', '定时job管理', 38, '/ops/job', '/ops/jobManage/index', '', '', 1, NULL, 1, 0, 'job|svg', 1, 1, 0, 0, 0, 0, 1, 0);
 INSERT INTO `sys_permission` VALUES (41, '', 1, 0, 'admin', '2023-04-13 07:54:08', 'admin', '2023-04-20 07:58:00', '日志管理', 38, '/ops/log', '/ops/logManage/index', '', '', 1, NULL, 1, 0, 'log|svg', 1, 1, 0, 0, 0, 0, 1, 0);
@@ -1899,16 +1959,18 @@ INSERT INTO `sys_permission` VALUES (110, '', 1, 0, 'admin', '2023-04-26 17:30:1
 INSERT INTO `sys_permission` VALUES (111, '', 1, 0, 'admin', '2023-04-28 07:31:18', 'admin', '2023-04-28 07:36:26', '管理角色用户', 10, '', '', '', '', 2, 'sys:role:user', 1, 1, NULL, 1, 1, 1, 1, 1, 0, 1, 1);
 INSERT INTO `sys_permission` VALUES (112, '', 1, 0, 'admin', '2023-04-28 07:32:42', '', '2023-04-28 07:32:42', '授权', 10, '', '', '', '', 2, 'sys:role:auth', 1, 1, NULL, 1, 1, 1, 1, 1, 0, 1, 1);
 INSERT INTO `sys_permission` VALUES (113, '', 1, 0, 'admin', '2023-05-04 09:29:15', '', '2023-05-04 09:29:15', '冻结用户', 5, '', '', '', '', 2, 'user:frozen', 1, 1, NULL, 1, 1, 1, 1, 1, 0, 1, 1);
-INSERT INTO `sys_permission` VALUES (114, '', 9.2, 0, 'admin', '2023-06-19 12:04:35', 'admin', '2023-06-19 16:54:45', '告警管理', NULL, '/alert', 'layouts/default/index', '', '', 0, NULL, 1, 0, 'ant-design:alert-outlined', 1, 0, 0, 0, 0, 0, 1, 0);
+INSERT INTO `sys_permission` VALUES (114, '', 8.5, 0, 'admin', '2023-06-19 12:04:35', 'admin', '2024-10-20 07:45:56', '告警管理', NULL, '/alert', 'layouts/default/index', '', '', 0, NULL, 1, 0, 'ant-design:alert-outlined', 1, 0, 0, 0, 0, 0, 1, 0);
 INSERT INTO `sys_permission` VALUES (115, '', 1, 0, 'admin', '2023-06-19 16:51:20', 'admin', '2023-06-19 16:57:44', '告警查询', 114, '/alert/list', '/alert/index', '', '', 1, NULL, 1, 0, 'ant-design:alert-outlined', 1, 1, 0, 0, 0, 0, 1, 0);
 INSERT INTO `sys_permission` VALUES (116, '', 99, 0, 'admin', '2023-06-19 16:54:21', 'admin', '2023-06-19 16:55:52', '告警策略', 114, '/alert/alert_strategy', '/alert/alert_strategy/index', '', '', 1, NULL, 1, 0, 'ant-design:exception-outlined', 1, 1, 0, 0, 0, 0, 1, 0);
 INSERT INTO `sys_permission` VALUES (117, '', 1, 0, 'admin', '2023-07-28 08:17:22', '', '2023-07-28 08:17:22', '重启所有job', 40, '', '', '', '', 2, 'job:restart', 1, 1, NULL, 1, 1, 1, 1, 1, 0, 1, 1);
-INSERT INTO `sys_permission` VALUES (119, '', 1, 0, 'admin', '2024-06-22 18:29:46', 'admin', '2024-06-22 18:30:01', 'ai助手', 1, '/ai', '/dashboard/ai', '', '', 1, NULL, 1, 0, NULL, 1, 1, 0, 1, 0, 0, 1, 0);
-INSERT INTO `sys_permission` VALUES (120, '', 7, 0, 'admin', '2024-07-13 16:03:07', 'admin', '2024-07-13 16:07:53', '知识库管理', NULL, '/rag', '/rag/dataset/index', '', '', 0, NULL, 1, 0, 'ant-design:file-search-outlined', 1, 0, 0, 0, 0, 0, 1, 0);
+INSERT INTO `sys_permission` VALUES (119, '', 10, 0, 'admin', '2024-06-22 18:29:46', 'admin', '2024-10-20 07:57:39', 'ai助手', 125, '/ai/index', '/dashboard/ai', '', '', 1, NULL, 1, 0, 'ai|svg', 1, 1, 0, 0, 0, 0, 1, 0);
+INSERT INTO `sys_permission` VALUES (120, '', 9.2, 0, 'admin', '2024-07-13 16:03:07', 'admin', '2024-10-20 07:46:29', '知识库管理', NULL, '/rag', '/rag/dataset/index', '', '', 0, NULL, 1, 0, 'ant-design:file-search-outlined', 1, 0, 0, 0, 0, 0, 1, 0);
 INSERT INTO `sys_permission` VALUES (121, '', 9, 0, 'admin', '2024-07-13 16:07:26', 'admin', '2024-07-13 16:12:46', '数据集管理', 120, '/rag/dataset', '/rag/dataset/index', '', '', 1, NULL, 1, 0, 'ant-design:file-zip-outlined', 1, 1, 0, 0, 0, 0, 1, 0);
 INSERT INTO `sys_permission` VALUES (122, '', 8, 0, 'admin', '2024-07-13 16:10:49', 'admin', '2024-07-13 16:13:02', '文档管理', 120, '/rag/document', '/rag/document/index', '', '', 1, NULL, 1, 0, 'ant-design:file-word-outlined', 1, 1, 0, 0, 0, 0, 1, 0);
 INSERT INTO `sys_permission` VALUES (123, '', 7, 0, 'admin', '2024-07-13 16:11:43', 'admin', '2024-07-13 16:13:27', '知识段管理', 120, '/rag/chunk', '/rag/chunk/index', '', '', 1, NULL, 1, 0, 'ant-design:file-text-outlined', 1, 1, 0, 0, 0, 0, 1, 0);
 INSERT INTO `sys_permission` VALUES (124, '', 1, 0, 'admin', '2024-07-24 16:27:04', 'admin', '2024-07-24 16:51:23', '知识检索', 120, '/rag/chunk/retrieval', '/rag/chunk/retrieval', '', '', 1, NULL, 1, 0, 'ant-design:file-search-outlined', 1, 1, 0, 0, 0, 0, 1, 0);
+INSERT INTO `sys_permission` VALUES (125, '', 9.3, 0, 'admin', '2024-10-20 07:44:18', 'admin', '2024-10-20 07:57:30', 'ai应用', NULL, '/ai', 'layouts/default/index', '', '', 0, NULL, 1, 0, 'ai|svg', 1, 0, 0, 0, 0, 0, 1, 0);
+INSERT INTO `sys_permission` VALUES (126, '', 1, 0, 'admin', '2024-10-20 07:47:41', 'admin', '2024-10-20 08:10:37', '应用管理', 125, '/ai/apps', '/llm/chatApp/index', '', '', 1, NULL, 1, 0, 'ai-apps|svg', 1, 1, 0, 0, 0, 0, 1, 0);
 COMMIT;
 
 -- ----------------------------
@@ -2050,7 +2112,7 @@ CREATE TABLE `sys_user` (
 -- Records of sys_user
 -- ----------------------------
 BEGIN;
-INSERT INTO `sys_user` VALUES (1, '', 1, 0, 'system', '2022-10-31 09:41:34', 'admin', '2024-08-23 17:26:27', 'admin', 'pbkdf2:sha256:260000$uPkgXU614UEZVupq$f796a5bc254e02bfc78526a092ead4057073493f0115a9df56288f852cfb228a', 'admin', '', '2003-03-12 05:56:00', 1, '', '', 'org_5', 1, 2, NULL, NULL, '20213916', '[\"5\", \"7\"]', '[\"a1\"]', '[\"12\", \"14\"]', '', 1337, 1724433987, '223.104.150.89', NULL, NULL, '[\"1\"]', 1);
+INSERT INTO `sys_user` VALUES (1, '', 1, 0, 'system', '2022-10-31 09:41:34', 'admin', '2024-10-20 07:54:01', 'admin', 'pbkdf2:sha256:260000$uPkgXU614UEZVupq$f796a5bc254e02bfc78526a092ead4057073493f0115a9df56288f852cfb228a', 'admin', '', '2003-03-12 05:56:00', 1, '', '', 'org_5', 1, 2, NULL, NULL, '20213916', '[\"5\", \"7\"]', '[\"a1\"]', '[\"12\", \"14\"]', '', 1338, 1729410840, '127.0.0.1', NULL, NULL, '[\"1\"]', 1);
 INSERT INTO `sys_user` VALUES (6, '', 1, 0, 'admin', '2023-04-27 14:52:16', 'admin', '2024-07-26 01:01:03', 'preview', 'pbkdf2:sha256:260000$t4Gm48smy9rPudxM$5e65784bf7616ad5c09e9b85e0c3a0984e965c3aaad38e4ca3fa936011eb0f76', '预览用户', '', '2023-09-13 20:36:00', 0, NULL, NULL, 'org_5', 1, 2, NULL, NULL, '00002', '[\"5\"]', '[]', '[\"14\", \"11\"]', '', 1, 1682617624, '172.18.0.1', NULL, NULL, '[]', NULL);
 INSERT INTO `sys_user` VALUES (7, '', 1, 0, 'admin', '2023-04-27 14:54:05', 'admin', '2024-07-25 08:54:38', 'test1', 'pbkdf2:sha256:260000$VHkgoxdY1LJ4ml66$0dac1b13d19f2965d4e986ff0395aa43bf9766be2e3bd1b8fec7b5947dd65563', '测试用户', NULL, '2023-09-13 20:36:00', 0, NULL, NULL, 'org_6', 1, 1, NULL, NULL, '202139160124', '[\"7\", \"13\"]', '[]', '[\"13\"]', '', 3, 1694674855, '122.243.31.180', NULL, NULL, '[]', NULL);
 INSERT INTO `sys_user` VALUES (8, '', 1, 0, 'admin', '2023-04-27 17:40:41', 'admin', '2024-07-22 16:51:16', 'dev1', 'pbkdf2:sha256:260000$3J8QC8NiR8TzyeN8$ff8228e7e8b41194e22a00282e08a2cf762667d3fd3e70a1681bcddc191ff9b4', '开发一', 'http://110.40.157.36:9000/ezdata/2d6fb8ee27af0690c58e7859e391b7f8.png', '2023-09-13 20:36:00', 1, NULL, NULL, 'org_7', 1, 2, NULL, NULL, '0000', '[\"7\", \"14\"]', '[\"a1\"]', '[\"14\"]', '', 1, 1682617321, '172.18.0.1', NULL, NULL, '[\"1\"]', NULL);
@@ -2093,7 +2155,7 @@ CREATE TABLE `task` (
 -- ----------------------------
 BEGIN;
 INSERT INTO `task` VALUES ('', 1, 0, 'admin', '2023-08-25 17:51:27', 'admin', '2024-06-26 16:10:57', '068324857ff6407895db34881c1c3f92', '', 'dag示例2', '{\n  \"cells\": [\n    {\n      \"shape\": \"edge\",\n      \"attrs\": {\n        \"line\": {\n          \"stroke\": \"#A2B1C3\",\n          \"strokeWidth\": 1,\n          \"targetMarker\": {\n            \"height\": 6,\n            \"name\": \"block\",\n            \"width\": 10\n          }\n        }\n      },\n      \"id\": \"eb8fc6c6-c3b5-4676-ae11-e84a90e77583\",\n      \"zIndex\": 0,\n      \"source\": {\n        \"cell\": \"c079b781-55ea-4c8e-bb6a-39d2a54ea18d\",\n        \"port\": \"9ce488b8-dc91-435d-8adf-646aea0dc35f\"\n      },\n      \"target\": {\n        \"cell\": \"41684aa0-2123-4988-a667-871bf3d23b05\",\n        \"port\": \"02d2fff0-f547-4247-aeee-056d7bb929aa\"\n      }\n    },\n    {\n      \"shape\": \"edge\",\n      \"attrs\": {\n        \"line\": {\n          \"stroke\": \"#A2B1C3\",\n          \"strokeWidth\": 1,\n          \"targetMarker\": {\n            \"height\": 6,\n            \"name\": \"block\",\n            \"width\": 10\n          }\n        }\n      },\n      \"id\": \"63e6cfe3-6c13-427f-8a42-4f17050113af\",\n      \"zIndex\": 0,\n      \"source\": {\n        \"cell\": \"41684aa0-2123-4988-a667-871bf3d23b05\",\n        \"port\": \"9ce488b8-dc91-435d-8adf-646aea0dc35f\"\n      },\n      \"target\": {\n        \"cell\": \"9302f8d4-2d18-4653-8ce2-8ca89da43500\",\n        \"port\": \"02d2fff0-f547-4247-aeee-056d7bb929aa\"\n      }\n    },\n    {\n      \"position\": {\n        \"x\": -110,\n        \"y\": -40\n      },\n      \"size\": {\n        \"width\": 180,\n        \"height\": 40\n      },\n      \"view\": \"vue-shape-view\",\n      \"shape\": \"container-node\",\n      \"img\": \"https://gw.alipayobjects.com/mdn/rms_43231b/afts/img/A*evDjT5vjkX0AAAAAAAAAAAAAARQnAQ\",\n      \"component\": {},\n      \"ports\": {\n        \"groups\": {\n          \"top\": {\n            \"position\": \"top\",\n            \"attrs\": {\n              \"circle\": {\n                \"r\": 4,\n                \"magnet\": true,\n                \"stroke\": \"#5F95FF\",\n                \"strokeWidth\": 1,\n                \"fill\": \"#fff\",\n                \"style\": {\n                  \"visibility\": \"hidden\"\n                }\n              }\n            }\n          },\n          \"bottom\": {\n            \"position\": \"bottom\",\n            \"attrs\": {\n              \"circle\": {\n                \"r\": 4,\n                \"magnet\": true,\n                \"stroke\": \"#5F95FF\",\n                \"strokeWidth\": 1,\n                \"fill\": \"#fff\",\n                \"style\": {\n                  \"visibility\": \"hidden\"\n                }\n              }\n            }\n          }\n        },\n        \"items\": [\n          {\n            \"group\": \"top\",\n            \"id\": \"02d2fff0-f547-4247-aeee-056d7bb929aa\"\n          },\n          {\n            \"group\": \"bottom\",\n            \"id\": \"9ce488b8-dc91-435d-8adf-646aea0dc35f\"\n          }\n        ]\n      },\n      \"id\": \"c079b781-55ea-4c8e-bb6a-39d2a54ea18d\",\n      \"data\": {\n        \"img\": \"https://gw.alipayobjects.com/mdn/rms_43231b/afts/img/A*evDjT5vjkX0AAAAAAAAAAAAAARQnAQ\",\n        \"label\": \"python任务1\",\n        \"params\": {\n          \"countdown\": 0,\n          \"error_type\": \"throw\",\n          \"retry\": 0,\n          \"task_conf\": {\n            \"code\": \"import time\\nfor i in range(5):\\n    logger.info(i)\\n    time.sleep(1)\",\n            \"run_type\": \"code\"\n          },\n          \"template_code\": \"PythonTask\"\n        },\n        \"status\": \"\"\n      },\n      \"zIndex\": 1\n    },\n    {\n      \"position\": {\n        \"x\": -110,\n        \"y\": 250\n      },\n      \"size\": {\n        \"width\": 180,\n        \"height\": 40\n      },\n      \"view\": \"vue-shape-view\",\n      \"shape\": \"container-node\",\n      \"img\": \"https://gw.alipayobjects.com/mdn/rms_43231b/afts/img/A*evDjT5vjkX0AAAAAAAAAAAAAARQnAQ\",\n      \"component\": {},\n      \"ports\": {\n        \"groups\": {\n          \"top\": {\n            \"position\": \"top\",\n            \"attrs\": {\n              \"circle\": {\n                \"r\": 4,\n                \"magnet\": true,\n                \"stroke\": \"#5F95FF\",\n                \"strokeWidth\": 1,\n                \"fill\": \"#fff\",\n                \"style\": {\n                  \"visibility\": \"hidden\"\n                }\n              }\n            }\n          },\n          \"bottom\": {\n            \"position\": \"bottom\",\n            \"attrs\": {\n              \"circle\": {\n                \"r\": 4,\n                \"magnet\": true,\n                \"stroke\": \"#5F95FF\",\n                \"strokeWidth\": 1,\n                \"fill\": \"#fff\",\n                \"style\": {\n                  \"visibility\": \"hidden\"\n                }\n              }\n            }\n          }\n        },\n        \"items\": [\n          {\n            \"group\": \"top\",\n            \"id\": \"02d2fff0-f547-4247-aeee-056d7bb929aa\"\n          },\n          {\n            \"group\": \"bottom\",\n            \"id\": \"9ce488b8-dc91-435d-8adf-646aea0dc35f\"\n          }\n        ]\n      },\n      \"id\": \"9302f8d4-2d18-4653-8ce2-8ca89da43500\",\n      \"data\": {\n        \"img\": \"https://gw.alipayobjects.com/mdn/rms_43231b/afts/img/A*evDjT5vjkX0AAAAAAAAAAAAAARQnAQ\",\n        \"label\": \"python任务\",\n        \"params\": {\n          \"countdown\": 0,\n          \"error_type\": \"throw\",\n          \"retry\": 0,\n          \"task_conf\": {\n            \"code\": \"import time\\nfor i in range(5):\\n    logger.info(i)\\n    time.sleep(1)\",\n            \"run_type\": \"code\"\n          },\n          \"template_code\": \"PythonTask\"\n        },\n        \"status\": \"\"\n      },\n      \"zIndex\": 2\n    },\n    {\n      \"position\": {\n        \"x\": -110,\n        \"y\": 110\n      },\n      \"size\": {\n        \"width\": 180,\n        \"height\": 40\n      },\n      \"view\": \"vue-shape-view\",\n      \"shape\": \"container-node\",\n      \"img\": \"https://gw.alipayobjects.com/mdn/rms_43231b/afts/img/A*evDjT5vjkX0AAAAAAAAAAAAAARQnAQ\",\n      \"component\": {},\n      \"ports\": {\n        \"groups\": {\n          \"top\": {\n            \"position\": \"top\",\n            \"attrs\": {\n              \"circle\": {\n                \"r\": 4,\n                \"magnet\": true,\n                \"stroke\": \"#5F95FF\",\n                \"strokeWidth\": 1,\n                \"fill\": \"#fff\",\n                \"style\": {\n                  \"visibility\": \"hidden\"\n                }\n              }\n            }\n          },\n          \"bottom\": {\n            \"position\": \"bottom\",\n            \"attrs\": {\n              \"circle\": {\n                \"r\": 4,\n                \"magnet\": true,\n                \"stroke\": \"#5F95FF\",\n                \"strokeWidth\": 1,\n                \"fill\": \"#fff\",\n                \"style\": {\n                  \"visibility\": \"hidden\"\n                }\n              }\n            }\n          }\n        },\n        \"items\": [\n          {\n            \"group\": \"top\",\n            \"id\": \"02d2fff0-f547-4247-aeee-056d7bb929aa\"\n          },\n          {\n            \"group\": \"bottom\",\n            \"id\": \"9ce488b8-dc91-435d-8adf-646aea0dc35f\"\n          }\n        ]\n      },\n      \"id\": \"41684aa0-2123-4988-a667-871bf3d23b05\",\n      \"data\": {\n        \"img\": \"https://gw.alipayobjects.com/mdn/rms_43231b/afts/img/A*evDjT5vjkX0AAAAAAAAAAAAAARQnAQ\",\n        \"label\": \"python任务\",\n        \"params\": {\n          \"countdown\": 0,\n          \"error_type\": \"throw\",\n          \"retry\": 0,\n          \"task_conf\": {\n            \"code\": \"import time\\nfor i in range(5):\\n    logger.info(i)\\n    time.sleep(1)\",\n            \"run_type\": \"code\"\n          },\n          \"template_code\": \"PythonTask\"\n        },\n        \"status\": \"\"\n      },\n      \"zIndex\": 3\n    }\n  ]\n}', 1, 1, '', 2, 1, '[]', 1, 0, 0, NULL, 'default', '', NULL);
-INSERT INTO `task` VALUES ('', 1, 0, 'admin', '2023-08-10 09:50:56', 'admin', '2024-08-23 18:10:00', '0e4392b2844a4951bd1c8434ea90dd9e', 'PythonTask', '周期任务示例', '{\n  \"run_type\": \"code\",\n  \"code\": \"import random\\nimport time\\nlogger.info(\\\"开始运行\\\")\\ntime.sleep(random.randint(3,5))\\nlogger.info(\\\"结束运行\\\")\\nlogger.info(\\\"结束运行2\\\")\"\n}', 1, 2, '0 0/10 * * * ? *', 1, 1, '[]', 1, 0, 0, '1f34d6e9-86a2-4dfc-8601-61a82890be10', 'default', '', NULL);
+INSERT INTO `task` VALUES ('', 1, 0, 'admin', '2023-08-10 09:50:56', 'admin', '2024-10-20 08:10:00', '0e4392b2844a4951bd1c8434ea90dd9e', 'PythonTask', '周期任务示例', '{\n  \"run_type\": \"code\",\n  \"code\": \"import random\\nimport time\\nlogger.info(\\\"开始运行\\\")\\ntime.sleep(random.randint(3,5))\\nlogger.info(\\\"结束运行\\\")\\nlogger.info(\\\"结束运行2\\\")\"\n}', 1, 2, '0 0/10 * * * ? *', 1, 1, '[]', 1, 0, 0, '1a34c57b-0d08-4681-bdce-fc63abfa222e', 'default', '', NULL);
 INSERT INTO `task` VALUES ('', 1, 0, 'admin', '2023-08-10 08:01:13', 'admin', '2024-08-14 05:50:21', '1b6aad025dc2405eb8248f28e75ec048', 'PythonTask', '单次任务示例', '{\n  \"run_type\": \"code\",\n  \"code\": \"import time\\n\\nfor i in range(10):\\n    logger.info(i)\\n    time.sleep(20)\"\n}', 1, 1, '', 1, 1, '[]', 1, 0, 0, '8df16726-6976-4c97-9694-e049e2cae3da', 'default', '', NULL);
 INSERT INTO `task` VALUES ('', 1, 0, 'admin', '2023-08-10 11:39:19', 'admin', '2024-08-15 08:06:30', '691f4067b41a42099feef10c75fb56f8', 'EtlTask', '数据集成流处理示例-binlog2es', '{\n  \"extract\": {\n    \"model_id\": \"77b5008db89348348360893720a01b80\",\n    \"extract_type\": \"flow\",\n    \"extract_rules\": [],\n    \"search_type\": \"read_type\",\n    \"search_text\": \"latest\",\n    \"batch_size\": 1\n  },\n  \"process_rules\": [\n    {\n      \"code\": \"gen_records_list\",\n      \"component\": \"\",\n      \"form_type\": 2,\n      \"id\": \"4a6c1cdb93224f3f90502f64cf201538\",\n      \"name\": \"获取内容列表\",\n      \"params\": [\n        {\n          \"default\": \"\",\n          \"form_type\": \"select_fields\",\n          \"name\": \"字段列表\",\n          \"required\": false,\n          \"tips\": \"\",\n          \"value\": \"fields\"\n        }\n      ],\n      \"rule_dict\": {\n        \"fields\": \"\"\n      },\n      \"type\": \"etl_algorithm\"\n    },\n    {\n      \"code\": \"code_transform\",\n      \"component\": \"\",\n      \"form_type\": 2,\n      \"id\": \"880bc3108df249e499c7aff1da8cf2a3\",\n      \"name\": \"自定义代码转换数据\",\n      \"params\": [\n        {\n          \"default\": \"python\",\n          \"form_type\": \"select\",\n          \"name\": \"语言\",\n          \"options\": [\n            {\n              \"label\": \"python\",\n              \"value\": \"python\"\n            }\n          ],\n          \"required\": true,\n          \"tips\": \"\",\n          \"value\": \"language\"\n        },\n        {\n          \"default\": \"\",\n          \"form_type\": \"codeEditor\",\n          \"name\": \"代码\",\n          \"required\": true,\n          \"tips\": \"\",\n          \"value\": \"code\"\n        }\n      ],\n      \"rule_dict\": {\n        \"code\": \"def transform(source):\\n    result = []\\n    for i in source:\\n        dic = i[\'data\']\\n        result.append(dic)\\n    return result\",\n        \"language\": \"python\"\n      },\n      \"type\": \"etl_algorithm\"\n    },\n    {\n      \"code\": \"map_field_names\",\n      \"component\": \"\",\n      \"form_type\": 2,\n      \"id\": \"66fcaecbc68642359cf69824f27fb3a6\",\n      \"name\": \"字段映射\",\n      \"params\": [\n        {\n          \"default\": \"{}\",\n          \"form_type\": \"codeEditor\",\n          \"language\": \"json\",\n          \"name\": \"字段映射\",\n          \"required\": true,\n          \"tips\": \"\",\n          \"value\": \"field_map\"\n        }\n      ],\n      \"rule_dict\": {\n        \"field_map\": \"{\\n    \\\"id\\\": \\\"_id\\\"\\n}\"\n      },\n      \"type\": \"etl_algorithm\"\n    }\n  ],\n  \"load\": {\n    \"model_id\": \"a7f25e1805a44ea5a546158da95ad726\",\n    \"load_type\": \"upsert\",\n    \"only_fields\": [\n      \"_id\"\n    ]\n  }\n}', 1, 1, '', 1, 1, '[]', 1, 0, 0, 'bae08ada-f606-4b28-ac1f-5922de4f4784', 'default', '', NULL);
 INSERT INTO `task` VALUES ('', 1, 0, 'admin', '2023-08-10 11:15:43', 'admin', '2024-06-24 15:38:59', '6c6395371bac4f8a8e5b4db23eaa010a', 'EtlTask', '数据集成批处理示例-akshare2es', '{\n  \"extract\": {\n    \"model_id\": \"d88b859297224ebcba7fe21efe118ebb\",\n    \"extract_type\": \"batch\",\n    \"extract_rules\": [],\n    \"search_type\": \"query_params\",\n    \"search_text\": \"{\\n  \\\"symbol\\\": \\\"000001\\\",\\n  \\\"period\\\": \\\"daily\\\",\\n  \\\"start_date\\\": \\\"19700101\\\",\\n  \\\"end_date\\\": \\\"20500101\\\",\\n  \\\"adjust\\\": \\\"\\\",\\n  \\\"timeout\\\": null\\n}\",\n    \"batch_size\": 100\n  },\n  \"process_rules\": [\n    {\n      \"code\": \"gen_records_list\",\n      \"component\": \"\",\n      \"form_type\": 2,\n      \"id\": \"4a6c1cdb93224f3f90502f64cf201538\",\n      \"name\": \"获取内容列表\",\n      \"params\": [\n        {\n          \"default\": \"\",\n          \"form_type\": \"select_fields\",\n          \"name\": \"字段列表\",\n          \"required\": false,\n          \"tips\": \"\",\n          \"value\": \"fields\"\n        }\n      ],\n      \"rule_dict\": {\n        \"fields\": \"收盘,开盘,日期,最低,最高,成交额\"\n      },\n      \"type\": \"etl_algorithm\"\n    },\n    {\n      \"code\": \"map_field_names\",\n      \"component\": \"\",\n      \"form_type\": 2,\n      \"id\": \"66fcaecbc68642359cf69824f27fb3a6\",\n      \"name\": \"字段映射\",\n      \"params\": [\n        {\n          \"default\": \"{}\",\n          \"form_type\": \"codeEditor\",\n          \"language\": \"json\",\n          \"name\": \"字段映射\",\n          \"required\": true,\n          \"tips\": \"\",\n          \"value\": \"field_map\"\n        }\n      ],\n      \"rule_dict\": {\n        \"field_map\": \"{\\n   \\\"日期\\\": \\\"time\\\",\\n   \\\"最高\\\": \\\"high\\\",\\n    \\\"最低\\\": \\\"low\\\",\\n    \\\"开盘\\\": \\\"open\\\",\\n    \\\"收盘\\\": \\\"close\\\",\\n    \\\"成交额\\\": \\\"volume\\\"\\n}\"\n      },\n      \"type\": \"etl_algorithm\"\n    },\n    {\n      \"code\": \"add_field\",\n      \"component\": \"\",\n      \"form_type\": 2,\n      \"id\": \"c9e0210186e14d50becd8653503f8620\",\n      \"name\": \"添加字段\",\n      \"params\": [\n        {\n          \"default\": \"\",\n          \"form_type\": \"input\",\n          \"name\": \"字段值\",\n          \"required\": true,\n          \"tips\": \"\",\n          \"value\": \"field\"\n        },\n        {\n          \"default\": \"\",\n          \"form_type\": \"input\",\n          \"name\": \"默认值\",\n          \"required\": true,\n          \"tips\": \"\",\n          \"value\": \"default\"\n        }\n      ],\n      \"rule_dict\": {\n        \"default\": \"000001\",\n        \"field\": \"symbol\"\n      },\n      \"type\": \"etl_algorithm\"\n    },\n    {\n      \"code\": \"gen_only_id\",\n      \"component\": \"\",\n      \"form_type\": 2,\n      \"id\": \"87c58ab9220d4532ab83f87fc817ce38\",\n      \"name\": \"生成唯一id\",\n      \"params\": [\n        {\n          \"default\": \"\",\n          \"form_type\": \"select_fields\",\n          \"name\": \"唯一字段列表\",\n          \"required\": true,\n          \"tips\": \"\",\n          \"value\": \"only_fields\"\n        },\n        {\n          \"default\": \"_id\",\n          \"form_type\": \"input\",\n          \"name\": \"唯一号字段\",\n          \"required\": true,\n          \"tips\": \"\",\n          \"value\": \"output_field\"\n        }\n      ],\n      \"rule_dict\": {\n        \"only_fields\": \"time,symbol\",\n        \"output_field\": \"_id\"\n      },\n      \"type\": \"etl_algorithm\"\n    }\n  ],\n  \"load\": {\n    \"model_id\": \"f4f58112235f4625a72f880a373ff697\",\n    \"load_type\": \"upsert\",\n    \"only_fields\": [\n      \"id\"\n    ]\n  }\n}', 1, 1, '', 1, 1, '[]', 1, 0, 0, '1f121c8b-6b69-4d15-870f-1201f12c2952', 'default', '', NULL);
@@ -2126,7 +2188,10 @@ CREATE TABLE `task_instance` (
 -- Records of task_instance
 -- ----------------------------
 BEGIN;
+INSERT INTO `task_instance` VALUES ('1a34c57b-0d08-4681-bdce-fc63abfa222e', '0e4392b2844a4951bd1c8434ea90dd9e', 'SUCCESS', 100, '2024-10-20 16:10:00', '2024-10-20 16:10:05', '成功', '', 'celery@2c0911879da0', 0, 1, '');
 INSERT INTO `task_instance` VALUES ('1f34d6e9-86a2-4dfc-8601-61a82890be10', '0e4392b2844a4951bd1c8434ea90dd9e', 'SUCCESS', 100, '2024-08-24 02:10:00', '2024-08-24 02:10:05', '成功', '', 'celery@2c0911879da0', 0, 1, '');
+INSERT INTO `task_instance` VALUES ('78f69c0a-8537-497f-b875-4d1e57fc2f65', '0e4392b2844a4951bd1c8434ea90dd9e', 'SUCCESS', 100, '2024-10-20 16:00:00', '2024-10-20 16:00:04', '成功', '', 'celery@2c0911879da0', 0, 1, '');
+INSERT INTO `task_instance` VALUES ('81a89a54-813a-4908-8f47-4c8b74ec9762', '0e4392b2844a4951bd1c8434ea90dd9e', 'SUCCESS', 100, '2024-10-20 15:50:00', '2024-10-20 15:50:03', '成功', '', 'celery@2c0911879da0', 0, 1, '');
 COMMIT;
 
 -- ----------------------------

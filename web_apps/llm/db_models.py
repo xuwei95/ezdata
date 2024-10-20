@@ -53,6 +53,7 @@ class ChatAppToken(BaseModel):
     apply_time_length = db.Column(db.String(50), default='forever', comment='申请时长')
     status = db.Column(db.SmallInteger, nullable=False, default=1, comment='状态0禁用1启用')
 
+
 if __name__ == '__main__':
     from web_apps import app
     with app.app_context():
