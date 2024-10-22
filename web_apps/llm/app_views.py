@@ -25,6 +25,57 @@ def llm_chat():
         return ChatAppApiService.chat(req_dict)
 
 
+@chat_app_bp.route('/token/list', methods=['GET'])
+@validate_user
+@validate_permissions([])
+def chat_app_token_list():
+    '''
+    api列表查询接口
+    '''
+    req_dict = get_req_para(request)
+    verify_dict = {
+    }
+    not_valid = validate_params(req_dict, verify_dict)
+    if not_valid:
+        return jsonify(gen_json_response(code=400, msg=not_valid))
+    res_data = ChatAppApiService.api_key_list(req_dict)
+    return jsonify(res_data)
+
+
+@chat_app_bp.route('/token/apply', methods=['POST'])
+@validate_user
+@validate_permissions([])
+def chat_app_token_apply():
+    '''
+    api申请
+    '''
+    req_dict = get_req_para(request)
+    verify_dict = {
+    }
+    not_valid = validate_params(req_dict, verify_dict)
+    if not_valid:
+        return jsonify(gen_json_response(code=400, msg=not_valid))
+    res_data = ChatAppApiService.apply_token(req_dict)
+    return jsonify(res_data)
+
+
+@chat_app_bp.route('/token/status', methods=['POST'])
+@validate_user
+@validate_permissions([])
+def chat_app_token_status():
+    '''
+    api状态修改
+    '''
+    req_dict = get_req_para(request)
+    verify_dict = {
+    }
+    not_valid = validate_params(req_dict, verify_dict)
+    if not_valid:
+        return jsonify(gen_json_response(code=400, msg=not_valid))
+    res_data = ChatAppApiService.api_key_status(req_dict)
+    return jsonify(res_data)
+
+
 @chat_app_bp.route('/list', methods=['GET'])
 @validate_user
 @validate_permissions([])

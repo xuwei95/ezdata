@@ -5,6 +5,7 @@ from web_apps import db
 from models import BaseModel
 from sqlalchemy.dialects.mysql import LONGTEXT
 from config import DB_TYPE
+import datetime
 
 
 class ChatHistory(BaseModel):
@@ -52,6 +53,19 @@ class ChatAppToken(BaseModel):
     apply_time = db.Column(db.BIGINT, comment='申请时间')
     apply_time_length = db.Column(db.String(50), default='forever', comment='申请时长')
     status = db.Column(db.SmallInteger, nullable=False, default=1, comment='状态0禁用1启用')
+
+    def to_dict(self, date_type='str'):
+        '''
+        转为字典
+        :return:
+        '''
+        value = {}
+        for column in self.__table__.columns:
+            attribute = getattr(self, column.name)
+            if isinstance(attribute, datetime.datetime) and date_type == 'str':
+                attribute = str(attribute)
+            value[column.name] = attribute
+        return value
 
 
 if __name__ == '__main__':

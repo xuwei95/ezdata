@@ -5,7 +5,7 @@ import json
 from web_apps import db
 from utils.query_utils import get_base_query
 from utils.auth import set_insert_user, set_update_user, get_auth_token_info
-from utils.common_utils import gen_json_response, gen_uuid, parse_json, get_now_time
+from utils.common_utils import gen_json_response, gen_uuid, parse_json, get_now_time, timestamp_to_date, trans_time_length
 from web_apps.llm.db_models import ChatApp, ChatAppToken
 from web_apps.llm.services.llm_services import chat_generate
 
@@ -74,7 +74,9 @@ class ChatAppApiService(object):
         '''
         申请api_key
         '''
-        app_id = req_dict.get('api_id', '')
+        app_id = req_dict.get('app_id', '')
+        apply_time_length = req_dict.get('apply_time_length', 'forever')
+        apply_caption = req_dict.get('apply_caption', '')
         obj = ChatAppToken()
         obj.id = gen_uuid(res_type='base')
         obj.app_id = app_id
@@ -83,8 +85,10 @@ class ChatAppApiService(object):
         obj.apply_user_id = user_info.get('id')
         obj.apply_user = user_info.get('username')
         obj.apply_time = get_now_time()
-        obj.valid_time = 86400 * 365 * 100
+        obj.review_time = get_now_time()
+        obj.valid_time = obj.review_time + trans_time_length(apply_time_length)
         obj.status = 1
+        obj.description = apply_caption
         set_insert_user(obj)
         db.session.add(obj)
         db.session.commit()
@@ -96,16 +100,38 @@ class ChatAppApiService(object):
         '''
         api_key列表
         '''
-        app_id = req_dict.get('api_id', '')
+        app_id = req_dict.get('app_id', '')
         user_info = get_auth_token_info()
         apply_user_id = user_info['id']
         chat_tokens = db.session.query(ChatAppToken).filter(ChatAppToken.app_id == app_id,
                                                             ChatAppToken.apply_user_id == apply_user_id).all()
+        records = []
+        for i in chat_tokens:
+            dic = i.to_dict()
+            dic['valid_time'] = timestamp_to_date(dic['valid_time'])
+            dic['apply_time'] = timestamp_to_date(dic['apply_time'])
+            records.append(dic)
         res_data = {
-            'records': [i.to_dict() for i in chat_tokens],
+            'records': records,
             'total': len(chat_tokens)
         }
         return gen_json_response(data=res_data)
+
+    @staticmethod
+    def api_key_status(req_dict):
+        '''
+        修改api_key状态
+        '''
+        api_id = req_dict.get('id', '')
+        chat_token = db.session.query(ChatAppToken).filter(ChatAppToken.id == api_id).first()
+        if chat_token is None:
+            return gen_json_response(code=500, msg='未找到api_key')
+        chat_token.status = 1 if chat_token.status == 0 else 0
+        set_insert_user(chat_token)
+        db.session.add(chat_token)
+        db.session.commit()
+        db.session.flush()
+        return gen_json_response(msg='修改成功')
 
     @staticmethod
     def get_obj_list(req_dict):
