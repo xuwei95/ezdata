@@ -7,7 +7,7 @@ from web_apps.rag.db_models import Document, Chunk
 from web_apps.datamodel.db_models import DataModel
 from web_apps.rag.extractor.extract_processor import ExtractProcessor, ExtractSetting
 from web_apps.rag.extractor.entity.extract_setting import WebsiteInfo
-from web_apps.rag.utils import vector_index, text_index, rerank_runner, VECTOR_STORE_TYPE, TEXT_STORE_TYPE
+from web_apps.rag.utils import vector_index, text_index, rerank_runner
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
 

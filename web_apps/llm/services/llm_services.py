@@ -64,7 +64,7 @@ def parse_chat_output(result, llm_result=''):
     return gen_json_response(data=res_data)
 
 
-def chat_generate(req_dict):
+def prepare_chat_context(req_dict):
     with app.app_context():
         message = req_dict.get('message', '')
         topic_id = req_dict.get('topicId', '')
@@ -96,19 +96,48 @@ def chat_generate(req_dict):
             datamodel_ids = datamodel_id.split(',') if isinstance(datamodel_id, str) else datamodel_id
             data_chat_tools = get_chat_data_tools(datamodel_ids)
             tools = tools + data_chat_tools
-        if agent_enable and tools != []:
-            # agent工具调用模式
-            agent = ToolsCallAgent(tools, llm=llm)
-            for chunk in agent.chat(prompt):
-                t = f"id:{topic_id}\ndata:{json.dumps(chunk, ensure_ascii=False)}"
-                yield f"{t}\n\n"
-        else:
-            # 直接使用llm回答
-            for c in llm.stream(prompt):
-                data = {'content': c.content, 'type': 'text'}
-                t = f"id:{topic_id}\ndata:{json.dumps(data, ensure_ascii=False)}"
-                yield f"{t}\n\n"
-        yield f"id:[DONE]\ndata:[DONE]\n\n"
+
+        return prompt, llm, agent_enable, tools, topic_id
+
+
+def chat_generate(req_dict):
+    '''
+    流式对话
+    '''
+    prompt, llm, agent_enable, tools, topic_id = prepare_chat_context(req_dict)
+
+    if agent_enable and tools != []:
+        # agent工具调用模式
+        agent = ToolsCallAgent(tools, llm=llm)
+        for chunk in agent.chat(prompt):
+            t = f"id:{topic_id}\ndata:{json.dumps(chunk, ensure_ascii=False)}"
+            yield f"{t}\n\n"
+    else:
+        # 直接使用llm回答
+        for c in llm.stream(prompt):
+            data = {'content': c.content, 'type': 'text'}
+            t = f"id:{topic_id}\ndata:{json.dumps(data, ensure_ascii=False)}"
+            yield f"{t}\n\n"
+    yield f"id:[DONE]\ndata:[DONE]\n\n"
+
+
+def chat_run(req_dict):
+    '''
+    返回对话结果
+    '''
+    prompt, llm, agent_enable, tools, _ = prepare_chat_context(req_dict)
+    if agent_enable and tools != []:
+        # agent工具调用模式
+        agent = ToolsCallAgent(tools, llm=llm)
+        output = agent.run(prompt)
+    else:
+        # 直接使用llm回答
+        output = llm.invoke(prompt).content
+    if isinstance(output, dict) and 'content' in output and 'type' in output:
+        # 若是其他agent的输出格式，直接返回
+        return output
+    else:
+        return {'content': output, 'type': 'text'}
 
 
 def data_chat(req_dict):

@@ -66,8 +66,13 @@ class ToolsCallAgent:
                 data = {'content': {'title': f"处理完成", 'content': f"处理完成",
                                     'time': get_now_time(res_type='datetime')}, 'type': 'flow'}
                 yield data
-                data = {'content': chunk['output'], 'type': 'text'}
-                yield data
+                output = chunk['output']
+                if isinstance(output, dict) and 'content' in output and 'type' in output:
+                    # 若是其他agent的输出格式，直接返回
+                    yield output
+                else:
+                    data = {'content': chunk['output'], 'type': 'text'}
+                    yield data
 
 
 if __name__ == '__main__':

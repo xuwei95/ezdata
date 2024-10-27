@@ -76,7 +76,6 @@ class ToolsAgentExecutor(AgentExecutor, ABC):
             )
             # 序列化无法json序列化或超长的值和对象
             observation = self.serialize_value(observation)
-            print(observation)
         else:
             tool_run_kwargs = self.agent.tool_run_logging_kwargs()
             observation = InvalidTool().run(
@@ -102,14 +101,9 @@ class ToolsAgentExecutor(AgentExecutor, ABC):
             return_value_key = self.agent.return_values[0]
         # Invalid tools won't be in the map, so we return False.
         if agent_action.tool in name_to_tool_map:
-            # 如果工具指定了是结果工具，或工具返回的是一个字典，并且字典中包含'type'键，且键的值为'agent_output'，则返回该字典中的'output作为最终结果
-            break_flag = name_to_tool_map[agent_action.tool].return_direct
-            # 反序列化无法json序列化或超长的值和对象
-            output = self.de_serialize_value(observation)
-            if isinstance(output, dict) and 'type' in output and output['type'] == 'agent_output':
-                output = output['output']
-                break_flag = True
-            if name_to_tool_map[agent_action.tool].return_direct or break_flag:
+            if name_to_tool_map[agent_action.tool].return_direct:
+                # 反序列化无法json序列化或超长的值和对象
+                output = self.de_serialize_value(observation)
                 return AgentFinish(
                     {return_value_key: output},
                     "",

@@ -7,7 +7,7 @@ from utils.query_utils import get_base_query
 from utils.auth import set_insert_user, set_update_user, get_auth_token_info
 from utils.common_utils import gen_json_response, gen_uuid, parse_json, get_now_time, timestamp_to_date, trans_time_length
 from web_apps.llm.db_models import ChatApp, ChatAppToken
-from web_apps.llm.services.llm_services import chat_generate
+from web_apps.llm.services.llm_services import chat_generate, chat_run
 
 
 def serialize_chat_app_model(obj, ser_type='list'):
@@ -49,25 +49,19 @@ class ChatAppApiService(object):
         pass
 
     @staticmethod
-    def chat(req_dict):
+    def chat(chat_app, message, stream=True):
         '''
         应用对话
         '''
-        stream = req_dict.get('stream', False)
-        api_key = req_dict.get('api_key', '')
-        message = req_dict.get('message', '')
-        chat_token = db.session.query(ChatAppToken).filter(ChatAppToken.api_key == api_key).first()
-        if chat_token is None:
-            return gen_json_response(code=500, msg='api_key错误')
-        chat_app = db.session.query(ChatApp).filter(ChatApp.id == chat_token.app_id).first()
-        if chat_app is None:
-            return gen_json_response(code=500, msg='未找到应用')
         chat_config = parse_json(chat_app.chat_config)
         req_data = {
             'message': message,
             'chatConfig': chat_config
         }
-        return chat_generate(req_data)
+        if stream:
+            return chat_generate(req_data)
+        else:
+            return gen_json_response(chat_run(req_data))
 
     @staticmethod
     def apply_token(req_dict):
@@ -103,8 +97,8 @@ class ChatAppApiService(object):
         app_id = req_dict.get('app_id', '')
         user_info = get_auth_token_info()
         apply_user_id = user_info['id']
-        chat_tokens = db.session.query(ChatAppToken).filter(ChatAppToken.app_id == app_id,
-                                                            ChatAppToken.apply_user_id == apply_user_id).all()
+        chat_tokens = get_base_query(ChatAppToken).filter(ChatAppToken.app_id == app_id,
+                                                          ChatAppToken.apply_user_id == apply_user_id).all()
         records = []
         for i in chat_tokens:
             dic = i.to_dict()
@@ -127,11 +121,27 @@ class ChatAppApiService(object):
         if chat_token is None:
             return gen_json_response(code=500, msg='未找到api_key')
         chat_token.status = 1 if chat_token.status == 0 else 0
-        set_insert_user(chat_token)
+        set_update_user(chat_token)
         db.session.add(chat_token)
         db.session.commit()
         db.session.flush()
         return gen_json_response(msg='修改成功')
+
+    @staticmethod
+    def api_key_delete(req_dict):
+        '''
+        删除api_key
+        '''
+        api_id = req_dict.get('id', '')
+        chat_token = db.session.query(ChatAppToken).filter(ChatAppToken.id == api_id).first()
+        if chat_token is None:
+            return gen_json_response(code=500, msg='未找到api_key')
+        chat_token.del_flag = 1
+        set_update_user(chat_token)
+        db.session.add(chat_token)
+        db.session.commit()
+        db.session.flush()
+        return gen_json_response(msg='删除成功')
 
     @staticmethod
     def get_obj_list(req_dict):
