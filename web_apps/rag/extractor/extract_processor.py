@@ -163,7 +163,8 @@ class ExtractProcessor:
                 return extractor.extract()
             else:
                 extractor = HttpUrlExtractor(
-                    url=extract_setting.website_info.url
+                    url=extract_setting.website_info.url,
+                    mode=extract_setting.website_info.mode,
                 )
                 return extractor.extract()
         else:
