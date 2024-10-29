@@ -386,6 +386,7 @@ def train_document(document_id, metadata=None):
             else:
                 setting_args['website_info'] = WebsiteInfo(
                     url=meta_data.get('url'),
+                    mode=meta_data.get('mode', 'scrape'),
                     provider=meta_data.get('provider', 'base')
                 )
             extract_setting = ExtractSetting(
@@ -474,4 +475,4 @@ if __name__ == '__main__':
     metadata = {
         'user_name': 'system',
     }
-    train_document('cb5d2213cf4d469c95110332d5755ef9', metadata)
+    train_document('a1fbed707b6d4ea68c7a3d2809d72546', metadata)
