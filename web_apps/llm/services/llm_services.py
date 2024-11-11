@@ -2,7 +2,7 @@ import json
 from web_apps import app
 from web_apps.llm.agents.data_chat_agent import DataChatAgent
 from web_apps.llm.agents.data_extract_agent import DataExtractAgent
-from web_apps.llm.llm_utils import get_llm
+from web_apps.llm.llm_utils import get_llm, process_dataframe
 from utils.etl_utils import get_reader_model
 from utils.common_utils import gen_json_response, gen_uuid, get_now_time, parse_json
 from web_apps.rag.services.rag_service import get_star_qa_answer, get_knowledge
@@ -54,9 +54,7 @@ def parse_chat_output(result, llm_result=''):
     if result['type'] == 'html':
         res_data['html'] = result['value']
     elif result['type'] == 'dataframe':
-        df = result['value']
-        df.fillna("", inplace=True)
-        data_li = df.to_dict(orient='records')
+        data_li = process_dataframe(result)
         res_data['data'] = data_li
     else:
         result_text += result['value']

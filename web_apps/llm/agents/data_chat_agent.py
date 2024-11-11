@@ -1,4 +1,4 @@
-from web_apps.llm.llm_utils import extract_code
+from web_apps.llm.llm_utils import extract_code, process_dataframe
 import traceback
 from utils.common_utils import get_now_time
 
@@ -114,11 +114,7 @@ Fix the python code above and return the new python code
         if result['type'] == 'html':
             return {'content': result['value'], 'type': 'html'}
         elif result['type'] == 'dataframe':
-            df = result['value']
-            for col in df.select_dtypes(include=['datetime']).columns:
-                df[col] = df[col].astype(str)
-            df.fillna("", inplace=True)
-            data_li = df.to_dict(orient='records')
+            data_li = process_dataframe(result)
             return {'content': data_li, 'type': 'data'}
         else:
             return {'content': result['value'], 'type': 'text'}

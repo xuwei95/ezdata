@@ -29,36 +29,38 @@ class N4jGraphModel(DataModel):
         '''
         获取使用提示及数据库元数据信息
         '''
-        from py2neo import Database
         # 获取数据库元数据
-        db = Database(self.n4j_client._client)
-        metadata = db.graph
-        # 打印节点标签
-        node_labels = metadata.node_labels
-        # 打印关系类型
-        relationships = metadata.relationship_types
-        # 打印节点属性键
-        node_properties = metadata.node_properties
-        # 打印关系属性键
-        relationship_properties = metadata.relationship_properties
+        graph = self.n4j_client._client
+        # 节点列表
+        node_labels = graph.schema.node_labels
+        # 关系列表
+        relationships = graph.schema.relationship_types
         metadata_info = f"""
 Node labels: {list(node_labels)}
 Relationship types: {list(relationships)}
-Node properties: {list(node_properties)}
-Relationship properties: {list(relationship_properties)}
         """
+        for label in node_labels:
+            if model_prompt == '' or label in model_prompt:
+                # 获取每个标签的第一个节点进行示例，并获取与该节点有关的关系信息
+                query = f"""
+                MATCH (n:{label})
+                WITH n LIMIT 1
+                OPTIONAL MATCH (n)-[r]->(m)
+                RETURN properties(n) AS node_properties, type(r) AS relationship_type, properties(r) AS relationship_properties, m as related_node_demo, labels(m) AS related_node_labels
+                """
+                result = graph.run(query)
+                metadata_info += f'\n\n {label} node demo：\n {result}'
         info_prompt = f"""
 一个py2neo 封装类，并且提供了一些数据操作的方法
 类中部分参数如下:
 n4j_client._client：py2neo Graph实例
-label: 标签名
 # 使用示例：
 实例化此类的reader对象，查询数据转为dataframe：
-query = "MATCH (p:%s) RETURN p.name" % reader.label
+query = "MATCH (p:Person) RETURN p.name"
 # 执行查询并将结果转换为Dataframe
 result = reader.n4j_client._client.run(query).to_data_frame()
 
-# DataSource type: 
+# DataSource type:
 neo4j
 # MetaData:
 {metadata_info}

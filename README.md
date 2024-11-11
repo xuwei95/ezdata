@@ -20,7 +20,7 @@ ezdata 是基于python后端和vue3前端开发的数据处理分析和任务调
 -----------------------------------
 - 项目官网：  [http://www.ezdata.cloud](http://www.ezdata.cloud)
 
-- 在线演示 ： [在线演示](http://110.40.157.36)
+- 在线演示 ： [在线演示](http://124.220.57.72)
 
 [comment]: <> (- 开发文档：  [主项目文档]&#40;http://www.ezdata.cloud/docs/hello.html&#41;)
 

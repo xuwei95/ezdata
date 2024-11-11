@@ -1,5 +1,7 @@
 import re
 import ast
+import json
+import pandas as pd
 from langchain_openai import ChatOpenAI
 from langchain_community.chat_models.tongyi import ChatTongyi
 from web_apps.llm.llms.dify_llm import DifyChatModel
@@ -99,6 +101,40 @@ def extract_code(response: str, separator: str = "```") -> str:
         code = code.split(separator)[1]
     code = polish_code(code)
     return code
+
+
+def convert_to_json_serializable(value):
+    """
+    将值转换为 JSON 可序列化的格式。
+    """
+    if isinstance(value, (pd.Timestamp, pd.Period)):
+        return str(value)
+    elif isinstance(value, (list, dict)):
+        try:
+            json.dumps(value)
+            return value
+        except TypeError:
+            return str(value)
+    elif pd.isna(value):
+        return ""
+    else:
+        return value
+
+
+def process_dataframe(result):
+    df = result['value']
+    # 将所有 datetime 类型的列转换为字符串
+    for col in df.select_dtypes(include=['datetime']).columns:
+        df[col] = df[col].astype(str)
+    # 填充 NaN 值为空字符串
+    df.fillna("", inplace=True)
+    # 将 DataFrame 转换为字典列表
+    data_li = df.to_dict(orient='records')
+    # 确保所有值都是 JSON 可序列化的
+    for record in data_li:
+        for key, value in record.items():
+            record[key] = convert_to_json_serializable(value)
+    return data_li
 
 
 if __name__ == '__main__':
