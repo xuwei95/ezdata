@@ -30,7 +30,7 @@ class DataExtractAgent:
     def generate_code(self, prompt):
         result_example_prompt = '{ "type": "dataframe", "value": pd.DataFrame({...}) }'
         prompt = f"""
-我有一个数据读取对象reader，对象信息为：
+I have a data reader object called reader, and the object information is：
 {self.gen_info_prompt()}
 
 Update this initial code:
@@ -54,7 +54,7 @@ At the end, declare "result" variable as a dictionary of type and value.
 
 
 Generate python code and return full updated code:
-生成代码前请使用中文解释大致逻辑
+请在代码中使用中文添加必要注释
 """
         self.llm_result = self.llm.invoke(prompt).content
         code = extract_code(self.llm_result)
@@ -66,7 +66,7 @@ Generate python code and return full updated code:
         :return:
         '''
         fix_code_prompt = f"""
-我有一个数据读取对象reader，对象信息为：
+I have a data reader object called reader, and the object information is：
 {self.gen_info_prompt()}
 The user asked the following question:
 {self.question}
@@ -75,7 +75,7 @@ You generated this python code:
 the code running throws an exception:
 {self.code_exception}
 Fix the python code above and return the new python code
-生成代码前请使用中文解释大致逻辑
+请在代码中使用中文添加必要注释
         """
         self.llm_result = self.llm.invoke(fix_code_prompt).content
         new_code = extract_code(self.llm_result)

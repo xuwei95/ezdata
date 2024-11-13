@@ -28,7 +28,7 @@ class DataChatAgent:
     def generate_code(self, prompt):
         result_example_prompt = '{ "type": "string", "value": "100" } or { "type": "dataframe", "value": pd.DataFrame({...}) } or { "type": "html", "value": line.render_embed() }'
         prompt = f"""
-我有一个数据读取对象reader，对象信息为：
+I have a data reader object called reader, and the object information is：
 {self.gen_info_prompt()}
 
 Update this initial code:
@@ -53,7 +53,7 @@ At the end, declare "result" variable as a dictionary of type and value.
 If you are asked to plot a chart, use "pyecharts" for charts, use the render_embed() function to return the corresponding html type and the html content value.
 
 Generate python code and return full updated code:
-生成代码前请使用中文解释大致逻辑
+请在代码中使用中文添加必要注释
 """
         if self.knowledge != '':
             prompt = f"结合知识库信息:\n{self.knowledge}\n回答以下问题:\n{prompt}"
@@ -67,7 +67,7 @@ Generate python code and return full updated code:
         :return:
         '''
         fix_code_prompt = f"""
-我有一个数据读取对象reader，对象信息为：
+I have a data reader object called reader, and the object information is：
 {self.gen_info_prompt()}
 The user asked the following question:
 {self.question}
@@ -76,7 +76,7 @@ You generated this python code:
 the code running throws an exception:
 {self.code_exception}
 Fix the python code above and return the new python code
-生成代码前请使用中文解释大致逻辑
+请在代码中使用中文添加必要注释
         """
         if self.knowledge != '':
             fix_code_prompt = f"结合知识库信息:\n{self.knowledge}\n回答以下问题:\n{fix_code_prompt}"
