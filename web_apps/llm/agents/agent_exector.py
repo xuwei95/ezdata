@@ -15,6 +15,7 @@ from utils.common_utils import gen_uuid
 
 class ToolsAgentExecutor(AgentExecutor, ABC):
     object_map = {}
+    max_token = 2000
 
     def serialize_value(self, value):
         """
@@ -26,7 +27,7 @@ class ToolsAgentExecutor(AgentExecutor, ABC):
             try:
                 # Try to JSON serialize the value
                 json.dumps(value)
-                if len(str(value)) > 2000:
+                if len(str(value)) > self.max_token:
                     # Replace with a reference string
                     ref_key = f"object({type(value)}):{str(value)[:200]}"
                     self.object_map[ref_key] = value

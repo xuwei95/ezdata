@@ -4,7 +4,7 @@ from utils.common_utils import get_now_time
 
 
 class DataChatAgent:
-    def __init__(self, llm, reader, knowledge='', answer='', retry=1):
+    def __init__(self, llm, reader, knowledge='', answer='', retry=1, max_token=4000):
         self.llm = llm
         self.reader = reader
         self.knowledge = knowledge
@@ -15,6 +15,7 @@ class DataChatAgent:
         self.max_retry = retry
         self.info_prompt = ''
         self.question = ''
+        self.max_token = max_token
 
     def gen_info_prompt(self):
         '''
@@ -22,7 +23,15 @@ class DataChatAgent:
         :return:
         '''
         if self.info_prompt == '':
-            self.info_prompt = self.reader.get_info_prompt(self.question)
+            info_prompt = self.reader.get_info_prompt('')
+            if len(info_prompt) > self.max_token:
+                # 信息过长，抽出模型列表，使用llm筛选出部分模型生成信息提示
+                model_list = self.reader.gen_models()
+                model_list = [{'type': i['type'], 'name': i['model_conf']['name']} for i in model_list]
+                prompt = f"你正在进行数据分析任务，有以下数据模型：\n{model_list}\n 请根据问题：\n {self.question}\n 从以上数据模型中筛选出你需要的模型名称列表,只需要返回名称列表，用逗号隔开，不要其他内容"
+                model_prompt = self.llm.invoke(prompt).content
+                info_prompt = self.reader.get_info_prompt(model_prompt)
+            self.info_prompt = info_prompt
         return self.info_prompt
 
     def generate_code(self, prompt):
