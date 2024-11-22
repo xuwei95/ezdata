@@ -7,7 +7,7 @@ from utils.web_utils import get_req_para
 from utils.auth import validate_user, set_insert_user, set_update_user, get_auth_token_info
 from web_apps import db
 from web_apps.llm.db_models import ChatHistory
-from web_apps.llm.services.llm_services import chat_generate, data_chat, data_chat_generate, get_tool_list
+from web_apps.llm.services.llm_services import chat_generate, data_chat_generate, get_tool_list
 logger = get_logger(p_name='system_log', f_name='llm', log_level='INFO')
 llm_bp = Blueprint('llm', __name__)
 
@@ -85,26 +85,6 @@ def llm_chat():
     '''
     req_dict = get_req_para(request)
     return Response(chat_generate(req_dict), mimetype='text/event-stream')
-
-
-@llm_bp.route('/data/chat/sync', methods=['POST'])
-@validate_user
-def llm_data_chat():
-    '''
-    数据对话同步接口
-    '''
-    try:
-        req_dict = get_req_para(request)
-        res_data = data_chat(req_dict)
-        return jsonify(res_data)
-    except Exception as e:
-        logger.exception(e)
-        res_data = {
-            'text': str(e)[:200],
-            'data': [],
-            'html': '',
-        }
-        return gen_json_response(data=res_data)
 
 
 @llm_bp.route('/data/chat', methods=['GET'])

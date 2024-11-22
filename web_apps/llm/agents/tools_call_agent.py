@@ -9,15 +9,20 @@ from web_apps.llm.agents.agent_exector import ToolsAgentExecutor
 
 class ToolsCallAgent:
 
-    def __init__(self, tools, llm=None):
+    def __init__(self, tools, llm=None, system_prompt=''):
         if llm is not None:
             self.llm = llm
         else:
             self.llm = get_llm()
+        if system_prompt == '':
+            self.system_prompt = "你是一个AI助手"
+        else:
+            self.system_prompt = system_prompt
+        self.system_prompt += "在调用工具时，若遇到 object(<class 'XXX'>):XXX 形式变量，代表无法序列化的代指变量，传给后续工具时请保持此输入字符串"
         # 对有function call 功能llm使用function call 否则使用react agent
         try:
             pre_prompt = ChatPromptTemplate.from_messages([
-                ("system", "你是一个AI助手, 在调用工具时，若遇到 object(<class 'XXX'>):XXX 形式变量，代表无法序列化的代指变量，传给后续工具时请保持此输入字符串"),
+                ("system", self.system_prompt),
                 ("human", "{input}"),
                 ("placeholder", "{agent_scratchpad}"),
             ])
@@ -63,15 +68,21 @@ class ToolsCallAgent:
                                     'time': get_now_time(res_type='datetime')}, 'type': 'flow'}
                 yield data
             if 'output' in chunk:
-                data = {'content': {'title': f"处理完成", 'content': f"处理完成",
-                                    'time': get_now_time(res_type='datetime')}, 'type': 'flow'}
-                yield data
                 output = chunk['output']
-                if isinstance(output, dict) and 'content' in output and 'type' in output:
-                    # 若是其他agent的输出格式，直接返回
-                    yield output
+                from typing import Iterator
+                if isinstance(output, Iterator):
+                    # 如果 output 是迭代器(其他agent对话输出)，逐个 yield 迭代器的元素
+                    for item in output:
+                        yield item
                 else:
-                    data = {'content': chunk['output'], 'type': 'text'}
+                    if isinstance(output, dict) and 'content' in output and 'type' in output:
+                        # 若是其他agent的输出格式，直接返回
+                        yield output
+                    else:
+                        data = {'content': chunk['output'], 'type': 'text'}
+                        yield data
+                    data = {'content': {'title': f"处理完成", 'content': f"处理完成",
+                                        'time': get_now_time(res_type='datetime')}, 'type': 'flow'}
                     yield data
 
 

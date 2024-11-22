@@ -28,13 +28,13 @@ class ToolsAgentExecutor(AgentExecutor, ABC):
                 # Try to JSON serialize the value
                 json.dumps(value)
                 if len(str(value)) > self.max_token:
-                    # Replace with a reference string
-                    ref_key = f"object({type(value)}):{str(value)[:200]}"
+                    # 超长字符串，取前100个字符标记引用对象字符串
+                    ref_key = f"object({type(value)}):{str(value)[:100]}"
                     self.object_map[ref_key] = value
                     return ref_key
                 return value
             except Exception as e:  # Value is not serializable
-                # Replace with a reference string
+                # 不可序列化对象，转为引用对象字符串
                 ref_key = f"object({type(value)}):{gen_uuid('base')[:16]}"
                 self.object_map[ref_key] = value
                 return ref_key

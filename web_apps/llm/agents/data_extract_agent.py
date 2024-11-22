@@ -119,7 +119,7 @@ Fix the python code above and return the new python code
         code = self.generate_code(prompt)
         retry_count = 0
         result = None
-        while retry_count <= self.max_retry:
+        while retry_count < self.max_retry:
             try:
                 print(code)
                 result = self.execute_code(code)

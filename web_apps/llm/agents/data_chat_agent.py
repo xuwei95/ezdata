@@ -133,7 +133,7 @@ Fix the python code above and return the new python code
         retry_count = 0
         result = None
         code = ''
-        while retry_count <= self.max_retry:
+        while retry_count < self.max_retry:
             try:
                 if retry_count == 0:
                     if self.answer != '':

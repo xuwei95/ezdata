@@ -14,9 +14,6 @@ class DataChatInput(BaseModel):
     question: str = Field(
         description="用户问题"
     )
-    knowledge: str = Field(
-        description="问题相关知识库信息，若没有则为空字符串"
-    )
 
 
 class DataChatTool(BaseTool):
@@ -29,7 +26,9 @@ class DataChatTool(BaseTool):
         "数据分析"
     )
     return_direct = True
+    is_chat = True
     datamodel_id: str = ''
+    knowledge: str = ''
     reader: Optional[object] = None
     args_schema: Type[BaseModel] = DataChatInput
 
@@ -51,31 +50,32 @@ class DataChatTool(BaseTool):
     def _run(
         self,
         question: str,
-        knowledge: str,
         run_manager: Optional[CallbackManagerForToolRun] = None,
-    ) -> dict:
+    ) -> object:
         with app.app_context():
             _llm = get_llm()
             # 查询知识库中是否有已标记的正确答案
             answer = get_star_qa_answer(question, metadata={'datamodel_id': self.datamodel_id})
-            _agent = DataChatAgent(_llm, self.reader, knowledge=knowledge, answer=answer, retry=1)
-            result = _agent.run(question)
-            return result
+            _agent = DataChatAgent(_llm, self.reader, knowledge=self.knowledge, answer=answer, retry=1)
+            if self.is_chat:
+                return _agent.chat(question)
+            else:
+                return _agent.run(question)
 
 
-def get_chat_data_tool(datamodel_id: str):
-    _tool = DataChatTool(datamodel_id=datamodel_id)
+def get_chat_data_tool(datamodel_id: str, is_chat: bool = True):
+    _tool = DataChatTool(datamodel_id=datamodel_id, is_chat=is_chat)
     _tool.bind_model()
     if _tool.reader:
         return _tool
     return None
 
 
-def get_chat_data_tools(datamodel_ids):
+def get_chat_data_tools(datamodel_ids, is_chat: bool = True):
     tools = []
     for _id in datamodel_ids:
         if _id != '':
-            tool = get_chat_data_tool(_id)
+            tool = get_chat_data_tool(_id, is_chat=is_chat)
             if tool is not None:
                 tools.append(tool)
     return tools
@@ -83,7 +83,7 @@ def get_chat_data_tools(datamodel_ids):
 
 if __name__ == '__main__':
     from web_apps.llm.agents.tools_call_agent import ToolsCallAgent
-    datamodel_ids = ['8a862fdf980245459ac9ef89734c166f', '22016439fbd0431887641544a0cf5cf4']
+    datamodel_ids = ['8a862fdf980245459ac9ef89734c166f']
     tools = get_chat_data_tools(datamodel_ids)
     agent = ToolsCallAgent(tools=tools)
     res = agent.chat('查出sys_dict 表前10条数据')

@@ -60,7 +60,10 @@ def network_search(keyword: str) -> str:
         text = text.split('百度为您找到以下结果')[1]
     if '相关搜索' in text:
         text = text.split('相关搜索')[0]
-    return summary_content(text)
+    llm = get_llm()
+    prompt = f"根据用户问题：{keyword} \n 总结一下内容，生成一篇500字左右内容摘要:\n{text[:4000]}"
+    result = llm.invoke(prompt).content
+    return result
 
 
 if __name__ == '__main__':
