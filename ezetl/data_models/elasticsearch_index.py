@@ -42,6 +42,15 @@ class EsIndexModel(DataModel):
         except Exception as e:
             return False, str(e)[:100]
 
+    def query(self, index_name, query, limit=10000):
+        '''
+        查询数据
+        '''
+        if 'size' not in query:
+            query['size'] = limit
+        res = self.es_client._client.search(index=index_name, body=query)
+        return res
+
     def get_info_prompt(self, model_prompt=''):
         '''
         获取使用提示及数据库元数据信息
@@ -50,13 +59,10 @@ class EsIndexModel(DataModel):
         query_example = {'query': {'match_all': {}}, 'size': 10000}
         info_prompt = f"""
 一个elasticsearch封装类，并且提供了一些数据操作的方法
-类中部分参数如下:
-index_name：索引名称
-es_client._client: python elasticsearch库client实例，可用此对象，执行数据操作，如查询数据
 # 使用示例：
 实例化此类的reader对象，查询数据转为dataframe：
 query_dict = {query_example}
-res = reader.es_client._client.search(index=reader.index_name, body=query_dict)
+res = reader.query(index_name='test_index', query=query_dict)
 data_li = [i.get('_source') for i in res['hits'].get('hits')]
 df = pd.DataFrame(data_li)
 

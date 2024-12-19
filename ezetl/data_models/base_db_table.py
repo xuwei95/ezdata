@@ -1,11 +1,14 @@
 from ezetl.data_models import DataModel
 from ezetl.utils.db_utils import get_database_engine, get_database_model
 from ezetl.utils.common_utils import trans_rule_value, gen_json_response
-from sqlalchemy import not_, inspect, MetaData
+from sqlalchemy import not_
 from sqlalchemy.sql.schema import Table
 from sqlalchemy import Column, String, Integer, Text, SmallInteger, DateTime, TIMESTAMP, Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.schema import CreateTable
+import pandas as pd
+import sqlparse
+import re
 
 
 class BaseDBTableModel(DataModel):
@@ -58,6 +61,50 @@ class BaseDBTableModel(DataModel):
         except Exception as e:
             return False, str(e)[:100]
 
+    def query(self, sql, limit=1000, offset=0):
+        '''
+        查询数据
+        '''
+        # 解析SQL查询
+        parsed = sqlparse.parse(sql)
+        if not parsed:
+            raise RuntimeError('sql解析失败')
+        pattern = re.compile(r'\b(DELETE|UPDATE|INSERT|DROP|ALTER|TRUNCATE)\b', re.IGNORECASE)
+        matches = pattern.findall(sql)
+        if matches:
+            raise RuntimeError("SQL包含不允许的操作")
+        if sql.upper().strip().startswith('SELECT'):
+            # 获取第一个语句
+            stmt = parsed[0]
+            # 检查是否已经有LIMIT子句
+            has_limit = any(token.value.upper() == 'LIMIT' for token in stmt.tokens if hasattr(token, 'value'))
+            limit_token = None
+            for token in stmt.tokens:
+                if hasattr(token, 'value') and token.value.upper() == 'LIMIT':
+                    has_limit = True
+                    limit_token = token
+                    break
+            if has_limit:
+                # 找到LIMIT后的数值
+                limit_value = None
+                for token in limit_token.parent.tokens:
+                    if token.ttype is None and token.value.isdigit():
+                        limit_value = token.value
+                        break
+                if limit_value:
+                    # 替换LIMIT的值
+                    sql = sql.replace(f"LIMIT {limit_value}", f"LIMIT {limit}")
+            else:
+                # 如果没有LIMIT，添加LIMIT
+                sql += f" LIMIT {limit}"
+            # 检查是否已经有OFFSET子句
+            has_offset = any(token.value.upper() == 'OFFSET' for token in stmt.tokens if hasattr(token, 'value'))
+            # 如果没有OFFSET，添加OFFSET
+            if offset and not has_offset:
+                sql += f" OFFSET {offset}"
+        df = pd.read_sql(sql, con=self.db_engine)
+        return df
+
     def get_info_prompt(self, model_prompt=''):
         '''
         获取使用提示及数据库元数据信息
@@ -65,14 +112,9 @@ class BaseDBTableModel(DataModel):
         create_sql = str(CreateTable(self.table).compile(self.db_engine))
         metadata_info = f"""
 一个基于 SQLAlchemy 的sql数据表模型类，并且提供了一些数据库操作的方法
-类中部分参数如下:
-table_name: 表名
-db_engine: SQLAlchemy数据库链接engine实例，可用此对象，执行数据库操作，如查询，执行sql
-db_model: SQLAlchemy数据库对应此表的数据模型实例，可用此对象，执行对表中对象的操作，如增删改查等
-table: SQLAlchemy数据库对应此表的数据表实例，可用此对象，执行对表的操作，如增删改查等
 使用示例：
 实例化此类的reader对象，查询sql转为dataframe：
-df = pd.read_sql(sql, con=reader.db_engine)
+df = reader.query(sql)
 
 # DataSource type: 
 {self.db_type}

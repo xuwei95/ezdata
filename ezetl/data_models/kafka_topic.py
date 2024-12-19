@@ -76,6 +76,22 @@ class KafkaTopicModel(DataModel):
         except Exception as e:
             return False, '连接失败:' + str(e)
 
+    def get_info_prompt(self, model_prompt=''):
+        '''
+        获取使用提示及数据库元数据信息
+        '''
+        demo_data = self.read_page()
+        info_prompt = f"""
+    一个读取kafka数据的模型类
+    # 使用示例：
+    实例化此类的reader对象，查询最新数据：
+    data = reader.read_page()
+
+    ## 数据示例
+    {demo_data}
+            """
+        return info_prompt
+    
     def gen_models(self):
         '''
         生成子数据模型

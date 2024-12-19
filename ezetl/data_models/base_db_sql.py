@@ -1,9 +1,12 @@
 from ezetl.data_models import DataModel
 from ezetl.utils.db_utils import get_database_engine
-from ezetl.utils.common_utils import gen_json_response
+from ezetl.utils.common_utils import gen_json_response, df_to_list
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy import text, MetaData
+from sqlalchemy import MetaData
 from sqlalchemy.schema import CreateTable, Table
+import pandas as pd
+import sqlparse
+import re
 
 
 class BaseDBSqlModel(DataModel):
@@ -53,7 +56,7 @@ class BaseDBSqlModel(DataModel):
 db_engine: SQLAlchemy数据库链接engine实例，可用此对象，执行数据库操作，如查询，执行sql
 # 使用示例：
 实例化此类的reader对象，查询sql转为dataframe：
-df = pd.read_sql(sql, con=reader.db_engine)
+df = reader.query(sql)
 
 # DataSource type: 
 {self.db_type}
@@ -127,6 +130,50 @@ df = pd.read_sql(sql, con=reader.db_engine)
         if sql_rules != []:
             self.sql = sql_rules[0].get('value')
 
+    def query(self, sql, limit=1000, offset=0):
+        '''
+        查询数据
+        '''
+        # 解析SQL查询
+        parsed = sqlparse.parse(sql)
+        if not parsed:
+            raise RuntimeError('sql解析失败')
+        pattern = re.compile(r'\b(DELETE|UPDATE|INSERT|DROP|ALTER|TRUNCATE)\b', re.IGNORECASE)
+        matches = pattern.findall(sql)
+        if matches:
+            raise RuntimeError("SQL包含不允许的操作")
+        if sql.upper().strip().startswith('SELECT'):
+            # 获取第一个语句
+            stmt = parsed[0]
+            # 检查是否已经有LIMIT子句
+            has_limit = any(token.value.upper() == 'LIMIT' for token in stmt.tokens if hasattr(token, 'value'))
+            limit_token = None
+            for token in stmt.tokens:
+                if hasattr(token, 'value') and token.value.upper() == 'LIMIT':
+                    has_limit = True
+                    limit_token = token
+                    break
+            if has_limit:
+                # 找到LIMIT后的数值
+                limit_value = None
+                for token in limit_token.parent.tokens:
+                    if token.ttype is None and token.value.isdigit():
+                        limit_value = token.value
+                        break
+                if limit_value:
+                    # 替换LIMIT的值
+                    sql = sql.replace(f"LIMIT {limit_value}", f"LIMIT {limit}")
+            else:
+                # 如果没有LIMIT，添加LIMIT
+                sql += f" LIMIT {limit}"
+            # 检查是否已经有OFFSET子句
+            has_offset = any(token.value.upper() == 'OFFSET' for token in stmt.tokens if hasattr(token, 'value'))
+            # 如果没有OFFSET，添加OFFSET
+            if offset and not has_offset:
+                sql += f" OFFSET {offset}"
+        df = pd.read_sql(sql, con=self.db_engine)
+        return df
+
     def read_page(self, page=1, pagesize=20):
         '''
         分页读取数据
@@ -137,14 +184,13 @@ df = pd.read_sql(sql, con=reader.db_engine)
         self.gen_extract_rules()
         if 'custom_sql' not in self.auth_types and self.sql != self.default_sql:
             return False, '无修改sql权限'
-        cursor = self.session.execute(text(self.sql))
-        results = cursor.fetchall()
-        total = len(results)
-        results = results[(page - 1) * pagesize:page * pagesize]
-        data_li = [dict(zip(cursor.keys(), result)) for result in results]
+        df = self.query(self.sql, limit=self.batch_size)
+        data_li = df_to_list(df)
+        total = len(data_li)
         res_data = {
             'records': data_li,
-            'total': total
+            'total': total,
+            'pagination': False  # 禁用分页
         }
         return True, gen_json_response(data=res_data)
 
@@ -155,20 +201,12 @@ df = pd.read_sql(sql, con=reader.db_engine)
         '''
         self.gen_extract_rules()
         if 'custom_sql' not in self.auth_types and self.sql != self.default_sql:
-            return False, '无修改sql权限'
-        cursor = self.session.execute(text(self.sql))
-        results = cursor.fetchall()
-        total = len(results)
-        data_li = [dict(zip(cursor.keys(), result)) for result in results]
-        pagesize = self._extract_info.get('batch_size', 1000)
-        total_pages = total // pagesize + 1
-        n = 0
-        while n < total_pages:
-            page = n + 1
-            n += 1
-            li = data_li[(page - 1) * pagesize:page * pagesize]
-            res_data = {
-                'records': li,
-                'total': total
-            }
-            yield True, gen_json_response(data=res_data)
+            yield False, '无修改sql权限'
+        df = self.query(self.sql, limit=self.batch_size)
+        data_li = df_to_list(df)
+        total = len(data_li)
+        res_data = {
+            'records': data_li,
+            'total': total
+        }
+        yield True, gen_json_response(data=res_data)
