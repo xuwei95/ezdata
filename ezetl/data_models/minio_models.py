@@ -183,10 +183,11 @@ class TableMinioModel(BaseMinioModel):
         if not flag:
             return False, res_data
         total = len(res_data)
-        data_li = res_data[(page-1)*pagesize:page*pagesize]
+        data_li = res_data
         res_data = {
             'records': data_li,
-            'total': total
+            'total': total,
+            'pagination': False  # 禁用分页
         }
         return True, gen_json_response(data=res_data)
 

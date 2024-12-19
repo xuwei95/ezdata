@@ -420,11 +420,12 @@ class N4jSqlModel(DataModel):
             return False, '无修改sql权限'
         results = self.n4j_client.query(self.sql)
         total = len(results)
-        results = results[(page-1)*pagesize:page*pagesize]
+        results = results
         data_li = [obj for obj in results]
         res_data = {
             'records': data_li,
-            'total': total
+            'total': total,
+            'pagination': False  # 禁用分页
         }
         return True, gen_json_response(res_data)
 

@@ -441,10 +441,11 @@ influxdb
         for k, row in df.iterrows():
             results.append(row.to_dict())
         total = len(results)
-        results = results[(page-1)*pagesize:page*pagesize]
+        results = results
         res_data = {
             'records': results,
-            'total': total
+            'total': total,
+            'pagination': False  # 禁用分页
         }
         return True, gen_json_response(data=res_data)
 

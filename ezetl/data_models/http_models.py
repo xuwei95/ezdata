@@ -111,7 +111,8 @@ class HttpApiModel(BaseHttpModel):
                 data_li = [result]
             res_data = {
                 'records': data_li,
-                'total': total
+                'total': total,
+                'pagination': False  # 禁用分页
             }
             return True, gen_json_response(data=res_data)
         except Exception as e:
