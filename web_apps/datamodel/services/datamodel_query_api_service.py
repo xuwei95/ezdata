@@ -151,7 +151,8 @@ class DataModelQueryApiService(object):
                 'llm_result': llm_result,
                 'fields': get_res_fields(data_li),
                 'extract_rules': reader.get_extract_rules(),
-                'search_type_list': reader.get_search_type_list()
+                'search_type_list': reader.get_search_type_list(),
+                'pagination': False  # 禁用分页
             }
             return gen_json_response(data=res_data)
         flag, res_data = reader.read_page(page=page, pagesize=pagesize)
