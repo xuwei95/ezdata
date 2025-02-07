@@ -10,8 +10,8 @@ class MongoModel(DataModel):
         super().__init__(model_info)
         conn_conf = self._source['conn_conf']
         model_conf = self._model.get('model_conf', {})
-        conn_url = f"mongodb://{conn_conf.get('username')}:{conn_conf.get('password')}@{conn_conf.get('host')}:{conn_conf.get('port')}/{conn_conf.get('database_name')}"
-        self.conn = mongoengine.connect(host=conn_url)
+        conn_url = f"mongodb://{conn_conf.get('username')}:{conn_conf.get('password')}@{conn_conf.get('host')}:{conn_conf.get('port')}"
+        self.conn = mongoengine.connect(host=conn_url, db=conn_conf.get('database_name'))
         self.collection = model_conf.get('name', '')
         if self.collection != '':
             class Model(mongoengine.DynamicDocument):
@@ -45,15 +45,14 @@ class MongoModel(DataModel):
         '''
         获取使用提示及数据库元数据信息
         '''
-        # 查询集合中有哪些字段
-        fields = self.model._fields.keys()
         # 查询元数据信息
         metadata = self.model._meta
+        first_obj = self.model.objects.first()
         metadata_info = f"""
-collection name: {metadata['collection']}
-fields: {fields.keys()}
-indexes: {metadata['indexes']}
-ordering: {metadata['ordering']}
+{metadata}
+{f'''document demo:
+{str(first_obj.to_json())[:1000]} 
+''' if first_obj else ""}
         """
         info_prompt = f"""
 一个mongoengine封装类，并且提供了一些数据操作的方法
@@ -242,7 +241,6 @@ mongodb
         query = query.skip((page - 1) * pagesize)
         query = query.limit(pagesize)
         obj_list = query.all()
-        self.conn.close()
         data_li = []
         for obj in obj_list:
             dic = json.loads(obj.to_json())
@@ -283,7 +281,6 @@ mongodb
                 'total': total
             }
             yield True, gen_json_response(res_data)
-        self.conn.close()
 
     def write(self, res_data):
         self.load_type = self._load_info.get('load_type', '')
