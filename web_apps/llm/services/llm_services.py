@@ -3,11 +3,13 @@ from web_apps import app
 from web_apps.llm.agents.data_extract_agent import DataExtractAgent
 from web_apps.llm.llm_utils import get_llm
 from utils.common_utils import gen_json_response, gen_uuid, get_now_time, parse_json
+from utils.auth import get_auth_token_info
 from web_apps.rag.services.rag_service import get_knowledge
 from web_apps.llm.tools import tools_map
 from web_apps.llm.tools import get_tools
 from web_apps.llm.tools.data_tools import get_chat_data_tools, get_chat_data_tool
 from web_apps.llm.agents.tools_call_agent import ToolsCallAgent
+from web_apps.llm.services.conversation_service import get_or_create_conversation, add_core_memory
 
 
 def get_tool_list():
@@ -37,7 +39,7 @@ def llm_query_data(reader, llm, query_prompt):
 def prepare_chat_context(req_dict):
     with app.app_context():
         message = req_dict.get('message', '')
-        topic_id = req_dict.get('topicId', '')
+        conversation_id = req_dict.get('topicId', '')
         chat_config = parse_json(req_dict.get('chatConfig'), {})
         prompt = message
         data_chat_config = parse_json(chat_config.get('data_chat'), {})
@@ -53,7 +55,21 @@ def prepare_chat_context(req_dict):
             knowledge = get_knowledge(message, metadata=rag_metadata)
             if knowledge != '':
                 prompt = f"结合知识库信息，回答用户的问题,若知识库中无相关信息，请尝试直接回答。\n知识库：{knowledge}\n用户问题：{message}\n回答："
-        llm = get_llm({'conversation_id': topic_id})
+        llm = get_llm({'conversation_id': conversation_id})
+        # 记忆相关配置
+        memory_config = parse_json(chat_config.get('memory'), {})
+        memory_enable = memory_config.get('enable', True)
+        if memory_enable:
+            user_info = get_auth_token_info()
+            user_name = user_info.get('username')
+            user_id = user_info.get('id')
+            meta_data = {
+                'user_id': user_id,
+                'user_name': user_name
+            }
+            conversation = get_or_create_conversation(conversation_id, meta_data)
+            core_memory = conversation.core_memory
+
         # 判断是否使用工具调用
         agent_config = parse_json(chat_config.get('agent'), {})
         agent_enable = agent_config.get('enable', False)
@@ -67,26 +83,26 @@ def prepare_chat_context(req_dict):
             data_chat_tools = get_chat_data_tools(datamodel_ids)
             tools = tools + data_chat_tools
 
-        return prompt, llm, agent_enable, tools, topic_id
+        return prompt, llm, agent_enable, tools, conversation_id
 
 
 def chat_generate(req_dict):
     '''
     流式对话
     '''
-    prompt, llm, agent_enable, tools, topic_id = prepare_chat_context(req_dict)
+    prompt, llm, agent_enable, tools, conversation_id = prepare_chat_context(req_dict)
 
     if agent_enable and tools != []:
         # agent工具调用模式
         agent = ToolsCallAgent(tools, llm=llm)
         for chunk in agent.chat(prompt):
-            t = f"id:{topic_id}\ndata:{json.dumps(chunk, ensure_ascii=False)}"
+            t = f"id:{conversation_id}\ndata:{json.dumps(chunk, ensure_ascii=False)}"
             yield f"{t}\n\n"
     else:
         # 直接使用llm回答
         for c in llm.stream(prompt):
             data = {'content': c.content, 'type': 'text'}
-            t = f"id:{topic_id}\ndata:{json.dumps(data, ensure_ascii=False)}"
+            t = f"id:{conversation_id}\ndata:{json.dumps(data, ensure_ascii=False)}"
             yield f"{t}\n\n"
     yield f"id:[DONE]\ndata:[DONE]\n\n"
 
@@ -117,11 +133,11 @@ def data_chat_generate(req_dict):
     with app.app_context():
         message = req_dict['message']
         model_id = req_dict.get('model_id', '')
-        topic_id = req_dict.get('topicId', gen_uuid())
+        conversation_id = req_dict.get('topicId', gen_uuid())
         _llm = get_llm()
         if _llm is None:
             data = {'content': '未找到对应llm配置!', 'type': 'text'}
-            t = f"id:{topic_id}\ndata:{json.dumps(data, ensure_ascii=False)}"
+            t = f"id:{conversation_id}\ndata:{json.dumps(data, ensure_ascii=False)}"
             yield f"{t}\n\n"
             yield f"id:[ERR]\ndata:[ERR]\n\n"
             return
@@ -129,19 +145,19 @@ def data_chat_generate(req_dict):
         if data_tool is None:
             for c in _llm.stream(message):
                 data = {'content': c.content, 'type': 'text'}
-                t = f"id:{topic_id}\ndata:{json.dumps(data, ensure_ascii=False)}"
+                t = f"id:{conversation_id}\ndata:{json.dumps(data, ensure_ascii=False)}"
                 yield f"{t}\n\n"
         else:
             data = {'content': {'title': '检索知识库', 'content': '正在检索知识库', 'time': get_now_time(res_type='datetime')},
                     'type': 'flow'}
-            t = f"id:{topic_id}\ndata:{json.dumps(data, ensure_ascii=False)}"
+            t = f"id:{conversation_id}\ndata:{json.dumps(data, ensure_ascii=False)}"
             yield f"{t}\n\n"
             # 检索知识库中相关知识
             knowledge = get_knowledge(message, metadata={'datamodel_id': model_id})
             data_tool.knowledge = knowledge
             agent = ToolsCallAgent([data_tool], llm=_llm)
             for chunk in agent.chat(message):
-                t = f"id:{topic_id}\ndata:{json.dumps(chunk, ensure_ascii=False)}"
+                t = f"id:{conversation_id}\ndata:{json.dumps(chunk, ensure_ascii=False)}"
                 yield f"{t}\n\n"
         yield f"id:[DONE]\ndata:[DONE]\n\n"
 

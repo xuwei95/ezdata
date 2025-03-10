@@ -22,6 +22,17 @@ class ChatHistory(BaseModel):
         content = db.Column(db.TEXT, default='{}', comment='内容')
 
 
+class Conversation(BaseModel):
+    """会话表"""
+    __tablename__ = 'llm_conversation'
+    id = db.Column(db.String(36), primary_key=True, nullable=False, default='', comment='主键')
+    user_id = db.Column(db.Integer, nullable=True, comment='用户id')
+    app_id = db.Column(db.String(36), nullable=False, default='', index=True, comment='所属对话appid')
+    user_name = db.Column(db.String(100), nullable=True, default='', comment='用户名')
+    core_memory = db.Column(db.TEXT, default='', comment='核心记忆')
+    mode = db.Column(db.String(100), nullable=True, default='console', comment='类型 console-平台， api-接口')
+
+
 class ChatApp(BaseModel):
     '''
     ai对话应用
