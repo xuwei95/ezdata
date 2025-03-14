@@ -4,6 +4,7 @@ from config import ES_CONF, SYS_CONF
 from ezetl.libs.es import EsClient
 from ezetl.utils.es_query_tool import EsQueryTool
 from web_apps.llm.db_models import Conversation
+from web_apps.rag.utils import vector_index
 
 
 def get_or_create_conversation(conversation_id, meta_data={}) -> Conversation:
@@ -16,7 +17,7 @@ def get_or_create_conversation(conversation_id, meta_data={}) -> Conversation:
             return conv
     conv = Conversation(
         id=conversation_id,
-        user_id=meta_data['user_id'],
+        user_id=meta_data.get('user_id', 0),
         app_id=meta_data.get('app_id', ''),
         user_name=meta_data.get('user_name', ''),
         core_memory='',
@@ -59,19 +60,47 @@ def get_messages(conversation_id, size: int = 20) -> list:
     return res
 
 
+def get_core_memory(conversation_id) -> str:
+    """获取核心记忆"""
+    conv = db.session.query(Conversation).filter_by(id=conversation_id).first()
+    return conv.core_memory if conv else ''
+
+
 def add_core_memory(conversation_id, memory) -> str:
     """添加核心记忆"""
     conv = get_or_create_conversation(conversation_id)
-    conv.core_memory = f"{conv.core_memory}\n {get_now_time()}: {memory.strip()}"
+    conv.core_memory = f"{conv.core_memory}\n{memory.strip()}"
     db.session.add(conv)
     db.session.commit()
     return conv.core_memory
 
 
-def replace_core_memory(conversation_id, memory) -> str:
+def replace_core_memory(conversation_id, old_content, new_content) -> str:
     """更新核心记忆"""
     conv = get_or_create_conversation(conversation_id)
-    conv.core_memory = f"{memory.strip()}"
+    current_value = conv.core_memory
+    if old_content not in current_value:
+        return f"Old content '{old_content}' not found in memory"
+    new_value = current_value.replace(str(old_content), str(new_content))
+    conv.core_memory = new_value
     db.session.add(conv)
     db.session.commit()
     return conv.core_memory
+
+
+def search_archival_memory(conversation_id, query):
+    '''
+    查询归档记忆
+    '''
+    search_kwargs = {
+        'filter': {'conversation_id': conversation_id},
+        'score_threshold': 0,
+        'k': 1,
+        'retrieval_type': 'vector'
+    }
+    kwargs = {
+        'search_kwargs': search_kwargs,
+        'search_type': 'similarity_score_threshold'
+    }
+    docs = vector_index.search(query, **kwargs)
+    return '\n'.join([d.page_content for d in docs])
