@@ -1,5 +1,5 @@
 from web_apps import db
-from utils.common_utils import gen_json_response, gen_uuid, parse_json, get_now_time
+from utils.common_utils import gen_uuid, parse_json, get_now_time
 from config import ES_CONF, SYS_CONF
 from ezetl.libs.es import EsClient
 from ezetl.utils.es_query_tool import EsQueryTool
@@ -86,6 +86,14 @@ def replace_core_memory(conversation_id, old_content, new_content) -> str:
     db.session.add(conv)
     db.session.commit()
     return conv.core_memory
+
+
+def add_archival_memory(conversation_id, content):
+    '''
+    添加归档记忆
+    '''
+    vector_index.add_texts([content], metadatas={'conversation_id': conversation_id}, ids=[gen_uuid()])
+    return '归档记忆添加成功'
 
 
 def search_archival_memory(conversation_id, query):

@@ -77,7 +77,7 @@ def save_llm_chat_history():
     return jsonify(res_data)
 
 
-@llm_bp.route('/chat', methods=['GET'])
+@llm_bp.route('/chat', methods=['GET', 'POST'])
 @validate_user
 def llm_chat():
     '''
@@ -87,7 +87,7 @@ def llm_chat():
     return Response(chat_generate(req_dict), mimetype='text/event-stream')
 
 
-@llm_bp.route('/data/chat', methods=['GET'])
+@llm_bp.route('/data/chat', methods=['GET', 'POST'])
 @validate_user
 def llm_data_chat_stream():
     '''

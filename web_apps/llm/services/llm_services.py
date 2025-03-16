@@ -187,7 +187,8 @@ def data_chat_generate(req_dict):
 
 if __name__ == '__main__':
     req_dict = {
-        "message": '我有哪些爱好',  # 查询sys_dict 表前10条数据
+        'topicId': '8a862fdf980245459ac9ef89734c1601',
+        "message": '我有那些爱好',# '我喜欢弹钢琴',  # 查询sys_dict 表前10条数据
         "chatConfig": {
             "rag": {
                 "enable": False,
