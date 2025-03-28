@@ -28,10 +28,10 @@ def get_or_create_conversation(conversation_id, meta_data={}) -> Conversation:
     return conv
 
 
-def add_message(self, conversation_id, question, answer) -> dict:
+def add_message(conversation_id, question, answer) -> dict:
     """添加用户消息并生成回答"""
     # 获取会话
-    conv = self.get_or_create_conversation()
+    conv = get_or_create_conversation(conversation_id)
     if not conv:
         raise ValueError("Conversation not found")
 
@@ -50,14 +50,18 @@ def add_message(self, conversation_id, question, answer) -> dict:
 
 def get_messages(conversation_id, size: int = 20) -> list:
     """获取指定会话的消息历史"""
-    es_client = EsClient(**ES_CONF)
-    es_query_tool = EsQueryTool(
-        {'index_name': SYS_CONF.get('LLM_MESSAGE_INDEX', 'llm_messages'), 'contain[conversation_id]': conversation_id, 'sort[@created_at]': 'desc', 'page': 1,
-         'pagesize': size})
-    res = es_query_tool.query(es=es_client)
-    if res['code'] == 200:
-        res['data']['records'] = res['data']['records'][::-1]
-    return res
+    try:
+        es_client = EsClient(**ES_CONF)
+        es_query_tool = EsQueryTool(
+            {'index_name': SYS_CONF.get('LLM_MESSAGE_INDEX', 'llm_messages'), 'contain[conversation_id]': conversation_id, 'sort[created_at]': 'desc', 'page': 1,
+             'pagesize': size})
+        res = es_query_tool.query(es=es_client)
+        if res['code'] == 200:
+            res['data']['records'] = res['data']['records'][::-1]
+            return res['data']['records']
+    except Exception as e:
+        print(f"Failed to get messages: {e}")
+    return []
 
 
 def get_core_memory(conversation_id) -> str:
