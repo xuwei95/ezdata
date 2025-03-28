@@ -1,4 +1,5 @@
 import json
+from langchain_core.messages import AIMessage, HumanMessage
 from web_apps import app
 from web_apps.llm.agents.data_extract_agent import DataExtractAgent
 from web_apps.llm.llm_utils import get_llm
@@ -9,7 +10,7 @@ from web_apps.llm.tools import tools_map
 from web_apps.llm.tools import get_tools
 from web_apps.llm.tools.data_tools import get_chat_data_tools, get_chat_data_tool
 from web_apps.llm.agents.tools_call_agent import ToolsCallAgent
-from web_apps.llm.services.conversation_service import get_or_create_conversation
+from web_apps.llm.services.conversation_service import get_or_create_conversation, get_messages, add_message
 from web_apps.llm.tools.memory_tools import get_memory_tools
 
 
@@ -37,6 +38,14 @@ def llm_query_data(reader, llm, query_prompt):
     return True, res, llm_result
 
 
+def format_history(messages):
+    history_str = []
+    for msg in messages:
+        prefix = "Human" if isinstance(msg, HumanMessage) else "AI"
+        history_str.append(f"{prefix}: {msg.content}")
+    return "\n".join(history_str[-6:])  # 保留最近3轮对话（每轮2条）
+
+
 def prepare_chat_context(req_dict, is_web=True):
     message = req_dict.get('message', '')
     conversation_id = req_dict.get('topicId', '')
@@ -58,6 +67,8 @@ def prepare_chat_context(req_dict, is_web=True):
     core_memory = ''
     memory_config = parse_json(chat_config.get('memory'), {})
     memory_enable = memory_config.get('enable', True)
+    # 构建对话历史（LangChain 消息对象格式）
+    chat_history = []
     if memory_enable:
         if is_web:
             user_info = get_auth_token_info()
@@ -74,6 +85,12 @@ def prepare_chat_context(req_dict, is_web=True):
         }
         conversation = get_or_create_conversation(conversation_id, meta_data)
         core_memory = conversation.core_memory
+        # 获取历史消息（最近的3条）
+        history_messages = get_messages(conversation_id, size=3)
+        # 转换为 LangChain Message 对象
+        for msg in history_messages:
+            chat_history.append(HumanMessage(content=msg["question"]))
+            chat_history.append(AIMessage(content=msg["answer"]))
     # 处理知识库部分
     if knowledge != '':
         knowledge_section = f"结合知识库信息，回答用户的问题，若知识库中无相关信息，请尝试直接回答。\n知识库：{knowledge}\n"
@@ -84,11 +101,20 @@ def prepare_chat_context(req_dict, is_web=True):
         core_memory_section = f"[核心记忆]\n{core_memory}\n\n"
     else:
         core_memory_section = ''
+    history_section = format_history(chat_history) if chat_history else ""
+    history_part = (
+        f"对话历史：\n{history_section}\n\n"
+        if history_section
+        else ""
+    )
     # 组合最终提示
     prompt = (
         f"{core_memory_section}"
+        f"{history_part}"
         f"{knowledge_section}"
-        f"用户问题：{message}\n"
+        "当前对话：\n"
+        f"Human: {message}\n"
+        "AI:"
     )
     # 判断是否使用工具调用
     agent_config = parse_json(chat_config.get('agent'), {})
@@ -114,20 +140,25 @@ def chat_generate(req_dict, is_web=True):
     '''
     流式对话
     '''
+    message = req_dict['message']
     prompt, llm, agent_enable, tools, conversation_id = prepare_chat_context(req_dict, is_web)
-
+    answer = ''
     if agent_enable and tools != []:
         # agent工具调用模式
         agent = ToolsCallAgent(tools, llm=llm)
         for chunk in agent.chat(prompt):
+            if chunk['type'] == 'text':
+                answer += chunk['content']
             t = f"id:{conversation_id}\ndata:{json.dumps(chunk, ensure_ascii=False)}"
             yield f"{t}\n\n"
     else:
         # 直接使用llm回答
         for c in llm.stream(prompt):
             data = {'content': c.content, 'type': 'text'}
+            answer += c.content
             t = f"id:{conversation_id}\ndata:{json.dumps(data, ensure_ascii=False)}"
             yield f"{t}\n\n"
+    add_message(conversation_id, message, answer)
     yield f"id:[DONE]\ndata:[DONE]\n\n"
 
 
@@ -187,8 +218,8 @@ def data_chat_generate(req_dict):
 
 if __name__ == '__main__':
     req_dict = {
-        'topicId': '8a862fdf980245459ac9ef89734c1601',
-        "message": '我有那些爱好',# '我喜欢弹钢琴',  # 查询sys_dict 表前10条数据
+        'topicId': 'test0002',# '8a862fdf980245459ac9ef89734c1601',
+        "message": '9.11和9.9哪个大',# '我喜欢弹钢琴',  # 查询sys_dict 表前10条数据
         "chatConfig": {
             "rag": {
                 "enable": False,
@@ -213,5 +244,8 @@ if __name__ == '__main__':
         }
     }
     with app.app_context():
+        for i in chat_generate(req_dict, False):
+            print(i)
+        req_dict['message'] = '我刚才说了啥'
         for i in chat_generate(req_dict, False):
             print(i)
