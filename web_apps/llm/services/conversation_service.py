@@ -48,20 +48,20 @@ def add_message(conversation_id, question, answer) -> dict:
     return message_doc
 
 
-def get_messages(conversation_id, size: int = 20) -> list:
+def get_messages(conversation_id, page: int = 1, size: int = 20):
     """获取指定会话的消息历史"""
     try:
         es_client = EsClient(**ES_CONF)
         es_query_tool = EsQueryTool(
-            {'index_name': SYS_CONF.get('LLM_MESSAGE_INDEX', 'llm_messages'), 'contain[conversation_id]': conversation_id, 'sort[created_at]': 'desc', 'page': 1,
+            {'index_name': SYS_CONF.get('LLM_MESSAGE_INDEX', 'llm_messages'), 'contain[conversation_id]': conversation_id, 'sort[created_at]': 'desc', 'page': page,
              'pagesize': size})
         res = es_query_tool.query(es=es_client)
         if res['code'] == 200:
             res['data']['records'] = res['data']['records'][::-1]
-            return res['data']['records']
+            return res['data']['records'], res['data']['total']
     except Exception as e:
         print(f"Failed to get messages: {e}")
-    return []
+    return [], 0
 
 
 def get_core_memory(conversation_id) -> str:
@@ -96,7 +96,7 @@ def add_archival_memory(conversation_id, content):
     '''
     添加归档记忆
     '''
-    vector_index.add_texts([content], metadatas={'conversation_id': conversation_id}, ids=[gen_uuid()])
+    vector_index.add_texts([content], metadatas=[{'conversation_id': conversation_id}], ids=[gen_uuid()])
     return '归档记忆添加成功'
 
 

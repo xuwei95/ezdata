@@ -3,7 +3,7 @@ from typing import Optional, Type
 from langchain_core.callbacks import CallbackManagerForToolRun
 from langchain_core.pydantic_v1 import BaseModel, Field
 from web_apps import app
-from web_apps.llm.services.conversation_service import add_core_memory, replace_core_memory, get_core_memory
+from web_apps.llm.services.conversation_service import add_core_memory, replace_core_memory, get_core_memory, search_archival_memory
 
 
 class MemoryInput(BaseModel):
@@ -66,10 +66,39 @@ class CoreMemoryReplaceTool(BaseTool):
         return '核心记忆替换成功'
 
 
+class MemorySearchInput(BaseModel):
+    query: str = Field(
+        description="查询关键词"
+    )
+
+
+class ArchivalMemorySearchTool(BaseTool):
+    """
+    查询归档记忆
+    """
+
+    name: str = "archival_memory_search"
+    description: str = (
+        "若用户提出未知的问题，可使用该工具查询相关历史归档记忆"
+    )
+    return_direct = False
+    conversation_id: str = ''
+    args_schema: Type[BaseModel] = MemorySearchInput
+
+    def _run(
+            self,
+            query: str,
+            run_manager: Optional[CallbackManagerForToolRun] = None,
+    ) -> object:
+        memory = search_archival_memory(self.conversation_id, query)
+        return memory
+
+
 def get_memory_tools(conversation_id):
     core_memory_append_tool = CoreMemoryAppendTool(conversation_id=conversation_id)
     core_memory_replace_tool = CoreMemoryReplaceTool(conversation_id=conversation_id)
-    tools = [core_memory_append_tool, core_memory_replace_tool]
+    archival_memory_search_tool = ArchivalMemorySearchTool(conversation_id=conversation_id)
+    tools = [core_memory_append_tool, core_memory_replace_tool, archival_memory_search_tool]
     return tools
 
 
