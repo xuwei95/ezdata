@@ -6,7 +6,7 @@ flower==1.0.0
 eventlet==0.30.2
 Flask==3.0.0
 python-engineio==3.13.2
-flaREDACTEDapscheduler==1.12.2
+flask-apscheduler==1.12.2
 flask_cors==3.0.10
 gunicorn==20.1.0
 PyJWT==1.7.1
