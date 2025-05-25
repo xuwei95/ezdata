@@ -1,0 +1,100 @@
+@import 'transition/index.less';
+@import 'var/index.less';
+@import 'public.less';
+@import 'ant/index.less';
+@import './theme.less';
+@import './entry.css';
+
+input:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 1000px white inset !important;
+}
+
+:-webkit-autofill {
+  transition: background-color 5000s ease-in-out 0s !important;
+}
+
+html {
+  overflow: hidden;
+  -webkit-text-size-adjust: 100%;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  // body添加行高保持跟3.x一致
+  line-height: 1.5715;
+  
+  &.color-weak {
+    filter: invert(80%);
+  }
+
+  &.gray-mode {
+    filter: grayscale(100%);
+    filter: progid:dximagetransform.microsoft.basicimage(grayscale=1);
+  }
+}
+
+/* 【LOWCOD-2300】【vue3】online--online表单开发，下拉框位置靠下时，点开下拉框，整屏跳 */
+body {
+  overflow: visible;
+  overflow-x: hidden;
+}
+
+a:focus,
+a:active,
+button,
+div,
+svg,
+span {
+  outline: none !important;
+}
+
+// 保持 和 windi 一样的全局样式，减少升级带来的影响
+ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+img, video {
+  max-width: 100%;
+  height: auto;
+}
+// 保持 和 windi 一样的全局样式，减少升级带来的影响
+
+// update-begin--author:liaozhiyang---date:20230925---for：【issues/5407】字段信息校验是多行提示会被遮挡
+.vxe-cell--valid-msg {
+  white-space: nowrap;
+}
+// update-end--author:liaozhiyang---date:20230925---for：【issues/5407】字段信息校验是多行提示会被遮挡
+
+// update-begin--author:liaozhiyang---date:20231013---for：【QQYUN-5133】升级之后提示样式跟之前一致
+.vxe-table--render-default.vaild-msg--single .vxe-body--row:last-child .vxe-cell--valid {
+  top: auto;
+}
+.vxe-cell--valid {
+  top: 100%;
+}
+.vxe-cell--valid-msg {
+  display: inline-block;
+  border-radius: 4px !important;
+  padding: 8px 12px !important;
+  color: #fff !important;
+  background-color: #f56c6c !important;
+  
+}
+// update-end--author:liaozhiyang---date:20231013---for：【QQYUN-5133】升级之后提示样式跟之前一致
+// update-begin--author:liaozhiyang---date:20231116---for：【QQYUN-7011】online表单多了一个蓝色的边框
+// .vxe-table.vxe-table--render-default .vxe-body--column.col--selected {
+//   box-shadow: none;
+// }
+// update-end--author:liaozhiyang---date:20231116---for：【QQYUN-7011】online表单多了一个蓝色的边框
+
+// update-begin--author:liaozhiyang---date:20240424---for：【issues/1175】解决vxetable鼠标hover之后title显示不对的问题
+.vxe-cell {
+  pointer-events: none;
+  > * {
+    pointer-events: auto;
+  }
+}
+// update-end--author:liaozhiyang---date:20240424---for：【issues/1175】解决vxetable鼠标hover之后title显示不对的问题

@@ -16,7 +16,7 @@ ENV worker_concurrency=4
 ENV worker_queue=default
 ENV worker_process=prefork
 RUN git clone https://github.com/xuwei95/ezdata.git
-WORKDIR /opt/ezdata
-RUN cd /opt/ezdata
+WORKDIR /opt/ezdata/api
+RUN cd /opt/ezdata/api
 RUN pip install -r /opt/ezdata/requirements.txt -i https://pypi.doubanio.com/simple --use-deprecated=legacy-resolver
 ENTRYPOINT ["bash", "init.sh"]

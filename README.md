@@ -26,11 +26,11 @@ ezdata 是基于python后端和vue3前端开发的数据处理分析和任务调
 
 项目源码
 -----------------------------------
-| 仓库  | 后端  |前端 | 数据大屏前端   |
-|--------------------|--------------------|--------------------|--------------------|
-| Github | [ezdata](https://github.com/xuwei95/ezdata) | [ezdata_frontend](https://github.com/xuwei95/ezdata_frontend)  | [ezdata_bigscreen](https://github.com/xuwei95/ezdata_bigscreen)  |
-| 码云  | [ezdata](https://gitee.com/xuwei95/ezdata) | [ezdata_frontend](https://gitee.com/xuwei95/ezdata_frontend)  | [ezdata_bigscreen](https://gitee.com/xuwei95/ezdata_bigscreen)  |
-| gitcode  | [ezdata](https://gitcode.com/xuwei95/ezdata) | [ezdata_frontend](https://gitcode.com/xuwei95/ezdata_frontend)  | [ezdata_bigscreen](https://gitcode.com/xuwei95/ezdata_bigscreen)  |
+| 仓库  | 地址   |
+|--------------------|--------------------|
+| Github | [ezdata](https://github.com/xuwei95/ezdata) 
+| 码云  | [ezdata](https://gitee.com/xuwei95/ezdata) 
+| gitcode  | [ezdata](https://gitcode.com/xuwei95/ezdata) 
 
 
 系统效果

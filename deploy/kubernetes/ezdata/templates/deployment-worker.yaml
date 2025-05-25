@@ -38,7 +38,7 @@ spec:
             - /bin/sh
             - "-c"
             - bash init.sh
-          workingDir: //opt/ezdata
+          workingDir: //opt/ezdata/api
           ports:
             - name: http-9001
               containerPort: 9001
@@ -71,7 +71,7 @@ spec:
           volumeMounts:
             - name: {{ include "ezdata.fullname" . }}-env
               readOnly: true
-              mountPath: /opt/ezdata/prod.env
+              mountPath: /opt/ezdata/api/prod.env
               subPath: prod.env
           terminationMessagePath: /dev/termination-log
           terminationMessagePolicy: File

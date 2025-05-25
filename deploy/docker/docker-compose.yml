@@ -18,7 +18,7 @@ services:
     image: "ezdata123/ezdata:latest"  # docker镜像名及版本
     container_name: ezdata_master  # 服务容器
     volumes: # 挂载目录
-      - ./deploy.env:/opt/ezdata/deploy.env
+      - ./deploy.env:/opt/ezdata/api/deploy.env
     environment: # 配置环境变量
       - TZ=Asia/Shanghai  # 设置时区
       - read_env=1 # 是否读取配置文件
@@ -33,7 +33,7 @@ services:
       - worker_concurrency=4 # celery worker 并发数
       - worker_queue=default # celery worker 订阅队列
       - worker_process=prefork # celery worker 运行模式
-    working_dir: /opt/ezdata
+    working_dir: /opt/ezdata/api
     ports:
       - 8001:8001 # web服务端口
     command: /bin/bash -c "bash init.sh"
@@ -53,7 +53,7 @@ services:
     image: "ezdata123/ezdata:latest"  # docker镜像名及版本
     container_name: ezdata_scheduler  # 服务容器
     volumes: # 挂载目录
-      - ./deploy.env:/opt/ezdata/deploy.env
+      - ./deploy.env:/opt/ezdata/api/deploy.env
     environment: # 配置环境变量
       - TZ=Asia/Shanghai  # 设置时区
       - read_env=1 # 是否读取配置文件
@@ -68,7 +68,7 @@ services:
       - worker_concurrency=4 # celery worker 并发数
       - worker_queue=default # celery worker 订阅队列
       - worker_process=prefork # celery worker 运行模式
-    working_dir: /opt/ezdata
+    working_dir: /opt/ezdata/api
     ports:
       - 8002:8002 # 任务调度端口
       - 5555:5555 # flower监控端口，不开启可注释掉
