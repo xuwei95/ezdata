@@ -19,18 +19,18 @@ class SeaTunnelTaskRunner(object):
         depoly_mode = self.params.get('deploy_mode', 'client')
         master = self.params.get('master')
         engine = self.params.get('engine', 'spark')
-        commond = f"$SEATUNNEL/bin/start-seatunnel-{engine}.sh "
+        command = f"$SEATUNNEL/bin/start-seatunnel-{engine}.sh "
         if master is None:
             return False, 'master不能为空'
-        commond += f"--master {master} "
-        commond += f"--deploy-mode {depoly_mode} "
+        command += f"--master {master} "
+        command += f"--deploy-mode {depoly_mode} "
         code = self.params.get('code')
         tmp_file = f"{gen_uuid()}.conf"
         with open(tmp_file, 'w') as f:
             f.write(code)
-        commond += f"--config {tmp_file} "
+        command += f"--config {tmp_file} "
         self.tmp_files.append(tmp_file)
-        return commond
+        return command
 
     def run(self):
         '''

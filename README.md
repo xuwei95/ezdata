@@ -5,6 +5,7 @@ ezdata
 -----------------------------------
 
 ezdata 是基于python后端和vue3前端开发的数据处理分析和任务调度系统。  
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/xuwei95/ezdata)
 
 ![输入图片说明](https://raw.githubusercontent.com/xuwei95/ezdata_press/master/images/ezdata.gif?raw=true "在这里输入图片标题")
 

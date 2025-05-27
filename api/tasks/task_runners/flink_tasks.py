@@ -21,20 +21,20 @@ class FlinkTaskRunner(object):
         language = self.params.get('language', 'python')
         master = self.params.get('master')
         package = self.params.get('package')
-        commond = f"flink run -m {master} -p {concurrency} "
+        command = f"flink run -m {master} -p {concurrency} "
         if language in ['scala', 'java']:
             main_class = self.params.get('class')
             if main_class:
-                commond += f"-c {main_class} "
-            commond += f" {package} "
+                command += f"-c {main_class} "
+            command += f" {package} "
         elif language == 'python':
             code = self.params.get('code')
             tmp_file = f"{gen_uuid()}.py"
             with open(tmp_file, 'w') as f:
                 f.write(code)
-            commond += f"--python {tmp_file} "
+            command += f"--python {tmp_file} "
             self.tmp_files.append(tmp_file)
-        return commond
+        return command
 
     def run(self):
         '''

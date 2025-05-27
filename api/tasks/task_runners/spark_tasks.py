@@ -21,25 +21,25 @@ class SparkTaskRunner(object):
         language = self.params.get('language', 'python')
         master = self.params.get('master')
         package = self.params.get('package')
-        commond = "$SPARK_HOME/bin/spark-submit "
+        command = "$SPARK_HOME/bin/spark-submit "
         if deploy_mode in ['cluster']:
             if master is None:
                 return False, 'master不能为空'
-            commond += f"--master {master} "
+            command += f"--master {master} "
         if language in ['scala', 'java']:
-            commond += f"--deploy-mode {deploy_mode} "
+            command += f"--deploy-mode {deploy_mode} "
             main_class = self.params.get('class')
             if main_class:
-                commond += f"--class {main_class} "
-            commond += f" {package} "
+                command += f"--class {main_class} "
+            command += f" {package} "
         elif language == 'python':
             code = self.params.get('code')
             tmp_file = f"{gen_uuid()}.py"
             with open(tmp_file, 'w') as f:
                 f.write(code)
-            commond += f" {tmp_file} "
+            command += f" {tmp_file} "
             self.tmp_files.append(tmp_file)
-        return commond
+        return command
 
     def run(self):
         '''
