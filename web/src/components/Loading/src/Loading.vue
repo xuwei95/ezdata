@@ -69,11 +69,11 @@
 
   html[data-theme='dark'] {
     .full-loading:not(.light) {
-      background-color: @modal-maREDACTEDbg;
+      background-color: @modal-mask-bg;
     }
   }
 
   .full-loading.dark {
-    background-color: @modal-maREDACTEDbg;
+    background-color: @modal-mask-bg;
   }
 </style>
