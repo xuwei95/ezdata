@@ -4,13 +4,12 @@ User模块服务
 '''
 import json
 from web_apps import db
-from models import User, Role, PerMission, Depart, Tenant
+from models import User, Role, PerMission, Depart, Tenant, Position, UserTenantJoin
 from utils.auth import encode_auth_token, decode_auth_token, set_insert_user, set_update_user
 from utils.web_utils import get_user_ip
 from utils.common_utils import get_now_time, gen_json_response, parse_json, format_date
 from utils.query_utils import get_base_query
 from werkzeug.security import generate_password_hash, check_password_hash
-from sqlalchemy import or_
 
 sex_map = {
     1: '男',
@@ -133,9 +132,10 @@ class UserService(object):
         pagesize = req_dict.get('pagesize', 10)
         page = int(page)
         pagesize = int(pagesize)
-        query = get_base_query(User)
         like_text = f'%"{depart_obj.id}"%'
-        query = query.filter(User.depart_id_list.like(like_text))
+        join_objs = get_base_query(UserTenantJoin).filter(User.depart_id_list.like(like_text)).all()
+        user_ids = [i.user_id for i in join_objs]
+        query = get_base_query(User).filter(User.id.in_(user_ids))
         query = query.offset((page - 1) * pagesize)
         query = query.limit(pagesize)
         total = query.count()
@@ -189,14 +189,13 @@ class UserService(object):
         user_objs = db.session.query(User).filter(User.id.in_(user_ids)).all()
         print(user_ids, user_objs)
         for user_obj in user_objs:
-            depart_id_list = json.loads(user_obj.role_id_list)
+            depart_id_list = json.loads(user_obj.depart_id_list)
             depart_id_list.append(str(depart_id))
             depart_id_list = list(set(depart_id_list))
-            user_obj.depart_id_list = json.dumps(depart_id_list)
-            set_update_user(user_obj)
-            db.session.add(user_obj)
-            db.session.commit()
-            db.session.flush()
+            join_obj = user_obj._get_join_obj()
+            join_obj.depart_id_list = json.dumps(depart_id_list)
+            set_update_user(join_obj)
+            db.session.add(join_obj)
         return gen_json_response(msg='操作成功。', extends={'success': True})
 
     def delete_user_departs(self, req_dict):
@@ -214,11 +213,10 @@ class UserService(object):
         for user_obj in user_objs:
             depart_id_list = json.loads(user_obj.depart_id_list)
             depart_id_list = [i for i in depart_id_list if i != str(depart_id)]
-            user_obj.depart_id_list = json.dumps(depart_id_list)
-            set_update_user(user_obj)
-            db.session.add(user_obj)
-            db.session.commit()
-            db.session.flush()
+            join_obj = user_obj._get_join_obj()
+            join_obj.depart_id_list = json.dumps(depart_id_list)
+            set_update_user(join_obj)
+            db.session.add(join_obj)
         return gen_json_response(msg='操作成功。', extends={'success': True})
     
     def select_depart(self, req_dict):
@@ -261,12 +259,10 @@ class UserService(object):
         role_id = req_dict.get('role_id')
         page = req_dict.get('page', 1)
         pagesize = req_dict.get('pagesize', 10)
-        query = get_base_query(User)
-        if role_id:
-            like_text = f'%"{role_id}"%'
-            query = query.filter(User.role_id_list.like(like_text))
-        else:
-            return gen_json_response(code=400, msg='缺少参数:role_id')
+        like_text = f'%"{role_id}"%'
+        join_objs = get_base_query(UserTenantJoin).filter(User.depart_id_list.like(like_text)).all()
+        user_ids = [i.user_id for i in join_objs]
+        query = get_base_query(User).filter(User.id.in_(user_ids))
         total = query.count()
         page = int(page)
         pagesize = int(pagesize)
@@ -318,11 +314,10 @@ class UserService(object):
             role_id_list = json.loads(user_obj.role_id_list)
             role_id_list.append(str(role_id))
             role_id_list = list(set(role_id_list))
-            user_obj.role_id_list = json.dumps(role_id_list)
-            set_update_user(user_obj)
-            db.session.add(user_obj)
-            db.session.commit()
-            db.session.flush()
+            join_obj = user_obj._get_join_obj()
+            join_obj.role_id_list = json.dumps(role_id_list)
+            set_update_user(join_obj)
+            db.session.add(join_obj)
         return gen_json_response(msg='操作成功。', extends={'success': True})
 
     def delete_user_roles(self, req_dict):
@@ -340,11 +335,10 @@ class UserService(object):
         for user_obj in user_objs:
             role_id_list = json.loads(user_obj.role_id_list)
             role_id_list = [i for i in role_id_list if i != str(role_id)]
-            user_obj.role_id_list = json.dumps(role_id_list)
-            set_update_user(user_obj)
-            db.session.add(user_obj)
-            db.session.commit()
-            db.session.flush()
+            join_obj = user_obj._get_join_obj()
+            join_obj.role_id_list = json.dumps(role_id_list)
+            set_update_user(join_obj)
+            db.session.add(join_obj)
         return gen_json_response(msg='操作成功。', extends={'success': True})
 
     def frozenBatch(self, req_dict):
@@ -439,6 +433,8 @@ class UserService(object):
             user.login_times = 1
             user.login_ip = get_user_ip()
             set_insert_user(user, 'system')
+            # 注册默认第一个租户
+            user.tenant_id = 1
             db.session.add(user)
             db.session.commit()
             db.session.flush()
@@ -552,9 +548,6 @@ class UserService(object):
                 query = get_base_query(User, sort_create_time=False, sort_no=False).order_by(User.valid_end_time.asc())
         else:
             query = get_base_query(User)
-        if role_id not in ['#', '']:
-            like_text = f'%"{role_id}"%'
-            query = query.filter(User.role_id_list.like(like_text))
         username = req_dict.get('username', '')
         if username != '':
             search_text = f"%{username}%"
@@ -596,52 +589,277 @@ class UserService(object):
 
     def add_obj(self, req_dict):
         '''
-        添加
+        添加用户并配置租户权限
         '''
         username = req_dict.get('username')
         password = req_dict.get('password')
         confirmPassword = req_dict.get('confirmPassword', '')
+
         if confirmPassword != password:
-            gen_json_response(code=400, msg='两次密码输入不同！', extends={'success': False})
+            return gen_json_response(code=400, msg='两次密码输入不同！', extends={'success': False})
+
+        # 检查用户名是否已存在
         exist_obj = db.session.query(User).filter(User.username == username, User.del_flag == 0).first()
         if exist_obj:
             return gen_json_response(code=400, msg='用户名已存在！')
-        obj = User()
-        for k in ['username', 'nickname', 'work_no', 'user_identity', 'avatar', 'birthday', 'sex', 'email', 'phone']:
-            setattr(obj, k, req_dict.get(k))
+
+        # 创建用户对象
+        user_obj = User()
+        for k in ['username', 'nickname', 'work_no', 'user_identity', 'avatar',
+                  'birthday', 'sex', 'email', 'phone', 'tenant_id']:
+            if k in req_dict:
+                setattr(user_obj, k, req_dict.get(k))
+
+        # 加密密码
         password = generate_password_hash(password)
-        obj.password = password
-        for k in ["post_id_list", "depart_id_list", "role_id_list", "tenant_id_list"]:
-            li = req_dict.get(k, "").split(',')
-            if li == ['']:
-                li = []
-            setattr(obj, k, json.dumps(li))
-        set_insert_user(obj)
-        db.session.add(obj)
+        user_obj.password = password
+        set_insert_user(user_obj)
+        db.session.add(user_obj)
+        db.session.flush()  # 先flush获取user_id
+
+        # 处理租户权限配置
+        tenant_id_list = req_dict.get('tenant_id_list', "").split(',') if req_dict.get('tenant_id_list') else []
+        if not tenant_id_list and 'tenant_id' in req_dict:
+            tenant_id_list = [str(req_dict['tenant_id'])]
+
+        for tenant_id in tenant_id_list:
+            if not tenant_id.isdigit():
+                continue
+
+            tenant_id = int(tenant_id)
+            # 检查租户是否存在
+            tenant = db.session.query(Tenant).filter(Tenant.id == tenant_id, Tenant.del_flag == 0).first()
+            if not tenant:
+                continue
+
+            # 创建或更新用户租户关联
+            join_obj = db.session.query(UserTenantJoin).filter_by(
+                tenant_id=tenant_id,
+                user_id=user_obj.id
+            ).first()
+
+            if not join_obj:
+                join_obj = UserTenantJoin(
+                    tenant_id=tenant_id,
+                    user_id=user_obj.id
+                )
+
+            # 设置部门列表（只包含属于该租户的部门）
+            if 'depart_id_list' in req_dict:
+                depart_ids = req_dict.get('depart_id_list', [])
+                if isinstance(depart_ids, str):
+                    try:
+                        depart_ids = depart_ids.split(',')
+                    except:
+                        depart_ids = []
+                # 过滤只属于当前租户的部门
+                valid_depart_ids = db.session.query(Depart.id).filter(
+                    Depart.id.in_(depart_ids),
+                    Depart.tenant_id == tenant_id,
+                    Depart.del_flag == 0
+                ).all()
+                join_obj.depart_id_list = json.dumps([str(d[0]) for d in valid_depart_ids])
+
+            # 设置职务列表（只包含属于该租户的职务）
+            if 'post_id_list' in req_dict:
+                post_ids = req_dict.get('post_id_list', [])
+                if isinstance(post_ids, str):
+                    try:
+                        post_ids = post_ids.split(',')
+                    except:
+                        post_ids = []
+                # 过滤只属于当前租户的职务
+                valid_post_ids = db.session.query(Position.id).filter(
+                    Position.id.in_(post_ids),
+                    Position.tenant_id == tenant_id,
+                    Position.del_flag == 0
+                ).all()
+                join_obj.post_id_list = json.dumps([str(p[0]) for p in valid_post_ids])
+
+            # 设置角色列表（只包含属于该租户的角色）
+            if 'role_id_list' in req_dict:
+                role_ids = req_dict.get('role_id_list', [])
+                if isinstance(role_ids, str):
+                    try:
+                        role_ids = role_ids.split(',')
+                    except:
+                        role_ids = []
+                # 过滤只属于当前租户的角色
+                valid_role_ids = db.session.query(Role.id).filter(
+                    Role.id.in_(role_ids),
+                    Role.tenant_id == tenant_id,
+                    Role.del_flag == 0
+                ).all()
+                join_obj.role_id_list = json.dumps([str(r[0]) for r in valid_role_ids])
+
+            set_insert_user(join_obj)
+            db.session.add(join_obj)
+
         db.session.commit()
-        db.session.flush()
         return gen_json_response(msg='添加成功。', extends={'success': True})
 
     def update_obj(self, req_dict):
         '''
-        更新
+        更新用户及租户权限配置
         '''
         obj_id = req_dict.get('id')
         obj = db.session.query(User).filter(User.id == obj_id).first()
         if obj is None:
             return gen_json_response(code=400, msg='找不到该用户！')
-        for k in ['nickname', 'work_no', 'user_identity', 'avatar', 'birthday', 'sex', 'email', 'phone']:
+
+        # 更新用户基本信息
+        for k in ['nickname', 'work_no', 'user_identity', 'avatar',
+                  'birthday', 'sex', 'email', 'phone', 'tenant_id']:
             if k in req_dict:
                 setattr(obj, k, req_dict.get(k))
-        for k in ["post_id_list", "depart_id_list", "role_id_list", "tenant_id_list"]:
-            li = req_dict.get(k, "").split(',')
-            if li == ['']:
-                li = []
-            setattr(obj, k, json.dumps(li))
+
+        # 更新密码（如果有）
+        if 'password' in req_dict and req_dict['password']:
+            password = generate_password_hash(req_dict['password'])
+            obj.password = password
+
         set_update_user(obj)
         db.session.add(obj)
+
+        # 处理租户权限配置
+        if 'tenant_id_list' in req_dict:
+            tenant_id_list = req_dict.get('tenant_id_list', "").split(',') if req_dict.get('tenant_id_list') else []
+            current_tenants = db.session.query(UserTenantJoin.tenant_id).filter(
+                UserTenantJoin.user_id == obj.id
+            ).all()
+            current_tenant_ids = {t[0] for t in current_tenants}
+
+            # 添加新租户
+            for tenant_id in tenant_id_list:
+                if not tenant_id.isdigit():
+                    continue
+
+                tenant_id = int(tenant_id)
+                if tenant_id in current_tenant_ids:
+                    continue
+
+                tenant = db.session.query(Tenant).filter(Tenant.id == tenant_id, Tenant.del_flag == 0).first()
+                if not tenant:
+                    continue
+
+                join_obj = UserTenantJoin(
+                    tenant_id=tenant_id,
+                    user_id=obj.id
+                )
+
+                # 设置部门列表（只包含属于该租户的部门）
+                if 'depart_id_list' in req_dict:
+                    depart_ids = req_dict.get('depart_id_list', [])
+                    if isinstance(depart_ids, str):
+                        try:
+                            depart_ids = depart_ids.split(',')
+                        except:
+                            depart_ids = []
+                    valid_depart_ids = db.session.query(Depart.id).filter(
+                        Depart.id.in_(depart_ids),
+                        Depart.tenant_id == tenant_id,
+                        Depart.del_flag == 0
+                    ).all()
+                    join_obj.depart_id_list = json.dumps([str(d[0]) for d in valid_depart_ids])
+
+                # 设置职务列表（只包含属于该租户的职务）
+                if 'post_id_list' in req_dict:
+                    post_ids = req_dict.get('post_id_list', [])
+                    if isinstance(post_ids, str):
+                        try:
+                            post_ids = post_ids.split(',')
+                        except:
+                            post_ids = []
+                    valid_post_ids = db.session.query(Position.id).filter(
+                        Position.id.in_(post_ids),
+                        Position.tenant_id == tenant_id,
+                        Position.del_flag == 0
+                    ).all()
+                    join_obj.post_id_list = json.dumps([str(p[0]) for p in valid_post_ids])
+
+                # 设置角色列表（只包含属于该租户的角色）
+                if 'role_id_list' in req_dict:
+                    role_ids = req_dict.get('role_id_list', [])
+                    if isinstance(role_ids, str):
+                        try:
+                            role_ids = role_ids.split(',')
+                        except:
+                            role_ids = []
+                    valid_role_ids = db.session.query(Role.id).filter(
+                        Role.id.in_(role_ids),
+                        Role.tenant_id == tenant_id,
+                        Role.del_flag == 0
+                    ).all()
+                    join_obj.role_id_list = json.dumps([str(r[0]) for r in valid_role_ids])
+
+                set_insert_user(join_obj)
+                db.session.add(join_obj)
+
+            # 移除不再关联的租户
+            new_tenant_ids = {int(tid) for tid in tenant_id_list if tid.isdigit()}
+            for tenant_id in current_tenant_ids:
+                if tenant_id not in new_tenant_ids:
+                    db.session.query(UserTenantJoin).filter(
+                        UserTenantJoin.user_id == obj.id,
+                        UserTenantJoin.tenant_id == tenant_id
+                    ).delete()
+
+        # 更新现有租户的权限配置
+        if any(k in req_dict for k in ["post_id_list", "depart_id_list", "role_id_list"]):
+            join_objs = db.session.query(UserTenantJoin).filter(
+                UserTenantJoin.user_id == obj.id
+            ).all()
+
+            for join_obj in join_objs:
+                # 更新部门列表（只包含属于该租户的部门）
+                if 'depart_id_list' in req_dict:
+                    depart_ids = req_dict.get('depart_id_list', [])
+                    if isinstance(depart_ids, str):
+                        try:
+                            depart_ids = depart_ids.split(',')
+                        except:
+                            depart_ids = []
+                    valid_depart_ids = db.session.query(Depart.id).filter(
+                        Depart.id.in_(depart_ids),
+                        Depart.tenant_id == join_obj.tenant_id,
+                        Depart.del_flag == 0
+                    ).all()
+                    join_obj.depart_id_list = json.dumps([str(d[0]) for d in valid_depart_ids])
+
+                # 更新职务列表（只包含属于该租户的职务）
+                if 'post_id_list' in req_dict:
+                    post_ids = req_dict.get('post_id_list', [])
+                    if isinstance(post_ids, str):
+                        try:
+                            post_ids = post_ids.split(',')
+                        except:
+                            post_ids = []
+                    valid_post_ids = db.session.query(Position.id).filter(
+                        Position.id.in_(post_ids),
+                        Position.tenant_id == join_obj.tenant_id,
+                        Position.del_flag == 0
+                    ).all()
+                    join_obj.post_id_list = json.dumps([str(p[0]) for p in valid_post_ids])
+
+                # 更新角色列表（只包含属于该租户的角色）
+                if 'role_id_list' in req_dict:
+                    role_ids = req_dict.get('role_id_list', [])
+                    if isinstance(role_ids, str):
+                        try:
+                            role_ids = role_ids.split(',')
+                        except:
+                            role_ids = []
+                    valid_role_ids = db.session.query(Role.id).filter(
+                        Role.id.in_(role_ids),
+                        Role.tenant_id == join_obj.tenant_id,
+                        Role.del_flag == 0
+                    ).all()
+                    join_obj.role_id_list = json.dumps([str(r[0]) for r in valid_role_ids])
+
+                set_update_user(join_obj)
+                db.session.add(join_obj)
+
         db.session.commit()
-        db.session.flush()
         return gen_json_response(msg='更新成功。', extends={'success': True})
 
     def edit_self(self, req_dict, username):

@@ -1,6 +1,7 @@
 # coding: utf-8
 from web_apps import db
 import datetime
+import json
 
 
 class BaseModel(db.Model):
@@ -54,7 +55,7 @@ class User(BaseModel):
     '''
     __tablename__ = 'sys_user'
     username = db.Column(db.String(100), index=True, comment='登录的用户名')
-    password = db.Column(db.String(128), index=True, comment='密码')
+    password = db.Column(db.String(256), index=True, comment='密码')
     nickname = db.Column(db.String(100), index=True, comment='昵称')
     avatar = db.Column(db.String(1024), comment='头像')
     birthday = db.Column(db.DateTime, comment='生日')
@@ -68,16 +69,76 @@ class User(BaseModel):
     third_id = db.Column(db.String(100), index=True, comment='第三方登陆的唯一标志')
     third_type = db.Column(db.String(100), comment='第三方登陆的类型')
     work_no = db.Column(db.String(100), index=True, comment='工号')
-    depart_id_list = db.Column(db.Text, default='[]', comment='部门列表')
-    post_id_list = db.Column(db.Text, default='[]', comment='职务列表')
-    role_id_list = db.Column(db.Text, default='[]', comment='角色列表')
-    tenant_id_list = db.Column(db.Text, default='[]', comment='租户列表')
     verify_token = db.Column(db.String(50), default='', comment='验证token')
     login_times = db.Column(db.Integer, default=0, comment='登录次数')
     login_time = db.Column(db.Integer, comment='上次登录时间')
     login_ip = db.Column(db.String(500), comment='上次登录IP')
     valid_start_time = db.Column(db.Integer, comment='有效期(开始)')
     valid_end_time = db.Column(db.Integer, comment='有效期（结束）')
+
+    def _get_join_obj(self):
+        """获取用户租户关联对象，不存在则创建"""
+        join_obj = db.session.query(UserTenantJoin).filter_by(
+            tenant_id=self.tenant_id,
+            user_id=self.id
+        ).first()
+        if not join_obj:
+            join_obj = UserTenantJoin(
+                tenant_id=self.tenant_id,
+                user_id=self.id
+            ).save()
+            db.session.add(join_obj)
+        return join_obj
+
+    @property
+    def depart_id_list(self) -> str:
+        join_obj = db.session.query(UserTenantJoin).filter_by(
+            tenant_id=self.tenant_id,
+            user_id=self.id
+        ).first()
+        return join_obj.depart_id_list if join_obj else '[]'
+
+    @property
+    def post_id_list(self) -> str:
+        join_obj = db.session.query(UserTenantJoin).filter_by(
+            tenant_id=self.tenant_id,
+            user_id=self.id
+        ).first()
+        return join_obj.post_id_list if join_obj else '[]'
+
+    @property
+    def role_id_list(self) -> str:
+        join_obj = db.session.query(UserTenantJoin).filter_by(
+            tenant_id=self.tenant_id,
+            user_id=self.id
+        ).first()
+        return join_obj.role_id_list if join_obj else '["1"]'
+
+    @property
+    def tenant_id_list(self) -> str:
+        join_objs = db.session.query(UserTenantJoin).filter_by(user_id=self.id).all()
+        return json.dumps([str(i.tenant_id) for i in join_objs])
+
+
+class Tenant(BaseModel):
+    '''
+    租户表
+    '''
+    __tablename__ = 'sys_tenant'
+    name = db.Column(db.String(100), comment='租户名称')
+    begin_date = db.Column(db.Integer, comment='开始时间')
+    end_date = db.Column(db.Integer, comment='结束时间')
+    status = db.Column(db.SmallInteger, default=1, comment='状态 1正常 0冻结')
+
+
+class UserTenantJoin(BaseModel):
+    __tablename__ = 'sys_user_tenant_join'
+
+    user_id = db.Column(db.Integer, nullable=False, comment='用户ID')
+    tenant_id = db.Column(db.Integer, nullable=False, comment='租户ID')
+    depart_id_list = db.Column(db.Text, default='[]', comment='部门列表')
+    post_id_list = db.Column(db.Text, default='[]', comment='职务列表')
+    role_id_list = db.Column(db.Text, default='[]', comment='角色列表')
 
 
 class Role(BaseModel):
@@ -123,17 +184,6 @@ class Position(BaseModel):
     org_code = db.Column(db.String(100), default='', comment='所属机构编码')
     post_rank = db.Column(db.Integer, default=1, comment='职级')
     company_id = db.Column(db.Integer, comment='公司id')
-
-
-class Tenant(BaseModel):
-    '''
-    租户表
-    '''
-    __tablename__ = 'sys_tenant'
-    name = db.Column(db.String(100), comment='租户名称')
-    begin_date = db.Column(db.Integer, comment='开始时间')
-    end_date = db.Column(db.Integer, comment='结束时间')
-    status = db.Column(db.SmallInteger, default=1, comment='状态 1正常 0冻结')
 
 
 class PerMission(BaseModel):
@@ -244,6 +294,8 @@ class NoticeSend(BaseModel):
 
 
 if __name__ == '__main__':
-    db.create_all()
-    db.session.commit()
-    db.session.flush()
+    from web_apps import db, app
+    with app.app_context():
+        db.create_all()
+        db.session.commit()
+        db.session.flush()

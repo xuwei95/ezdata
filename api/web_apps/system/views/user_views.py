@@ -403,3 +403,16 @@ def user_delete():
     print(req_dict)
     res_data = UserService().delete_obj(req_dict)
     return jsonify(res_data)
+
+
+@user_bp.route('/deleteBatch', methods=['POST', 'DELETE'])
+@validate_user
+@validate_permissions(['user:delete'])
+def user_delete_batch():
+    """
+    批量删除
+    """
+    req_dict = get_req_para(request)
+    print(req_dict)
+    res_data = UserService().delete_obj(req_dict)
+    return jsonify(res_data)

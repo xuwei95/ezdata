@@ -43,4 +43,5 @@ python-docx==1.1.2
 # pypdfium2==4.30.0
 pymupdf
 pdfminer.six
+pypdf
 html2text==2024.2.26
