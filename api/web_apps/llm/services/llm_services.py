@@ -58,9 +58,8 @@ def generate_history_summary(messages, llm=None):
 
 
 class ChatHandler:
-    def __init__(self, req_dict, is_web=True):
+    def __init__(self, req_dict):
         self.req_dict = req_dict
-        self.is_web = is_web
         self.conversation_id = req_dict.get('topicId', '')
         self.chat_config = parse_json(req_dict.get('chatConfig'), {})
         self.message = req_dict.get('message', '')
@@ -71,7 +70,9 @@ class ChatHandler:
         self.history_size = self.memory_config.get('history_size', 3)
         self.agent_config = parse_json(self.chat_config.get('agent'), {})
 
-    def prepare_context(self):
+    def prepare_context(self, user_info = None):
+        if user_info is None:
+            user_info = {'id': 0, 'user_name': 'test'}
         """准备聊天上下文，返回(prompt, llm, agent_enable, tools)"""
         # 处理数据对话配置
         data_chat_enable = self.data_chat_config.get('enable', False)
@@ -90,12 +91,6 @@ class ChatHandler:
         chat_history = []
 
         if memory_enable:
-            # 获取用户信息
-            if self.is_web:
-                user_info = get_auth_token_info()
-            else:
-                user_info = {'user_id': 0, 'user_name': 'test'}
-
             # 获取对话历史
             conversation = get_or_create_conversation(
                 self.conversation_id,
@@ -159,60 +154,66 @@ class ChatHandler:
                         add_archival_memory(self.conversation_id, summary)
 
 
-def chat_generate(req_dict, is_web=True):
+def chat_generate(req_dict, user_info=None):
     '''
     流式对话
     '''
-    chat_handler = ChatHandler(req_dict, is_web)
-    conversation_id = chat_handler.conversation_id
-    prompt, llm, agent_enable, tools = chat_handler.prepare_context()
-    answer = ''
-    if agent_enable and tools != []:
-        # agent工具调用模式
-        agent = ToolsCallAgent(tools, llm=llm)
-        for chunk in agent.chat(prompt):
-            if chunk['type'] == 'text':
-                answer += chunk['content']
-            t = f"id:{conversation_id}\ndata:{json.dumps(chunk, ensure_ascii=False)}"
-            yield f"{t}\n\n"
-    else:
-        # 直接使用llm回答
-        for c in llm.stream(prompt):
-            data = {'content': c.content, 'type': 'text'}
-            answer += c.content
-            t = f"id:{conversation_id}\ndata:{json.dumps(data, ensure_ascii=False)}"
-            yield f"{t}\n\n"
-    yield f"id:[DONE]\ndata:[DONE]\n\n"
-    chat_handler.handle_chat_close(answer)
+    with app.app_context():
+        chat_handler = ChatHandler(req_dict)
+        conversation_id = chat_handler.conversation_id
+        try:
+            prompt, llm, agent_enable, tools = chat_handler.prepare_context(user_info)
+            answer = ''
+            if agent_enable and tools != []:
+                # agent工具调用模式
+                agent = ToolsCallAgent(tools, llm=llm)
+                for chunk in agent.chat(prompt):
+                    if chunk['type'] == 'text':
+                        answer += chunk['content']
+                    t = f"id:{conversation_id}\ndata:{json.dumps(chunk, ensure_ascii=False)}"
+                    yield f"{t}\n\n"
+            else:
+                # 直接使用llm回答
+                for c in llm.stream(prompt):
+                    data = {'content': c.content, 'type': 'text'}
+                    answer += c.content
+                    t = f"id:{conversation_id}\ndata:{json.dumps(data, ensure_ascii=False)}"
+                    yield f"{t}\n\n"
+            yield f"id:[DONE]\ndata:[DONE]\n\n"
+        except Exception as e:
+            yield f"[ERR]\ndata:{e}\n\n"
+        finally:
+            chat_handler.handle_chat_close(answer)
 
 
-def chat_run(req_dict, is_web=True):
+def chat_run(req_dict, user_info=None):
     '''
     返回对话结果
     '''
-    chat_handler = ChatHandler(req_dict, is_web)
-    answer = ''
-    try:
-        prompt, llm, agent_enable, tools = chat_handler.prepare_context()
-        if agent_enable and tools != []:
-            # agent工具调用模式
-            agent = ToolsCallAgent(tools, llm=llm)
-            output = agent.run(prompt)
-        else:
-            # 直接使用llm回答
-            output = llm.invoke(prompt).content
-        if isinstance(output, dict) and 'content' in output and 'type' in output:
-            if output['type'] == 'text':
-                answer += output['content']
-            # 若是其他agent的输出格式，直接返回
-            return output
-        else:
-            answer = output
-            return {'content': output, 'type': 'text'}
-    except Exception as e:
-        return {'content': f'处理出错：{e}', 'type': 'text'}
-    finally:
-        chat_handler.handle_chat_close(answer)
+    with app.app_context():
+        chat_handler = ChatHandler(req_dict)
+        answer = ''
+        try:
+            prompt, llm, agent_enable, tools = chat_handler.prepare_context(user_info)
+            if agent_enable and tools != []:
+                # agent工具调用模式
+                agent = ToolsCallAgent(tools, llm=llm)
+                output = agent.run(prompt)
+            else:
+                # 直接使用llm回答
+                output = llm.invoke(prompt).content
+            if isinstance(output, dict) and 'content' in output and 'type' in output:
+                if output['type'] == 'text':
+                    answer += output['content']
+                # 若是其他agent的输出格式，直接返回
+                return output
+            else:
+                answer = output
+                return {'content': output, 'type': 'text'}
+        except Exception as e:
+            return {'content': f'处理出错：{e}', 'type': 'text'}
+        finally:
+            chat_handler.handle_chat_close(answer)
 
 
 def data_chat_generate(req_dict):

@@ -153,10 +153,11 @@ def get_auth_token():
     '''
     获取用户认证token
     '''
+    from flask import request
     auth_header = request.headers.get('Authorization')
     if auth_header:
         auth_tokenArr = auth_header.split(" ")
-        if not auth_tokenArr or auth_tokenArr[0] != 'JWT' or len(auth_tokenArr) != 2:
+        if not auth_tokenArr or auth_tokenArr[0] != 'Bearer' or len(auth_tokenArr) != 2:
             return None
         else:
             return auth_tokenArr[1]

@@ -139,5 +139,5 @@ def process_dataframe(result):
 
 if __name__ == '__main__':
     llm = get_llm()
-    res = llm("hello")
+    res = llm.invoke("hello")
     print(res)

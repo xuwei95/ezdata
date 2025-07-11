@@ -84,7 +84,9 @@ def llm_chat():
     llm对话接口
     '''
     req_dict = get_req_para(request)
-    return Response(chat_generate(req_dict), mimetype='text/event-stream')
+    user_info = get_auth_token_info()
+    print(1111, user_info)
+    return Response(chat_generate(req_dict, user_info), mimetype='text/event-stream')
 
 
 @llm_bp.route('/data/chat', methods=['GET', 'POST'])
