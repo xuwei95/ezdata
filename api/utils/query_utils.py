@@ -21,10 +21,13 @@ def get_base_query(model, filter_tenant=True, tenant_id=None, filter_delete=True
     query = db.session.query(model)
     if filter_tenant:
         if tenant_id is None:
-            user_info = get_auth_token_info()
-            if user_info['username'] != 'admin':
-                # admin忽视租户筛选
-                tenant_id = user_info.get('tenant_id')
+            try:
+                user_info = get_auth_token_info()
+                if user_info['username'] != 'admin':
+                    # admin忽视租户筛选
+                    tenant_id = user_info.get('tenant_id')
+            except:
+                pass
         if tenant_id is not None:
             print(tenant_id)
             query = query.filter(model.tenant_id == tenant_id)

@@ -33,18 +33,19 @@ class DataChatTool(BaseTool):
     args_schema: Type[BaseModel] = DataChatInput
 
     def bind_model(self):
-        datamodel_obj = db.session.query(DataModel).filter(DataModel.id == self.datamodel_id).first()
-        if datamodel_obj:
-            flag, self.reader = get_reader_model({'model_id': self.datamodel_id})
-            if not flag:
-                self.reader = None
-            # 修改名称
-            self.name = f"datachat_{self.datamodel_id}"
-            # 修改描述
-            self.description = f"""数据分析工具，用于查询数据模型 {datamodel_obj.name} 做数据分析和统计绘图等功能
-            数据模型类型：{datamodel_obj.type}
-            描述： {datamodel_obj.description}
-            """
+        with app.app_context():
+            datamodel_obj = db.session.query(DataModel).filter(DataModel.id == self.datamodel_id).first()
+            if datamodel_obj:
+                flag, self.reader = get_reader_model({'model_id': self.datamodel_id})
+                if not flag:
+                    self.reader = None
+                # 修改名称
+                self.name = f"datachat_{self.datamodel_id}"
+                # 修改描述
+                self.description = f"""数据分析工具，用于查询数据模型 {datamodel_obj.name} 做数据分析和统计绘图等功能
+                数据模型类型：{datamodel_obj.type}
+                描述： {datamodel_obj.description}
+                """
 
     def _run(
         self,

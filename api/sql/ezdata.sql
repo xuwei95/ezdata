@@ -5,13 +5,13 @@
  Source Server Type    : MySQL
  Source Server Version : 80022
  Source Host           : 124.220.57.72:3306
- Source Schema         : ezdata
+ Source Schema         : ezdata1
 
  Target Server Type    : MySQL
  Target Server Version : 80022
  File Encoding         : 65001
 
- Date: 24/05/2025 19:28:40
+ Date: 01/06/2025 00:54:03
 */
 
 SET NAMES utf8mb4;
@@ -2098,9 +2098,9 @@ CREATE TABLE `sys_role` (
 -- Records of sys_role
 -- ----------------------------
 BEGIN;
-INSERT INTO `sys_role` VALUES (12, '', 1, 0, 'admin', '2023-04-27 14:32:26', '', '2024-07-15 16:33:22', '管理员', 'admin', 1, '[\"1\", \"3\", \"2\", \"25\", \"26\", \"98\", \"97\", \"96\", \"27\", \"102\", \"101\", \"100\", \"99\", \"37\", \"106\", \"105\", \"104\", \"103\", \"28\", \"110\", \"109\", \"108\", \"107\", \"31\", \"32\", \"83\", \"82\", \"81\", \"80\", \"33\", \"91\", \"87\", \"86\", \"85\", \"84\", \"35\", \"89\", \"88\", \"34\", \"95\", \"94\", \"93\", \"92\", \"90\", \"20\", \"21\", \"38\", \"41\", \"40\", \"78\", \"39\", \"79\", \"23\", \"24\", \"77\", \"76\", \"75\", \"74\", \"4\", \"18\", \"5\", \"73\", \"72\", \"71\", \"7\", \"6\", \"10\", \"70\", \"69\", \"68\", \"11\", \"67\", \"66\", \"65\", \"12\", \"64\", \"63\", \"62\", \"61\", \"13\", \"22\", \"19\", \"59\", \"58\", \"57\", \"14\", \"56\", \"55\", \"54\", \"15\", \"53\", \"52\", \"16\", \"49\", \"48\", \"47\", \"46\", \"45\", \"44\", \"43\", \"42\", \"17\", \"51\", \"50\", \"112\", \"111\", \"113\", \"120\", \"121\", \"122\", \"123\", \"117\", \"114\", \"116\", \"115\", \"119\"]', 1);
-INSERT INTO `sys_role` VALUES (13, '', 1, 0, 'admin', '2023-04-27 14:32:45', '', '2024-07-16 07:26:08', '普通用户', 'user', 1, '[\"3\", \"1\", \"25\", \"28\", \"31\", \"33\", \"91\", \"87\", \"86\", \"85\", \"84\", \"35\", \"89\", \"88\", \"34\", \"95\", \"94\", \"93\", \"92\", \"90\", \"20\", \"21\", \"23\", \"24\", \"77\", \"4\", \"18\", \"13\", \"22\", \"15\", \"16\", \"17\", \"50\", \"119\"]', 1);
-INSERT INTO `sys_role` VALUES (14, '', 1, 0, 'admin', '2023-04-27 17:38:31', '', '2023-04-27 17:43:35', '开发者', 'dev_user', 1, '[\"2\", \"1\", \"25\", \"26\", \"98\", \"97\", \"96\", \"27\", \"102\", \"101\", \"100\", \"99\", \"37\", \"106\", \"105\", \"104\", \"103\", \"28\", \"110\", \"109\", \"108\", \"107\", \"31\", \"32\", \"83\", \"82\", \"81\", \"80\", \"33\", \"91\", \"87\", \"86\", \"85\", \"84\", \"35\", \"89\", \"88\", \"34\", \"95\", \"94\", \"93\", \"92\", \"90\", \"20\", \"21\", \"38\", \"41\", \"40\", \"78\", \"39\", \"79\", \"23\", \"24\", \"77\", \"76\", \"75\", \"74\", \"4\", \"18\", \"13\", \"16\", \"17\", \"50\", \"3\"]', 1);
+INSERT INTO `sys_role` VALUES (1, '', 1, 0, 'admin', '2023-04-27 14:32:45', '', '2025-05-31 16:25:04', '普通用户', 'user', 1, '[\"3\", \"1\", \"25\", \"28\", \"31\", \"33\", \"91\", \"87\", \"86\", \"85\", \"84\", \"35\", \"89\", \"88\", \"34\", \"95\", \"94\", \"93\", \"92\", \"90\", \"20\", \"21\", \"23\", \"24\", \"77\", \"4\", \"18\", \"13\", \"22\", \"15\", \"16\", \"17\", \"50\", \"119\"]', 1);
+INSERT INTO `sys_role` VALUES (2, '', 1, 0, 'admin', '2023-04-27 14:32:26', '', '2025-05-31 16:25:12', '管理员', 'admin', 1, '[\"1\", \"3\", \"2\", \"25\", \"26\", \"98\", \"97\", \"96\", \"27\", \"102\", \"101\", \"100\", \"99\", \"37\", \"106\", \"105\", \"104\", \"103\", \"28\", \"110\", \"109\", \"108\", \"107\", \"31\", \"32\", \"83\", \"82\", \"81\", \"80\", \"33\", \"91\", \"87\", \"86\", \"85\", \"84\", \"35\", \"89\", \"88\", \"34\", \"95\", \"94\", \"93\", \"92\", \"90\", \"20\", \"21\", \"38\", \"41\", \"40\", \"78\", \"39\", \"79\", \"23\", \"24\", \"77\", \"76\", \"75\", \"74\", \"4\", \"18\", \"5\", \"73\", \"72\", \"71\", \"7\", \"6\", \"10\", \"70\", \"69\", \"68\", \"11\", \"67\", \"66\", \"65\", \"12\", \"64\", \"63\", \"62\", \"61\", \"13\", \"22\", \"19\", \"59\", \"58\", \"57\", \"14\", \"56\", \"55\", \"54\", \"15\", \"53\", \"52\", \"16\", \"49\", \"48\", \"47\", \"46\", \"45\", \"44\", \"43\", \"42\", \"17\", \"51\", \"50\", \"112\", \"111\", \"113\", \"120\", \"121\", \"122\", \"123\", \"117\", \"114\", \"116\", \"115\", \"119\"]', 1);
+INSERT INTO `sys_role` VALUES (3, '', 1, 0, 'admin', '2023-04-27 17:38:31', '', '2025-05-31 16:25:15', '开发者', 'dev_user', 1, '[\"2\", \"1\", \"25\", \"26\", \"98\", \"97\", \"96\", \"27\", \"102\", \"101\", \"100\", \"99\", \"37\", \"106\", \"105\", \"104\", \"103\", \"28\", \"110\", \"109\", \"108\", \"107\", \"31\", \"32\", \"83\", \"82\", \"81\", \"80\", \"33\", \"91\", \"87\", \"86\", \"85\", \"84\", \"35\", \"89\", \"88\", \"34\", \"95\", \"94\", \"93\", \"92\", \"90\", \"20\", \"21\", \"38\", \"41\", \"40\", \"78\", \"39\", \"79\", \"23\", \"24\", \"77\", \"76\", \"75\", \"74\", \"4\", \"18\", \"13\", \"16\", \"17\", \"50\", \"3\"]', 1);
 COMMIT;
 
 -- ----------------------------
@@ -2146,7 +2146,7 @@ CREATE TABLE `sys_user` (
   `update_by` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '修改者',
   `update_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '修改时间',
   `username` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '登录的用户名',
-  `password` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '密码',
+  `password` varchar(256) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '密码',
   `nickname` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '昵称',
   `avatar` varchar(1024) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '头像',
   `birthday` datetime DEFAULT NULL COMMENT '生日',
@@ -2159,16 +2159,12 @@ CREATE TABLE `sys_user` (
   `third_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '第三方登陆的唯一标志',
   `third_type` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '第三方登陆的类型',
   `work_no` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '工号',
-  `depart_id_list` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci COMMENT '部门列表',
-  `post_id_list` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci COMMENT '职务列表',
-  `role_id_list` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci COMMENT '角色列表',
   `verify_token` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '验证token',
   `login_times` int DEFAULT NULL COMMENT '登录次数',
   `login_time` int DEFAULT NULL COMMENT '上次登录时间',
   `login_ip` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '上次登录IP',
   `valid_start_time` int DEFAULT NULL COMMENT '有效期(开始)',
   `valid_end_time` int DEFAULT NULL COMMENT '有效期（结束）',
-  `tenant_id_list` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci COMMENT '租户列表',
   `tenant_id` int DEFAULT '1' COMMENT '租户id',
   PRIMARY KEY (`id`),
   KEY `ix_sys_user_email` (`email`),
@@ -2179,16 +2175,42 @@ CREATE TABLE `sys_user` (
   KEY `ix_sys_user_nickname` (`nickname`),
   KEY `ix_sys_user_third_id` (`third_id`),
   KEY `ix_sys_user_work_no` (`work_no`)
-) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- ----------------------------
 -- Records of sys_user
 -- ----------------------------
 BEGIN;
-INSERT INTO `sys_user` VALUES (1, '', 1, 0, 'system', '2022-10-31 09:41:34', 'admin', '2025-05-24 11:19:19', 'admin', 'pbkdf2:sha256:260000$uPkgXU614UEZVupq$f796a5bc254e02bfc78526a092ead4057073493f0115a9df56288f852cfb228a', 'admin', '', '2003-03-12 05:56:00', 1, '', '', 'org_5', 1, 2, NULL, NULL, '20213916', '[\"5\", \"7\"]', '[\"a1\"]', '[\"12\", \"14\"]', '', 1374, 1748085559, '127.0.0.1', NULL, NULL, '[\"1\"]', 1);
-INSERT INTO `sys_user` VALUES (6, '', 1, 0, 'admin', '2023-04-27 14:52:16', 'admin', '2024-07-26 01:01:03', 'preview', 'pbkdf2:sha256:260000$t4Gm48smy9rPudxM$5e65784bf7616ad5c09e9b85e0c3a0984e965c3aaad38e4ca3fa936011eb0f76', '预览用户', '', '2023-09-13 20:36:00', 0, NULL, NULL, 'org_5', 1, 2, NULL, NULL, '00002', '[\"5\"]', '[]', '[\"14\", \"11\"]', '', 1, 1682617624, '172.18.0.1', NULL, NULL, '[]', NULL);
-INSERT INTO `sys_user` VALUES (7, '', 1, 0, 'admin', '2023-04-27 14:54:05', 'admin', '2024-07-25 08:54:38', 'test1', 'pbkdf2:sha256:260000$VHkgoxdY1LJ4ml66$0dac1b13d19f2965d4e986ff0395aa43bf9766be2e3bd1b8fec7b5947dd65563', '测试用户', NULL, '2023-09-13 20:36:00', 0, NULL, NULL, 'org_6', 1, 1, NULL, NULL, '202139160124', '[\"7\", \"13\"]', '[]', '[\"13\"]', '', 3, 1694674855, '122.243.31.180', NULL, NULL, '[]', NULL);
-INSERT INTO `sys_user` VALUES (8, '', 1, 0, 'admin', '2023-04-27 17:40:41', 'admin', '2024-07-22 16:51:16', 'dev1', 'pbkdf2:sha256:260000$3J8QC8NiR8TzyeN8$ff8228e7e8b41194e22a00282e08a2cf762667d3fd3e70a1681bcddc191ff9b4', '开发一', 'http://110.40.157.36:9000/ezdata/2d6fb8ee27af0690c58e7859e391b7f8.png', '2023-09-13 20:36:00', 1, NULL, NULL, 'org_7', 1, 2, NULL, NULL, '0000', '[\"7\", \"14\"]', '[\"a1\"]', '[\"14\"]', '', 1, 1682617321, '172.18.0.1', NULL, NULL, '[\"1\"]', NULL);
+INSERT INTO `sys_user` VALUES (1, '', 1, 0, 'system', '2022-10-31 09:41:34', 'admin', '2025-05-31 16:51:55', 'admin', 'pbkdf2:sha256:260000$uPkgXU614UEZVupq$f796a5bc254e02bfc78526a092ead4057073493f0115a9df56288f852cfb228a', 'admin', '', '2003-03-12 05:56:00', 1, '', '', 'org_5', 1, 2, NULL, NULL, '20213916', '', 1376, 1748710315, '127.0.0.1', NULL, NULL, 1);
+INSERT INTO `sys_user` VALUES (11, '', 1, 0, 'admin', '2025-05-31 16:41:49', 'admin', '2025-05-31 16:51:25', 'user1', 'scrypt:32768:8:1$zdZdVs9s8Va8Skd8$e9489852fb98875c7b59f692469b366e092d1e76dc17087a87c9f68b1a1a5454073cb878ed9580c8595cb506c38c779dc147dc840d1b232f44200702302cb864', 'user1', NULL, '2025-06-01 00:48:29', 0, NULL, NULL, NULL, 1, 1, NULL, NULL, '0002', '', 1, 1748710285, '127.0.0.1', NULL, NULL, 1);
+COMMIT;
+
+-- ----------------------------
+-- Table structure for sys_user_tenant_join
+-- ----------------------------
+DROP TABLE IF EXISTS `sys_user_tenant_join`;
+CREATE TABLE `sys_user_tenant_join` (
+  `user_id` int NOT NULL COMMENT '用户ID',
+  `tenant_id` int NOT NULL COMMENT '租户ID',
+  `depart_id_list` text COLLATE utf8mb4_general_ci COMMENT '部门列表',
+  `post_id_list` text COLLATE utf8mb4_general_ci COMMENT '职务列表',
+  `role_id_list` text COLLATE utf8mb4_general_ci COMMENT '角色列表',
+  `id` int NOT NULL AUTO_INCREMENT COMMENT 'id主键',
+  `description` text COLLATE utf8mb4_general_ci COMMENT '简介',
+  `sort_no` float DEFAULT NULL COMMENT '排序',
+  `del_flag` smallint DEFAULT NULL COMMENT '软删除标记',
+  `create_by` varchar(100) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '创建者',
+  `create_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_by` varchar(100) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '修改者',
+  `update_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '修改时间',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- ----------------------------
+-- Records of sys_user_tenant_join
+-- ----------------------------
+BEGIN;
+INSERT INTO `sys_user_tenant_join` VALUES (11, 1, '[]', '[]', '[\"1\"]', 2, '', 1, 0, 'admin', '2025-05-31 16:51:09', 'admin', '2025-05-31 16:51:09');
 COMMIT;
 
 -- ----------------------------

@@ -153,7 +153,6 @@ def get_auth_token():
     '''
     获取用户认证token
     '''
-    from flask import request
     auth_header = request.headers.get('Authorization')
     if auth_header:
         auth_tokenArr = auth_header.split(" ")

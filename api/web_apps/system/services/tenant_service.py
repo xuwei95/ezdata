@@ -86,7 +86,10 @@ class TenantService(object):
         if user_obj is None:
             return gen_json_response(code=400, msg='找不到该用户')
         tenant_id_list = json.loads(user_obj.tenant_id_list)
-        obj_list = get_base_query(Tenant, filter_tenant=False).filter(Tenant.id.in_(tenant_id_list)).all()
+        if user_obj.username == 'admin':
+            obj_list = get_base_query(Tenant, filter_tenant=False).all()
+        else:
+            obj_list = get_base_query(Tenant, filter_tenant=False).filter(Tenant.id.in_(tenant_id_list)).all()
         result = []
         for obj in obj_list:
             dic = {
