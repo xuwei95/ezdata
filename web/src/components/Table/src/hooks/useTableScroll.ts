@@ -1,5 +1,5 @@
 import type { BasicTableProps, TableRowSelection, BasicColumn } from '../types/table';
-import type { Ref, ComputedRef } from 'vue';
+import type { Ref, ComputedRef, Slots } from 'vue';
 import { computed, unref, ref, nextTick, watch } from 'vue';
 import { getViewportOffset } from '/@/utils/domUtils';
 import { isBoolean } from '/@/utils/is';
@@ -14,7 +14,9 @@ export function useTableScroll(
   tableElRef: Ref<ComponentRef>,
   columnsRef: ComputedRef<BasicColumn[]>,
   rowSelectionRef: ComputedRef<TableRowSelection<any> | null>,
-  getDataSourceRef: ComputedRef<Recordable[]>
+  getDataSourceRef: ComputedRef<Recordable[]>,
+  slots: Slots,
+  getPaginationInfo: ComputedRef<any>
 ) {
   const tableHeightRef: Ref<Nullable<number>> = ref(null);
 
@@ -133,12 +135,39 @@ export function useTableScroll(
     }
 
     let height = bottomIncludeBody - (resizeHeightOffset || 0) - paddingHeight - paginationHeight - footerHeight - headerHeight;
-
+    // update-begin--author:liaozhiyang---date:20240603---for【TV360X-861】列表查询区域不可往上滚动
+    // 10+6(外层边距padding:10 + 内层padding-bottom:6)
+    height -= 16;
+    // update-end--author:liaozhiyang---date:20240603---for：【TV360X-861】列表查询区域不可往上滚动
+    
     height = (height < minHeight! ? (minHeight as number) : height) ?? height;
     height = (height > maxHeight! ? (maxHeight as number) : height) ?? height;
     setHeight(height);
 
     bodyEl!.style.height = `${height}px`;
+    // update-begin--author:liaozhiyang---date:20240609---for【issues/8374】分页始终显示在底部
+    nextTick(() => {
+      if (maxHeight === undefined) {
+        if (unref(getPaginationInfo) && unref(getDataSourceRef).length) {
+          const pageSize = unref(getPaginationInfo)?.pageSize;
+          const current = unref(getPaginationInfo)?.current;
+          const total = unref(getPaginationInfo)?.total;
+          const tableBody = tableEl.querySelector('.ant-table-body') as HTMLElement;
+          const tr = tableEl.querySelector('.ant-table-tbody')?.children ?? [];
+          const lastrEl = tr[tr.length - 1] as HTMLElement;
+          const trHeight = lastrEl.offsetHeight;
+          const dataHeight = trHeight * pageSize;
+          if (tableBody && lastrEl) {
+            if (current === 1 && pageSize > unref(getDataSourceRef).length && total <= pageSize) {
+              tableBody.style.height = `${height}px`;
+            } else {
+              tableBody.style.height = `${dataHeight < height ? dataHeight : height}px`;
+            }
+          }
+        }
+      }
+    });
+    // update-end--author:liaozhiyang---date:20240609---for【issues/8374】分页始终显示在底部
   }
   useWindowSizeFn(calcTableHeight, 280);
   onMountedOrActivated(() => {
@@ -171,7 +200,11 @@ export function useTableScroll(
     if (len !== 0) {
       width += len * NORMAL_WIDTH;
     }
-
+    // update-begin--author:liaozhiyang---date:202401009---for：【TV360X-116】内嵌风格字段较多时表格错位
+    if (slots.expandedRowRender) {
+      width += propsRef.value.expandColumnWidth;
+    }
+    // update-end--author:liaozhiyang---date:202401009---for：【TV360X-116】内嵌风格字段较多时表格错位
     const table = unref(tableElRef);
     const tableWidth = table?.$el?.offsetWidth ?? 0;
     return tableWidth > width ? '100%' : width;

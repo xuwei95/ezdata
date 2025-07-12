@@ -57,7 +57,7 @@ export default {
     alert: '锁屏密码错误',
     backToLogin: '返回登录',
     entry: '进入系统',
-    placeholder: '请输入锁屏密码或者用户密码',
+    placeholder: '锁屏密码',
   },
   login: {
     backSignIn: '返回',
@@ -67,7 +67,7 @@ export default {
     signUpFormTitle: '注册',
     forgetFormTitle: '重置密码',
 
-    signInTitle: 'XXXX登录介绍',
+    signInTitle: 'ezdata',
     signInDesc: '',
     policy: '我同意隐私政策',
     scanSign: `扫码后，即可完成登录`,
@@ -89,6 +89,7 @@ export default {
     inputCodePlaceholder: '请输入验证码',
     smsPlaceholder: '请输入验证码',
     mobilePlaceholder: '请输入手机号码',
+    mobileCorrectPlaceholder: '请输入正确的手机号码',
     policyPlaceholder: '勾选后才能注册',
     diffPwd: '两次输入密码不一致',
 

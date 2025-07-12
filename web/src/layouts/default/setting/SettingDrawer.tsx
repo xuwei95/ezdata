@@ -14,7 +14,7 @@ import { useMultipleTabSetting } from '/@/hooks/setting/useMultipleTabSetting';
 import { useTransitionSetting } from '/@/hooks/setting/useTransitionSetting';
 import { useI18n } from '/@/hooks/web/useI18n';
 
-import { baseHandler } from './handler';
+import { layoutHandler } from './handler';
 
 import {
   HandlerEnum,
@@ -46,6 +46,7 @@ export default defineComponent({
       getLockTime,
       getShowDarkModeToggle,
       getThemeColor,
+      getAiIconShow,
     } = useRootSetting();
 
     const { getOpenPageLoading, getBasicTransition, getEnableTransition, getOpenNProgress } = useTransitionSetting();
@@ -79,13 +80,15 @@ export default defineComponent({
       return unref(getShowMenu) && !unref(getIsHorizontal);
     });
 
+    const isDev= import.meta.env.DEV
+
     function renderSidebar() {
       return (
         <>
           <TypePicker
             menuTypeList={menuTypeList}
             handler={(item: typeof menuTypeList[0]) => {
-              baseHandler(HandlerEnum.CHANGE_LAYOUT, {
+              layoutHandler(HandlerEnum.CHANGE_LAYOUT, {
                 mode: item.mode,
                 type: item.type,
                 split: unref(getIsHorizontal) ? false : undefined,
@@ -196,31 +199,37 @@ export default defineComponent({
             options={triggerOptions}
             disabled={!unref(getShowMenuRef) || unref(getIsMixSidebar)}
           />
-          <SelectItem
-            title={t('layout.setting.contentMode')}
-            event={HandlerEnum.CONTENT_MODE}
-            def={unref(getContentMode)}
-            options={contentModeOptions}
-          />
-          <InputNumberItem
-            title={t('layout.setting.autoScreenLock')}
-            min={0}
-            event={HandlerEnum.LOCK_TIME}
-            defaultValue={unref(getLockTime)}
-            formatter={(value: string) => {
-              return parseInt(value) === 0 ? `0(${t('layout.setting.notAutoScreenLock')})` : `${value}${t('layout.setting.minute')}`;
-            }}
-          />
-          <InputNumberItem
-            title={t('layout.setting.expandedMenuWidth')}
-            max={600}
-            min={100}
-            step={10}
-            event={HandlerEnum.MENU_WIDTH}
-            disabled={!unref(getShowMenuRef)}
-            defaultValue={unref(getMenuWidth)}
-            formatter={(value: string) => `${parseInt(value)}px`}
-          />
+          {
+            isDev && <SelectItem
+              title={t('layout.setting.contentMode')}
+              event={HandlerEnum.CONTENT_MODE}
+              def={unref(getContentMode)}
+              options={contentModeOptions}
+            />
+          }
+          {
+            isDev && <InputNumberItem
+              title={t('layout.setting.autoScreenLock')}
+              min={0}
+              event={HandlerEnum.LOCK_TIME}
+              defaultValue={unref(getLockTime)}
+              formatter={(value: string) => {
+                return parseInt(value) === 0 ? `0(${t('layout.setting.notAutoScreenLock')})` : `${value}${t('layout.setting.minute')}`;
+              }}
+            />
+          }
+          {
+            isDev && <InputNumberItem
+              title={t('layout.setting.expandedMenuWidth')}
+              max={600}
+              min={100}
+              step={10}
+              event={HandlerEnum.MENU_WIDTH}
+              disabled={!unref(getShowMenuRef)}
+              defaultValue={unref(getMenuWidth)}
+              formatter={(value: string) => `${parseInt(value)}px`}
+            />
+          }
         </>
       );
     }
@@ -228,18 +237,22 @@ export default defineComponent({
     function renderContent() {
       return (
         <>
-          <SwitchItem
-            title={t('layout.setting.menuDrag')}
-            event={HandlerEnum.MENU_HAS_DRAG}
-            def={unref(getCanDrag)}
-            disabled={!unref(getShowMenuRef)}
-          />
-          <SwitchItem
-            title={t('layout.setting.collapseMenuDisplayName')}
-            event={HandlerEnum.MENU_COLLAPSED_SHOW_TITLE}
-            def={unref(getCollapsedShowTitle)}
-            disabled={!unref(getShowMenuRef) || !unref(getCollapsed) || unref(getIsMixSidebar)}
-          />
+          {
+            isDev && <SwitchItem
+              title={t('layout.setting.menuDrag')}
+              event={HandlerEnum.MENU_HAS_DRAG}
+              def={unref(getCanDrag)}
+              disabled={!unref(getShowMenuRef)}
+            />
+          }
+          {
+            isDev &&  <SwitchItem
+              title={t('layout.setting.collapseMenuDisplayName')}
+              event={HandlerEnum.MENU_COLLAPSED_SHOW_TITLE}
+              def={unref(getCollapsedShowTitle)}
+              disabled={!unref(getShowMenuRef) || !unref(getCollapsed) || unref(getIsMixSidebar)}
+            />
+          }
           <SwitchItem title={t('layout.setting.tabs')} event={HandlerEnum.TABS_SHOW} def={unref(getShowMultipleTab)} />
           <SwitchItem
             title={t('layout.setting.breadcrumb')}
@@ -303,6 +316,8 @@ export default defineComponent({
           <SwitchItem title={t('layout.setting.grayMode')} event={HandlerEnum.GRAY_MODE} def={unref(getGrayMode)} />
 
           <SwitchItem title={t('layout.setting.colorWeak')} event={HandlerEnum.COLOR_WEAK} def={unref(getColorWeak)} />
+
+           <SwitchItem title={t('layout.setting.aiIconSHow')} event={HandlerEnum.AI_ICON_SHOW} def={unref(getAiIconShow)} />
         </>
       );
     }

@@ -45,12 +45,12 @@
         margin-top: 16px;
 
         span {
-          color: rgba(0, 0, 0, 0.65);
           font-size: 14px;
           line-height: 22px;
 
           &:first-child {
             background-color: #f5f5f5;
+            color: rgba(0, 0, 0, 0.65);
             border-radius: 20px;
             display: inline-block;
             font-size: 12px;

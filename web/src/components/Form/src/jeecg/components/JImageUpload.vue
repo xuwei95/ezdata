@@ -25,7 +25,7 @@
         </a-button>
       </div>
     </a-upload>
-    <a-modal :open="previewVisible" :footer="null" @cancel="handleCancel()">
+    <a-modal :width="previewWidth" :open="previewVisible" :footer="null" @cancel="handleCancel()">
       <img alt="example" style="width: 100%" :src="previewImage" />
     </a-modal>
   </div>
@@ -38,7 +38,7 @@
   import { useAttrs } from '/@/hooks/core/useAttrs';
   import { useMessage } from '/@/hooks/web/useMessage';
   import { getFileAccessHttpUrl, getHeaders, getRandom } from '/@/utils/common/compUtils';
-  import { uploadUrl } from '/@/api/common/api';
+  import { uploadUrl as systemUploadUrl } from '/@/api/common/api';
   import { getToken } from '/@/utils/auth';
 
   const { createMessage, createErrorModal } = useMessage();
@@ -79,6 +79,15 @@
         required: false,
         default: 1,
       },
+      uploadUrl: {
+        type: String,
+        default: systemUploadUrl,
+      },
+      previewWidth: {
+        type: Number,
+        required: false,
+        default: 520,
+      },
     },
     emits: ['options-change', 'change', 'update:value'],
     setup(props, { emit, refs }) {
@@ -108,11 +117,14 @@
 
       //计算是否开启多图上传
       const multiple = computed(() => {
-        return props['fileMax'] > 1;
+        return props['fileMax'] > 1 || props['fileMax'] === 0;
       });
 
       //计算是否可以继续上传
       const uploadVisible = computed(() => {
+        if (props['fileMax'] === 0) {
+          return true;
+        }
         return uploadFileList.value.length < props['fileMax'];
       });
 
@@ -180,12 +192,22 @@
         if (file.status === 'error') {
           createMessage.error(`${file.name} 上传失败.`);
         }
+        // update-begin--author:liaozhiyang---date:20240704---for：【TV360X-1640】上传图片大小超出限制显示优化
+        if (file.status === 'done' && file.response.success === false) {
+          const failIndex = uploadFileList.value.findIndex((item) => item.uid === file.uid);
+          if (failIndex != -1) {
+            uploadFileList.value.splice(failIndex, 1);
+          }
+          createMessage.warning(file.response.message);
+          return;
+        }
+        // update-end--author:liaozhiyang---date:20240704---for：【TV360X-1640】上传图片大小超出限制显示优化
         let fileUrls = [];
         let noUploadingFileCount = 0;
         if (file.status != 'uploading') {
           fileList.forEach((file) => {
             if (file.status === 'done') {
-              fileUrls.push(file.response.data.url);
+              fileUrls.push(file.response.message);
             }
             if (file.status != 'uploading') {
               noUploadingFileCount++;
@@ -243,7 +265,6 @@
         multiple,
         headers,
         loading,
-        uploadUrl,
         beforeUpload,
         uploadVisible,
         handlePreview,

@@ -26,7 +26,7 @@
     components: { LoadingOutlined },
     props: useJVxeCompProps(),
     setup(props: JVxeComponent.Props) {
-      const { innerValue, cellProps, row, originColumn, handleChangeCommon, handleBlurCommon } = useJVxeComponent(props);
+      const { innerValue, cellProps, row, originColumn, scrolling, handleChangeCommon, handleBlurCommon } = useJVxeComponent(props);
       const loading = ref(false);
       // 异步加载的options（用于多级联动）
       const asyncOptions = ref<any[] | null>(null);
@@ -36,7 +36,7 @@
           ...cellProps.value,
           allowClear: true,
           autofocus: true,
-          defaultOpen: true,
+          defaultOpen: !scrolling.value,
           style: { width: '100%' },
           filterOption: handleSelectFilterOption,
           onBlur: handleBlur,
@@ -136,6 +136,9 @@
       
         let { allowSearch, allowInput } = originColumn.value;
         if (allowSearch === true || allowInput === true) {
+          // update-begin--author:liaozhiyang---date:20240321---for：【QQYUN-5806】js增强改变下拉搜索options (防止option.title为null报错)
+          if (option.title == null) return false;
+          // update-begin--author:liaozhiyang---date:20240321---for：【QQYUN-5806】js增强改变下拉搜索options (防止option.title为null报错)
           // update-begin--author:liaozhiyang---date:20230904---for：【issues/5305】JVxeTypes.select 无法按照预期进行搜索
           return option.title.toLowerCase().indexOf(input.toLowerCase()) >= 0;
           // update-begin--author:liaozhiyang---date:20230904---for：【issues/5305】JVxeTypes.select 无法按照预期进行搜索

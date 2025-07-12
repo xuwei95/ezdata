@@ -1,6 +1,6 @@
 <template>
   <div :style="{ position: 'relative', height: allHeight + 'px' }">
-    <a-list class="jeecg-comment-list" header="" item-layout="horizontal" :data-source="dataList" :style="{ height: commentHeight + 'px' }">
+    <a-list ref="listRef" class="jeecg-comment-list" header="" item-layout="horizontal" :data-source="dataList" :style="{ height: commentHeight + 'px' }">
       <template #renderItem="{ item }">
         <a-list-item style="padding-left: 10px; flex-direction: column" @click="handleClickItem">
           <a-comment>
@@ -17,7 +17,7 @@
                   <span>{{ item.toUserId_dictText }}</span>
                   <Tooltip class="comment-last-content" @openChange="(v)=>visibleChange(v, item)">
                     <template #title>
-                      <div v-html="getHtml(item.commentId_dictText)"></div>
+                      <div v-html="getHtml(lineFeed(item.commentId_dictText))"></div>
                     </template>
                     <message-outlined />
                   </Tooltip>
@@ -42,7 +42,7 @@
             </template>
 
             <template #content>
-              <div v-html="getHtml(item.commentContent)" style="font-size: 15px">
+              <div class="content" v-html="getHtml(lineFeed(item.commentContent))" style="font-size: 15px">
               </div>
 
               <div v-if="item.fileList && item.fileList.length > 0">
@@ -58,7 +58,7 @@
       </template>
     </a-list>
 
-    <div style="position: absolute; bottom: 0; left: 0; width: 100%; background: #fff; border-top: 1px solid #eee">
+    <div class="comment-area">
       <a-comment style="margin: 0 10px">
         <template #avatar>
           <a-avatar class="tx" :src="getMyAvatar()" :alt="getMyname()">{{ getMyname() }}</a-avatar>
@@ -75,7 +75,7 @@
   /**
    * 评论列表
    */
-  import { defineComponent, ref, onMounted, watch, watchEffect ,inject } from 'vue';
+  import { defineComponent, ref, onMounted, watch, watchEffect ,inject, nextTick } from 'vue';
   import { propTypes } from '/@/utils/propTypes';
   // import dayjs from 'dayjs';
   // import relativeTime from 'dayjs/plugin/relativeTime';
@@ -105,6 +105,7 @@
       HistoryFileList,
     },
     props: {
+      tableId: propTypes.string.def(''),
       tableName: propTypes.string.def(''),
       dataId: propTypes.string.def(''),
       datetime:  propTypes.number.def(1),
@@ -116,7 +117,7 @@
       const dataList = ref([]);
       const { userInfo } = useUserStore();
       const dayjs = inject('$dayjs')
-      
+      const listRef = ref(null);
       /**
        * 获取当前用户名称
        */
@@ -188,6 +189,12 @@
           let array = data.records;
           console.log(123, array);
           dataList.value = array;
+          // update-begin--author:liaozhiyang---date:20240521---for：【TV360X-18】评论之后滚动条自动触底
+          // Number.MAX_SAFE_INTEGER 火狐不兼容改成 10e4
+          nextTick(() => {
+            listRef.value && listRef.value.$el && (listRef.value.$el.scrollTop = 10e5);
+          });
+          // update-end--author:liaozhiyang---date:20240521---for：【TV360X-18】评论之后滚动条自动触底
         }
       }
 
@@ -275,6 +282,11 @@
           }
         }
       }
+      // update-begin--author:liaozhiyang---date:20240618---for：【TV360X-932】评论加上换行
+      const lineFeed = (content) => {
+        return content.replace(/\n/g, '<br>');
+      };
+      // update-end--author:liaozhiyang---date:20240618---for：【TV360X-932】评论加上换行
 
       return {
         dataList,
@@ -295,7 +307,9 @@
         getHtml,
         handleClickItem,
         bottomCommentRef,
-        visibleChange
+        visibleChange,
+        listRef,
+        lineFeed,
       };
     },
   });
@@ -311,6 +325,9 @@
     }
     .ant-comment {
       width: 100%;
+    }
+    :deep(.ant-comment-avatar) {
+      cursor: default;
     }
   }
   .comment-author {
@@ -332,4 +349,23 @@
   .tx{
     margin-top: 4px;
   }
+  // update-begin--author:liaozhiyang---date:20240327---for：【QQYUN-8639】暗黑主题适配
+  .comment-area {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    border-top: 1px solid #eee;
+    background-color: #fff;
+  }
+  html[data-theme='dark'] {
+    .comment-area {
+      border-color: rgba(253, 253, 253, 0.12);
+      background-color: #1f1f1f;
+    }
+    .content {
+      color:rgba(255, 255, 255, 0.85);
+    }
+  }
+  // update-end--author:liaozhiyang---date:20240327---for：【QQYUN-8639】暗黑主题适配
 </style>

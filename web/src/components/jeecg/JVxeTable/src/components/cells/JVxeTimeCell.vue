@@ -8,7 +8,6 @@
     v-model:open="openPicker"
     v-bind="cellProps"
     @change="handleChange"
-    :getPopupContainer="(node) => node?.parentNode"
   />
 </template>
 

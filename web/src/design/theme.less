@@ -3,6 +3,11 @@
 }
 
 html[data-theme='light'] {
+  // update-begin--author:liaozhiyang---date:20240407---for：【QQYUN-8774】给body加上打底的字体颜色
+  body{
+    color: rgba(0, 0, 0, 0.65);
+  }
+  // update-end--author:liaozhiyang---date:20240407---for：【QQYUN-8774】给body加上打底的字体颜色
   .text-secondary {
     color: rgba(0, 0, 0, 0.45);
   }
@@ -16,9 +21,13 @@ html[data-theme='light'] {
     color: rgba(0, 0, 0, 0.65);
   }
   .ant-input-affix-wrapper > input.ant-input {
-    color: rgba(0, 0, 0, 0.65);
+    // update-begin--author:liaozhiyang---date:20240605---for：【TV360X-189】统一只读样式
+    &:not([disabled]) {
+      color: rgba(0, 0, 0, 0.65);
+    }
+    // update-end--author:liaozhiyang---date:20240605---for：【TV360X-189】统一只读样式
   }
-  .ant-select-single.ant-select-show-arrow .ant-select-selection-item, .ant-select-single.ant-select-show-arrow .ant-select-selection-placeholder{
+  .ant-select-single.ant-select-show-arrow .ant-select-selection-item, .ant-select-single.ant-select-show-arrow {
     color: rgba(0, 0, 0, 0.65);
   }
   /*【美化】自定义form字体颜色*/
@@ -43,6 +52,16 @@ html[data-theme='light'] {
 }
 
 [data-theme='dark'] {
+  // update-begin--author:liaozhiyang---date:20240407---for：【QQYUN-8774】给body加上打底的字体颜色
+  body{
+    color: rgba(255, 255, 255, 0.85);
+  }
+  // update-end--author:liaozhiyang---date:20240407---for：【QQYUN-8774】给body加上打底的字体颜色
+  // update-begin--author:liaozhiyang---date:20240407---for：【QQYUN-8641】黑色主题-流程办理
+  .ant-list .ant-list-item {
+    color: rgba(255, 255, 255, 0.85);
+  }
+  // update-end--author:liaozhiyang---date:20240407---for：【QQYUN-8641】黑色主题-流程办理
   .text-secondary {
     color: #8b949e;
   }

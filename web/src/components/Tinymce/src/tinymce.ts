@@ -13,7 +13,7 @@ export const toolbar =
 export const simplePlugins = 'lists image link fullscreen';
 
 export const simpleToolbar = [
-  'undo redo  formatselect bold italic alignleft aligncenter alignright alignjustify bullist numlist outdent indent lists image link fullscreen',
+  'undo redo styles  bold italic alignleft aligncenter alignright alignjustify bullist numlist outdent indent lists image link fullscreen',
 ];
 
 export const menubar = 'file edit insert view format table';

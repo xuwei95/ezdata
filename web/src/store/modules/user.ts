@@ -30,7 +30,7 @@ interface UserState {
   dictItems?: dictType | null;
   sessionTimeout?: boolean;
   lastUpdateTime: number;
-  tenant_id?: string | number;
+  tenantid?: string | number;
   shareTenantId?: Nullable<string | number>;
   loginInfo?: Nullable<LoginInfo>;
 }
@@ -51,7 +51,7 @@ export const useUserStore = defineStore({
     // Last fetch time
     lastUpdateTime: 0,
     //租户id
-    tenant_id: '',
+    tenantid: '',
     // 分享租户ID
     // 用于分享页面所属租户与当前用户登录租户不一致的情况
     shareTenantId: null,
@@ -124,7 +124,7 @@ export const useUserStore = defineStore({
       // update-end--author:liaozhiyang---date:20240321---for：【QQYUN-8572】表格行选择卡顿问题（customRender中字典引起的）
     },
     setTenant(id) {
-      this.tenant_id = id;
+      this.tenantid = id;
       setAuthCache(TENANT_ID, id);
     },
     setShareTenantId(id: NonNullable<typeof this.shareTenantId>) {
@@ -152,10 +152,10 @@ export const useUserStore = defineStore({
       try {
         const { goHome = true, mode, ...loginParams } = params;
         const data = await loginApi(loginParams, mode);
-        const { token } = data;
+        const { token, userinfo } = data;
         // save token
         this.setToken(token);
-        // this.setTenant(userInfo.loginTenantId);
+        this.setTenant(userinfo.tenant_id);
         return this.afterLoginAction(goHome, data);
       } catch (error) {
         return Promise.reject(error);
@@ -181,6 +181,7 @@ export const useUserStore = defineStore({
       if (!this.getToken) return null;
       //获取用户信息
       const userInfo = await this.getUserInfoAction();
+      console.log(23141234213, userInfo)
       const sessionTimeout = this.sessionTimeout;
       if (sessionTimeout) {
         this.setSessionTimeout(false);
@@ -197,7 +198,7 @@ export const useUserStore = defineStore({
         //   permissionStore.setDynamicAddedRoute(true);
         // }
         //update-end---author:scott ---date::2024-02-21  for：【QQYUN-8326】登录不需要构建路由，进入首页有构建---
-
+        
         await this.setLoginInfo({ ...data, isLogin: true });
         //update-begin-author:liusq date:2022-5-5 for:登录成功后缓存拖拽模块的接口前缀
         localStorage.setItem(JDragConfigEnum.DRAG_BASE_URL, useGlobSetting().domainUrl);
@@ -209,18 +210,11 @@ export const useUserStore = defineStore({
         //update-begin---author:wangshuai ---date:20230424  for：【QQYUN-5195】登录之后直接刷新页面导致没有进入创建组织页面------------
         if (redirect && goHome) {
         //update-end---author:wangshuai ---date:20230424  for：【QQYUN-5195】登录之后直接刷新页面导致没有进入创建组织页面------------
-          // update-begin--author:liaozhiyang---date:20240104---for：【QQYUN-7804】部署生产环境，登录跳转404问题
-          let publicPath = import.meta.env.VITE_PUBLIC_PATH;
-          if (publicPath && publicPath != '/') {
-            // update-begin--author:liaozhiyang---date:20240509---for：【issues/1147】登录跳转时去掉发布路径的最后一个/以解决404问题
-            if (publicPath.endsWith('/')) {
-              publicPath = publicPath.slice(0, -1);
-            }
-            redirect = publicPath + redirect;
-          }
-          // update-end--author:liaozhiyang---date:20240509---for：【issues/1147】登录跳转时去掉发布路径的最后一个/以解决404问题
+          // update-begin--author:liaozhiyang---date:20250407---for：【issues/8034】hash模式下退出重登录默认跳转地址异常
+          // router.options.history.base可替代之前的publicPath
           // 当前页面打开
-          window.open(redirect, '_self')
+          window.open(`${router.options.history.base}${redirect}`, '_self');
+          // update-end--author:liaozhiyang---date:20250407---for：【issues/8034】hash模式下退出重登录默认跳转地址异常
           return data;
         }
         // update-end-author:sunjianlei date:20230306 for: 修复登录成功后，没有正确重定向的问题
@@ -249,7 +243,10 @@ export const useUserStore = defineStore({
       try {
         const { goHome = true, mode, ...loginParams } = params;
         const data = await phoneLoginApi(loginParams, mode);
-        const { token } = data;
+        //update-begin---author:wangshuai---date:2024-11-25---for:【issues/7488】手机号码登录，在请求头中无法获取租户id---
+        const { token , userInfo } = data;
+        this.setTenant(userInfo!.loginTenantId);
+        //update-end---author:wangshuai---date:2024-11-25---for:【issues/7488】手机号码登录，在请求头中无法获取租户id---
         // save token
         this.setToken(token);
         return this.afterLoginAction(goHome, data);
@@ -285,6 +282,7 @@ export const useUserStore = defineStore({
         this.setAllDictItems(sysAllDictItems);
       }
       return userInfo;
+
     },
     /**
      * 退出登录
@@ -311,7 +309,11 @@ export const useUserStore = defineStore({
       this.setUserInfo(null);
       this.setLoginInfo(null);
       this.setTenant(null);
-      this.setAllDictItems(null);
+      // update-begin--author:liaozhiyang---date:20240517---for：【TV360X-23】退出登录后会提示「Token时效，请重新登录」
+      setTimeout(() => {
+        this.setAllDictItems(null);
+      }, 1e3);
+      // update-end--author:liaozhiyang---date:20240517---for：【TV360X-23】退出登录后会提示「Token时效，请重新登录」
       //update-begin-author:liusq date:2022-5-5 for:退出登录后清除拖拽模块的接口前缀
       localStorage.removeItem(JDragConfigEnum.DRAG_BASE_URL);
       //update-end-author:liusq date:2022-5-5 for: 退出登录后清除拖拽模块的接口前缀
@@ -353,7 +355,10 @@ export const useUserStore = defineStore({
       try {
         const { goHome = true, mode, ...ThirdLoginParams } = params;
         const data = await thirdLogin(ThirdLoginParams, mode);
-        const { token } = data;
+        //update-begin---author:wangshuai---date:2024-07-01---for:【issues/6652】开启租户数据隔离，接入钉钉后登录默认租户为0了---
+        const { token, userInfo } = data;
+        this.setTenant(userInfo?.loginTenantId);
+        //update-end---author:wangshuai---date:2024-07-01---for:【issues/6652】开启租户数据隔离，接入钉钉后登录默认租户为0了---
         // save token
         this.setToken(token);
         return this.afterLoginAction(goHome, data);

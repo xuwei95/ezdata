@@ -11,19 +11,19 @@
 
     <template #overlay>
       <Menu @click="handleMenuClick">
-<!--        <MenuItem key="doc" :text="t('layout.header.dropdownItemDoc')" icon="ion:document-text-outline" v-if="getShowDoc" />-->
-<!--        <MenuDivider v-if="getShowDoc" />-->
-        <MenuItem key="account" :text="t('layout.header.dropdownItemSwitchAccount')" icon="ant-design:setting-outlined" />
-        <MenuItem key="password" :text="t('layout.header.dropdownItemSwitchPassword')" icon="ant-design:edit-outlined" />
-        <MenuItem key="depart" :text="t('layout.header.dropdownItemSwitchDepart')" icon="ant-design:cluster-outlined" />
-        <MenuItem key="cache" :text="t('layout.header.dropdownItemRefreshCache')" icon="ion:sync-outline" />
+        <MenuItem itemKey="doc" :text="t('layout.header.dropdownItemDoc')" icon="ion:document-text-outline" v-if="getShowDoc" />
+        <MenuDivider v-if="getShowDoc" />
+        <MenuItem itemKey="account" :text="t('layout.header.dropdownItemSwitchAccount')" icon="ant-design:setting-outlined" />
+        <MenuItem itemKey="password" :text="t('layout.header.dropdownItemSwitchPassword')" icon="ant-design:edit-outlined" />
+        <MenuItem itemKey="depart" :text="t('layout.header.dropdownItemSwitchDepart')" icon="ant-design:cluster-outlined" />
+        <MenuItem itemKey="cache" :text="t('layout.header.dropdownItemRefreshCache')" icon="ion:sync-outline" />
         <!-- <MenuItem
             v-if="getUseLockPage"
-            key="lock"
+            itemKey="lock"
             :text="t('layout.header.tooltipLock')"
             icon="ion:lock-closed-outline"
         />-->
-        <MenuItem key="logout" :text="t('layout.header.dropdownItemLoginOut')" icon="ion:power-outline" />
+        <MenuItem itemKey="logout" :text="t('layout.header.dropdownItemLoginOut')" icon="ion:power-outline" />
       </Menu>
     </template>
   </Dropdown>
@@ -57,6 +57,7 @@
   import { removeAuthCache, setAuthCache } from '/src/utils/auth';
   import { getFileAccessHttpUrl } from '/@/utils/common/compUtils';
   import { getRefPromise } from '/@/utils/index';
+  import { refreshDragCache } from "@/api/common/api";
 
   type MenuEvent = 'logout' | 'doc' | 'lock' | 'cache' | 'depart';
   const { createMessage } = useMessage();
@@ -122,6 +123,9 @@
       // 清除缓存
       async function clearCache() {
         const result = await refreshCache();
+        //TODO 当前版本还不支持刷新缓存，需要等jimibi升级
+        // const dragRes = await refreshDragCache();
+        // console.log('dragRes', dragRes);
         if (result.success) {
           const res = await queryAllDictItems();
           removeAuthCache(DB_DICT_DATA_KEY);
@@ -129,6 +133,9 @@
           // update-begin--author:liaozhiyang---date:20240124---for：【QQYUN-7970】国际化
           createMessage.success(t('layout.header.refreshCacheComplete'));
           // update-end--author:liaozhiyang---date:20240124---for：【QQYUN-7970】国际化
+          // update-begin--author:wangshuai---date:20241112---for：【issues/7433】vue3 数据字典优化建议
+          userStore.setAllDictItems(res.result);
+          // update-end--author:wangshuai---date:20241112---for：【issues/7433】vue3 数据字典优化建议
         } else {
           // update-begin--author:liaozhiyang---date:20240124---for：【QQYUN-7970】国际化
           createMessage.error(t('layout.header.refreshCacheFailure'));

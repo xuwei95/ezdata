@@ -84,7 +84,9 @@ export function useMenuSetting() {
 
   const getRealWidth = computed(() => {
     if (unref(getIsMixSidebar)) {
-      return unref(getCollapsed) && !unref(getMixSideFixed) ? unref(getMiniWidthNumber) : unref(getMenuWidth);
+      // update-begin--author:liaozhiyang---date:20240407---for：【QQYUN-8774】侧边混合导航菜单宽度调整
+      return unref(getCollapsed) && !unref(getMixSideFixed) ? unref(getMiniWidthNumber) : unref(getMenuWidth) - 60;
+      // update-end--author:liaozhiyang---date:20240407---for：【QQYUN-8774】侧边混合导航菜单宽度调整
     }
     return unref(getCollapsed) ? unref(getMiniWidthNumber) : unref(getMenuWidth);
   });

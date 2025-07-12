@@ -1,7 +1,7 @@
 <template>
   <div class="head-info" :class="center && 'center'">
     <span>{{ title }}</span>
-    <p>{{ content }} <a-icon :type="icon" style="font-size: 24px; color: #2b99ff" /></p>
+    <p :style="{ color: `${$props.iconColor}` }">{{ content }} <a-icon :type="icon" :style="{ fontSize: `24px`, color: `${$props.iconColor}` }" /></p>
     <em v-if="bordered" />
   </div>
 </template>
@@ -32,6 +32,12 @@
         type: String,
         default: false,
       },
+      // update-begin--author:liaozhiyang---date:20240407---for：【QQYUN-8762】首页默认及echars颜色调整
+      iconColor: {
+        type: String,
+        default: '#2b99ff',
+      },
+      // update-end--author:liaozhiyang---date:20240407---for：【QQYUN-8762】首页默认及echars颜色调整
     },
   });
 </script>
@@ -49,7 +55,6 @@
     }
 
     span {
-      color: rgba(0, 0, 0, 0.45);
       display: inline-block;
       font-size: 14px;
       line-height: 22px;
@@ -57,7 +62,6 @@
     }
 
     p {
-      color: rgba(0, 0, 0, 0.85);
       font-size: 24px;
       line-height: 32px;
       margin: 0;

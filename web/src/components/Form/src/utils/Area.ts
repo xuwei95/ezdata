@@ -1,4 +1,4 @@
-import REGION_DATA from 'china-area-data';
+import {pcaa as REGION_DATA} from "@/utils/areaData/pcaUtils";
 
 /**
  * Area 属性all的类型
@@ -18,7 +18,7 @@ class Area {
 
   /**
    * 构造器
-   * @param express
+   * @param pcaa
    */
   constructor(pcaa?) {
     if (!pcaa) {

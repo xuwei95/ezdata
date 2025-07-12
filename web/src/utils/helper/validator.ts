@@ -38,7 +38,7 @@ export const rules = {
         required: required,
         validator: async (_, value) => {
           if (required && !value) {
-            return Promise.reject('请输入手机号码1!');
+            return Promise.reject('请输入手机号码!');
           }
           if (!/^1[3456789]\d{9}$/.test(value)) {
             return Promise.reject('手机号码格式有误');

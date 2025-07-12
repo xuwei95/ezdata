@@ -9,6 +9,7 @@
       {
         open: openMenu,
         mini: getCollapsed,
+        bright: isThemeBright,
       },
     ]"
     v-bind="getMenuEvents"
@@ -49,7 +50,7 @@
           },
         ]"
       >
-        <span class="text"> {{ title }}</span>
+        <span class="text"> {{ shortTitle }}</span>
         <Icon :size="16" :icon="getMixSideFixed ? 'ri:pushpin-2-fill' : 'ri:pushpin-2-line'" class="pushpin" @click="handleFixedMenu" />
       </div>
       <ScrollContainer :class="`${prefixCls}-menu-list__content`">
@@ -62,7 +63,7 @@
 <script lang="ts">
   import type { Menu } from '/@/router/types';
   import type { CSSProperties } from 'vue';
-  import { computed, defineComponent, onMounted, ref, unref } from 'vue';
+  import { computed, defineComponent, onMounted, ref, unref, watch} from 'vue';
   import type { RouteLocationNormalized } from 'vue-router';
   import { ScrollContainer } from '/@/components/Container';
   import { SimpleMenu, SimpleMenuTag } from '/@/components/SimpleMenu';
@@ -79,6 +80,7 @@
   import { getChildrenMenus, getCurrentParentPath, getShallowMenus } from '/@/router/menus';
   import { listenerRouteChange } from '/@/logics/mitt/routeChange';
   import LayoutTrigger from '../trigger/index.vue';
+  import { useAppStore } from '/@/store/modules/app';
 
   export default defineComponent({
     name: 'LayoutMixSider',
@@ -101,6 +103,8 @@
       const dragBarRef = ref<ElRef>(null);
       const sideRef = ref<ElRef>(null);
       const currentRoute = ref<Nullable<RouteLocationNormalized>>(null);
+      const appStore = useAppStore();
+      const isThemeBright = ref(false);
 
       const { prefixCls } = useDesign('layout-mix-sider');
       const go = useGo();
@@ -119,13 +123,13 @@
         getCollapsed,
       } = useMenuSetting();
 
-      const { title } = useGlobSetting();
+      const { shortTitle } = useGlobSetting();
 
       useDragLine(sideRef, dragBarRef, true);
 
       const getMenuStyle = computed((): CSSProperties => {
         return {
-          width: unref(openMenu) ? `${unref(getMenuWidth)}px` : 0,
+          width: unref(openMenu) ? `${unref(getMenuWidth) - 60}px` : 0,
           left: `${unref(getMixSideWidth)}px`,
         };
       });
@@ -284,6 +288,16 @@
         }
       }
 
+      // update-begin--author:liaozhiyang---date:20240417---for：【QQYUN-8927】侧边折叠导航模式区分彩色模式
+      watch(
+        () => appStore.getProjectConfig.menuSetting,
+        (menuSetting) => {
+          isThemeBright.value = !!menuSetting?.isThemeBright;
+        },
+        { immediate: true, deep: true }
+      );
+      // update-end--author:liaozhiyang---date:20240417---for：【QQYUN-8927】侧边折叠导航模式区分彩色模式
+
       return {
         t,
         prefixCls,
@@ -297,7 +311,7 @@
         handleClickOutside,
         sideRef,
         dragBarRef,
-        title,
+        shortTitle,
         openMenu,
         getMenuTheme,
         getItemEvents,
@@ -307,6 +321,7 @@
         getMixSideFixed,
         getWrapStyle,
         getCollapsed,
+        isThemeBright,
       };
     },
   });
@@ -399,6 +414,18 @@
           color: @white;
           border-bottom: none;
           border-bottom: 1px solid @border-color;
+        }
+      }
+      // 侧边折叠导航彩色模式文字颜色
+      &.bright {
+        .@{prefix-cls}-module {
+          &__item {
+            font-weight: normal;
+            color: rgba(255, 255, 255, 1);
+            &:hover {
+              color: rgba(255, 255, 255, 0.8);
+            }
+          }
         }
       }
     }
@@ -503,6 +530,9 @@
         align-items: center;
         justify-content: space-between;
 
+        text-align: center;
+        .text {flex: 1;}
+
         &.show {
           min-width: 130px;
           opacity: 1;
@@ -518,6 +548,10 @@
             color: #fff;
           }
         }
+      }
+
+      .@{namespace}-simple-menu-sub-title {
+        font-size: 14px;
       }
 
       &__content {

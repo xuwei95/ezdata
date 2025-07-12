@@ -36,7 +36,7 @@
     &-submenu-title {
       position: relative;
       z-index: 1;
-      padding: 12px 20px;
+      padding: 10px 14px;
       color: @menu-dark-subsidiary-color;
       cursor: pointer;
       transition: all @transition-time @ease-in-out;
@@ -63,6 +63,16 @@
         &-selected {
           color: #fff;
           background-color: @primary-color !important;
+        }
+      }
+      // 彩色模式(绿色，橘红等)
+      &.bright {
+        .@{menu-prefix-cls}-item,
+        .@{menu-prefix-cls}-submenu-title {
+          color: #fff;
+          &:hover {
+            color: rgba(255, 255, 255, 0.8);
+          }
         }
       }
     }
@@ -108,7 +118,15 @@
 
     &-light {
       background-color: #fff;
-
+      color: rgba(0, 0, 0, 0.65);
+      .@{menu-prefix-cls} {
+        color: rgba(0, 0, 0, 0.65);
+      }
+      .@{namespace}-menu-submenu:not(.@{namespace}-menu-item-active)  .@{namespace}-menu-submenu-title {
+        .anticon {
+           color: rgba(0, 0, 0, 0.9);
+        }
+      }
       .@{menu-prefix-cls}-submenu-active {
         color: @primary-color !important;
 
@@ -129,7 +147,6 @@
       z-index: 1;
       display: flex;
       font-size: @font-size-base;
-      color: inherit;
       list-style: none;
       cursor: pointer;
       outline: none;
@@ -262,6 +279,20 @@
         color: #fff;
       }
     }
+    // update-begin--author:liaozhiyang---date:20240408---for：【QQYUN-8922】左侧导航栏文字颜色调整区分彩色和暗黑
+    &-dark&-vertical&.bright &-item,
+    &-dark&-vertical.bright &-submenu-title {
+      color: rgba(255, 255, 255, 1);
+      &-active:not(.@{menu-prefix-cls}-submenu) {
+        color: #fff !important;
+        background-color: @primary-color !important;
+      }
+
+      &:hover {
+        color: rgba(255, 255, 255, 0.8);
+      }
+    }
+    // update-end--author:liaozhiyang---date:20240408---for：【QQYUN-8922】左侧导航栏文字颜色调整区分彩色和暗黑
 
     &-dark&-vertical&-collapse {
       > li.@{menu-prefix-cls}-item-active,

@@ -86,14 +86,14 @@
       );
       if (resultInfo && resultInfo.data.success) {
         notification.success({
-          description: resultInfo.data.msg || t('sys.api.registerMsg'),
+          description: resultInfo.data.message || t('sys.api.registerMsg'),
           duration: 3,
         });
         handleBackLogin();
       } else {
         notification.warning({
           message: t('sys.api.errorTip'),
-          description: resultInfo.data.msg || t('sys.api.networkExceptionMsg'),
+          description: resultInfo.data.message || t('sys.api.networkExceptionMsg'),
           duration: 3,
         });
       }

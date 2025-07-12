@@ -133,6 +133,11 @@ export function useDataSource(
     if (row) {
       for (const field in row) {
         if (Reflect.has(record, field)) row[field] = record[field];
+        //update-begin---author:wangshuai---date:2024-06-11---for:【TV360X-437】树表 部分组件编辑完后，列表未刷新---
+        if (Reflect.has(record, field + '_dictText')) {
+          row[field + '_dictText'] = record[field + '_dictText'];
+        }
+        //update-end---author:wangshuai---date:2024-06-11---for:【TV360X-437】树表 部分组件编辑完后，列表未刷新---
       }
       return row;
     }

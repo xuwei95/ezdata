@@ -16,6 +16,7 @@ import { getFileAccessHttpUrl } from '/@/utils/common/compUtils';
 import { createImgPreview } from '/@/components/Preview';
 import data from "emoji-mart-vue-fast/data/apple.json";
 import { EmojiIndex } from "emoji-mart-vue-fast/src";
+import { encryptByBase64 } from '/@/utils/cipher';
 
 enum Api {
   list = '/sys/comment/listByForm',
@@ -123,6 +124,7 @@ export function useCommentWithFile(props) {
   async function saveComment(obj) {
     const {fromUserId, toUserId, commentId, commentContent} = obj;
     let commentData = {
+      tableId: props.tableId,
       tableName: props.tableName,
       tableDataId: props.dataId,
       fromUserId,
@@ -376,8 +378,10 @@ export function useFileList() {
         await initViewDomain();
         //本地测试需要将文件地址的localhost/127.0.0.1替换成IP, 或是直接修改全局domain
         //url = url.replace('localhost', '192.168.1.100')
-        //如果集成的KkFileview-v3.3.0+ 需要对url再做一层base64编码 encodeURIComponent(encryptByBase64(url))
-        window.open(onlinePreviewDomain+'?officePreviewType=pdf&url='+encodeURIComponent(url));
+        //update-begin---author:scott ---date:2024-06-03  for：【TV360X-952】升级到kkfileview4.1.0---
+        let previewUrl = encodeURIComponent(encryptByBase64(url));
+        window.open(onlinePreviewDomain+'?url='+previewUrl);
+        //update-end---author:scott ---date::2024-06-03  for：【TV360X-952】升级到kkfileview4.1.0----
       }
     }
   }

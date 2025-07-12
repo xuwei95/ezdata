@@ -2,7 +2,7 @@
   <component :is="currentModal" :formData="formData" v-model:visible="modalVisible"></component>
 </template>
 <script setup lang="ts" name="dynamic-notice">
-  import { ref, defineExpose, shallowRef, ComponentOptions, nextTick, defineAsyncComponent } from 'vue';
+  import { ref, shallowRef, ComponentOptions, nextTick, defineAsyncComponent } from 'vue';
   const props = defineProps({
     path: { type: String, default: '' },
     formData: { type: Object, default: {} },

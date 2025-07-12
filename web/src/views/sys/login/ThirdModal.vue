@@ -1,11 +1,11 @@
 <template>
   <!-- 第三方登录绑定账号密码输入弹框 -->
-  <a-modal title="请输入密码" v-model:visible="thirdPasswordShow" @ok="thirdLoginCheckPassword" @cancel="thirdLoginNoPassword">
+  <a-modal title="请输入密码" v-model:open="thirdPasswordShow" @ok="thirdLoginCheckPassword" @cancel="thirdLoginNoPassword">
     <a-input-password placeholder="请输入密码" v-model:value="thirdLoginPassword" style="margin: 15px; width: 80%" />
   </a-modal>
 
   <!-- 第三方登录提示是否绑定账号弹框 -->
-  <a-modal :footer="null" :closable="false" v-model:visible="thirdConfirmShow" :class="'ant-modal-confirm'">
+  <a-modal :footer="null" :closable="false" v-model:open="thirdConfirmShow" :class="'ant-modal-confirm'">
     <div class="ant-modal-confirm-body-wrapper">
       <div class="ant-modal-confirm-body">
         <QuestionCircleFilled style="color: #faad14" />
@@ -20,7 +20,7 @@
   </a-modal>
 
   <!-- 第三方登录绑定手机号 -->
-  <a-modal title="绑定手机号" v-model:visible="bindingPhoneModal" :maskClosable="false">
+  <a-modal title="绑定手机号" v-model:open="bindingPhoneModal" :maskClosable="false">
     <Form class="p-4 enter-x" style="margin: 15px 10px">
       <FormItem class="enter-x">
         <a-input size="large" placeholder="请输入手机号" v-model:value="thirdPhone" class="fix-auto-fill">

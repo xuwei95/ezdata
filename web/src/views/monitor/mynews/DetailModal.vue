@@ -1,9 +1,9 @@
 <template>
-  <BasicModal v-bind="$attrs" @register="registerModal" title="查看详情" :minHeight="600" :showCancelBtn="false" :showOkBtn="false" :height="88">
+  <BasicModal v-bind="$attrs" @register="registerModal" title="查看详情" :minHeight="600" :showCancelBtn="false" :showOkBtn="false" :height="88" :destroyOnClose="true">
     <a-card class="daily-article">
-      <a-card-meta :title="content.titile" :description="'发布人：' + content.sender + ' 发布时间： ' + content.send_time"> </a-card-meta>
+      <a-card-meta :title="content.titile" :description="'发布人：' + content.sender + ' 发布时间： ' + content.sendTime"> </a-card-meta>
       <a-divider />
-      <span v-html="content.msg_content" class="article-content"></span>
+      <div v-html="content.msgContent" class="article-content"></div>
       <div>
         <a-button v-if="hasHref" @click="jumpToHandlePage">前往办理<ArrowRightOutlined /></a-button>
       </div>
@@ -16,8 +16,10 @@
   import { ArrowRightOutlined } from '@ant-design/icons-vue';
   import { useRouter } from 'vue-router'
   import xss from 'xss'
+  import { options } from './XssWhiteList'
+  
   const router = useRouter()
-
+  
   import { ref, unref } from 'vue';
   const isUpdate = ref(true);
   const content = ref({});
@@ -28,14 +30,16 @@
       //data.record.msgContent = '<p>2323</p><input onmouseover=alert(1)>xss test';
       //update-begin-author:taoyan date:2022-7-14 for: VUEN-1702 【禁止问题】sql注入漏洞
       if(data.record.msgContent){
-        data.record.msgContent = xss(data.record.msgContent)
+        //update-begin---author:wangshuai---date:2023-11-15---for:【QQYUN-7049】3.6.0版本 通知公告中发布的富文本消息，在我的消息中查看没有样式---
+        data.record.msgContent = xss(data.record.msgContent,options);
+        //update-end---author:wangshuai---date:2023-11-15---for:【QQYUN-7049】3.6.0版本 通知公告中发布的富文本消息，在我的消息中查看没有样式---
       }
       //update-end-author:taoyan date:2022-7-14 for: VUEN-1702 【禁止问题】sql注入漏洞
       content.value = data.record;
       showHrefButton();
     }
   });
-
+  
   const hasHref = ref(false)
   //查看消息详情可以跳转
   function showHrefButton(){
@@ -47,7 +51,7 @@
   function jumpToHandlePage(){
     let temp:any = content.value
     if(temp.busId){
-      //这个busId是 任务ID
+      //这个busId是 任务ID 
       let jsonStr = temp.msgAbstract;
       let query = {};
       try {
@@ -62,10 +66,10 @@
       }catch(e){
         console.log('参数解析异常', e)
       }
-
+      
       console.log('query', query, jsonStr)
       console.log('busId', temp.busId)
-
+      
       if(Object.keys(query).length>0){
         // taskId taskDefKey procInsId
         router.push({ path: '/task/handle/' + temp.busId, query: query })
@@ -75,7 +79,7 @@
     }
     closeModal();
   }
-
+  
 </script>
 
 <style scoped lang="less">

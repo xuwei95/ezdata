@@ -16,6 +16,8 @@ export enum ExceptionEnum {
 
   // No data on the page. In fact, it is not an exception page
   PAGE_NOT_DATA = 10100,
+  //短信验证码次数太多失败code，用于判断是否打开弹窗
+  PHONE_SMS_FAIL_CODE = 40002,
 }
 
 export enum ErrorTypeEnum {

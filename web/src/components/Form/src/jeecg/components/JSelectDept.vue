@@ -1,8 +1,12 @@
 <!--部门选择组件-->
 <template>
-  <div>
-    <JSelectBiz @handleOpen="handleOpen" :loading="loadingEcho" v-bind="attrs" @change="handleChange"/>
-    <DeptSelectModal @register="regModal" @getSelectResult="setValue" v-bind="getBindValue" :multiple="multiple" />
+  <div class="JSelectDept">
+    <JSelectBiz  @change="handleSelectChange" @handleOpen="handleOpen" :loading="loadingEcho" v-bind="attrs"/>
+    <!-- update-begin--author:liaozhiyang---date:20240515---for：【QQYUN-9260】必填模式下会影响到弹窗内antd组件的样式 -->
+    <a-form-item>
+      <DeptSelectModal @register="regModal" @getSelectResult="setValue" v-bind="getBindValue" :multiple="multiple" @close="handleClose"/>
+    </a-form-item>
+    <!-- update-end--author:liaozhiyang---date:20240515---for：【QQYUN-9260】必填模式下会影响到弹窗内antd组件的样式 -->
   </div>
 </template>
 <script lang="ts">
@@ -14,6 +18,7 @@
   import { useRuleFormItem } from '/@/hooks/component/useFormItem';
   import { useAttrs } from '/@/hooks/core/useAttrs';
   import { SelectValue } from 'ant-design-vue/es/select';
+  import { cloneDeep } from 'lodash-es';
 
   export default defineComponent({
     name: 'JSelectDept',
@@ -33,13 +38,15 @@
       //注册model
       const [regModal, { openModal }] = useModal();
       //表单值
-      const [state] = useRuleFormItem(props, 'value', 'change', emitData);
+      // const [state] = useRuleFormItem(props, 'value', 'change', emitData);
       //下拉框选项值
       const selectOptions = ref<SelectValue>([]);
       //下拉框选中值
       let selectValues = reactive<Recordable>({
         value: [],
       });
+      let tempSave: any = [];
+
       // 是否正在加载回显数据
       const loadingEcho = ref<boolean>(false);
       //下发 selectOptions,xxxBiz组件接收
@@ -56,6 +63,11 @@
        * 监听组件值
        */
       watchEffect(() => {
+        // update-begin--author:liaozhiyang---date:20240611---for：【TV360X-576】已选中了数据，再次选择打开弹窗点击取消，数据清空了（同步JSelectDept改法）
+        //update-begin-author:liusq---date:2024-06-03--for: [TV360X-840]用户授权，没有选择，点取消，也会回显一个选过的用户
+        tempSave = [];
+        //update-end-author:liusq---date:2024-06-03--for:[TV360X-840]用户授权，没有选择，点取消，也会回显一个选过的用户
+        // update-end--author:liaozhiyang---date:20240611---for：【TV360X-576】已选中了数据，再次选择打开弹窗点击取消，数据清空了（同步JSelectDept改法）
         props.value && initValue();
       });
 
@@ -70,11 +82,13 @@
       /**
        * 监听selectValues变化
        */
-      watch(selectValues, () => {
-        if (selectValues) {
-          state.value = selectValues.value;
-        }
-      });
+      // update-begin--author:liaozhiyang---date:20240527---for：【TV360X-414】部门设置了默认值，查询重置变成空了(同步JSelectUser组件改法)
+      // watch(selectValues, () => {
+      //   if (selectValues) {
+      //     state.value = selectValues.value;
+      //   }
+      // });
+      // update-end--author:liaozhiyang---date:20240527---for：【TV360X-414】部门设置了默认值，查询重置变成空了(同步JSelectUser组件改法)
       /**
        * 监听selectOptions变化
        */
@@ -100,11 +114,13 @@
       function initValue() {
         let value = props.value ? props.value : [];
         if (value && typeof value === 'string') {
-          state.value = value.split(',');
+          // state.value = value.split(',');
           selectValues.value = value.split(',');
+          tempSave = value.split(',');
         } else {
           // 【VUEN-857】兼容数组（行编辑的用法问题）
           selectValues.value = value;
+          tempSave = cloneDeep(value);
         }
       }
 
@@ -114,24 +130,38 @@
       function setValue(options, values) {
         selectOptions.value = options;
         //emitData.value = values.join(",");
-        state.value = values;
+        // state.value = values;
         selectValues.value = values;
-        emit('update:value', values.join(','));
+        send(values);
       }
       const getBindValue = Object.assign({}, unref(props), unref(attrs));
 
-      //update-begin---author:wangshuai ---date:20230406  for：【issues/397】在表单中使用v-model:value绑定JSelectDept组件时无法清除已选择的数据------------
-      /**
-       * 值改变事件更新value值
-       * @param values
-       */
-      function handleChange(values) {
-        emit('update:value', values);
-      }
-      //update-end---author:wangshuai ---date:20230406  for：【issues/397】在表单中使用v-model:value绑定JSelectDept组件时无法清除已选择的数据------------
+       // update-begin--author:liaozhiyang---date:20240527---for：【TV360X-414】部门设置了默认值，查询重置变成空了(同步JSelectUser组件改法)
+      const handleClose = () => {
+        if (tempSave.length) {
+          selectValues.value = cloneDeep(tempSave);
+        } else {
+          send(tempSave);
+        }
+      };
+      const handleSelectChange = (values) => {
+        tempSave = cloneDeep(values);
+        send(tempSave);
+      };
+      const send = (values) => {
+        let result = typeof props.value == 'string' ? values.join(',') : values;
+        emit('update:value', result);
+        emit('change', result);
+        // update-begin--author:liaozhiyang---date:20240627---for：【TV360X-1648】用户编辑界面“所属部门”与“负责部门”联动出错（同步之前丢的代码）
+        if (!values || values.length == 0) {
+          emit('select', null, null);
+        }
+        // update-end--author:liaozhiyang---date:20240627---for：【TV360X-1648】用户编辑界面“所属部门”与“负责部门”联动出错（同步之前丢的代码）
+      };
+      // update-end--author:liaozhiyang---date:20240527---for：【TV360X-414】部门设置了默认值，查询重置变成空了(同步JSelectUser组件改法)
       
       return {
-        state,
+        // state,
         attrs,
         selectOptions,
         selectValues,
@@ -141,12 +171,20 @@
         regModal,
         setValue,
         handleOpen,
-        handleChange
+        handleClose,
+        handleSelectChange,
       };
     },
   });
 </script>
 <style lang="less" scoped>
+  // update-begin--author:liaozhiyang---date:20240515---for：【QQYUN-9260】必填模式下会影响到弹窗内antd组件的样式
+  .JSelectDept {
+    > .ant-form-item {
+      display: none;
+    }
+  }
+  // update-end--author:liaozhiyang---date:20240515---for：【QQYUN-9260】必填模式下会影响到弹窗内antd组件的样式
   .j-select-row {
     @width: 82px;
 

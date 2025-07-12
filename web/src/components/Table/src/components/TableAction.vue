@@ -19,7 +19,14 @@
 
       <Divider type="vertical" class="action-divider" v-if="divider && index < getActions.length - 1" />
     </template>
-    <Dropdown :trigger="['hover']" :dropMenuList="getDropdownList" popconfirm v-if="dropDownActions && getDropdownList.length > 0">
+    <Dropdown
+      :overlayClassName="dropdownCls"
+      :trigger="['hover']"
+      :dropMenuList="getDropdownList"
+      popconfirm
+      v-if="dropDownActions && getDropdownList.length > 0"
+      :getPopupContainer="dropdownGetPopupContainer"
+    >
       <slot name="more"></slot>
       <!--  设置插槽   -->
       <template v-slot:[item.slot] v-for="(item, index) in getDropdownSlotList" :key="`${index}-${item.label}`">
@@ -63,7 +70,12 @@
     },
     setup(props) {
       const { prefixCls } = useDesign('basic-table-action');
+      const dropdownCls = `${prefixCls}-dropdown`;
       let table: Partial<TableActionType> = {};
+
+      const tempActionsAuth = {};
+      const tempDropdownListAuth = {};
+
       if (!props.outside) {
         table = useTableContext();
       }
@@ -86,7 +98,17 @@
       const getActions = computed(() => {
         return (toRaw(props.actions) || [])
           .filter((action) => {
-            return hasPermission(action.auth) && isIfShow(action);
+            // -update-begin--author:liaozhiyang---date:20240619---for：【TV360X-528】列表配置了权限，在列表行上划过，都会执行hasPermission
+            const auth: any = action.auth;
+            let authResult;
+            if (action.auth && typeof tempActionsAuth[auth] === 'boolean') {
+              authResult = tempActionsAuth[auth];
+            } else {
+              authResult = hasPermission(action.auth);
+              action.auth && (tempActionsAuth[auth] = authResult);
+            }
+            return authResult && isIfShow(action);
+            // -update-end--author:liaozhiyang---date:20240619---for：【TV360X-528】列表配置了权限，在列表行上划过，都会执行hasPermission
           })
           .map((action) => {
             const { popConfirm } = action;
@@ -114,7 +136,17 @@
       const getDropdownList = computed((): any[] => {
         //过滤掉隐藏的dropdown,避免出现多余的分割线
         const list = (toRaw(props.dropDownActions) || []).filter((action) => {
-          return hasPermission(action.auth) && isIfShow(action);
+          // -update-begin--author:liaozhiyang---date:20240619---for：【TV360X-528】列表配置了权限，在列表行上划过，都会执行hasPermission
+          const auth: any = action.auth;
+          let authResult;
+          if (action.auth && typeof tempDropdownListAuth[auth] === 'boolean') {
+            authResult = tempDropdownListAuth[auth];
+          } else {
+            authResult = hasPermission(action.auth);
+            action.auth && (tempDropdownListAuth[auth] = authResult);
+          }
+          return authResult && isIfShow(action);
+          // -update-end--author:liaozhiyang---date:20240619---for：【TV360X-528】列表配置了权限，在列表行上划过，都会执行hasPermission
         });
         return list.map((action, index) => {
           const { label, popConfirm } = action;
@@ -122,6 +154,13 @@
           if (popConfirm) {
             const overlayClassName = popConfirm.overlayClassName;
             popConfirm.overlayClassName = `${overlayClassName ? overlayClassName : ''} ${prefixCls}-popconfirm`;
+            // update-begin--author:liaozhiyang---date:20240814---for：【issues/7028】表格全屏后操作列中的下拉菜单和气泡确认框不显示
+            if (!popConfirm.getPopupContainer) {
+              popConfirm.getPopupContainer = () => {
+                return (table as any)?.wrapRef?.value ?? document.body;
+              };
+            }
+            // update-end--author:liaozhiyang---date:20240814---for：【issues/7028】表格全屏后操作列中的下拉菜单和气泡确认框不显示
           }
           // update-end--author:liaozhiyang---date:20240105---for：【issues/951】table删除记录时按钮显示错位
           // update-begin--author:liaozhiyang---date:20240108---for：【issues/936】表格操作栏删除当接口失败时，气泡确认框不会消失
@@ -189,8 +228,12 @@
         });
         isInButton && e.stopPropagation();
       }
-
-      return { prefixCls, getActions, getDropdownList, getDropdownSlotList, getAlign, onCellClick, getTooltip };
+      // update-begin--author:liaozhiyang---date:20240814---for：【issues/7028】表格全屏后操作列中的下拉菜单和气泡确认框不显示
+      const dropdownGetPopupContainer = () => {
+        return (table as any)?.wrapRef?.value ?? document.body;
+      };
+      // update-end--author:liaozhiyang---date:20240814---for：【issues/7028】表格全屏后操作列中的下拉菜单和气泡确认框不显示
+      return { prefixCls, getActions, getDropdownList, getDropdownSlotList, getAlign, onCellClick, getTooltip, dropdownCls, dropdownGetPopupContainer };
     },
   });
 </script>
@@ -258,5 +301,19 @@
         // update-end--author:liaozhiyang---date:20240124---for：【issues/1019】popConfirm确认框待端后端返回过程中（处理中）样式错乱
       }
     }
+    // update-begin--author:liaozhiyang---date:20240407---for：【QQYUN-8762】调整table操作栏ant-dropdown样式
+    &-dropdown {
+      .ant-dropdown-menu .ant-dropdown-menu-item-divider {
+        margin: 2px 0;
+      }
+      .ant-dropdown-menu .ant-dropdown-menu-item {
+        padding: 3px 8px;
+        font-size: 13.6px;
+      }
+      .dropdown-event-area {
+        padding: 0 !important;
+      }
+    }
+    // update-end--author:liaozhiyang---date:20240407---for：【QQYUN-8762】调整table操作栏ant-dropdown样式
   }
 </style>

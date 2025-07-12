@@ -63,6 +63,11 @@ export function useFileCell(props, fileType: UploadTypeEnum, options?) {
   // 更多上传回调
   function onModalChange(path) {
     if (path) {
+      // update-begin--author:liaozhiyang---date:20240524---for：【TV360X-235】富文本禁用状态下图片上传按钮文字看不清
+      if (innerFile.value === null) {
+        innerFile.value = {};
+      }
+      // update-end-author:liaozhiyang---date:20240524---for：【TV360X-235】富文本禁用状态下图片上传按钮文字看不清
       innerFile.value.path = path;
       handleChangeCommon(innerFile.value);
     } else {

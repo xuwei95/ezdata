@@ -2,7 +2,7 @@ import { inject, reactive, ref, watch, unref, Ref } from 'vue';
 import { useMessage } from '/@/hooks/web/useMessage';
 import { isEmpty } from '@/utils/is';
 
-export function useSelectBiz(getList, props) {
+export function useSelectBiz(getList, props, emit?) {
   //接收下拉框选项
   const selectOptions = inject('selectOptions', ref<Array<object>>([]));
   //接收已选择的值
@@ -31,7 +31,9 @@ export function useSelectBiz(getList, props) {
       if (selectValues['change'] == false && !isEmpty(selectValues['value'])) {
         //update-end-author:liusq---date:2023-10-19--for: [issues/788]判断有设置数值才去加载
         //update-begin---author:wangshuai ---date:20220412  for：[VUEN-672]发文草稿箱编辑时拟稿人显示用户名------------
-        let params = { isMultiTranslate: 'true' };
+        // update-begin-author:liaozhiyang---date:2024-11-11--for:【issues/7405】部门选择用户同时全部选择两页用户，回显到父页面。第二页用户显示的不是真是姓名
+        let params = { isMultiTranslate: 'true', pageSize: selectValues.value?.length };
+        // update-end-author:liaozhiyang---date:2024-10-11--for:【issues/7405】部门选择用户同时全部选择两页用户，回显到父页面。第二页用户显示的不是真是姓名
         params[props.rowKey] = selectValues['value'].join(',');
         //update-end---author:wangshuai ---date:20220412  for：[VUEN-672]发文草稿箱编辑时拟稿人显示用户名--------------
         loadingEcho.value = isFirstLoadEcho;
@@ -43,7 +45,9 @@ export function useSelectBiz(getList, props) {
           });
       }
       //设置列表默认选中
-      checkedKeys['value'] = selectValues['value'];
+      // update-begin--author:liaozhiyang---date:20250423---for：【QQYUN-12155】弹窗中勾选，再点取消，值被选中了
+      checkedKeys['value'] = [...selectValues['value']];
+      // update-end--author:liaozhiyang---date:20250423---for：【QQYUN-12155】弹窗中勾选，再点取消，值被选中了
     },
     { immediate: true }
   );
@@ -107,7 +111,9 @@ export function useSelectBiz(getList, props) {
       code: selectValues['value'].join(','),
       pageSize: selectValues['value'].length,
     });
-    checkedKeys['value'] = selectValues['value'];
+    // update-begin--author:liaozhiyang---date:20250423---for：【QQYUN-12155】弹窗中勾选，再点取消，值被选中了
+    checkedKeys['value'] = [...selectValues['value']];
+    // update-end--author:liaozhiyang---date:20250423---for：【QQYUN-12155】弹窗中勾选，再点取消，值被选中了
     selectRows['value'] = records;
   }
 
@@ -116,8 +122,15 @@ export function useSelectBiz(getList, props) {
    */
   async function visibleChange(visible) {
     if (visible) {
+      // update-begin--author:liaozhiyang---date:20250423---for：【QQYUN-12179】弹窗勾选了值，点击取消再次打开弹窗遗留了上次的勾选的值
+      checkedKeys['value'] = [...selectValues['value']];
+      // update-begin--author:liaozhiyang---date:20250423---for：【QQYUN-12179】弹窗勾选了值，点击取消再次打开弹窗遗留了上次的勾选的值
       //设置列表默认选中
       props.showSelected && initSelectRows();
+    } else {
+      // update-begin--author:liaozhiyang---date:20240517---for：【QQYUN-9366】用户选择组件取消和关闭会把选择数据带入
+      emit?.('close');
+      // update-end--author:liaozhiyang---date:20240517---for：【QQYUN-9366】用户选择组件取消和关闭会把选择数据带入
     }
   }
 

@@ -62,7 +62,7 @@
 
 .tinymce-mobile-icon-large-heading::before,.tinymce-mobile-icon-small-heading::before{font-family: sans-serif;font-size: 80%;}
 
-.tinymce-mobile-maREDACTEDedit-icon::before{content: "\e254";}
+.tinymce-mobile-mask-edit-icon::before{content: "\e254";}
 
 .tinymce-mobile-icon-back::before{content: "\e5c4";}
 
@@ -82,11 +82,11 @@
 
 .tinymce-mobile-outer-container .tinymce-mobile-disabled-mask .tinymce-mobile-content-container .tinymce-mobile-content-tap-section{align-items: center;display: flex;justify-content: center;flex-direction: column;font-size: 1em;}@media only screen and (min-device-width: 700px){.tinymce-mobile-outer-container .tinymce-mobile-disabled-mask .tinymce-mobile-content-container .tinymce-mobile-content-tap-section{font-size: 1.2em;}}
 
-.tinymce-mobile-outer-container .tinymce-mobile-disabled-mask .tinymce-mobile-content-container .tinymce-mobile-content-tap-section .tinymce-mobile-maREDACTEDtap-icon{display: flex;width: 2.1em;height: 2.1em;color: #207ab7;background-color: #fff;border-radius: 50%;align-items: center;justify-content: center;}
+.tinymce-mobile-outer-container .tinymce-mobile-disabled-mask .tinymce-mobile-content-container .tinymce-mobile-content-tap-section .tinymce-mobile-mask-tap-icon{display: flex;width: 2.1em;height: 2.1em;color: #207ab7;background-color: #fff;border-radius: 50%;align-items: center;justify-content: center;}
 
-.tinymce-mobile-outer-container .tinymce-mobile-disabled-mask .tinymce-mobile-content-container .tinymce-mobile-content-tap-section .tinymce-mobile-maREDACTEDtap-icon::before{font-family: tinymce-mobile,sans-serif;content: "\e900";}
+.tinymce-mobile-outer-container .tinymce-mobile-disabled-mask .tinymce-mobile-content-container .tinymce-mobile-content-tap-section .tinymce-mobile-mask-tap-icon::before{font-family: tinymce-mobile,sans-serif;content: "\e900";}
 
-.tinymce-mobile-outer-container .tinymce-mobile-disabled-mask .tinymce-mobile-content-container .tinymce-mobile-content-tap-section:not(.tinymce-mobile-maREDACTEDtap-icon-selected) .tinymce-mobile-maREDACTEDtap-icon{z-index: 2;}
+.tinymce-mobile-outer-container .tinymce-mobile-disabled-mask .tinymce-mobile-content-container .tinymce-mobile-content-tap-section:not(.tinymce-mobile-mask-tap-icon-selected) .tinymce-mobile-mask-tap-icon{z-index: 2;}
 
 .tinymce-mobile-android-container.tinymce-mobile-android-maximized{position: fixed;top: 0;right: 0;bottom: 0;left: 0;display: flex;background: #fff;border: none;flex-direction: column;}
 
@@ -228,7 +228,7 @@
 
 .tinymce-mobile-outer-container .tinymce-mobile-editor-socket iframe{width: 100%;background-color: #fff;}
 
-.tinymce-mobile-editor-socket .tinymce-mobile-maREDACTEDedit-icon{position: fixed;right: 2em;bottom: 1em;display: flex;width: 2.1em;height: 2.1em;font-size: 1em;color: #fff;background-color: #207ab7;border-radius: 50%;align-items: center;justify-content: center;}@media only screen and (min-device-width: 700px){.tinymce-mobile-editor-socket .tinymce-mobile-maREDACTEDedit-icon{font-size: 1.2em;}}
+.tinymce-mobile-editor-socket .tinymce-mobile-mask-edit-icon{position: fixed;right: 2em;bottom: 1em;display: flex;width: 2.1em;height: 2.1em;font-size: 1em;color: #fff;background-color: #207ab7;border-radius: 50%;align-items: center;justify-content: center;}@media only screen and (min-device-width: 700px){.tinymce-mobile-editor-socket .tinymce-mobile-mask-edit-icon{font-size: 1.2em;}}
 
 .tinymce-mobile-outer-container:not(.tinymce-mobile-fullscreen-maximized) .tinymce-mobile-editor-socket{height: 300px;overflow: hidden;}
 
@@ -236,4 +236,4 @@
 
 .tinymce-mobile-outer-container:not(.tinymce-mobile-fullscreen-maximized) .tinymce-mobile-toolstrip{display: none;}
 
-input[type=file]::-webkit-file-upload-button{display: none;}@media only screen and (min-device-width: 320px) and (max-device-width: 568px) and (orientation: landscape){.tinymce-mobile-ios-container .tinymce-mobile-editor-socket .tinymce-mobile-maREDACTEDedit-icon{bottom: 50%;}}
+input[type=file]::-webkit-file-upload-button{display: none;}@media only screen and (min-device-width: 320px) and (max-device-width: 568px) and (orientation: landscape){.tinymce-mobile-ios-container .tinymce-mobile-editor-socket .tinymce-mobile-mask-edit-icon{bottom: 50%;}}

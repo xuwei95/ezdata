@@ -1,17 +1,16 @@
 <template>
   <span :class="`${prefixCls}__extra-redo`" @click="handleRedo">
-    <RedoOutlined :spin="loading" />
+    <SvgIcon name="reload-01"></SvgIcon>
   </span>
 </template>
 <script lang="ts">
   import { defineComponent, ref } from 'vue';
-  import { RedoOutlined } from '@ant-design/icons-vue';
   import { useDesign } from '/@/hooks/web/useDesign';
   import { useTabs } from '/@/hooks/web/useTabs';
-
+  import { SvgIcon } from '/@/components/Icon/index';
   export default defineComponent({
     name: 'TabRedo',
-    components: { RedoOutlined },
+    components: { SvgIcon },
 
     setup() {
       const loading = ref(false);

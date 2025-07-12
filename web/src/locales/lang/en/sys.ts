@@ -59,7 +59,7 @@ export default {
     alert: 'Lock screen password error',
     backToLogin: 'Back to login',
     entry: 'Enter the system',
-    placeholder: 'Please enter the lock screen password or user password',
+    placeholder: 'lock screen password',
   },
   login: {
     backSignIn: 'Back sign in',
@@ -89,6 +89,7 @@ export default {
     passwordPlaceholder: 'Please input password',
     smsPlaceholder: 'Please input sms code',
     mobilePlaceholder: 'Please input mobile',
+    mobileCorrectPlaceholder: 'Please input correct mobile',
     policyPlaceholder: 'Register after checking',
     diffPwd: 'The two passwords are inconsistent',
 

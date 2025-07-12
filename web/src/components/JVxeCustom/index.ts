@@ -2,7 +2,6 @@ import { registerComponent, registerAsyncComponent, registerASyncComponentReal }
 import { JVxeTypes } from '/@/components/jeecg/JVxeTable/types';
 import { DictSearchSpanCell, DictSearchInputCell } from './src/components/JVxeSelectDictSearchCell';
 import { createAsyncComponent } from '/@/utils/factory/createAsyncComponent';
-
 export async function registerJVxeCustom() {
   // ----------------- ⚠ 注意事项 ⚠ -----------------
   //  当组件内包含 BasicModal 时，必须使用异步引入！
@@ -24,8 +23,11 @@ export async function registerJVxeCustom() {
   // 注册【部门选择】组件
   await registerAsyncComponent(JVxeTypes.departSelect, import('./src/components/JVxeDepartSelectCell.vue'));
   // 注册【省市区选择】组件
+  // await registerAsyncComponent(JVxeTypes.pca, import('./src/components/JVxePcaCell.vue'));
+  // update-begin--author:liaozhiyang---date:20240308---for：【QQYUN-8241】为避免首次加载china-area-data，JVxePcaCell组件需异步加载
   registerASyncComponentReal(
     JVxeTypes.pca,
     createAsyncComponent(() => import('./src/components/JVxePcaCell.vue'))
   );
+  // update-end--author:liaozhiyang---date:20240308---for：【QQYUN-8241】为避免首次加载china-area-data，JVxePcaCell组件需异步加载
 }

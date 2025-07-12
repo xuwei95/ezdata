@@ -1,5 +1,5 @@
 <template>
-  <BasicModal :footer="null" :title="t('layout.header.lockScreen')" v-bind="$attrs" :class="prefixCls" @register="register">
+  <BasicModal :footer="null" :title="t('layout.header.lockScreen')" v-bind="$attrs" :class="prefixCls" @register="register" :canFullscreen="false">
     <div :class="`${prefixCls}__entry`">
       <div :class="`${prefixCls}__header`">
         <img :src="avatar" :class="`${prefixCls}__header-img`" />
@@ -43,14 +43,20 @@
       const [register, { closeModal }] = useModalInner();
 
       const [registerForm, { validateFields, resetFields }] = useForm({
-        labelWidth: 100,
+        //update-begin---author:wangshuai---date:2024-04-08---for:【QQYUN-8895】锁屏样式修改---
+        labelWidth: 74,
+        labelAlign:'left',
+        wrapperCol:{},
+        //update-end---author:wangshuai---date:2024-04-08---for:【QQYUN-8895】锁屏样式修改---
         showActionButtonGroup: false,
         schemas: [
           {
             field: 'password',
             label: t('layout.header.lockScreenPassword'),
             component: 'InputPassword',
-            required: true,
+            componentProps: {
+              autocomplete: "new-password",
+            },
           },
         ],
       });

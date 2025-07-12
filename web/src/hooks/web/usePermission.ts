@@ -80,6 +80,7 @@ export function usePermission() {
     if (!value) {
       return def;
     }
+
     const permMode = projectSetting.permissionMode;
     if ([PermissionModeEnum.ROUTE_MAPPING, PermissionModeEnum.ROLE].includes(permMode)) {
       if (!isArray(value)) {
@@ -87,6 +88,7 @@ export function usePermission() {
       }
       return (intersection(value, userStore.getRoleList) as RoleEnum[]).length > 0;
     }
+
     if (PermissionModeEnum.BACK === permMode) {
       const allCodeList = permissionStore.getPermCodeList as string[];
       if (!isArray(value) && allCodeList && allCodeList.length > 0) {
@@ -160,7 +162,9 @@ export function usePermission() {
           return true;
         }
       } else {
-        return true;
+        // update-begin--author:liaozhiyang---date:20240705---for：【TV360X-1604】按钮禁用权限在接口中查不到也禁用
+        return false;
+        // update-end--author:liaozhiyang---date:20240705---for：【TV360X-1604】按钮禁用权限在接口中查不到也禁用
       }
     }
     return false;

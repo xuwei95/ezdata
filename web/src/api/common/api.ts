@@ -14,12 +14,13 @@ enum Api {
   getDictItems = '/sys/dict/getDictItems/',
   getTableList = '/sys/user/queryUserComponentData',
   getCategoryData = '/sys/category/loadAllData',
+  refreshDragCache = '/drag/page/refreshCache',
 }
 
 /**
  * 上传父路径
  */
-export const uploadUrl = `${baseUploadUrl}/api/sys/oss/file/upload`;
+export const uploadUrl = `${baseUploadUrl}/sys/common/upload`;
 
 /**
  * 职务列表
@@ -148,3 +149,8 @@ export const getFileblob = (url, parameter) => {
 export const uploadMyFile = (url, data) => {
   return defHttp.uploadMyFile(url, data);
 };
+/**
+ * 刷新仪表盘缓存
+ * @param params
+ */
+export const refreshDragCache = () => defHttp.get({ url: Api.refreshDragCache }, { isTransformResponse: false });

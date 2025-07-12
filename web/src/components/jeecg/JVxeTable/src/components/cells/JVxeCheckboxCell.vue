@@ -1,5 +1,5 @@
 <template>
-  <div :class="boxClass" :style="boxStyle">
+  <div :class="boxClass" :style="boxStyle" title="">
     <a-checkbox :checked="innerValue" v-bind="cellProps" @change="handleChange" />
   </div>
 </template>

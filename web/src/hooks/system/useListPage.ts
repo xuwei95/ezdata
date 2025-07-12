@@ -8,6 +8,7 @@ import { useMessage } from '/@/hooks/web/useMessage';
 import { useMethods } from '/@/hooks/system/useMethods';
 import { useDesign } from '/@/hooks/web/useDesign';
 import { filterObj } from '/@/utils/common/compUtils';
+import { isFunction } from '@/utils/is';
 const { handleExportXls, handleImportXls } = useMethods();
 
 // 定义 useListPage 方法所需参数
@@ -16,7 +17,7 @@ interface ListPageOptions {
   designScope?: string;
   // 【必填】表格参数配置
   tableProps: TableProps;
-  // 分页
+  // 是否分页
   pagination?: boolean;
   // 导出配置
   exportConfig?: {
@@ -24,7 +25,7 @@ interface ListPageOptions {
     // 导出文件名
     name?: string | (() => string);
     //导出参数
-    params?: object;
+    params?: object | (() => object);
   };
   // 导入配置
   importConfig?: {
@@ -71,23 +72,32 @@ export function useListPage(options: ListPageOptions) {
       //update-begin-author:taoyan date:20220507 for: erp代码生成 子表 导出报错，原因未知-
       let paramsForm:any = {};
       try {
-        paramsForm = await getForm().validate();
+        //update-begin-author:liusq---date:2025-03-20--for: [QQYUN-11627]代码生成原生表单，数据导出，前端报错，并且范围参数没有转换 #7962
+        //当useSearchFor不等于false的时候，才去触发validate
+        if (options?.tableProps?.useSearchForm !== false) {
+          paramsForm = await getForm().validate();
+          console.log('paramsForm', paramsForm);
+        }
+        //update-end-author:liusq---date:2025-03-20--for:[QQYUN-11627]代码生成原生表单，数据导出，前端报错，并且范围参数没有转换 #7962
       } catch (e) {
-        console.error(e);
+        console.warn(e);
       }
       //update-end-author:taoyan date:20220507 for: erp代码生成 子表 导出报错，原因未知-
-      
+
       //update-begin-author:liusq date:20230410 for:[/issues/409]导出功能没有按排序结果导出,设置导出默认排序，创建时间倒序
       if(!paramsForm?.column){
          Object.assign(paramsForm,{column:'createTime',order:'desc'});
       }
       //update-begin-author:liusq date:20230410 for: [/issues/409]导出功能没有按排序结果导出,设置导出默认排序，创建时间倒序
-      
+
       //如果参数不为空，则整合到一起
       //update-begin-author:taoyan date:20220507 for: erp代码生成 子表 导出动态设置mainId
       if (params) {
-        Object.keys(params).map((k) => {
-          let temp = (params as object)[k];
+        //update-begin-author:liusq---date:2025-03-20--for: [QQYUN-11627]代码生成原生表单，数据导出，前端报错，并且范围参数没有转换 #7962
+        const realParams = isFunction(params) ? await params() : { ...(params || {}) };
+        //update-end-author:liusq---date:2025-03-20--for:[QQYUN-11627]代码生成原生表单，数据导出，前端报错，并且范围参数没有转换 #7962
+        Object.keys(realParams).map((k) => {
+          let temp = (realParams as object)[k];
           if (temp) {
             paramsForm[k] = unref(temp);
           }
@@ -247,7 +257,9 @@ export function useListTable(tableProps: TableProps): [
     // 是否可以自适应高度
     canResize: true,
     // 表格最小高度
-    minHeight: 500,
+    // update-begin--author:liaozhiyang---date:20240603---for【TV360X-861】列表查询区域不可往上滚动
+    minHeight: 300,
+    // update-end--author:liaozhiyang---date:20240603---for【TV360X-861】列表查询区域不可往上滚动
     // 点击行选中
     clickToRowSelect: false,
     // 是否显示边框
@@ -274,6 +286,11 @@ export function useListTable(tableProps: TableProps): [
   };
   // 合并用户个性化配置
   if (tableProps) {
+    //update-begin---author:wangshuai---date:2024-04-28---for:【issues/6180】前端代码配置表变查询条件显示列不生效---
+    if(tableProps.formConfig){
+      setTableProps(tableProps.formConfig);
+    }
+    //update-end---author:wangshuai---date:2024-04-28---for:【issues/6180】前端代码配置表变查询条件显示列不生效---
     // merge 方法可深度合并对象
     merge(defaultTableProps, tableProps);
   }
@@ -318,6 +335,24 @@ export function useListTable(tableProps: TableProps): [
     },
   });
   delete defaultTableProps.rowSelection;
+
+  /**
+   * 设置表格参数
+   *
+   * @param formConfig
+   */
+  function setTableProps(formConfig: any) {
+    const replaceAttributeArray: string[] = ['baseColProps','labelCol'];
+    for (let item of replaceAttributeArray) {
+      if(formConfig && formConfig[item]){
+        if(defaultTableProps.formConfig){
+          let defaultFormConfig:any = defaultTableProps.formConfig;
+          defaultFormConfig[item] = formConfig[item];
+        }
+        formConfig[item] = {};
+      }
+    }
+  }
 
   return [
     ...useTable(defaultTableProps),

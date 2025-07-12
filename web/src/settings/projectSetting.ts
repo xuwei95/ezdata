@@ -12,6 +12,7 @@ import {
 } from '/@/enums/appEnum';
 import { SIDE_BAR_BG_COLOR_LIST, HEADER_PRESET_BG_COLOR_LIST } from './designSetting';
 import { primaryColor } from '../../build/config/themeConfig';
+import { darkMode } from '/@/settings/designSetting';
 
 // ! 改动后需要清空浏览器缓存
 const setting: ProjectConfig = {
@@ -43,6 +44,10 @@ const setting: ProjectConfig = {
 
   // 项目主题色
   themeColor: primaryColor,
+  // update-begin--author:liaozhiyang---date:20250414--for：【QQYUN-11956】修复projectSetting中配置主题模式不生效
+  // 项目主题模式
+  themeMode: darkMode,
+  // update-end--author:liaozhiyang---date:20250414--for：【QQYUN-11956】修复projectSetting中配置主题模式不生效
 
   // 网站灰色模式，用于可能悼念的日期开启
   grayMode: false,
@@ -62,10 +67,13 @@ const setting: ProjectConfig = {
   // 是否显示底部信息 copyright
   showFooter: false,
 
+  // ai图标显示
+  aiIconShow: false,
+
   // 头部配置
   headerSetting: {
     // 背景色
-    bgColor: HEADER_PRESET_BG_COLOR_LIST[0],
+    bgColor: HEADER_PRESET_BG_COLOR_LIST[4],
     // 固定头部
     fixed: true,
     // 是否显示顶部
@@ -73,11 +81,11 @@ const setting: ProjectConfig = {
     // 主题
     theme: ThemeEnum.LIGHT,
     // 开启锁屏功能
-    useLockPage: true,
+    useLockPage: false,
     // 显示全屏按钮
-    showFullScreen: true,
-    // 显示文档按钮
-    showDoc: true,
+    showFullScreen: false,
+    // 显示官网按钮
+    showDoc: false,
     // 显示消息中心按钮
     showNotice: true,
     // 显示菜单搜索按钮
@@ -109,6 +117,10 @@ const setting: ProjectConfig = {
     type: MenuTypeEnum.SIDEBAR,
     // 菜单主题
     theme: ThemeEnum.DARK,
+    // update-begin--author:liaozhiyang---date:20241203---for：【issues/7522】解决menuSetting ts警告
+    // 左侧导航栏文字颜色调整区分彩色和暗黑 (不对应配置)
+    isThemeBright: false,
+    // update-end--author:liaozhiyang---date:20241203---for：【issues/7522】解决menuSetting ts警告
     // 分割菜单
     split: false,
     // 顶部菜单布局
@@ -146,7 +158,7 @@ const setting: ProjectConfig = {
   // 动画配置
   transitionSetting: {
     //  是否开启切换动画
-    // The disabled state will also disable pageLoadinng
+    // The disabled state will also disable pageLoading
     enable: true,
 
     // 动画名 Route basic switching animation

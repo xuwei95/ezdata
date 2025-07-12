@@ -3,6 +3,7 @@ import type { GlobEnvConfig } from '/#/config';
 import { warn } from '/@/utils/log';
 import pkg from '../../package.json';
 import { getConfigFileName } from '../../build/getConfigFileName';
+import { getGlobal } from "@/qiankun/micro";
 
 export function getCommonStoragePrefix() {
   const { VITE_GLOB_APP_SHORT_NAME } = getAppEnvConfig();
@@ -17,10 +18,12 @@ export function getStorageShortName() {
 export function getAppEnvConfig() {
   const ENV_NAME = getConfigFileName(import.meta.env);
 
+  const global = getGlobal();
+
   const ENV = (import.meta.env.DEV
     ? // Get the global configuration (the configuration will be extracted independently when packaging)
       (import.meta.env as unknown as GlobEnvConfig)
-    : window[ENV_NAME as any]) as unknown as GlobEnvConfig;
+    : global[ENV_NAME as any]) as unknown as GlobEnvConfig;
 
   const {
     VITE_GLOB_APP_TITLE,
@@ -33,13 +36,24 @@ export function getAppEnvConfig() {
     VITE_GLOB_APP_CAS_BASE_URL,
     VITE_GLOB_DOMAIN_URL,
     VITE_GLOB_ONLINE_VIEW_URL,
+    // 全局隐藏哪些布局，多个用逗号隔开
+    VITE_GLOB_HIDE_LAYOUT_TYPES,
+    // 当前运行在什么平台
+    VITE_GLOB_RUN_PLATFORM,
+
+    // 【JEECG作为乾坤子应用】
+    VITE_GLOB_QIANKUN_MICRO_APP_NAME,
+    VITE_GLOB_QIANKUN_MICRO_APP_ENTRY,
+    
+    //在线文档编辑版本。可选属性：wps, onlyoffice
+    VITE_GLOB_ONLINE_DOCUMENT_VERSION,
   } = ENV;
 
-  if (!/^[a-zA-Z\_]*$/.test(VITE_GLOB_APP_SHORT_NAME)) {
-    // warn(
-    //   `VITE_GLOB_APP_SHORT_NAME Variables can only be characters/underscores, please modify in the environment variables and re-running.`
-    // );
-  }
+  // if (!/^[a-zA-Z\_]*$/.test(VITE_GLOB_APP_SHORT_NAME)) {
+  //   warn(
+  //     `VITE_GLOB_APP_SHORT_NAME 变量只能是字符/下划线，请在环境变量中修改并重新运行.`
+  //   );
+  // }
 
   return {
     VITE_GLOB_APP_TITLE,
@@ -52,6 +66,15 @@ export function getAppEnvConfig() {
     VITE_GLOB_APP_CAS_BASE_URL,
     VITE_GLOB_DOMAIN_URL,
     VITE_GLOB_ONLINE_VIEW_URL,
+    VITE_GLOB_HIDE_LAYOUT_TYPES,
+    VITE_GLOB_RUN_PLATFORM,
+
+    // 【JEECG作为乾坤子应用】
+    VITE_GLOB_QIANKUN_MICRO_APP_NAME,
+    VITE_GLOB_QIANKUN_MICRO_APP_ENTRY,
+
+    //在线文档编辑版本。可选属性：wps, onlyoffice
+    VITE_GLOB_ONLINE_DOCUMENT_VERSION
   };
 }
 
@@ -90,4 +113,23 @@ export function isDevMode(): boolean {
  */
 export function isProdMode(): boolean {
   return import.meta.env.PROD;
+}
+
+export function getHideLayoutTypes(): string[] {
+  const {VITE_GLOB_HIDE_LAYOUT_TYPES} = getAppEnvConfig();
+  if (typeof VITE_GLOB_HIDE_LAYOUT_TYPES !== 'string') {
+    return [];
+  }
+  return VITE_GLOB_HIDE_LAYOUT_TYPES.split(',');
+}
+
+/**
+ * 获取在线文档版本号
+ */
+export function getOnlineDocumentVersion(): string {
+  const { VITE_GLOB_ONLINE_DOCUMENT_VERSION } = getAppEnvConfig();
+  if (typeof VITE_GLOB_ONLINE_DOCUMENT_VERSION !== 'string') {
+    return 'wps';
+  }
+  return VITE_GLOB_ONLINE_DOCUMENT_VERSION;
 }

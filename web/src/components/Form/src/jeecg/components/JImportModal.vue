@@ -30,6 +30,7 @@
   import { defHttp } from '/@/utils/http/axios';
   import { useGlobSetting } from '/@/hooks/setting';
   import { useMessage } from '/@/hooks/web/useMessage';
+  import { isObject } from '/@/utils/is';
 
   export default defineComponent({
     name: 'JImportModal',
@@ -116,6 +117,11 @@
         if (unref(foreignKeys) && unref(foreignKeys).length > 0) {
           formData.append('foreignKeys', unref(foreignKeys));
         }
+        // update-begin--author:liaozhiyang---date:20240429---for：【issues/6124】当用户没有【Online表单开发】页面的权限时用户无权导入从表数据
+        if (isObject(foreignKeys.value)) {
+          formData.append('foreignKeys', JSON.stringify(foreignKeys.value));
+        }
+        // update-end--author:liaozhiyang---date:20240429---for：【issues/6124】当用户没有【Online表单开发】页面的权限时用户无权导入从表数据
         if (!!online) {
           formData.append('validateStatus', unref(validateStatus));
         }

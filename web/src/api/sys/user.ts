@@ -8,6 +8,7 @@ import { setAuthCache } from '/@/utils/auth';
 import { TOKEN_KEY } from '/@/enums/cacheEnum';
 import { router } from '/@/router';
 import { PageEnum } from '/@/enums/pageEnum';
+import { ExceptionEnum } from "@/enums/exceptionEnum";
 
 const { createErrorModal } = useMessage();
 enum Api {
@@ -78,7 +79,7 @@ export function phoneLoginApi(params: LoginParams, mode: ErrorMessageMode = 'mod
  * @description: getUserInfo
  */
 export function getUserInfo() {
-  return defHttp.get<GetUserInfoModel>({ url: Api.GetUserInfo }, { errorMessageMode: 'none' }).catch((e) => {
+  return defHttp.get<GetUserInfoModel>({ url: Api.GetUserInfo }, {}).catch((e) => {
     // update-begin--author:zyf---date:20220425---for:【VUEN-76】捕获接口超时异常,跳转到登录界面
     if (e && (e.message.includes('timeout') || e.message.includes('401'))) {
       //接口不通时跳转到登录界面
@@ -123,8 +124,13 @@ export function getCaptcha(params) {
       if (res.success) {
         resolve(true);
       } else {
-        createErrorModal({ title: '错误提示', content: res.message || '未知问题' });
-        reject();
+        //update-begin---author:wangshuai---date:2024-04-18---for:【QQYUN-9005】同一个IP，1分钟超过5次短信，则提示需要验证码---
+        if(res.code != ExceptionEnum.PHONE_SMS_FAIL_CODE){
+          createErrorModal({ title: '错误提示', content: res.message || '未知问题' });
+          reject();
+        }
+        reject(res);
+        //update-end---author:wangshuai---date:2024-04-18---for:【QQYUN-9005】同一个IP，1分钟超过5次短信，则提示需要验证码---
       }
     }).catch((res)=>{
       createErrorModal({ title: '错误提示', content: res.message || '未知问题' });

@@ -38,6 +38,8 @@ export interface TableRowSelection<T = any> extends ITableRowSelection {
    * @type Function
    */
   onSelectInvert?: (selectedRows: string[] | number[]) => any;
+  //【issues/8163】关联记录新增丢失
+  selectedRows?: any[];
 }
 
 export interface TableCustomRecord<T> {
@@ -81,7 +83,7 @@ export interface GetColumnsParams {
   sort?: boolean;
 }
 
-export type SizeType = 'default' | 'middle' | 'small' | 'large';
+export type SizeType = 'middle' | 'small' | 'large';
 
 export interface TableActionType {
   reload: (opt?: FetchParams) => Promise<void>;
@@ -199,7 +201,7 @@ export interface BasicTableProps<T = any> {
   // 是否显示操作列
   showActionColumn?: boolean;
   // 操作列配置
-  actionColumn?: BasicColumn;
+  actionColumn?: Partial<BasicColumn>;
   // 文本超过宽度是否显示。。。
   ellipsis?: boolean;
   // 是否可以自适应高度
@@ -220,6 +222,10 @@ export interface BasicTableProps<T = any> {
   maxHeight?: number;
   // 是否显示边框
   bordered?: boolean;
+  // update-begin--author:liaozhiyang---date:202401009---for：【TV360X-116】内嵌风格字段较多时表格错位
+  // 展开列宽度
+  expandColumnWidth: number;
+  // update-end--author:liaozhiyang---date:202401009---for：【TV360X-116】内嵌风格字段较多时表格错位
   // 分页配置
   pagination?: PaginationProps | boolean;
   // loading加载
@@ -426,6 +432,9 @@ export interface BasicColumn extends ColumnProps<Recordable> {
 
   //
   flag?: 'INDEX' | 'DEFAULT' | 'CHECKBOX' | 'RADIO' | 'ACTION';
+  // update-begin--author:liaozhiyang---date:20240724---for：【issues/6908】多语言无刷新切换时，BasicColumn和FormSchema里面的值不能正常切换
+  title: string | Fn;
+  // update-end--author:liaozhiyang---date:20240724---for：【issues/6908】多语言无刷新切换时，BasicColumn和FormSchema里面的值不能正常切换
   customTitle?: VueNode;
 
   slots?: Recordable;
@@ -455,6 +464,18 @@ export interface BasicColumn extends ColumnProps<Recordable> {
   ifShow?: boolean | ((column: BasicColumn) => boolean);
   //compType-用于记录类型
   compType?: string;
+  // update-begin--author:liaozhiyang---date:20240425---for：【pull/1201】添加antd的TableSummary功能兼容老的summary（表尾合计）
+  customSummaryRender?: (opt: {
+    value: any;
+    text: any;
+    record: Recordable;
+    index: number;
+    renderIndex?: number;
+    column: BasicColumn;
+  }) => any | VNodeChild | JSX.Element;
+  // update-end--author:liaozhiyang---date:20240425---for：【pull/1201】添加antd的TableSummary功能兼容老的summary（表尾合计）
+  // 额外的属性
+  extraProps?: Recordable;
 }
 
 export type ColumnChangeParam = {

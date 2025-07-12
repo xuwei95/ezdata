@@ -25,6 +25,25 @@
   const { getAntdLocale } = useLocale();
 
   useTitle();
+  /**
+   * 2024-04-07
+   * liaozhiyang
+   * 暗黑模式下默认文字白色，白天模式默认文字 #333
+   * */
+  const modeAction = (data) => {
+    if (data.token) {
+      if (getDarkMode.value === ThemeEnum.DARK) {
+        Object.assign(data.token, { colorTextBase: 'fff' });
+      } else {
+        Object.assign(data.token, { colorTextBase: '#333' });
+      }
+
+      // 定义主题色 css 变量
+      if (data.token.colorPrimary) {
+        document.documentElement.style.setProperty('--j-global-primary-color', data.token.colorPrimary);
+      }
+    }
+  };
   // update-begin--author:liaozhiyang---date:20231218---for：【QQYUN-6366】升级到antd4.x
   const appTheme: any = ref({});
   const { getDarkMode } = useRootSetting();
@@ -40,6 +59,7 @@
         changeTheme(appStore.getProjectConfig.themeColor);
       }
       // update-end--author:liaozhiyang---date:20240322---for：【QQYUN-8570】生产环境暗黑模式下主题色不生效
+      modeAction(appTheme.value);
       appTheme.value = {
         ...appTheme.value,
       };
@@ -50,23 +70,28 @@
     appStore.getProjectConfig,
     (newValue) => {
       const primary = newValue.themeColor;
-      appTheme.value = {
+      const result = {
         ...appTheme.value,
         ...{
           token: {
             colorPrimary: primary,
             wireframe: true,
             fontSize: 14,
+            colorTextBase: '#333',
             colorSuccess: '#55D187',
             colorInfo: primary,
-            borderRadius: 2,
+            borderRadius: 4,
             sizeStep: 4,
             sizeUnit: 4,
             colorWarning: '#EFBD47',
             colorError: '#ED6F6F',
+            fontFamily:
+              '-apple-system,BlinkMacSystemFont,Segoe UI,PingFang SC,Hiragino Sans GB,Microsoft YaHei,Helvetica Neue,Helvetica,Arial,sans-serif,Apple Color Emoji,Segoe UI Emoji,Segoe UI Symbol',
           },
         },
       };
+      appTheme.value = result;
+      modeAction(result);
     },
     { immediate: true }
   );
@@ -74,6 +99,7 @@
     appStore.getProjectConfig?.themeColor && changeTheme(appStore.getProjectConfig.themeColor);
   }, 300);
   // update-end--author:liaozhiyang---date:20231218---for：【QQYUN-6366】升级到antd4.x
+
 </script>
 <style lang="less">
   // update-begin--author:liaozhiyang---date:20230803---for：【QQYUN-5839】windi会影响到html2canvas绘制的图片样式

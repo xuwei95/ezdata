@@ -108,7 +108,7 @@
   font-family: sans-serif;
   font-size: 80%;
 }
-.tinymce-mobile-maREDACTEDedit-icon::before {
+.tinymce-mobile-mask-edit-icon::before {
   content: "\e254";
 }
 .tinymce-mobile-icon-back::before {
@@ -172,7 +172,7 @@
     font-size: 1.2em;
   }
 }
-.tinymce-mobile-outer-container .tinymce-mobile-disabled-mask .tinymce-mobile-content-container .tinymce-mobile-content-tap-section .tinymce-mobile-maREDACTEDtap-icon {
+.tinymce-mobile-outer-container .tinymce-mobile-disabled-mask .tinymce-mobile-content-container .tinymce-mobile-content-tap-section .tinymce-mobile-mask-tap-icon {
   align-items: center;
   display: flex;
   justify-content: center;
@@ -182,11 +182,11 @@
   background-color: white;
   color: #207ab7;
 }
-.tinymce-mobile-outer-container .tinymce-mobile-disabled-mask .tinymce-mobile-content-container .tinymce-mobile-content-tap-section .tinymce-mobile-maREDACTEDtap-icon::before {
+.tinymce-mobile-outer-container .tinymce-mobile-disabled-mask .tinymce-mobile-content-container .tinymce-mobile-content-tap-section .tinymce-mobile-mask-tap-icon::before {
   content: "\e900";
   font-family: 'tinymce-mobile', sans-serif;
 }
-.tinymce-mobile-outer-container .tinymce-mobile-disabled-mask .tinymce-mobile-content-container .tinymce-mobile-content-tap-section:not(.tinymce-mobile-maREDACTEDtap-icon-selected) .tinymce-mobile-maREDACTEDtap-icon {
+.tinymce-mobile-outer-container .tinymce-mobile-disabled-mask .tinymce-mobile-content-container .tinymce-mobile-content-tap-section:not(.tinymce-mobile-mask-tap-icon-selected) .tinymce-mobile-mask-tap-icon {
   z-index: 2;
 }
 .tinymce-mobile-android-container.tinymce-mobile-android-maximized {
@@ -633,7 +633,7 @@
   background-color: #fff;
   width: 100%;
 }
-.tinymce-mobile-editor-socket .tinymce-mobile-maREDACTEDedit-icon {
+.tinymce-mobile-editor-socket .tinymce-mobile-mask-edit-icon {
   /* Note, on the iPod touch in landscape, this isn't visible when the navbar appears */
   background-color: #207ab7;
   border-radius: 50%;
@@ -649,7 +649,7 @@
   justify-content: center;
 }
 @media only screen and (min-device-width:700px) {
-  .tinymce-mobile-editor-socket .tinymce-mobile-maREDACTEDedit-icon {
+  .tinymce-mobile-editor-socket .tinymce-mobile-mask-edit-icon {
     font-size: 1.2em;
   }
 }
@@ -671,7 +671,7 @@ input[type="file"]::-webkit-file-upload-button {
   display: none;
 }
 @media only screen and (min-device-width : 320px) and (max-device-width : 568px) and (orientation : landscape) {
-  .tinymce-mobile-ios-container .tinymce-mobile-editor-socket .tinymce-mobile-maREDACTEDedit-icon {
+  .tinymce-mobile-ios-container .tinymce-mobile-editor-socket .tinymce-mobile-mask-edit-icon {
     bottom: 50%;
   }
 }

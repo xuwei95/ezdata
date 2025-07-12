@@ -44,7 +44,9 @@
       columns: columns,
       formConfig: {
         schemas: searchFormSchema,
-        fieldMapToTime: [['fieldTime', ['createTime_begin', 'createTime_end'], 'YYYY-MM-DD HH:mm:ss']],
+        //update-begin---author:wangshuai---date:2024-06-11---for:【TV360X-545】我的消息列表不能通过时间范围查询---
+        fieldMapToTime: [['sendTime', ['sendTimeBegin', 'sendTimeEnd'], 'YYYY-MM-DD']],
+        //update-end---author:wangshuai---date:2024-06-11---for:【TV360X-545】我的消息列表不能通过时间范围查询---
       },
     },
   });
@@ -67,7 +69,7 @@
    */
   function handleDetail(record) {
     let anntId = record.anntId;
-    editCementSend({ anntId: anntId, read_flag: 1 }).then((res) => {
+    editCementSend({ anntId: anntId }).then((res) => {
       reload();
       syncNotic({ anntId: anntId });
     });
@@ -78,7 +80,7 @@
       });
     }
     goPage(record, openModalFun);
-
+   
   }
   // 日志类型
   function callback(key) {
@@ -97,7 +99,7 @@
   function onSelectChange(selectedRowKeys: (string | number)[]) {
     checkedKeys.value = selectedRowKeys;
   }
-
+  
   //update-begin-author:taoyan date:2022-8-23 for: 消息跳转，打开详情表单
   onMounted(()=>{
     initHrefModal();
@@ -127,5 +129,5 @@
   }
   //update-end-author:taoyan date:2022-8-23 for: 消息跳转，打开详情表单
 
-
+  
 </script>

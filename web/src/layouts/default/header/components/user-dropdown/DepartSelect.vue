@@ -36,8 +36,8 @@
           <template #suffixIcon>
             <Icon icon="ant-design:gold-outline" />
           </template>
-          <template v-for="depart in departList" :key="depart.org_code">
-            <a-select-option :value="depart.org_code">{{ depart.depart_name }}</a-select-option>
+          <template v-for="depart in departList" :key="depart.orgCode">
+            <a-select-option :value="depart.orgCode">{{ depart.departName }}</a-select-option>
           </template>
         </a-select>
       </a-form-item>
@@ -125,9 +125,9 @@
     if (!result.list || result.list.length == 0) {
       return;
     }
-    let currentDepart = result.list.filter((item) => item.org_code == result.org_code);
+    let currentDepart = result.list.filter((item) => item.orgCode == result.orgCode);
     departList.value = result.list;
-    departSelected.value = currentDepart && currentDepart.length > 0 ? result.org_code : '';
+    departSelected.value = currentDepart && currentDepart.length > 0 ? result.orgCode : '';
     currentDepartName.value = currentDepart && currentDepart.length > 0 ? currentDepart[0].departName : '';
     isMultiDepart.value = true;
   }
@@ -151,7 +151,7 @@
    * 提交数据
    */
   async function handleSubmit() {
-    if (unref(isMultiTenant) && unref(tenantSelected)) {
+    if (unref(isMultiTenant) && unref(tenantSelected)==null) {
       validate_status.value = 'error';
       return false;
     }
@@ -165,9 +165,9 @@
           userStore.setTenant(unref(tenantSelected));
         }
         createMessage.success('切换成功');
-
-        // //切换租户后要刷新首页
-        // window.location.reload();
+        
+        //切换租户后要刷新首页
+        window.location.reload();
       })
       .catch((e) => {
         console.log('登录选择出现问题', e);
@@ -189,16 +189,12 @@
       } else {
         const result = await selectDepart({
           username: userStore.getUserInfo.username,
-          org_code: unref(departSelected),
-          tenant_id: unref(tenantSelected),
+          orgCode: unref(departSelected),
+          loginTenantId: unref(tenantSelected),
         });
         if (result.userInfo) {
           const userInfo = result.userInfo;
           userStore.setUserInfo(userInfo);
-          // 切换部门重置token并刷新页面
-          const token = result.token;
-          userStore.setToken(token);
-          window.location.reload();
           resolve();
         } else {
           requestFailed(result);

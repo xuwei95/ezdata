@@ -22,6 +22,7 @@
   import { useAttrs } from '/@/hooks/core/useAttrs';
   import { getDictItems } from '/@/api/common/api';
   import { useMessage } from '/@/hooks/web/useMessage';
+  import { setPopContainer } from '/@/utils';
 
   const { createMessage, createErrorModal } = useMessage();
   export default defineComponent({
@@ -80,7 +81,7 @@
       const arrayValue = ref<any[]>(!props.value ? [] : props.value.split(props.spliter));
       const dictOptions = ref<any[]>([]);
       const attrs = useAttrs();
-      const [state] = useRuleFormItem(props, 'value', 'change', emitData);
+      const [state, , , formItemContext] = useRuleFormItem(props, 'value', 'change', emitData);
 
       onMounted(() => {
         if (props.dictCode) {
@@ -89,6 +90,17 @@
           dictOptions.value = props.options;
         }
       });
+
+      watch(
+          () => props.dictCode,
+          () => {
+            if (props.dictCode) {
+              loadDictOptions();
+            } else {
+              dictOptions.value = props.options;
+            }
+          }
+      );
 
       watch(
         () => props.value,
@@ -118,13 +130,20 @@
           emit('input', selectedValue.join(props.spliter));
           emit('update:value', selectedValue.join(props.spliter));
         }
+        // update-begin--author:liaozhiyang---date:20240429---for：【QQYUN-9110】组件有值校验没消失
+        nextTick(() => {
+          formItemContext?.onFieldChange();
+        });
+        // update-end--author:liaozhiyang---date:20240429---for：【QQYUN-9110】组件有值校验没消失
       }
 
       function getParentContainer(node) {
         if (!props.popContainer) {
           return node?.parentNode;
         } else {
-          return document.querySelector(props.popContainer);
+          // update-begin--author:liaozhiyang---date:20240517---for：【QQYUN-9339】有多个modal弹窗内都有下拉字典多选和下拉搜索组件时，打开另一个modal时组件的options不展示
+          return setPopContainer(node, props.popContainer);
+          // update-end--author:liaozhiyang---date:20240517---for：【QQYUN-9339】有多个modal弹窗内都有下拉字典多选和下拉搜索组件时，打开另一个modal时组件的options不展示
         }
       }
 

@@ -5,9 +5,12 @@ import { FormSchema } from '/@/components/Form';
 import { reactive } from "vue";
 import { getTenantId, getToken } from "/@/utils/auth";
 import { useUserStoreWithOut } from "/@/store/modules/user";
+import dayjs from 'dayjs';
+import Big from 'big.js';
 
 import { Modal } from "ant-design-vue";
 import { defHttp } from "@/utils/http/axios";
+import { useI18n } from "@/hooks/web/useI18n";
 
 const globSetting = useGlobSetting();
 const baseApiUrl = globSetting.domainUrl;
@@ -146,11 +149,16 @@ export function mapTableTotalSummary(tableData: Recordable[], fieldKeys: string[
       // update-begin--author:liaozhiyang---date:20240118---for：【QQYUN-7891】PR 合计工具方法，转换为Nuber类型再计算
       const value = Number(next[key]);
       if (!Number.isNaN(value)) {
-        prev += value;
+        // update-begin--author:liaozhiyang---date:20250224---for：【issues/7830】合计小数计算精度
+        prev = Big(prev).plus(value).toString();
+        // update-end--author:liaozhiyang---date:20250224---for：【issues/7830】合计小数计算精度
       }
-      // update-end--author:liaozhiyang---date:20240118---for：【QQYUN-7891】PR 合计工具方法，转换为Nuber类型再计算
+      // update-end--author:liaozhiyang---date:20240118---for：【issues/7830】PR 合计工具方法，转换为Nuber类型再计算
       return prev;
     }, 0);
+    // update-begin--author:liaozhiyang---date:20250224---for：【issues/7830】合计小数计算精度
+    totals[key] = +totals[key];
+    // update-end--author:liaozhiyang---date:20250224---for：【issues/7830】合计小数计算精度
   });
   return totals;
 }
@@ -405,9 +413,8 @@ export function calculateFileSize(fileSize, unit?) {
 export function getHeaders() {
   let tenantId = getTenantId();
   return reactive({
-    Authorization: 'JWT ' + getToken(),
-    // 'X-Access-Token': getToken(),
-    // 'X-Tenant-Id': tenantId ? tenantId : '0',
+    'X-Access-Token': getToken(),
+    'X-Tenant-Id': tenantId ? tenantId : '0',
   });
 }
 
@@ -415,6 +422,14 @@ export function getHeaders() {
 export function getUserInfoByExpression(expression) {
   if (!expression) {
     return expression;
+  }
+  // 当前日期
+  if (expression === 'sys_date' || expression === 'sysDate') {
+    return dayjs().format('YYYY-MM-DD');
+  }
+  // 当前时间
+  if (expression === 'sys_time' || expression === 'sysTime') {
+    return dayjs().format('HH:mm:ss');
   }
   const userStore = useUserStoreWithOut();
   let userInfo = userStore.getUserInfo;
@@ -471,7 +486,7 @@ export function replaceUserInfoByExpression(expression: string | any[]) {
 
 /**
  * 设置租户缓存，当租户退出的时候
- *
+ * 
  * @param tenantId
  */
 export async function userExitChangeLoginTenantId(tenantId){
@@ -507,7 +522,7 @@ export async function userExitChangeLoginTenantId(tenantId){
 
 /**
  * 我的租户模块需要开启多租户提示
- *
+ * 
  * @param title 标题
  */
 export function tenantSaasMessage(title){
@@ -522,4 +537,75 @@ export function tenantSaasMessage(title){
       cancelButtonProps: { style: { display: 'none' } },
     })
   }
+}
+
+/**
+ * 判断日期和当前时间是否为同一天
+ * @param dateStr
+ */
+export function sameDay(dateStr) {
+  if (!dateStr) {
+    return false;
+  }
+  // 获取当前日期
+  let currentDate = new Date();
+  let currentDay = currentDate.getDate();
+  let currentMonth = currentDate.getMonth();
+  let currentYear = currentDate.getFullYear();
+
+  //创建另一个日期进行比较
+  let otherDate = new Date(dateStr);
+  let otherDay = otherDate.getDate();
+  let otherMonth = otherDate.getMonth();
+  let otherYear = otherDate.getFullYear();
+
+  //比较日期
+  if (currentDay === otherDay && currentMonth === otherMonth && currentYear === otherYear) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+
+/**
+ * 翻译菜单名称
+ * 2024-02-28
+ * liaozhiyang
+ * @param data
+ */
+export function translateTitle(data) {
+  if (data?.length) {
+    const { t } = useI18n();
+    data.forEach((item) => {
+      if (item.slotTitle) {
+        if (item.slotTitle.includes("t('") && t) {
+          item.slotTitle = new Function('t', `return ${item.slotTitle}`)(t);
+        }
+      }
+      if (item.children?.length) {
+        translateTitle(item.children);
+      }
+    });
+  }
+  return data;
+}
+
+/**
+ *
+ * 深度冻结对象
+ * @param obj Object or Array
+ */
+export function freezeDeep(obj: Recordable | Recordable[]) {
+  if (obj != null) {
+    if (Array.isArray(obj)) {
+      obj.forEach(item => freezeDeep(item))
+    } else if (typeof obj === 'object') {
+      Object.values(obj).forEach(value => {
+        freezeDeep(value)
+      })
+    }
+    Object.freeze(obj)
+  }
+  return obj
 }

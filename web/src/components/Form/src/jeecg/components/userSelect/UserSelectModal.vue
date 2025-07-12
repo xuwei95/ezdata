@@ -190,12 +190,17 @@
         e && prevent(e);
         searchInputStatus.value = true;
       }
+
+      // 回车事件，触发查询
       function onSearchUser() {
-        console.log('onSearchUser');
+        pageNo.value = 1;
         loadUserList();
       }
+
+      // 清除按名称筛选
       function clearSearch(e) {
         e && prevent(e);
+        pageNo.value = 1;
         searchText.value = '';
         searchInputStatus.value = false;
         loadUserList();

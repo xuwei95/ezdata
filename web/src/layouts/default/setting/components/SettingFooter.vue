@@ -1,6 +1,6 @@
 <template>
   <div :class="prefixCls">
-    <a-button type="primary" block @click="handleCopy">
+    <a-button v-if="isDev" type="primary" block @click="handleCopy">
       <CopyOutlined class="mr-2" />
       {{ t('layout.setting.copyBtn') }}
     </a-button>
@@ -76,12 +76,14 @@
         userStore.resetState();
         location.reload();
       }
+      const isDev = import.meta.env.DEV;
       return {
         prefixCls,
         t,
         handleCopy,
         handleResetSetting,
         handleClearAndRedo,
+        isDev,
       };
     },
   });

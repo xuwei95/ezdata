@@ -1,4 +1,4 @@
-import { HandlerEnum } from './enum';
+import { HandlerEnum, tabsThemeOptions} from './enum';
 import { updateHeaderBgColor, updateSidebarBgColor } from '/@/logics/theme/updateBackground';
 import { updateColorWeak } from '/@/logics/theme/updateColorWeak';
 import { updateGrayMode } from '/@/logics/theme/updateGrayMode';
@@ -8,6 +8,64 @@ import { ProjectConfig } from '/#/config';
 import { changeTheme } from '/@/logics/theme';
 import { updateDarkTheme } from '/@/logics/theme/dark';
 import { useRootSetting } from '/@/hooks/setting/useRootSetting';
+import { MenuModeEnum, MenuTypeEnum } from '/@/enums/menuEnum';
+import { HEADER_PRESET_BG_COLOR_LIST, APP_PRESET_COLOR_LIST, SIDE_BAR_BG_COLOR_LIST } from '/@/settings/designSetting';
+import { isObject } from '/@/utils/is';
+import { ThemeEnum } from '/@/enums/appEnum';
+import { APP__THEME__COLOR } from '/@/enums/cacheEnum';
+
+/**
+ *  2024-04-07
+ *  liaozhiyang
+ *  切换导航栏模式都走这个方法，每个模式都会有固定的顶部和菜单颜色搭配。暗黑模式则不走固定搭配
+ * */
+export function layoutHandler(event: HandlerEnum, value: any) {
+  const isHTopMenu = isObject(value) && value.type == MenuTypeEnum.TOP_MENU && value.mode == MenuModeEnum.HORIZONTAL;
+  const isMixMenu = isObject(value) && value.type == MenuTypeEnum.MIX && value.mode == MenuModeEnum.INLINE;
+  const isMixSidebarMenu = isObject(value) && value.type == MenuTypeEnum.MIX_SIDEBAR && value.mode == MenuModeEnum.INLINE;
+  const appStore = useAppStore();
+  const darkMode = appStore.getDarkMode === ThemeEnum.DARK;
+  if (isHTopMenu) {
+    baseHandler(event, value);
+    baseHandler(HandlerEnum.HEADER_THEME, HEADER_PRESET_BG_COLOR_LIST[2]);
+    baseHandler(HandlerEnum.CHANGE_THEME_COLOR, APP_PRESET_COLOR_LIST[2]);
+    if (darkMode) {
+      updateHeaderBgColor();
+      updateSidebarBgColor();
+    }
+    baseHandler(HandlerEnum.TABS_THEME, tabsThemeOptions[1].value);
+  } else if (isMixMenu) {
+    baseHandler(event, value);
+    baseHandler(HandlerEnum.HEADER_THEME, HEADER_PRESET_BG_COLOR_LIST[4]);
+    baseHandler(HandlerEnum.MENU_THEME, SIDE_BAR_BG_COLOR_LIST[3]);
+    if (darkMode) {
+      updateHeaderBgColor();
+      updateSidebarBgColor();
+    }
+    baseHandler(HandlerEnum.CHANGE_THEME_COLOR, APP_PRESET_COLOR_LIST[1]);
+    baseHandler(HandlerEnum.TABS_THEME, tabsThemeOptions[1].value);
+  } else if (isMixSidebarMenu) {
+    baseHandler(event, value);
+    baseHandler(HandlerEnum.CHANGE_THEME_COLOR, APP_PRESET_COLOR_LIST[1]);
+    baseHandler(HandlerEnum.HEADER_THEME, HEADER_PRESET_BG_COLOR_LIST[0]);
+    baseHandler(HandlerEnum.MENU_THEME, SIDE_BAR_BG_COLOR_LIST[0]);
+    if (darkMode) {
+      updateHeaderBgColor();
+      updateSidebarBgColor();
+    }
+    baseHandler(HandlerEnum.TABS_THEME, tabsThemeOptions[1].value);
+  } else {
+    baseHandler(event, value);
+    baseHandler(HandlerEnum.HEADER_THEME, HEADER_PRESET_BG_COLOR_LIST[4]);
+    baseHandler(HandlerEnum.MENU_THEME, SIDE_BAR_BG_COLOR_LIST[7]);
+    if (darkMode) {
+      updateHeaderBgColor();
+      updateSidebarBgColor();
+    }
+    baseHandler(HandlerEnum.CHANGE_THEME_COLOR, APP_PRESET_COLOR_LIST[1]);
+    baseHandler(HandlerEnum.TABS_THEME, tabsThemeOptions[1].value);
+  }
+}
 
 export function baseHandler(event: HandlerEnum, value: any) {
   const appStore = useAppStore();
@@ -43,6 +101,9 @@ export function handler(event: HandlerEnum, value: any): DeepPartial<ProjectConf
       if (getThemeColor.value === value) {
         return {};
       }
+      // update-begin--author:liaozhiyang---date:20240417---for:【QQYUN-8925】系统主题颜色（供页面加载使用）
+      localStorage.setItem(APP__THEME__COLOR, value);
+      // update-end--author:liaozhiyang---date:20240417---for:【QQYUN-8925】系统主题颜色（供页面加载使用）
       changeTheme(value);
 
       return { themeColor: value };
@@ -138,7 +199,10 @@ export function handler(event: HandlerEnum, value: any): DeepPartial<ProjectConf
     case HandlerEnum.COLOR_WEAK:
       updateColorWeak(value);
       return { colorWeak: value };
-
+    // update-begin--author:liaozhiyang---date:20250407---for：【QQYUN-10952】AI助手支持通过设置来配置是否显示
+    case HandlerEnum.AI_ICON_SHOW:
+      return { aiIconShow: value };
+    // update-end--author:liaozhiyang---date:20250407---for：【QQYUN-10952】AI助手支持通过设置来配置是否显示
     case HandlerEnum.SHOW_LOGO:
       return { showLogo: value };
 

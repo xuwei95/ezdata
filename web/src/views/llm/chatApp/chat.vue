@@ -236,7 +236,7 @@
           {
             withCredentials: true,
             headers: {
-              Authorization: 'JWT ' + token,
+              Authorization: 'Bearer ' + token,
             },
           }
         ); // 后端接口，要配置允许跨域属性

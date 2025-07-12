@@ -74,9 +74,11 @@ export function handleInputNumberValue(component?: ComponentType, val?: any) {
 */ 
 export function handleInputStringValue(component?: ComponentType, val?: any) {
   if (!component) return val;
-  if (['InputNumber'].includes(component) && typeof val === 'string') {
+  // update-begin--author:liaozhiyang---date:20240517---for：【TV360X-13】InputNumber设置精确3位小数传入''变成了0.00
+  if (['InputNumber'].includes(component) && typeof val === 'string' && val != '') {
     return Number(val);
   }
+  // update-end--author:liaozhiyang---date:20240517---for：【TV360X-13】InputNumber设置精确3位小数传入''变成了0.00
   return val;
 }
 

@@ -77,6 +77,12 @@
         let seriesData = [];
         typeArr.forEach((type) => {
           let obj: any = { name: type, type: props.type };
+          // update-begin--author:liaozhiyang---date:20240407---for：【QQYUN-8762】首页默认及echars颜色调整
+          const findItem: any = props.chartData.find((item: any) => item.type == type);
+          if (findItem && findItem.color) {
+            obj.color = findItem.color;
+          }
+          // update-end--author:liaozhiyang---date:20240407---for：【QQYUN-8762】首页默认及echars颜色调整
           // update-begin-author:liusq date:2023-7-12 for: [issues/613] LineMulti 在数据不对齐时，横坐标计算错误
           let data = [];
           xAxisData.forEach((x) => {

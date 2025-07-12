@@ -6,6 +6,7 @@
     style="width: 100%"
     :disabled="disabled"
     :dropdownStyle="{ maxHeight: '400px', overflow: 'auto' }"
+    showCheckedStrategy="SHOW_ALL"
     :placeholder="placeholder"
     :loadData="asyncLoadTreeData"
     :value="treeValue"
@@ -16,7 +17,7 @@
   </a-tree-select>
 </template>
 <script lang="ts">
-  import { defineComponent, ref, unref, watch } from 'vue';
+  import { defineComponent, ref, unref, watch, nextTick } from 'vue';
   import { useRuleFormItem } from '/@/hooks/component/useFormItem';
   import { propTypes } from '/@/utils/propTypes';
   import { useAttrs } from '/@/hooks/core/useAttrs';
@@ -78,13 +79,15 @@
       const treeData = ref<any[]>([]);
       const treeValue = ref();
       const attrs = useAttrs();
-      const [state] = useRuleFormItem(props, 'value', 'change', emitData);
+      const [state, , , formItemContext] = useRuleFormItem(props, 'value', 'change', emitData);
       watch(
         () => props.value,
         () => {
           loadItemByCode();
         },
-        { deep: true }
+        //update-begin---author:wangshuai---date:2024-06-17---for:【TV360X-480】封装表单和原生表单，默认值生成有问题的字段：分类字典树附默认值不生效---
+        { deep: true, immediate: true }
+        //update-end---author:wangshuai---date:2024-06-17---for:【TV360X-480】封装表单和原生表单，默认值生成有问题的字段：分类字典树附默认值不生效---
       );
       watch(
         () => props.pcode,
@@ -124,6 +127,7 @@
             treeValue.value = { value: null, label: null };
           }
         } else {
+          console.log("props.value:::",props.value)
           loadDictItem({ ids: props.value }).then((res) => {
             let values = props.value.split(',');
             treeValue.value = res.map((item, index) => ({
@@ -218,6 +222,11 @@
           backValue(value.value, value.label);
           treeValue.value = value;
         }
+        // update-begin--author:liaozhiyang---date:20240429---for：【QQYUN-9110】组件有值校验没消失
+        nextTick(() => {
+          formItemContext?.onFieldChange();
+        });
+        // update-end--author:liaozhiyang---date:20240429---for：【QQYUN-9110】组件有值校验没消失
       }
 
       function getCurrTreeData() {

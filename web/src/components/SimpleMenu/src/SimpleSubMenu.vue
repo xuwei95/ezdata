@@ -11,7 +11,13 @@
       <SimpleMenuTag :item="item" :collapseParent="getIsCollapseParent" />
     </template>
   </MenuItem>
-  <SubMenu :name="item.path" v-if="menuHasChildren(item) && getShowMenu" :class="[getLevelClass, theme]" :collapsedShowTitle="collapsedShowTitle">
+  <SubMenu
+    :isThemeBright="isThemeBright"
+    :name="item.path"
+    v-if="menuHasChildren(item) && getShowMenu"
+    :class="[getLevelClass, theme]"
+    :collapsedShowTitle="collapsedShowTitle"
+  >
     <template #title>
       <Icon v-if="getIcon" :icon="getIcon" :size="16" />
 
@@ -25,7 +31,7 @@
       <SimpleMenuTag :item="item" :collapseParent="!!collapse && !!parent" />
     </template>
     <template v-for="childrenItem in item.children || []" :key="childrenItem.path">
-      <SimpleSubMenu v-bind="$props" :item="childrenItem" :parent="false" />
+      <SimpleSubMenu v-bind="$props" :isThemeBright="isThemeBright" :item="childrenItem" :parent="false" />
     </template>
   </SubMenu>
 </template>
@@ -60,6 +66,12 @@
       collapsedShowTitle: propTypes.bool,
       collapse: propTypes.bool,
       theme: propTypes.oneOf(['dark', 'light']),
+      // update-begin--author:liaozhiyang---date:20240417---for:【QQYUN-8927】侧边栏导航二级菜单彩色模式文字颜色调整
+      isThemeBright: {
+        type: Boolean,
+        default: false,
+      },
+      // update-end--author:liaozhiyang---date:20240417---for:【QQYUN-8927】侧边栏导航二级菜单彩色模式文字颜色调整
     },
     setup(props) {
       const { t } = useI18n();

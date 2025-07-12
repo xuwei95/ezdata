@@ -100,7 +100,6 @@
     text-overflow: ellipsis;
     word-break: break-all;
     white-space: nowrap;
-    color: #000;
     margin-top: 4px;
     margin-bottom: 0;
     font-size: 30px;

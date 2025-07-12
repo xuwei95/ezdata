@@ -24,6 +24,12 @@
         type: String as PropType<string>,
         default: 'calc(100vh - 78px)',
       },
+      // update-begin--author:liaozhiyang---date:20240407---for：【QQYUN-8762】首页默认及echars颜色调整
+      seriesColor: {
+        type: String,
+        default: '#1890ff',
+      },
+      // update-end--author:liaozhiyang---date:20240407---for：【QQYUN-8762】首页默认及echars颜色调整
     },
     setup(props) {
       const chartRef = ref<HTMLDivElement | null>(null);
@@ -53,6 +59,7 @@
             smooth: true,
             areaStyle: {},
             data: [],
+            color: props.seriesColor,
           },
         ],
       });
@@ -60,7 +67,7 @@
       watchEffect(() => {
         props.chartData && initCharts();
       });
-
+      
       function initCharts() {
         if (props.option) {
           Object.assign(option, cloneDeep(props.option));
@@ -72,6 +79,9 @@
           return item.name;
         });
         option.series[0].data = seriesData;
+        // update-begin--author:liaozhiyang---date:20240407---for：【QQYUN-8762】首页默认及echars颜色调整
+        option.series[0].color = props.seriesColor;
+        // update-end--author:liaozhiyang---date:20240407---for：【QQYUN-8762】首页默认及echars颜色调整
         option.xAxis.data = xAxisData;
         setOptions(option);
       }

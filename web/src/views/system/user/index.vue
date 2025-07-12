@@ -64,8 +64,8 @@
   import { useMessage } from '/@/hooks/web/useMessage';
   import { columns, searchFormSchema } from './user.data';
   import { list, deleteUser, batchDeleteUser, getImportUrl, getExportUrl, frozenBatch, syncUser } from './user.api';
-  // import { usePermission } from '/@/hooks/web/usePermission'
-  // const { hasPermission } = usePermission();
+  import { usePermission } from '/@/hooks/web/usePermission'
+  const { hasPermission } = usePermission();
 
   const { createMessage, createConfirm } = useMessage();
 
@@ -234,7 +234,8 @@
       {
         label: '编辑',
         onClick: handleEdit.bind(null, record),
-        auth: ['user:edit'],
+        ifShow: () => hasPermission('user:edit'),
+        // auth: ['user:edit'],
       },
     ];
   }

@@ -42,12 +42,19 @@
   import 'codemirror/addon/hint/show-hint.css';
   import 'codemirror/addon/hint/show-hint.js';
   import 'codemirror/addon/hint/anyword-hint.js';
+  // 匹配括号
+  import 'codemirror/addon/edit/matchbrackets';
+  // 占位符
+  import 'codemirror/addon/display/placeholder.js';
+  
   import { useAttrs } from '/@/hooks/core/useAttrs';
   import { useDesign } from '/@/hooks/web/useDesign';
   import { isJsonObjectString } from '/@/utils/is.ts';
   // 代码提示
   import { useCodeHinting } from '../hooks/useCodeHinting';
 
+  import { useRootSetting } from '/@/hooks/setting/useRootSetting';
+  import { ThemeEnum } from '/@/enums/appEnum';
   export default defineComponent({
     name: 'JCodeEditor',
     // 不将 attrs 的属性绑定到 html 标签上
@@ -68,6 +75,7 @@
     },
     emits: ['change', 'update:value'],
     setup(props, { emit }) {
+      const { getDarkMode } = useRootSetting();
       const containerRef = ref(null);
       const { prefixCls } = useDesign('code-editer');
       const CodeMirror = window.CodeMirror || _CodeMirror;
@@ -82,7 +90,9 @@
         // 缩进格式
         tabSize: 2,
         // 主题，对应主题库 JS 需要提前引入
-        theme: props.theme,
+        // update-begin--author:liaozhiyang---date:20240327---for：【QQYUN-8639】暗黑主题适配
+        theme: getDarkMode.value == ThemeEnum.DARK ? 'monokai' : props.theme,
+        // update-end--author:liaozhiyang---date:20240327---for：【QQYUN-8639】暗黑主题适配
         smartIndent: true, // 是否智能缩进
         // 显示行号
         lineNumbers: true,
@@ -97,13 +107,19 @@
         // update-begin--author:liaozhiyang---date:20231201---for：【issues/869】JCodeEditor组件初始化时没有设置mode
         mode: props.language,
         // update-begin--author:liaozhiyang---date:20231201---for：【issues/869】JCodeEditor组件初始化时没有设置mode
-        //代码格式化
+        // update-begin--author:liaozhiyang---date:20240603---for：【TV360X-898】代码生成之后的预览改成只读
+        readOnly: props.disabled,
+        // update-end--author:liaozhiyang---date:20240603---for：【TV360X-898】代码生成之后的预览改成只读
+        // 匹配括号
+        matchBrackets: true,
         extraKeys: {
-          Tab: function autoFormat(editor) {
-            //var totalLines = editor.lineCount();
-            //editor.autoFormatRange({line:0, ch:0}, {line:totalLines});
-            setValue(innerValue, false);
-          },
+          // Tab: function autoFormat(editor) {
+          //   //var totalLines = editor.lineCount();
+          //   //editor.autoFormatRange({line:0, ch:0}, {line:totalLines});
+          //   setValue(innerValue, false);
+          // },
+          'Cmd-/': (cm) => comment(cm),
+          'Ctrl-/': (cm) => comment(cm),
         },
       });
       // 内部存储值，初始为 props.value
@@ -146,6 +162,11 @@
       );
       onMounted(() => {
         initialize();
+        // update-begin--author:liaozhiyang---date:20240318---for：【QQYUN-8473】代码编辑器首次加载会有遮挡
+        setTimeout(() => {
+          refresh();
+        }, 150);
+        // update-end--author:liaozhiyang---date:20240318---for：【QQYUN-8473】代码编辑器首次加载会有遮挡
       });
 
       /**
@@ -160,6 +181,15 @@
         coder?.setValue(value ?? '');
         innerValue = value;
         trigger && emitChange(innerValue);
+        // update-begin--author:liaozhiyang---date:20240510---for：【QQYUN-9231】代码编辑器有遮挡
+        setTimeout(() => {
+          refresh();
+          // 再次刷下防止小概率下遮挡问题
+          setTimeout(() => {
+            refresh();
+          }, 600);
+        }, 400);
+        // update-end--author:liaozhiyang---date:20240510---for：【QQYUN-9231】代码编辑器有遮挡
       }
 
       //编辑器值修改事件
@@ -221,6 +251,24 @@
       }
       //update-end-author:taoyan date:2022-10-18 for: VUEN-2480【严重bug】online vue3测试的问题 8、online js增强样式问题
 
+      /**
+       * 2024-04-01
+       * liaozhiyang
+       * 代码批量注释
+       */
+      function comment(cm) {
+        var selection = cm.getSelection();
+        var start = cm.getCursor('start');
+        var end = cm.getCursor('end');
+        var isCommented = selection.startsWith('//');
+        if (isCommented) {
+          // 如果已经被注释，取消注释
+          cm.replaceRange(selection.replace(/\n\/\/\s/g, '\n').replace(/^\/\/\s/, ''), start, end);
+        } else {
+          // 添加注释
+          cm.replaceRange('// ' + selection.replace(/\n(?=.)/g, '\n// '), start, end);
+        }
+      }
 
       return {
         state,
@@ -311,10 +359,24 @@
     .CodeMirror{
       border: 1px solid #ddd;
     }
+    .CodeMirror pre.CodeMirror-placeholder {
+      color: #cacaca;
+      font-family: -apple-system,BlinkMacSystemFont,Segoe UI,PingFang SC,Hiragino Sans GB,Microsoft YaHei,Helvetica Neue,Helvetica,Arial,sans-serif,Apple Color Emoji,Segoe UI Emoji,Segoe UI Symbol;
+    }
   }
-  .CodeMirror-hints.idea {
+  .CodeMirror-hints.idea,
+  .CodeMirror-hints.monokai {
     z-index: 1001;
     max-width: 600px;
     max-height: 300px;
   }
+  // update-begin--author:liaozhiyang---date:20240327---for：【QQYUN-8639】暗黑主题适配
+  html[data-theme='dark'] {
+    .@{prefix-cls} {
+      .CodeMirror {
+        border: 1px solid #3a3a3a;
+      }
+    }
+  }
+  // update-end--author:liaozhiyang---date:20240327---for：【QQYUN-8639】暗黑主题适配
 </style>

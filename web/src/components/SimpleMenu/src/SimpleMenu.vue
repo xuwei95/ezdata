@@ -3,12 +3,12 @@
     v-bind="getBindValues"
     :activeName="activeName"
     :openNames="getOpenKeys"
-    :class="prefixCls"
+    :class="`${prefixCls} ${isThemeBright ? 'bright' : ''}`"
     :activeSubMenuNames="activeSubMenuNames"
     @select="handleSelect"
   >
     <template v-for="item in items" :key="item.path">
-      <SimpleSubMenu :item="item" :parent="true" :collapsedShowTitle="collapsedShowTitle" :collapse="collapse" />
+      <SimpleSubMenu :isThemeBright="isThemeBright" :item="item" :parent="true" :collapsedShowTitle="collapsedShowTitle" :collapse="collapse" />
     </template>
   </Menu>
 </template>
@@ -29,6 +29,7 @@
 
   import { useOpenKeys } from './useOpenKeys';
   import { URL_HASH_TAB } from '/@/utils';
+  import { useAppStore } from '/@/store/modules/app';
 
   export default defineComponent({
     name: 'SimpleMenu',
@@ -56,6 +57,8 @@
     setup(props, { attrs, emit }) {
       const currentActiveMenu = ref('');
       const isClickGo = ref(false);
+      const appStore = useAppStore();
+      const isThemeBright = ref(false);
 
       const menuState = reactive<MenuState>({
         activeName: '',
@@ -93,7 +96,15 @@
         },
         { flush: 'post' }
       );
-
+      // update-begin--author:liaozhiyang---date:20240408---for：【QQYUN-8922】左侧导航栏文字颜色调整区分彩色和暗黑
+      watch(
+        () => appStore.getProjectConfig.menuSetting,
+        (menuSetting) => {
+          isThemeBright.value = !!menuSetting?.isThemeBright;
+        },
+        { immediate: true, deep: true }
+      );
+      // update-end--author:liaozhiyang---date:20240408---for：【QQYUN-8922】左侧导航栏文字颜色调整区分彩色和暗黑
       listenerRouteChange((route) => {
         if (route.name === REDIRECT_NAME) return;
 
@@ -174,6 +185,7 @@
         handleSelect,
         getOpenKeys,
         ...toRefs(menuState),
+        isThemeBright,
       };
     },
   });

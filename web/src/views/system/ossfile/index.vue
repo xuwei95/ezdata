@@ -38,7 +38,7 @@
 
   const { createMessage } = useMessage();
   const glob = useGlobSetting();
-  const tokenHeader = { Authorization: 'JWT ' + getToken() };
+  const tokenHeader = { Authorization: 'Bearer ' + getToken() };
   //注册table数据
   const [registerTable, { reload }] = useTable({
     api: list,

@@ -170,3 +170,23 @@ export function useRafThrottle<T extends FunctionArgs>(fn: T): T {
     });
   };
 }
+
+/**
+ * 查找父级元素，直到找到符合条件的元素
+ * @param element 当前元素
+ * @param checkFn 判断条件
+ */
+export function queryParentElement(element: HTMLElement, checkFn: (node: HTMLElement) => boolean): HTMLElement | null {
+  let ele: HTMLElement | null = element;
+  while (ele) {
+    try {
+      if (checkFn(ele)) {
+        return ele;
+      }
+      ele = ele.parentElement;
+    } catch (e) {
+      return null;
+    }
+  }
+  return null;
+}

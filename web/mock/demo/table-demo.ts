@@ -30,6 +30,8 @@ const demoList = (() => {
       avatar: Random.image('400x400', Random.color(), Random.color(), Random.first()),
       imgArr: getRandomPics(Math.ceil(Math.random() * 3) + 1),
       imgs: getRandomPics(Math.ceil(Math.random() * 3) + 1),
+      age: Math.ceil(Math.random() * 30) + 1,
+      score: Math.ceil(Math.random() * 80) + 1,
       date: `@date('yyyy-MM-dd')`,
       time: `@time('HH:mm')`,
       'no|100000-10000000': 100000,
@@ -46,7 +48,10 @@ export default [
     method: 'get',
     response: ({ query }) => {
       const { page = 1, pageSize = 20 } = query;
-      return resultPageSuccess(page, pageSize, demoList);
+      // update-begin--author:liaozhiyang---date:20240730---for：【issues/6943】mock翻页之后数据id和图片没自动刷新
+      const pageNo = +(query.pageNo ?? page);
+      return resultPageSuccess(pageNo, +pageSize, demoList);
+      // update-end--author:liaozhiyang---date:20240730---for：【issues/6943】mock翻页之后数据id和图片没自动刷新
     },
   },
 ] as MockMethod[];

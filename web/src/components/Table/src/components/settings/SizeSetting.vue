@@ -8,8 +8,8 @@
       <ColumnHeightOutlined />
       <template #overlay>
         <Menu @click="handleTitleClick" selectable v-model:selectedKeys="selectedKeysRef">
-          <MenuItem key="default">
-            <span>{{ t('component.table.settingDensDefault') }}</span>
+          <MenuItem key="large">
+            <span>{{ t('component.table.settingDensLarge') }}</span>
           </MenuItem>
           <MenuItem key="middle">
             <span>{{ t('component.table.settingDensMiddle') }}</span>
@@ -30,6 +30,8 @@
   import { useI18n } from '/@/hooks/web/useI18n';
   import { useTableContext } from '../../hooks/useTableContext';
   import { getPopupContainer } from '/@/utils';
+  import { useRoute } from 'vue-router';
+  import { createLocalStorage } from '/@/utils/cache';
 
   export default defineComponent({
     name: 'SizeSetting',
@@ -46,6 +48,8 @@
     setup(props) {
       const table = useTableContext();
       const { t } = useI18n();
+      const $ls = createLocalStorage();
+      const route = useRoute();
 
       const selectedKeysRef = ref<SizeType[]>([table.getSize()]);
       const getBindProps = computed(() => {
@@ -60,7 +64,28 @@
         table.setProps({
           size: key,
         });
+        // update-begin--author:liaozhiyang---date:20240604---for：【TV360X-100】缓存表格密度
+        $ls.set(cacheKey.value, key);
+        // update-end--author:liaozhiyang---date:20240604---for：【TV360X-100】缓存表格密度
       }
+      // update-begin--author:liaozhiyang---date:20240604---for：【TV360X-100】缓存表格密度
+      const cacheKey = computed(() => {
+        const path = route.path;
+        let key = path.replace(/[\/\\]/g, '_');
+        let cacheKey = table.getBindValues.value.tableSetting?.cacheKey;
+        if (cacheKey) {
+          key += ':' + cacheKey;
+        }
+        return 'tableSizeCache:' + key;
+      });
+      const local: SizeType | null = $ls.get(cacheKey.value);
+      if (local) {
+        selectedKeysRef.value = [local];
+        table.setProps({
+          size: local,
+        });
+      }
+      // update-end--author:liaozhiyang---date:20240604---for：【TV360X-100】缓存表格密度
 
       return {
         getBindProps,

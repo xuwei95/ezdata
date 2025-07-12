@@ -1,7 +1,8 @@
-import { defineComponent, h, ref, useSlots } from 'vue';
+import { defineComponent, h, nextTick, ref, useSlots } from 'vue';
 import { vxeEmits, vxeProps } from './vxe.data';
 import { useData, useRefs, useResolveComponent as rc } from './hooks/useData';
 import { useColumns } from './hooks/useColumns';
+import { useColumnsCache } from './hooks/useColumnsCache';
 import { useMethods } from './hooks/useMethods';
 import { useDataSource } from './hooks/useDataSource';
 import { useDragSort } from './hooks/useDragSort';
@@ -25,6 +26,10 @@ export default defineComponent({
     useColumns(props, data, methods, slots);
     useDataSource(props, data, methods, refs);
     useDragSort(props, methods);
+    // update-begin--author:liaozhiyang---date:20240321---for：【QQYUN-8566】JVXETable无法记住列设置
+    const { initSetting } = useColumnsCache({ cacheColumnsKey: props.cacheColumnsKey });
+    initSetting(props);
+    // update-end--author:liaozhiyang---date:20240321---for：【QQYUN-8566】JVXETable无法记住列设置
     // 最终传入到 template 里的 props
     const finallyProps = useFinallyProps(props, data, methods);
     // 渲染子组件

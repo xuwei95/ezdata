@@ -18,6 +18,7 @@ import { useErrorLogStoreWithOut } from '/@/store/modules/errorLog';
 import { useI18n } from '/@/hooks/web/useI18n';
 import { joinTimestamp, formatRequestDate } from './helper';
 import { useUserStoreWithOut } from '/@/store/modules/user';
+import { cloneDeep } from "lodash-es";
 const globSetting = useGlobSetting();
 const urlPrefix = globSetting.urlPrefix;
 const { createMessage, createErrorModal } = useMessage();
@@ -54,7 +55,6 @@ const transform: AxiosTransform = {
     const result = data.data;
     const message = data.msg;
     const success = data.success || false;
-    console.log(data, code, message, result);
     // 这里逻辑可以根据项目进行修改
     const hasSuccess = data && Reflect.has(data, 'code') && (code === ResultEnum.SUCCESS || code === 200);
     if (hasSuccess) {
@@ -67,40 +67,29 @@ const transform: AxiosTransform = {
 
     // 在此处根据自己项目的实际情况对不同的code执行不同的操作
     // 如果不希望中断当前请求，请return数据，否则直接抛出异常即可
-    // let timeoutMsg = '';
-    let errMsg = '';
-    const userStore = useUserStoreWithOut();
+    let timeoutMsg = '';
     switch (code) {
       case ResultEnum.TIMEOUT:
-        // timeoutMsg = t('sys.api.timeoutMessage');
-        // const userStore = useUserStoreWithOut();
-        errMsg = t('sys.api.timeoutMessage');
-        userStore.setToken(undefined);
-        userStore.logout(true);
-        break;
-      case ResultEnum.SERVER_FORBIDDEN:
-        errMsg = '用户授权错误';
+        timeoutMsg = t('sys.api.timeoutMessage');
+        const userStore = useUserStoreWithOut();
         userStore.setToken(undefined);
         userStore.logout(true);
         break;
       default:
         if (message) {
-          // timeoutMsg = message;
-          errMsg = message;
+          timeoutMsg = message;
         }
     }
 
     // errorMessageMode=‘modal’的时候会显示modal错误弹窗，而不是消息提示，用于一些比较重要的错误
     // errorMessageMode='none' 一般是调用时明确表示不希望自动弹出错误提示
     if (options.errorMessageMode === 'modal') {
-      // createErrorModal({ title: t('sys.api.errorTip'), content: timeoutMsg });
-      createErrorModal({ title: t('sys.api.errorTip'), content: errMsg });
+      createErrorModal({ title: t('sys.api.errorTip'), content: timeoutMsg });
     } else if (options.errorMessageMode === 'message') {
-      // createMessage.error(timeoutMsg);
-      createMessage.error(errMsg);
+      createMessage.error(timeoutMsg);
     }
-    throw new Error(errMsg || t('sys.api.apiRequestFailed'));
-    // throw new Error(timeoutMsg || t('sys.api.apiRequestFailed'));
+
+    throw new Error(timeoutMsg || t('sys.api.apiRequestFailed'));
   },
 
   // 请求之前处理config
@@ -114,6 +103,12 @@ const transform: AxiosTransform = {
     if(requestUrl!=null && (requestUrl.startsWith("http:") || requestUrl.startsWith("https:"))){
       isStartWithHttp = true;
     }
+    // update-begin--author:sunjianlei---date:20250411---for：【QQYUN-9685】构建 electron 桌面应用
+    if (!isStartWithHttp && requestUrl != null) {
+      // 由于electron的url是file://开头的，所以需要判断一下
+      isStartWithHttp = requestUrl.startsWith('file://');
+    }
+    // update-end----author:sunjianlei---date:20250411---for：【QQYUN-9685】构建 electron 桌面应用
     if (!isStartWithHttp && joinPrefix) {
       config.url = `${urlPrefix}${config.url}`;
     }
@@ -122,7 +117,7 @@ const transform: AxiosTransform = {
       config.url = `${apiUrl}${config.url}`;
     }
     //update-end---author:scott ---date::2024-02-20  for：以http开头的请求url，不拼加前缀--
-
+    
     const params = config.params || {};
     const data = config.data || false;
     formatDate && data && !isString(data) && formatRequestDate(data);
@@ -155,6 +150,15 @@ const transform: AxiosTransform = {
         config.params = undefined;
       }
     }
+
+    // update-begin--author:sunjianlei---date:220241019---for：【JEECG作为乾坤子应用】作为乾坤子应用启动时，拼接请求路径
+    if (globSetting.isQiankunMicro) {
+      if (config.url && config.url.startsWith('/')) {
+        config.url = globSetting.qiankunMicroAppEntry + config.url
+      }
+    }
+    // update-end--author:sunjianlei---date:220241019---for：【JEECG作为乾坤子应用】作为乾坤子应用启动时，拼接请求路径
+
     return config;
   },
 
@@ -165,19 +169,27 @@ const transform: AxiosTransform = {
     // 请求之前处理config
     const token = getToken();
     let tenantId: string | number = getTenantId();
+    
+    //update-begin---author:wangshuai---date:2024-04-16---for:【QQYUN-9005】发送短信加签。解决没有token无法加签---
+    // 将签名和时间戳，添加在请求接口 Header
+    config.headers[ConfigEnum.TIMESTAMP] = signMd5Utils.getTimestamp();
+    //update-begin---author:wangshuai---date:2024-04-25---for: 生成签名的时候复制一份，避免影响原来的参数---
+    config.headers[ConfigEnum.Sign] = signMd5Utils.getSign(config.url, cloneDeep(config.params), cloneDeep(config.data));
+    //update-end---author:wangshuai---date:2024-04-25---for: 生成签名的时候复制一份，避免影响原来的参数---
+    //update-end---author:wangshuai---date:2024-04-16---for:【QQYUN-9005】发送短信加签。解决没有token无法加签---
+    // update-begin--author:liaozhiyang---date:20240509---for：【issues/1220】登录时，vue3版本不加载字典数据设置无效
+    //--update-begin--author:liusq---date:20220325---for: 增加vue3标记
+    config.headers[ConfigEnum.VERSION] = 'v3';
+    //--update-end--author:liusq---date:20220325---for:增加vue3标记
+    // update-end--author:liaozhiyang---date:20240509---for：【issues/1220】登录时，vue3版本不加载字典数据设置无效
     if (token && (config as Recordable)?.requestOptions?.withToken !== false) {
       // jwt token
       config.headers.Authorization = options.authenticationScheme ? `${options.authenticationScheme} ${token}` : token;
       config.headers[ConfigEnum.TOKEN] = token;
-      //--update-begin--author:liusq---date:20210831---for:将签名和时间戳，添加在请求接口 Header
-
-      // update-begin--author:taoyan---date:20220421--for: VUEN-410【签名改造】 X-TIMESTAMP牵扯
-      config.headers[ConfigEnum.TIMESTAMP] = signMd5Utils.getTimestamp();
-      // update-end--author:taoyan---date:20220421--for: VUEN-410【签名改造】 X-TIMESTAMP牵扯
-
-      config.headers[ConfigEnum.Sign] = signMd5Utils.getSign(config.url, config.params);
-      //--update-end--author:liusq---date:20210831---for:将签名和时间戳，添加在请求接口 Header
-      //--update-begin--author:liusq---date:20211105---for: for:将多租户id，添加在请求接口 Header
+      
+      // 将签名和时间戳，添加在请求接口 Header
+      //config.headers[ConfigEnum.TIMESTAMP] = signMd5Utils.getTimestamp();
+      //config.headers[ConfigEnum.Sign] = signMd5Utils.getSign(config.url, config.params);
       if (!tenantId) {
         tenantId = 0;
       }
@@ -192,16 +204,11 @@ const transform: AxiosTransform = {
       // update-end--author:sunjianlei---date:220230428---for：【QQYUN-5279】修复分享的应用租户和当前登录租户不一致时，提示404的问题
 
       config.headers[ConfigEnum.TENANT_ID] = tenantId;
-      //--update-begin--author:liusq---date:20220325---for: 增加vue3标记
-      config.headers[ConfigEnum.VERSION] = 'v3';
-      //--update-end--author:liusq---date:20220325---for:增加vue3标记
       //--update-end--author:liusq---date:20211105---for:将多租户id，添加在请求接口 Header
 
       // ========================================================================================
       // update-begin--author:sunjianlei---date:20220624--for: 添加低代码应用ID
-      // let routeParams = router.currentRoute.value.params;
-      const routeParams = router.currentRoute.value.params;
-
+      let routeParams = router.currentRoute.value.params;
       if (routeParams.appId) {
         config.headers[ConfigEnum.X_LOW_APP_ID] = routeParams.appId;
         // lowApp自定义筛选条件
@@ -271,7 +278,7 @@ function createAxios(opt?: Partial<CreateAxiosOptions>) {
         // See https://developer.mozilla.org/en-US/docs/Web/HTTP/Authentication#authentication_schemes
         // authentication schemes，e.g: Bearer
         // authenticationScheme: 'Bearer',
-        authenticationScheme: 'JWT',
+        authenticationScheme: 'Bearer',
         //接口超时设置
         timeout: 60 * 1000,
         // 基础接口地址

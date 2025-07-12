@@ -2,12 +2,13 @@
   <div :class="prefixCls">
     <template v-for="color in colorList || []" :key="color">
       <span
-        @click="handleClick(color)"
+        @click=" !isDisabledColor && handleClick(color)"
         :class="[
           `${prefixCls}__item`,
           {
             [`${prefixCls}__item--active`]: def === color,
             [`${prefixCls}__item--black`]: color == '#ffffff',
+            disabledColor: isDisabledColor,
           },
         ]"
         :style="{ background: color }"
@@ -18,13 +19,15 @@
   </div>
 </template>
 <script lang="ts">
-  import { defineComponent, PropType } from 'vue';
+  import { defineComponent, PropType, watch, ref } from 'vue';
   import { CheckOutlined } from '@ant-design/icons-vue';
 
   import { useDesign } from '/@/hooks/web/useDesign';
 
   import { baseHandler } from '../handler';
   import { HandlerEnum } from '../enum';
+  import { useRootSetting } from '/@/hooks/setting/useRootSetting';
+  import { ThemeEnum } from '/@/enums/appEnum';
 
   export default defineComponent({
     name: 'ThemeColorPicker',
@@ -43,13 +46,25 @@
     },
     setup(props) {
       const { prefixCls } = useDesign('setting-theme-picker');
+      const { getDarkMode } = useRootSetting();
+      const isDisabledColor = ref(false);
 
       function handleClick(color: string) {
         props.event && baseHandler(props.event, color);
       }
+      // update-begin--author:liaozhiyang---date:20240417---for:【QQYUN-8927】暗黑主题下不允许切换顶栏主题和菜单主题
+      watch(
+        () => getDarkMode.value,
+        (newValue) => {
+          isDisabledColor.value = props.event === 1 ? false : newValue === ThemeEnum.DARK;
+        },
+        { immediate: true }
+      );
+      // update-end--author:liaozhiyang---date:20240417---for:【QQYUN-8927】暗黑主题下不允许切换顶栏主题和菜单主题
       return {
         prefixCls,
         handleClick,
+        isDisabledColor
       };
     },
   });
@@ -71,14 +86,15 @@
       cursor: pointer;
       border: 1px solid #ddd;
       border-radius: 2px;
-
+      &.disabledColor {
+        cursor: not-allowed;
+        opacity: 0.5;
+      }
       svg {
         display: none;
       }
 
       &--active {
-        border: 1px solid lighten(@primary-color, 10%);
-
         svg {
           display: inline-block;
           margin: 0 0 3px 3px;

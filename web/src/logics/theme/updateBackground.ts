@@ -71,11 +71,22 @@ export function updateSidebarBgColor(color?: string) {
 
   // only #ffffff is light
   // Only when the background color is #fff, the theme of the menu will be changed to light
-  const isLight = ['#fff', '#ffffff'].includes(color!.toLowerCase());
-
+  // update-begin--author:liaozhiyang---date:20240408---for：【QQYUN-8922】左侧导航栏文字颜色调整区分彩色和暗黑
+  let theme;
+  let isThemeBright = false;
+  if (['#fff', '#ffffff'].includes(color!.toLowerCase()) && !darkMode) {
+    theme = ThemeEnum.LIGHT;
+  } else if (['#009688', '#e74c3c','#037bd5'].includes(color!.toLowerCase()) && !darkMode) {
+    theme = ThemeEnum.DARK;
+    isThemeBright = true;
+  } else {
+    theme = ThemeEnum.DARK;
+  }
   appStore.setProjectConfig({
     menuSetting: {
-      theme: isLight && !darkMode ? ThemeEnum.LIGHT : ThemeEnum.DARK,
+      theme,
+      isThemeBright,
     },
   });
+  // update-end--author:liaozhiyang---date:20240408---for：【QQYUN-8922】左侧导航栏文字颜色调整区分彩色和暗黑
 }

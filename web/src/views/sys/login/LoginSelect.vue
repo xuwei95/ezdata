@@ -137,6 +137,12 @@
        * 处理部门情况
        */
       function bizDepart(loginResult) {
+        //如果登录接口返回了用户上次登录租户ID，则不需要重新选择
+        if(loginResult.userInfo?.orgCode && loginResult.userInfo?.orgCode!==''){
+          isMultiDepart.value = false;
+          return;
+        }
+        
         let multi_depart = loginResult.multi_depart;
         //0:无部门 1:一个部门 2:多个部门
         if (multi_depart == 0) {
@@ -158,6 +164,12 @@
        * 处理租户情况
        */
       function bizTenantList(loginResult) {
+        //如果登录接口返回了用户上次登录租户ID，则不需要重新选择
+        if(loginResult.userInfo?.loginTenantId && loginResult.userInfo?.loginTenantId!==0){
+          isMultiTenant.value = false;
+          return;
+        }
+        
         let tenantArr = loginResult.tenantList;
         if (Array.isArray(tenantArr)) {
           if (tenantArr.length === 0) {
@@ -210,10 +222,10 @@
        */
       function departResolve() {
         return new Promise((resolve, reject) => {
-          if (!unref(isMultiDepart)) {
+          if (!unref(isMultiDepart) && !unref(isMultiTenant)) {
             resolve();
           } else {
-            let params = { orgCode: formState.orgCode, username: unref(username) };
+            let params = { orgCode: formState.orgCode,loginTenantId: formState.tenantId, username: unref(username) };
             defHttp.put({ url: '/sys/selectDepart', params }).then((res) => {
               if (res.userInfo) {
                 userStore.setUserInfo(res.userInfo);

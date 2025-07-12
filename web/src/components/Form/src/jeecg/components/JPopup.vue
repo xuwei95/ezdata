@@ -1,8 +1,8 @@
 <!--popup组件-->
 <template>
-  <div class="components-input-demo-presuffix" v-if="avalid">
+  <div class="JPopup components-input-demo-presuffix" v-if="avalid">
     <!--输入框-->
-    <a-input @click="handleOpen" v-model:value="showText" :placeholder="placeholder" readOnly v-bind="attrs">
+    <a-input @click="handleOpen" :value="innerShowText || showText" :placeholder="placeholder" readOnly v-bind="attrs">
       <template #prefix>
         <Icon icon="ant-design:cluster-outlined"></Icon>
       </template>
@@ -12,17 +12,23 @@
             </template>-->
       <!-- update-begin-author:taoyan date:2022-5-31 for: VUEN-1157 popup 选中后，有两个清除图标；后边这个清除，只是把输入框中数据清除，实际值并没有清除 -->
     </a-input>
-    <!--popup弹窗-->
-    <JPopupOnlReportModal
-      @register="regModal"
-      :code="code"
-      :multi="multi"
-      :sorter="sorter"
-      :groupId="uniqGroupId"
-      :param="param"
-      @ok="callBack"
-      :getContainer="getContainer"
-    ></JPopupOnlReportModal>
+    <!-- update-begin--author:liaozhiyang---date:20240515---for：【QQYUN-9260】必填模式下会影响到弹窗内antd组件的样式 -->
+    <a-form-item>
+      <!--popup弹窗-->
+      <JPopupOnlReportModal
+        @register="regModal"
+        :code="code"
+        :multi="multi"
+        :sorter="sorter"
+        :groupId="uniqGroupId"
+        :param="param"
+        :showAdvancedButton="showAdvancedButton"
+        :getContainer="getContainer"
+        :getFormValues="getFormValues"
+        @ok="callBack"
+      ></JPopupOnlReportModal>
+    </a-form-item>
+    <!-- update-end--author:liaozhiyang---date:20240515---for：【QQYUN-9260】必填模式下会影响到弹窗内antd组件的样式 -->
   </div>
 </template>
 <script lang="ts">
@@ -51,11 +57,15 @@
       groupId: propTypes.string.def(''),
       formElRef: propTypes.object,
       setFieldsValue: propTypes.func,
+      getFormValues: propTypes.func,
       getContainer: propTypes.func,
       fieldConfig: {
         type: Array,
         default: () => [],
       },
+      showAdvancedButton: propTypes.bool.def(true),
+      // 是否是在 筛选（search） 中使用
+      inSearch: propTypes.bool.def(false),
     },
     emits: ['update:value', 'register', 'popUpChange', 'focus'],
     setup(props, { emit, refs }) {
@@ -64,6 +74,7 @@
       //pop是否展示
       const avalid = ref(true);
       const showText = ref('');
+      const innerShowText = ref('')
       //注册model
       const [regModal, { openModal }] = useModal();
       //表单值
@@ -97,7 +108,9 @@
        */
       function handleOpen() {
         emit('focus');
-        !props.disabled && openModal(true);
+        // update-begin--author:liaozhiyang---date:20240528---for：【TV360X-317】禁用后JPopup和JPopupdic还可以点击出弹窗
+        !attrs.value.disabled && openModal(true);
+        // update-end--author:liaozhiyang---date:20240528---for：【TV360X-317】禁用后JPopup和JPopupdic还可以点击出弹窗
       }
 
       /**
@@ -114,6 +127,7 @@
         let { fieldConfig } = props;
         //匹配popup设置的回调值
         let values = {};
+        let labels = []
         for (let item of fieldConfig) {
           let val = rows.map((row) => row[item.source]);
           // update-begin--author:liaozhiyang---date:20230831---for：【QQYUN-7535】数组只有一个且是number类型，join会改变值的类型为string
@@ -122,7 +136,20 @@
           item.target.split(',').forEach((target) => {
             values[target] = val;
           });
+
+          if (props.inSearch) {
+            // 处理显示值
+            if (item.label) {
+              let txt = rows.map((row) => row[item.label]);
+              txt = txt.length == 1 ? txt[0] : txt.join(',');
+              labels.push(txt);
+            } else {
+              labels.push(val);
+            }
+          }
+
         }
+        innerShowText.value = labels.join(',');
         //传入表单示例方式赋值
         props.formElRef && props.formElRef.setFieldsValue(values);
         //传入赋值方法方式赋值
@@ -136,6 +163,7 @@
 
       return {
         showText,
+        innerShowText,
         avalid,
         uniqGroupId,
         attrs,
@@ -148,6 +176,13 @@
   });
 </script>
 <style lang="less" scoped>
+  // update-begin--author:liaozhiyang---date:20240515---for：【QQYUN-9260】必填模式下会影响到弹窗内antd组件的样式
+  .JPopup {
+    > .ant-form-item {
+      display: none;
+    }
+  }
+  // update-end--author:liaozhiyang---date:20240515---for：【QQYUN-9260】必填模式下会影响到弹窗内antd组件的样式
   .components-input-demo-presuffix .anticon-close-circle {
     cursor: pointer;
     color: #ccc;

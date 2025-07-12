@@ -38,6 +38,7 @@
   import { UploadTypeEnum } from './upload.data';
   import { getFileAccessHttpUrl, getHeaders } from '/@/utils/common/compUtils';
   import UploadItemActions from './components/UploadItemActions.vue';
+  import { split } from '/@/utils/index';
 
   const { createMessage, createConfirm } = useMessage();
   const { prefixCls } = useDesign('j-upload');
@@ -201,7 +202,10 @@
       return;
     }
     let list: any[] = [];
-    for (const item of paths.split(',')) {
+    // update-begin--author:liaozhiyang---date:20250325---for：【issues/7990】图片参数中包含逗号会错误的识别成多张图
+    const result = split(paths);
+    // update-end--author:liaozhiyang---date:20250325---for：【issues/7990】图片参数中包含逗号会错误的识别成多张图
+    for (const item of result) {
       let url = getFileAccessHttpUrl(item);
       list.push({
         uid: uidGenerator(),
@@ -305,7 +309,10 @@
     } else if (info.file.status === 'error') {
       createMessage.error(`${info.file.name} 上传失败.`);
     }
-    fileList.value = fileListTemp;
+    // update-begin--author:liaozhiyang---date:20240628---for：【issues/1273】上传组件JUpload配置beforeUpload阻止了上传，前端页面中还是显示缩略图
+    // beforeUpload 返回false，则没有status
+    info.file.status && (fileList.value = fileListTemp);
+    // update-end--author:liaozhiyang---date:20240628---for：【issues/1273】上传组件JUpload配置beforeUpload阻止了上传，前端页面中还是显示缩略图
     if (info.file.status === 'done' || info.file.status === 'removed') {
       //returnUrl为true时仅返回文件路径
       if (props.returnUrl) {
@@ -317,8 +324,7 @@
           if (item.status === 'done') {
             let fileJson = {
               fileName: item.name,
-              // filePath: item.response.message,
-              filePath: item.response.data.url,
+              filePath: item.response.message,
               fileSize: item.size,
             };
             newFileList.push(fileJson);
@@ -342,8 +348,7 @@
     let pathList: string[] = [];
     for (const item of uploadFiles) {
       if (item.status === 'done') {
-        pathList.push(item.response.data.url);
-        // pathList.push(item.response.message);
+        pathList.push(item.response.message);
       } else {
         return;
       }
@@ -410,7 +415,9 @@
         }
         /* update-end-author:taoyan date:2022-5-24 for:VUEN-1093详情界面 图片下载按钮显示不全*/
       }
-
+      .ant-upload-text-icon {
+        color: @primary-color;
+      }
       .ant-upload-list-item {
         .upload-actions-container {
           position: absolute;

@@ -11,7 +11,7 @@ export const getDictItemsByCode = (code) => {
   // update-begin--author:liaozhiyang---date:20230908---for：【QQYUN-6417】生产环境字典慢的问题
   const userStore = useUserStore();
   const dictItems = userStore.getAllDictItems;
-  if (typeof dictItems === 'object' && dictItems[code]) {
+  if (null != dictItems && typeof dictItems === 'object' && dictItems[code]) {
     return dictItems[code];
   }
   //update-begin-author:liusq---date:2023-10-13--for: 【issues/777】列表 分类字典不显示
@@ -23,6 +23,21 @@ export const getDictItemsByCode = (code) => {
 
   // update-end--author:liaozhiyang---date:20230908---for：【QQYUN-6417】生产环境字典慢的问题
 
+};
+/**
+ * 从缓存中获取Pop字典配置
+ * @param text
+ * @param code
+ */
+export const getPopDictByCode = (text, codeStr) => {
+  const [code, dictCode, dictText] = codeStr.split(',');
+  if (!code || !dictCode || !dictText) {
+    return [];
+  }
+  return defHttp.get(
+    { url: `/online/api/cgreportGetDataPackage`, params: { code, dictText, dictCode, dataList: text } },
+    { isTransformResponse: false }
+  );
 };
 /**
  * 获取字典数组

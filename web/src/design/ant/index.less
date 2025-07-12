@@ -70,9 +70,12 @@
 // update-begin--author:liaozhiyang---date:20231218---for：【QQYUN-6366】升级到antd4.x
 .ant-modal {
   .ant-modal-close {
-    position: absolute;
-    top: 0;
-    right: 0;
+    // update-begin--author:liaozhiyang---date:20241010---for：【issues/7260】原生a-modal关闭按钮位置偏移
+    // position: absolute;
+    // top: 0;
+    // right: 0;
+    top: 13px;
+    // update-end--author:liaozhiyang---date:20241010---for：【issues/7260】原生a-modal关闭按钮位置偏移
     width: auto;
     height: auto;
   }
@@ -176,3 +179,34 @@ html[data-theme='dark'] .ant-input-affix-wrapper-textarea-with-clear-btn {
   font-size: 14px !important;
 }
 //update-end--author:wangshuai---date:20240429---for：修改tinymce段落下拉框的字体和样式
+
+// update-begin--author:liaozhiyang---date:20240605---for：【TV360X-189】统一只读样式
+html[data-theme='light'] {
+  .ant-form:not(.jeecg-form-detail-effect) {
+    .ant-select.ant-select-disabled {
+      .ant-select-selection-item {
+        color: rgba(51, 51, 51, 0.25) !important;
+        // color: rgba(51, 51, 51, 0.25);
+        .ant-select-selection-item-content {
+          color: rgba(51, 51, 51, 0.25);
+        }
+      }
+    }
+    .ant-input-number.ant-input-number-disabled {
+      .ant-input-number-input {
+        color: rgba(51, 51, 51, 0.25);
+      }
+    }
+  }
+}
+
+html[data-theme='dark'] {
+  .ant-form:not(.jeecg-form-detail-effect) {
+    .ant-input-number.ant-input-number-disabled {
+      .ant-input-number-input {
+        color:rgba(255, 255, 255, 0.25);
+      }
+    }
+  }
+}
+// update-end--author:liaozhiyang---date:20240605---for：【TV360X-189】统一只读样式

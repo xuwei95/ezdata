@@ -2,7 +2,6 @@ node_modules
 .DS_Store
 .github
 dist
-.npmrc
 .cache
 
 tests/server/static
@@ -34,4 +33,3 @@ os_del.cmd
 /.vscode/
 /.history/
 /svn clear.bat
-datas

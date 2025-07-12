@@ -93,7 +93,7 @@
           height: 75px;
           padding: 5px;
           .text {
-            color: #1e88e5 !important;
+            color: rgba(51, 51, 51, 0.6) !important;
             align-items: center;
             display: flex;
             flex-basis: 30px;
@@ -232,3 +232,21 @@
     }
   }
 }
+
+// update-begin--author:liaozhiyang---date:20240327---for：【QQYUN-8639】暗黑主题适配
+html[data-theme='dark'] {
+  .jeecg-comment-files {
+    &.ant-alert-info {
+      background-color: #141414;
+      border: 1px solid #3a3a3a;
+    }
+    .j-icon,
+    .j-icon:hover {
+      border-color: #3a3a3a;
+      .inner-button:hover {
+        color: #bebebe;
+      }
+    }
+  }
+}
+// update-end--author:liaozhiyang---date:20240327---for：【QQYUN-8639】暗黑主题适配

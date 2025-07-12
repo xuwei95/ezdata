@@ -8,8 +8,12 @@
       :width="showSelected ? '1200px' : '900px'"
       wrapClassName="j-user-select-modal"
       @ok="handleOk"
+      @cancel="handleCancel"
+      :maxHeight="maxHeight"
+      :centered="true"
       destroyOnClose
       @visible-change="visibleChange"
+      
     >
       <a-row>
         <a-col :span="showSelected ? 18 : 24">
@@ -25,6 +29,7 @@
             :rowSelection="rowSelection"
             :indexColumnProps="indexColumnProps"
             :afterFetch="afterFetch"
+            :beforeFetch="beforeFetch"
           >
             <!-- update-begin-author:taoyan date:2022-5-25 for: VUEN-1112一对多 用户选择 未显示选择条数，及清空 -->
             <template #tableTitle></template>
@@ -81,11 +86,13 @@
       },
       //update-end---author:wangshuai ---date:20230703  for：【QQYUN-5685】5、离职人员可以选自己------------
     },
-    emits: ['register', 'getSelectResult'],
+    emits: ['register', 'getSelectResult', 'close'],
     setup(props, { emit, refs }) {
       // update-begin-author:taoyan date:2022-5-24 for: VUEN-1086 【移动端】用户选择 查询按钮 效果不好 列表展示没有滚动条
       const tableScroll = ref<any>({ x: false });
       const tableRef = ref();
+      const maxHeight = ref(600);
+
       //注册弹框
       const [register, { closeModal }] = useModalInner(() => {
         if (window.innerWidth < 900) {
@@ -112,7 +119,8 @@
       const getBindValue = Object.assign({}, unref(props), unref(attrs), config);
       const [{ rowSelection, visibleChange, selectValues, indexColumnProps, getSelectResult, handleDeleteSelected, selectRows }] = useSelectBiz(
         getUserList,
-        getBindValue
+        getBindValue,
+        emit
       );
       const searchInfo = ref(props.params);
       // update-begin--author:liaozhiyang---date:20230811---for：【issues/657】右侧选中列表删除无效
@@ -248,7 +256,28 @@
         }
         return record;
       }
+      // update-begin--author:liaozhiyang---date:20240517---for：【QQYUN-9366】用户选择组件取消和关闭会把选择数据带入
+      const handleCancel = () => {
+        emit('close');
+      };
+      // update-end--author:liaozhiyang---date:20240517---for：【QQYUN-9366】用户选择组件取消和关闭会把选择数据带入
       //update-end---author:wangshuai ---date:20230703  for：【QQYUN-5685】5、离职人员可以选自己------------
+
+      // update-begin--author:liaozhiyang---date:20240607---for：【TV360X-305】小屏幕展示10条
+      const clientHeight = document.documentElement.clientHeight * 200;
+      maxHeight.value = clientHeight > 600 ? 600 : clientHeight;
+      // update-end--author:liaozhiyang---date:20240607---for：【TV360X-305】小屏幕展示10条
+
+      //update-begin---author:wangshuai---date:2024-07-03---for:【TV360X-1629】用户选择组件不是根据创建时间正序排序的---
+      /**
+       * 请求之前根据创建时间排序
+       *
+       * @param params
+       */
+      function beforeFetch(params) {
+        return Object.assign({ column: 'createTime', order: 'desc' }, params);
+      }
+      //update-end---author:wangshuai---date:2024-07-03---for:【TV360X-1629】用户选择组件不是根据创建时间正序排序的---
 
       return {
         //config,
@@ -268,6 +297,9 @@
         tableScroll,
         tableRef,
         afterFetch,
+        handleCancel,
+        maxHeight,
+        beforeFetch,
       };
     },
   });

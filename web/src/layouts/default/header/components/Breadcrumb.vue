@@ -163,42 +163,61 @@
         margin-bottom: 2px;
       }
     }
-
+    // update-begin--author:liaozhiyang---date:20240408---for：【QQYUN-8922】面包屑样式调整
     &--light {
       .ant-breadcrumb-link {
-        color: @breadcrumb-item-normal-color;
-
+        color: rgba(0, 0, 0, 0.85);
         a {
-          color: rgba(0, 0, 0, 0.65);
+          color: rgba(0, 0, 0, 0.85);
 
           &:hover {
             color: @primary-color;
           }
         }
       }
-
-      .ant-breadcrumb-separator {
-        color: @breadcrumb-item-normal-color;
-      }
-    }
-
-    &--dark {
-      .ant-breadcrumb-link {
-        color: rgba(255, 255, 255, 0.6);
-
-        a {
-          color: rgba(255, 255, 255, 0.8);
-
-          &:hover {
-            color: @white;
-          }
-        }
-      }
-
       .ant-breadcrumb-separator,
       .anticon {
-        color: rgba(255, 255, 255, 0.8);
+        color: rgba(0, 0, 0, 0.85);
       }
     }
   }
+  html[data-theme='dark'] {
+    .@{prefix-cls} {
+      &--dark {
+        .ant-breadcrumb-link {
+          color: rgba(255, 255, 255, 0.85);
+          a {
+            color: rgba(255, 255, 255, 0.85);
+            &:hover {
+              color: @white;
+            }
+          }
+        }
+        .ant-breadcrumb-separator,
+        .anticon {
+          color: rgba(255, 255, 255, 0.85);
+        }
+      }
+    }
+  }
+  html[data-theme='light'] {
+    .@{prefix-cls} {
+      &--dark {
+        .ant-breadcrumb-link {
+          color: rgba(255, 255, 255, 1);
+          a {
+            color: rgba(255, 255, 255, 1);
+            &:hover {
+              color: @white;
+            }
+          }
+        }
+        .ant-breadcrumb-separator,
+        .anticon {
+          color: rgba(255, 255, 255, 1);
+        }
+      }
+    }
+  }
+  // update-end--author:liaozhiyang---date:20240408---for：【QQYUN-8922】面包屑样式调整
 </style>

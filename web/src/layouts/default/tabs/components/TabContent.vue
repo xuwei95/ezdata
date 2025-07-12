@@ -1,10 +1,10 @@
 <template>
-  <Dropdown :dropMenuList="getDropMenuList" :trigger="getTrigger" @menuEvent="handleMenuEvent">
+  <Dropdown :dropMenuList="getDropMenuList" :trigger="getTrigger" @menuEvent="handleMenuEvent" :overlayClassName="prefixCls">
     <div :class="`${prefixCls}__info`" @contextmenu="handleContext" v-if="getIsTabs">
       <!-- updateBy:sunjianlei---updateDate:2021-09-03---修改tab切换栏样式：增加前缀图标 -->
-      <span v-if="showPrefixIcon" :class="`${prefixCls}__prefix-icon`" @click="handleContext">
-        <Icon :icon="prefixIconType" />
-      </span>
+      <!-- <span v-if="showPrefixIcon" :class="`${prefixCls}__prefix-icon`" @click="handleContext">
+        <Icon :icon="prefixIconType" :size="14" />
+      </span> -->
       <span class="ml-1">{{ getTitle }}</span>
     </div>
     <span :class="`${prefixCls}__extra-quick`" v-else @click="handleContext">
@@ -95,3 +95,18 @@
     },
   });
 </script>
+<style lang="less">
+  @prefix-cls: ~'@{namespace}-multiple-tabs-content';
+  .@{prefix-cls} {
+    .ant-dropdown-menu-item {
+      .ant-dropdown-menu-title-content {
+        .anticon {
+          font-size: 14px !important;
+        }
+        span:not(.anticon) {
+          margin-left: 6px;
+        }
+      }
+    }
+  }
+</style>

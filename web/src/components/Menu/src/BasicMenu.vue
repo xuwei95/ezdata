@@ -25,7 +25,7 @@
   import { MenuModeEnum, MenuTypeEnum } from '/@/enums/menuEnum';
   import { useOpenKeys } from './useOpenKeys';
   import { RouteLocationNormalizedLoaded, useRouter } from 'vue-router';
-  import { isFunction } from '/@/utils/is';
+  import { isFunction, isUrl } from '/@/utils/is';
   import { basicProps } from './props';
   import { useMenuSetting } from '/@/hooks/setting/useMenuSetting';
   import { REDIRECT_NAME } from '/@/router/constant';
@@ -33,6 +33,9 @@
   import { getCurrentParentPath } from '/@/router/menus';
   import { listenerRouteChange } from '/@/logics/mitt/routeChange';
   import { getAllParentPath } from '/@/router/helper/menuHelper';
+  import { createBasicRootMenuContext } from './useBasicMenuContext';
+  import { URL_HASH_TAB } from '/@/utils';
+  import { getMenus } from '/@/router/menus';
 
   export default defineComponent({
     name: 'BasicMenu',
@@ -52,7 +55,9 @@
         selectedKeys: [],
         collapsedOpenKeys: [],
       });
-
+      // update-begin--author:liaozhiyang---date:20230326---for：【QQYUN-8691】顶部菜单模式online不显示菜单名显示默认的auto在线表单
+      createBasicRootMenuContext({ menuState: menuState });
+      // update-end--author:liaozhiyang---date:20230326---for：【QQYUN-8691】顶部菜单模式online不显示菜单名显示默认的auto在线表单
       const { prefixCls } = useDesign('basic-menu');
       const { items, mode, accordion } = toRefs(props);
 
@@ -112,11 +117,50 @@
       //update-begin-author:taoyan date:2022-6-1 for: VUEN-1144 online 配置成菜单后，打开菜单，显示名称未展示为菜单名称
       async function handleMenuClick({ item, key }: { item: any; key: string; keyPath: string[] }) {
         const { beforeClickFn } = props;
+        // update-begin--author:liaozhiyang---date:20240402---for:【QQYUN-8773】配置外部网址在顶部菜单模式和搜索打不开
+        if (isUrl(key)) {
+          key = key.replace(URL_HASH_TAB, '#');
+          window.open(key);
+          return;
+        }
+        // update-begin--author:liaozhiyang---date:20250114---for:【issues/7706】顶部栏导航内部路由也可以支持采用新浏览器tab打开
+        const findItem = getMatchingMenu(props.items, key);
+        if (findItem?.internalOrExternal == true) {
+          window.open(location.origin + key);
+          return;
+        }
+        // update-end--author:liaozhiyang---date:20250114---for:【issues/7706】顶部栏导航内部路由也可以支持采用新浏览器tab打开
+        // update-end--author:liaozhiyang---date:20240402---for:【QQYUN-8773】配置外部网址在顶部菜单模式和搜索打不开
         if (beforeClickFn && isFunction(beforeClickFn)) {
           const flag = await beforeClickFn(key);
           if (!flag) return;
         }
-        emit('menuClick', key, item);
+        // update-begin--author:liaozhiyang---date:20240418---for:【QQYUN-8773】顶部混合导航(顶部左侧组合菜单)一级菜单没有配置redirect默认跳子菜单的第一个
+        if (props.type === MenuTypeEnum.MIX) {
+          const menus = await getMenus();
+          const menuItem = getMatchingPath(menus, key);
+          if (menuItem && !menuItem.redirect && menuItem.children?.length) {
+            const subMenuItem = getSubMenu(menuItem.children);
+            if (subMenuItem?.path) {
+              const path = subMenuItem.redirect ?? subMenuItem.path;
+              let _key = path;
+              if (isUrl(path)) {
+                window.open(path);
+                // 外部打开emit出去的key不能是url，否则左侧菜单出不来
+                _key = key;
+              }
+              emit('menuClick', _key, { title: subMenuItem.title });
+            } else {
+              emit('menuClick', key, item);
+            }
+          } else {
+            emit('menuClick', key, item);
+          }
+        } else {
+          emit('menuClick', key, item);
+        }
+        // emit('menuClick', key, item);
+        // update-begin--author:liaozhiyang---date:20240418---for:【QQYUN-8773】顶部混合导航(顶部左侧组合菜单)一级菜单没有配置redirect默认跳子菜单的第一个
         //update-end-author:taoyan date:2022-6-1 for: VUEN-1144 online 配置成菜单后，打开菜单，显示名称未展示为菜单名称
 
         isClickGo.value = true;
@@ -142,6 +186,64 @@
           menuState.selectedKeys = parentPaths;
         }
       }
+      /**
+       * liaozhiyang
+       * 2024-05-18
+       * 获取指定菜单下的第一个菜单
+       */
+      function getSubMenu(menus) {
+        for (let i = 0, len = menus.length; i < len; i++) {
+          const item = menus[i];
+          if (item.path && !item.children?.length) {
+            return item;
+          } else if (item.children?.length) {
+            const result = getSubMenu(item.children);
+            if (result) {
+              return result;
+            }
+          }
+        }
+        return null;
+      }
+
+      /**
+       * liaozhiyang
+       * 2024-05-18
+       * 获取匹配path的菜单
+       */
+      function getMatchingPath(menus, path) {
+        for (let i = 0, len = menus.length; i < len; i++) {
+          const item = menus[i];
+          if (item.path === path) {
+            return item;
+          } else if (item.children?.length) {
+            const result = getMatchingPath(item.children, path);
+            if (result) {
+              return result;
+            }
+          }
+        }
+        return null;
+      }
+      /**
+       * 2025-01-14
+       * liaozhiyang
+       * 获取菜单中匹配的path所在的项
+       */
+      const getMatchingMenu = (menus, path) => {
+        for (let i = 0, len = menus.length; i < len; i++) {
+          const item = menus[i];
+          if (item.path === path && !item.redirect && !item.paramPath) {
+            return item;
+          } else if (item.children?.length) {
+            const result = getMatchingMenu(item.children, path);
+            if (result) {
+              return result;
+            }
+          }
+        }
+        return '';
+      };
 
       return {
         handleMenuClick,

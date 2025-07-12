@@ -12,6 +12,8 @@
   import { onMountedOrActivated } from '/@/hooks/core/onMountedOrActivated';
   import { getTenantId, getToken } from '/@/utils/auth';
   import { getFileAccessHttpUrl } from '/@/utils/common/compUtils';
+  import { uploadFile } from '@/api/common/api';
+  import {$electron} from "@/electron";
 
   type Lang = 'zh_CN' | 'en_US' | 'ja_JP' | 'ko_KR' | undefined;
 
@@ -108,12 +110,57 @@
       function init() {
         const wrapEl = unref(wrapRef) as HTMLElement;
         if (!wrapEl) return;
+
+        // vditor组件本地化的路径配置【QQYUN-12053】
+        let localCdn = '/resource/vditor@3.9.4';
+        if ($electron.isElectron()) {
+          localCdn = '.' + localCdn;
+        }
+
         const bindValue = { ...attrs, ...props };
         const insEditor = new Vditor(wrapEl, {
           theme: getDarkMode.value === 'dark' ? 'dark' : 'classic',
           lang: unref(getCurrentLang),
+          // update-begin--author:liaozhiyang---date:20240520---for：【TV360X-146】Markdown组件去掉录音选项
+          toolbar: [
+            'emoji',
+            'headings',
+            'bold',
+            'italic',
+            'strike',
+            'link',
+            '|',
+            'list',
+            'ordered-list',
+            'check',
+            'outdent',
+            'indent',
+            '|',
+            'quote',
+            'line',
+            'code',
+            'inline-code',
+            'insert-before',
+            'insert-after',
+            '|',
+            'upload',
+            // 'record',
+            'table',
+            '|',
+            'undo',
+            'redo',
+            '|',
+            'fullscreen',
+            'edit-mode',
+            {
+              name: 'more',
+              toolbar: ['both', 'code-theme', 'content-theme', 'export', 'outline', 'preview', 'devtools', 'info', 'help'],
+            },
+          ],
+          // update-end--author:liaozhiyang---date:20240520---for：【TV360X-146】Markdown组件去掉录音选项
           mode: 'sv',
-          cdn: 'https://cdn.jsdelivr.net/npm/vditor@3.9.6',
+          cdn: 'https://unpkg.com/vditor@3.10.8',
+          //cdn: localCdn,
           fullscreen: {
             index: 520,
           },
@@ -123,7 +170,7 @@
           //update-begin-author:taoyan date:2022-5-24 for: VUEN-1090 markdown 无法上传
           upload: {
             accept: 'image/*',
-            url: uploadUrl,
+            //url: uploadUrl,
             fieldName: 'file',
             extraData: { biz: 'markdown' },
             setHeaders() {
@@ -134,6 +181,23 @@
             },
             format(files, response) {
               return formatResult(files, response);
+            },
+            // 遍历文件上传并展示
+            async handler(files) {
+              const uploadSuccess = (res) => {
+                // {"success":true,"message":"markdown/aa_1653391146501.png","code":0,"result":null,"timestamp":1653391146501}'
+                if (res.success) {
+                  vditorRef.value?.insertValue(`![${res.message}](${getFileAccessHttpUrl(res.message)})`);
+                }
+              };
+              for (const file of files) {
+                let params = {
+                  file: file,
+                  filename: file.name,
+                  data: { biz: 'markdown' },
+                };
+                await uploadFile(params, uploadSuccess);
+              }
             },
           },
           //update-end-author:taoyan date:2022-5-24 for: VUEN-1090 markdown 无法上传
@@ -186,3 +250,10 @@
     },
   });
 </script>
+<style lang="less" scoped>
+  // update-begin--author:liaozhiyang---date:20240527---for：【TV360X-318】解决markdown控件禁用状态放大按钮还可以点击
+  :deep(.vditor-menu--disabled) {
+    pointer-events: none;
+  }
+  // update-end--author:liaozhiyang---date:20240527---for：【TV360X-318】解决markdown控件禁用状态放大按钮还可以点击
+</style>

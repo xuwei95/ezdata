@@ -15,6 +15,7 @@ import { PermissionModeEnum } from '/@/enums/appEnum';
 
 import { asyncRoutes } from '/@/router/routes';
 import { ERROR_LOG_ROUTE, PAGE_NOT_FOUND_ROUTE } from '/@/router/routes/basic';
+import { staticRoutesList } from '../../router/routes/staticRouter';
 
 import { filter } from '/@/utils/helper/treeHelper';
 
@@ -125,6 +126,8 @@ export const usePermissionStore = defineStore({
     async changePermissionCode() {
       const systemPermission = await getBackMenuAndPerms();
       const codeList = systemPermission.auth.map((item) => item.action);
+      // ezdata：兼容旧版
+      // const codeList = systemPermission.codeList;
       this.setPermCodeList(codeList);
       this.setAuthData(systemPermission);
       //菜单路由
@@ -222,6 +225,7 @@ export const usePermissionStore = defineStore({
           try {
             routeList = await this.changePermissionCode();
             //routeList = (await getMenuList()) as AppRouteRecordRaw[];
+            // update-begin--author:liaozhiyang---date:20240313---for：【QQYUN-8487】注释掉判断菜单是否vue2版本逻辑代码
             // update-begin----author:sunjianlei---date:20220315------for: 判断是否是 vue3 版本的菜单 ---
             // let hasIndex: boolean = false;
             // let hasIcon: boolean = false;
@@ -257,6 +261,7 @@ export const usePermissionStore = defineStore({
             //   );
             // }
             // update-end----author:sunjianlei---date:20220315------for: 判断是否是 vue3 版本的菜单 ---
+            // update-end--author:liaozhiyang---date:20240313---for：【QQYUN-8487】注释掉判断菜单是否vue2版本逻辑代码
           } catch (error) {
             console.error(error);
           }
@@ -274,7 +279,9 @@ export const usePermissionStore = defineStore({
           routeList = routeList.filter(routeRemoveIgnoreFilter);
 
           routeList = flatMultiLevelRoutes(routeList);
-          routes = [PAGE_NOT_FOUND_ROUTE, ...routeList];
+          // update-begin--author:liaozhiyang---date:20240529---for：【TV360X-522】ai助手路由写死在前端
+          routes = [PAGE_NOT_FOUND_ROUTE, ...routeList, ...staticRoutesList];
+          // update-end--author:liaozhiyang---date:20240529---for：【TV360X-522】ai助手路由写死在前端
           break;
       }
 

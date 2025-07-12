@@ -17,7 +17,7 @@
           <span style="margin-left: 5px">{{ ellipsisFileName }}</span>
         </a-tooltip>
 
-        <Dropdown :trigger="['click']" placement="bottomRight" style="margin-left: 10px" :disabled="cellProps.disabled">
+        <Dropdown :trigger="['click']" placement="bottomRight" style="margin-left: 10px">
           <a-tooltip title="操作">
             <Icon v-if="file.status !== 'uploading'" icon="ant-design:setting" style="cursor: pointer" />
           </a-tooltip>
@@ -26,10 +26,10 @@
               <a-menu-item v-if="originColumn.allowDownload !== false" @click="handleClickDownloadFile">
                 <span><Icon icon="ant-design:download" />&nbsp;下载</span>
               </a-menu-item>
-              <a-menu-item v-if="originColumn.allowRemove !== false" @click="handleClickDeleteFile">
+              <a-menu-item :disabled="cellProps.disabled" v-if="originColumn.allowRemove !== false" @click="handleClickDeleteFile">
                 <span><Icon icon="ant-design:delete" />&nbsp;删除</span>
               </a-menu-item>
-              <a-menu-item @click="handleMoreOperation">
+              <a-menu-item :disabled="cellProps.disabled" @click="handleMoreOperation">
                 <span><Icon icon="ant-design:bars" />&nbsp;更多</span>
               </a-menu-item>
             </a-menu>
@@ -39,6 +39,7 @@
     </template>
 
     <a-upload
+      v-if="!cellProps.disabledTable"
       v-show="!hasFile"
       name="file"
       :data="{ isup: 1 }"

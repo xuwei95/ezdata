@@ -25,12 +25,18 @@ export default class signMd5Utils {
 
   /**
    * @param url 请求的url,应该包含请求参数(url的?后面的参数)
-   * @param requestParams 请求参数(POST的JSON参数)
+   * @param requestParams 请求参数(@RequestParam(get)的JSON参数)
+   * @param requestBodyParams 请求参数(@RequestBody(post)参数)
    * @returns {string} 获取签名
    */
-  static getSign(url, requestParams) {
+  static getSign(url, requestParams, requestBodyParams) {
     let urlParams = this.parseQueryString(url);
     let jsonObj = this.mergeObject(urlParams, requestParams);
+    //update-begin---author:wangshuai---date:2024-04-16---for:【QQYUN-9005】发送短信加签---
+    if(requestBodyParams){
+      jsonObj = this.mergeObject(jsonObj, requestBodyParams)
+    }
+    //update-end---author:wangshuai---date:2024-04-16---for:【QQYUN-9005】发送短信加签---
     let requestBody = this.sortAsc(jsonObj);
     delete requestBody._t;
     console.log('sign requestBody:', requestBody);
@@ -83,6 +89,10 @@ export default class signMd5Utils {
         if (objectTwo.hasOwnProperty(key) === true) {
           //数字值转为string类型，前后端加密规则保持一致
           if (this.myIsNaN(objectTwo[key])) {
+            objectTwo[key] = objectTwo[key].toString();
+          }
+          //布尔类型转成string类型，前后端加密规则保持一致
+          if (typeof objectTwo[key] === 'boolean') {
             objectTwo[key] = objectTwo[key].toString();
           }
           objectOne[key] = objectTwo[key];

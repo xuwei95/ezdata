@@ -32,8 +32,8 @@ export const LoginRoute: AppRouteRecordRaw = {
   path: '/login',
   name: 'Login',
   //新版后台登录，如果想要使用旧版登录放开即可
-  component: () => import('/@/views/sys/login/Login.vue'),
-  // component: () => import('/@/views/system/loginmini/MiniLogin.vue'),
+  // component: () => import('/@/views/sys/login/Login.vue'),
+  component: () => import('/@/views/system/loginmini/MiniLogin.vue'),
   meta: {
     title: t('routes.basic.login'),
   },
@@ -44,8 +44,8 @@ export const Oauth2LoginRoute: AppRouteRecordRaw = {
   path: '/oauth2-app/login',
   name: 'oauth2-app-login',
   //新版钉钉免登录，如果想要使用旧版放开即可
-  component: () => import('/@/views/sys/login/OAuth2Login.vue'),
-  // component: () => import('/@/views/system/loginmini/OAuth2Login.vue'),
+  // component: () => import('/@/views/sys/login/OAuth2Login.vue'),
+  component: () => import('/@/views/system/loginmini/OAuth2Login.vue'),
   meta: {
     title: t('routes.oauth2.login'),
   },
@@ -64,6 +64,5 @@ export const TokenLoginRoute: AppRouteRecordRaw = {
     ignoreAuth: true,
   },
 };
-
 // Basic routing without permission
 export const basicRoutes = [LoginRoute, RootRoute, ...mainOutRoutes, REDIRECT_ROUTE, PAGE_NOT_FOUND_ROUTE, TokenLoginRoute, Oauth2LoginRoute];

@@ -6,11 +6,6 @@ ezdata前端，基于jeecg低代码平台Vue3版本开发。采用 Vue3.0、Vite
 
 ## 安装与使用
 
-
-> 环境要求: 版本要求Node 14.18+ / 16+ 版本以上，不再支持 Node 12 / 13 / 15。
-> 建议使用pnpm，如果使用yarn,请用Yarn1.x版本，否则依赖可能安装不上。
-
-
 - Get the project code
 
 ```bash

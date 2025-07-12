@@ -8,7 +8,6 @@
 
     <div class="container relative h-full py-2 mx-auto sm:px-10">
       <div class="flex h-full">
-<!--        todo: @media (min-width: 1280px) 导致宽度在1200-1280之间时ui错乱-->
         <div class="hidden min-h-full pl-4 mr-4 xl:flex xl:flex-col xl:w-6/12">
           <AppLogo class="-enter-x" />
           <div class="my-auto">

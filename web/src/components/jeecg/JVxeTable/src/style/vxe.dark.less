@@ -1,5 +1,14 @@
 @import 'vxe.const';
-
+// update-begin--author:liaozhiyang---date:20240313---for：【QQYUN-8493】修正暗黑模式online表单Erp和编辑页面显示不正确
+html[data-theme='dark'] { 
+  --vxe-table-body-background-color: #151515;
+  --vxe-table-footer-background-color: #151515;
+  --vxe-table-border-color: #606060;
+  --vxe-table-popup-border-color:#606060;
+  --vxe-table-row-hover-background-color:#1e1e1e;
+  --vxe-input-border-color: #606266;
+}
+// update-end--author:liaozhiyang---date:20240313---for：【QQYUN-8493】修正暗黑模式online表单Erp和编辑页面显示不正确
 [data-theme='dark'] .@{prefix-cls} {
   @fontColor: #c9d1d9;
   @bgColor: #151515;
@@ -13,7 +22,9 @@
   }
 
   .vxe-toolbar {
-    background-color: @bgColor;
+    // update-begin--author:liaozhiyang---date:20240313---for：【QQYUN-8493】修正暗黑模式online表单Erp和编辑页面显示不正确
+    background-color: #1f1f1f;
+    // update-end--author:liaozhiyang---date:20240313---for：【QQYUN-8493】修正暗黑模式online表单Erp和编辑页面显示不正确
   }
 
   .vxe-table--render-default .vxe-table--body-wrapper,
@@ -110,3 +121,4 @@
     color: @fontColor;
   }
 }
+

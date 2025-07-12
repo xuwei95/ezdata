@@ -28,6 +28,12 @@ export const vxeProps = () => ({
   })),
   // 是否显示行号
   rowNumber: propTypes.bool.def(false),
+  // 固定行号位置或者不固定 【QQYUN-8405】
+  rowNumberFixed: propTypes.oneOf(['left', 'none']).def('left'),
+  // update-begin--author:liaozhiyang---date:20240509---for：【issues/1162】JVxeTable列过长（出现横向滚动条）时无法拖拽排序
+  dragSortFixed: propTypes.oneOf(['left', 'none']).def('left'),
+  rowSelectionFixed: propTypes.oneOf(['left', 'none']).def('left'),
+  // update-end--author:liaozhiyang---date:20240509---for：【issues/1162】JVxeTable列过长（出现横向滚动条）时无法拖拽排序
   // 是否可选择行
   rowSelection: propTypes.bool.def(false),
   // 选择行类型
@@ -36,6 +42,8 @@ export const vxeProps = () => ({
   rowExpand: propTypes.bool.def(false),
   // 展开行配置
   expandConfig: propTypes.object.def(() => ({})),
+  // 是否可插入行
+  insertRow: propTypes.bool.def(true),
   // 页面是否在加载中
   loading: propTypes.bool.def(false),
   // 表格高度
@@ -59,6 +67,8 @@ export const vxeProps = () => ({
   size: propTypes.oneOf(['medium', 'small', 'mini']).def('medium'),
   // 是否显示边框线
   bordered: propTypes.bool.def(false),
+  // 自定义列配置 默认继承 setup.toolbar.custom
+  custom: propTypes.bool.def(false),
   // 分页器参数，设置了即可显示分页器
   pagination: propTypes.object.def(() => ({})),
   // 点击行时是否显示子表单
@@ -95,6 +105,21 @@ export const vxeProps = () => ({
   // 纵向虚拟滚动配置（不支持展开行）
   scrollY: propTypes.object.def(() => ({ enabled: true })),
   // update-end--author:liaozhiyang---date:20231013---for：【QQYUN-5133】JVxeTable 行编辑升级
+  //【QQYUN-8566】缓存列设置的key（路由页面内唯一）
+  cacheColumnsKey: propTypes.string.def(''),
+  // update-begin--author:liaozhiyang---date:20240417---for:【QQYUN-8785】online表单列位置的id未做限制，拖动其他列到id列上面，同步数据库时报错
+  rowClassName: {
+    type: [String, Function],
+    default: null,
+  },
+  // 不允许拖拽的行 [{'key':field,'value':value}]
+  notAllowDrag: propTypes.array.def(() => []),
+  // update-end--author:liaozhiyang---date:20240417---for:【QQYUN-8785】online表单列位置的id未做限制，拖动其他列到id列上面，同步数据库时报错
+
+  // 新增按钮配置
+  addBtnCfg: propTypes.object,
+  // 删除按钮配置
+  removeBtnCfg: propTypes.object,
 });
 
 export const vxeEmits = ['save', 'added', 'removed', 'inserted', 'dragged', 'selectRowChange', 'pageChange', 'valueChange', 'blur'];

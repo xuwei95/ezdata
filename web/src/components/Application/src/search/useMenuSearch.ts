@@ -7,6 +7,7 @@ import { useGo } from '/@/hooks/web/usePage';
 import { useScrollTo } from '/@/hooks/event/useScrollTo';
 import { onKeyStroke, useDebounceFn } from '@vueuse/core';
 import { useI18n } from '/@/hooks/web/useI18n';
+import { URL_HASH_TAB } from '/@/utils';
 
 export interface SearchResult {
   name: string;
@@ -154,7 +155,10 @@ export function useMenuSearch(refs: Ref<HTMLElement[]>, scrollWrap: Ref<ElRef>, 
 
     // update-begin--author:liaozhiyang---date:20230803---for：【QQYUN-8369】搜索区分大小写，外部链接新页打开
     if (to.internalOrExternal) {
-      window.open(to.path, '_blank');
+      // update-begin--author:liaozhiyang---date:20240402---for:【QQYUN-8773】配置外部网址在顶部菜单模式和搜索打不开
+      const path = to.path.replace(URL_HASH_TAB, '#');
+      window.open(path, '_blank');
+      // update-end--author:liaozhiyang---date:20240402---for:【QQYUN-8773】配置外部网址在顶部菜单模式和搜索打不开
     } else {
       go(to.path);
     }

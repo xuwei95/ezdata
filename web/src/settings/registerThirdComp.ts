@@ -2,8 +2,6 @@ import type { App } from 'vue';
 import { registerJVxeTable } from '/@/components/jeecg/JVxeTable';
 import { registerJVxeCustom } from '/@/components/JVxeCustom';
 
-// // 注册全局聊天表情包
-// import { Picker } from 'emoji-mart-vue-fast/src';
 // 注册全局dayjs
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -18,7 +16,7 @@ export async function registerThirdComp(app: App) {
   await registerJVxeCustom();
   //---------------------------------------------------------------------
   // 注册全局聊天表情包
-  //app.component('Picker', Picker);
+  // update-begin--author:liaozhiyang---date:20240308---for：【QQYUN-8241】emoji-mart-vue-fast库异步加载
   app.component(
     'Picker',
     createAsyncComponent(() => {
@@ -34,6 +32,7 @@ export async function registerThirdComp(app: App) {
       });
     })
   );
+  // update-end--author:liaozhiyang---date:20240308---for：【QQYUN-8241】emoji-mart-vue-fast库异步加载
   //---------------------------------------------------------------------
   // 注册全局dayjs
   dayjs.locale('zh-cn');

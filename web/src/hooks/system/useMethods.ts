@@ -1,10 +1,9 @@
 import { defHttp } from '/@/utils/http/axios';
 import { useMessage } from '/@/hooks/web/useMessage';
 import { useGlobSetting } from '/@/hooks/setting';
-
+import * as XLSX from 'xlsx';
 const { createMessage, createWarningModal } = useMessage();
 const glob = useGlobSetting();
-import * as XLSX from 'xlsx';
 
 /**
  * 导出文件xlsx的mime-type
@@ -29,51 +28,32 @@ export function useMethods() {
       createMessage.warning('文件下载失败');
       return;
     }
-    if (!name || typeof name != 'string') {
-      name = '导出文件';
-    }
-    let blobOptions = { type: 'application/vnd.ms-excel' };
-    let fileSuffix = '.xls';
-    if (isXlsx === true) {
-      blobOptions['type'] = XLSX_MIME_TYPE;
-      fileSuffix = XLSX_FILE_SUFFIX;
-    }
-    if (typeof window.navigator.msSaveBlob !== 'undefined') {
-      window.navigator.msSaveBlob(new Blob([data], blobOptions), name + fileSuffix);
-    } else {
-      let url = window.URL.createObjectURL(new Blob([data], blobOptions));
-      let link = document.createElement('a');
-      link.style.display = 'none';
-      link.href = url;
-      link.setAttribute('download', name + fileSuffix);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link); //下载完成移除元素
-      window.URL.revokeObjectURL(url); //释放掉blob对象
+    //update-begin---author:wangshuai---date:2024-04-18---for: 导出excel失败提示，不进行导出---
+    let reader = new FileReader()
+    reader.readAsText(data, 'utf-8')
+    reader.onload = async () => {
+      if(reader.result){
+        if(reader.result.toString().indexOf("success") !=-1){
+          // update-begin---author:liaozhiyang---date:2025-02-11---for:【issues/7738】文件中带"success"导出报错 ---
+          try {
+            const { success, message } = JSON.parse(reader.result.toString());
+            if (!success) {
+              createMessage.warning('导出失败，失败原因：' + message);
+            } else {
+              exportExcel(name, isXlsx, data);
+            }
+            return;
+          } catch (error) {
+            exportExcel(name, isXlsx, data);
+          }
+          // update-end---author:liaozhiyang---date:2025-02-11---for:【issues/7738】文件中带"success"导出报错 ---
+        }
+      }
+      exportExcel(name, isXlsx, data);
+      //update-end---author:wangshuai---date:2024-04-18---for: 导出excel失败提示，不进行导出---
     }
   }
-  /**
-   * 导出数据列表到excel
-   * @param name
-   * @param dataList
-   */
-  async function handleExportExcel(name, dataList) {
-    const workbook = XLSX.utils.book_new();
-    const worksheet = XLSX.utils.json_to_sheet(dataList); // dataArray是要导出的数据数组
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1'); // 'Sheet1'是工作表的名称
-    const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-    if (!name || typeof name != 'string') {
-      name = '导出文件';
-    }
-    const data = new Blob([buffer], { type: 'application/octet-stream' });
-    const url = URL.createObjectURL(data);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', name);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  }
+
   /**
    * 导入xls
    * @param data 导入的数据
@@ -112,11 +92,63 @@ export function useMethods() {
     };
     await defHttp.uploadFile({ url }, { file: data.file }, { success: isReturn });
   }
-
+  /**
+   * 导出数据列表到excel
+   * @param name
+   * @param dataList
+   */
+  async function handleExportExcel(name, dataList) {
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.json_to_sheet(dataList); // dataArray是要导出的数据数组
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1'); // 'Sheet1'是工作表的名称
+    const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+    if (!name || typeof name != 'string') {
+      name = '导出文件';
+    }
+    const data = new Blob([buffer], { type: 'application/octet-stream' });
+    const url = URL.createObjectURL(data);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', name);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
   return {
     handleExportExcel,
     handleExportXls: (name: string, url: string, params?: object) => exportXls(name, url, params),
     handleImportXls: (data, url, success) => importXls(data, url, success),
     handleExportXlsx: (name: string, url: string, params?: object) => exportXls(name, url, params, true),
   };
+
+  /**
+   * 导出excel
+   * @param name
+   * @param isXlsx
+   * @param data
+   */
+  function exportExcel(name, isXlsx, data) {
+    if (!name || typeof name != 'string') {
+      name = '导出文件';
+    }
+    let blobOptions = { type: 'application/vnd.ms-excel' };
+    let fileSuffix = '.xls';
+    if (isXlsx) {
+      blobOptions['type'] = XLSX_MIME_TYPE;
+      fileSuffix = XLSX_FILE_SUFFIX;
+    }
+    if (typeof window.navigator.msSaveBlob !== 'undefined') {
+      window.navigator.msSaveBlob(new Blob([data], blobOptions), name + fileSuffix);
+    } else {
+      let url = window.URL.createObjectURL(new Blob([data], blobOptions));
+      let link = document.createElement('a');
+      link.style.display = 'none';
+      link.href = url;
+      link.setAttribute('download', name + fileSuffix);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link); //下载完成移除元素
+      window.URL.revokeObjectURL(url); //释放掉blob对象
+    }
+  }
 }

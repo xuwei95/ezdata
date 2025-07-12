@@ -29,6 +29,12 @@
         type: String as PropType<string>,
         default: 'calc(100vh - 78px)',
       },
+      // update-begin--author:liaozhiyang---date:20240407---for：【QQYUN-8762】首页默认及echars颜色调整
+      seriesColor: {
+        type: Array,
+        default: () => [],
+      },
+      // update-end--author:liaozhiyang---date:20240407---for：【QQYUN-8762】首页默认及echars颜色调整
     },
     emits: ['click'],
     setup(props, { emit }) {
@@ -89,6 +95,14 @@
           // update-end-author:liusq date:2023-7-12 for: [issues/613] LineMulti 在数据不对齐时，横坐标计算错误
           //data数据
           obj['data'] = data;
+          // update-begin--author:liaozhiyang---date:20240407---for：【QQYUN-8762】首页默认及echars颜色调整
+          if (props.seriesColor?.length) {
+            const findItem = props.seriesColor.find((item: any) => item.type === type);
+            if (findItem?.color) {
+              obj['color'] = findItem.color;
+            }
+          }
+          // update-end--author:liaozhiyang---date:20240407---for：【QQYUN-8762】首页默认及echars颜色调整
           seriesData.push(obj);
         });
         option.series = seriesData;

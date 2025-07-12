@@ -15,8 +15,17 @@ export function useToolbar(props: JVxeTableProps, data: JVxeDataProps, methods: 
           disabledRows: props.disabledRows,
           hasBtnAuth: methods.hasBtnAuth,
           selectedRowIds: data.selectedRowIds.value,
+          custom: props.custom,
+          addBtnCfg: props.addBtnCfg,
+          removeBtnCfg: props.removeBtnCfg,
           // 新增事件
-          onAdd: () => methods.addRows(),
+          onAdd: () => {
+            // update-begin--author:liaozhiyang---date:20240521---for：【TV360X-212】online新增字段就出校验提示
+            setTimeout(() => {
+              methods.addRows();
+            }, 0);
+            // update-end--author:liaozhiyang---date:20240521---for：【TV360X-212】online新增字段就出校验提示
+          },
           // 保存事件
           onSave: () => methods.trigger('save'),
           onRemove() {
