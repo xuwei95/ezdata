@@ -86,6 +86,12 @@ export const saveOrUpdateUser = (params, isUpdate) => {
  */
 export const duplicateCheck = (params) => defHttp.get({ url: Api.duplicateCheck, params }, { isTransformResponse: false });
 /**
+ * 唯一校验
+ * @param params
+ */
+export const duplicateCheckDelay = (params) => defHttp.get({ url: Api.duplicateCheck, params }, { isTransformResponse: false });
+
+/**
  * 获取全部角色
  * @param params
  */

@@ -121,6 +121,16 @@
   function handleApi(record: Recordable) {
     router.push({ path: '/ai/app/chat', query: { app_id: record.id } });
   }
+   /**
+   * 新增事件
+   */
+   function handleApiToken(record) {
+    openApiDrawer(true, {
+      record,
+      isUpdate: false,
+      showFooter: true,
+    });
+  }
   /**
    * 成功回调
    */
@@ -149,7 +159,7 @@
     return [
       {
         label: 'api列表',
-        onClick: handleApi.bind(null, record),
+        onClick: handleApiToken.bind(null, record),
       },
       {
         label: '详情',

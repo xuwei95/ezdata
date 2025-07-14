@@ -134,13 +134,6 @@ export const formSchema: FormSchema[] = [
     },
   },
   {
-    label: '', // 对话配置
-    field: 'chat_config',
-    slot: 'chat_config',
-    component: 'InputTextArea',
-    defaultValue: {},
-  },
-  {
     label: '所属用户组',
     field: 'depart_list',
     component: 'ApiSelect',
@@ -158,6 +151,13 @@ export const formSchema: FormSchema[] = [
     field: 'description',
     required: false,
     component: 'InputTextArea',
+  },
+  {
+    label: '对话配置', // 对话配置
+    field: 'chat_config',
+    slot: 'chat_config',
+    component: 'InputTextArea',
+    defaultValue: {},
   },
   // TODO 主键隐藏字段，目前写死为ID
   {

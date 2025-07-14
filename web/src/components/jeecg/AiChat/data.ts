@@ -18,5 +18,6 @@ export const defaultChatConfig = {
   },
   memory: {
     enable: false,
+    history_size: 3
   },
 };
