@@ -52,7 +52,7 @@
         };
       }
       const { domainUrl } = useGlobSetting();
-      const uploadUrl = domainUrl + '/sys/common/upload';
+      const uploadUrl = domainUrl + '/sys/oss/file/upload';
       //文件列表
       let uploadFileList = ref<any[]>([]);
       //update-end-author:taoyan date:2022-5-13 for: 富文本上传图片不支持

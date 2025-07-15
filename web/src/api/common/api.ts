@@ -20,7 +20,7 @@ enum Api {
 /**
  * 上传父路径
  */
-export const uploadUrl = `${baseUploadUrl}/sys/common/upload`;
+export const uploadUrl = `${baseUploadUrl}/sys/oss/file/upload`;
 
 /**
  * 职务列表
