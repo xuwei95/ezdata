@@ -12,7 +12,7 @@ RUN apt install -y tzdata \
     && ln -fs /usr/share/zoneinfo/${TZ} /etc/localtime \
     && echo ${TZ} > /etc/timezone \
     && dpkg-reconfigure --frontend noninteractive tzdata \
-    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /var/lib/apt/lists/*
 RUN git clone https://github.com/xuwei95/ezdata.git /opt/ezdata
 WORKDIR /opt/ezdata/api
 RUN cd /opt/ezdata/api

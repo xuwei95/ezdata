@@ -7,7 +7,7 @@ metadata:
     kubesphere.io/creator: admin
 data:
   _app.config.js: >-
-    window.__PRODUCTION__ADMIN__CONF__={"VITE_GLOB_APP_TITLE":"ezdata","VITE_GLOB_APP_SHORT_NAME":"Admin","VITE_GLOB_APP_CAS_BASE_URL":"http://cas.test.com:8443/cas","VITE_GLOB_APP_OPEN_SSO":"false","VITE_GLOB_APP_OPEN_QIANKUN":"true","VITE_GLOB_ONLINE_VIEW_URL":"http://fileview.jeecg.com/onlinePreview","VITE_GLOB_API_URL":"{{.Values.web.env.VITE_GLOB_API_URL}}","VITE_GLOB_DOMAIN_URL":"{{.Values.web.env.VITE_GLOB_DOMAIN_URL}}","VITE_GLOB_API_URL_PREFIX":""};Object.freeze(window.__PRODUCTION__ADMIN__CONF__);Object.defineProperty(window,"__PRODUCTION__ADMIN__CONF__",{configurable:false,writable:false,});
+    window.__PRODUCTION__EZDATA__CONF__={"VITE_GLOB_APP_TITLE":"ezdata","VITE_GLOB_APP_SHORT_NAME":"EZDATA","VITE_GLOB_APP_CAS_BASE_URL":"http://cas.test.com:8443/cas","VITE_GLOB_APP_OPEN_SSO":"false","VITE_GLOB_APP_OPEN_QIANKUN":"true","VITE_GLOB_ONLINE_VIEW_URL":"http://fileview.jeecg.com/onlinePreview","VITE_GLOB_API_URL":"{{.Values.web.env.VITE_GLOB_API_URL}}","VITE_GLOB_DOMAIN_URL":"{{.Values.web.env.VITE_GLOB_DOMAIN_URL}}","VITE_GLOB_API_URL_PREFIX":""};Object.freeze(window.__PRODUCTION__EZDATA__CONF__);Object.defineProperty(window,"__PRODUCTION__EZDATA__CONF__",{configurable:false,writable:false,});
   nginx.conf: |+
     #user  nobody;
     worker_processes  1;
