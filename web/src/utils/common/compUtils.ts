@@ -413,8 +413,10 @@ export function calculateFileSize(fileSize, unit?) {
 export function getHeaders() {
   let tenantId = getTenantId();
   return reactive({
-    'X-Access-Token': getToken(),
-    'X-Tenant-Id': tenantId ? tenantId : '0',
+    // 'X-Access-Token': getToken(),
+    'Authorization': 'Bearer ' + getToken(),
+    // 'X-Tenant-Id': tenantId ? tenantId : '0',
+    'tenant_id': tenantId ? tenantId : '0',
   });
 }
 

@@ -20,7 +20,8 @@ export function useJVxeUploadCell(props: JVxeComponent.Props, options?) {
   const uploadHeaders = computed(() => {
     let headers = {};
     if ((originColumn.value.token ?? options?.token ?? false) === true) {
-      headers['X-Access-Token'] = getToken();
+      // headers['X-Access-Token'] = getToken();
+      headers['Authorization'] = 'Bearer ' + getToken();
     }
     let tenantId = getTenantId();
     headers['X-Tenant-Id'] = tenantId ? tenantId : '0';

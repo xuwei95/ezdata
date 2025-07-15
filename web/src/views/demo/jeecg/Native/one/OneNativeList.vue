@@ -110,7 +110,10 @@
   const loading = ref<boolean>(false);
   const dictOptions = ref<any>([]);
   const oneProtogenesisModal = ref();
-  const tokenHeader = { 'X-Access-Token': getToken() };
+  const tokenHeader = { 
+    //X-Access-Token': getToken()
+    'Authorization': 'Bearer ' + getToken()
+     };
   //表头
   const columns = ref<any>([
     {

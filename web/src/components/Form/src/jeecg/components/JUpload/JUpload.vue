@@ -348,7 +348,7 @@
     let pathList: string[] = [];
     for (const item of uploadFiles) {
       if (item.status === 'done') {
-        pathList.push(item.response.message);
+        pathList.push(item.response.data.url);
       } else {
         return;
       }

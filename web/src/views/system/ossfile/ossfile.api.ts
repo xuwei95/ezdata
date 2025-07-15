@@ -3,7 +3,7 @@ import { defHttp } from '/@/utils/http/axios';
 enum Api {
   list = '/sys/oss/file/list',
   deleteFile = '/sys/oss/file/delete',
-  ossUpload = '/api/sys/oss/file/upload',
+  ossUpload = '/sys/oss/file/upload',
   minioUpload = '/sys/upload/uploadMinio',
 }
 
