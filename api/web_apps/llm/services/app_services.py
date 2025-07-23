@@ -22,7 +22,7 @@ def serialize_chat_app_model(obj, ser_type='list'):
         res = {}
         for k in ['id', 'name', 'icon', 'type', 'state', 'depart_list', 'chat_config', 'create_by', 'create_time',
                   'update_by', 'update_time', 'del_flag', 'sort_no', 'description']:
-            if k in ['chat_config']:
+            if k in ['chat_config', 'depart_list']:
                 res[k] = json.loads(dic[k])
             else:
                 res[k] = dic[k]
@@ -236,7 +236,7 @@ class ChatAppApiService(object):
         db.session.add(obj)
         db.session.commit()
         db.session.flush()
-        return gen_json_response(msg='添加成功', extends={'success': True})
+        return gen_json_response(msg='添加成功', data=obj.id, extends={'success': True})
 
     @staticmethod
     def edit_obj(req_dict):
@@ -269,7 +269,7 @@ class ChatAppApiService(object):
         db.session.add(obj)
         db.session.commit()
         db.session.flush()
-        return gen_json_response(msg='编辑成功', extends={'success': True})
+        return gen_json_response(msg='编辑成功', data=obj.id, extends={'success': True})
 
     @staticmethod
     def delete_obj(req_dict):

@@ -201,19 +201,13 @@ def chat_app_add():
 @validate_permissions([])
 def chat_app_edit():
     '''
-    编辑
+    添加或编辑
     '''
     req_dict = get_req_para(request)
-    verify_dict = {
-        "id": {
-            "name": "id",
-            "required": True
-        }
-    }
-    not_valid = validate_params(req_dict, verify_dict)
-    if not_valid:
-        return jsonify(gen_json_response(code=400, msg=not_valid))
-    res_data = ChatAppApiService.edit_obj(req_dict)
+    if 'id' in req_dict:
+        res_data = ChatAppApiService.edit_obj(req_dict)
+    else:
+        res_data = ChatAppApiService.add_obj(req_dict)
     return jsonify(res_data)
 
 
