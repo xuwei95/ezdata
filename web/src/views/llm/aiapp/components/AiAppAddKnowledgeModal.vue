@@ -137,7 +137,6 @@
           name: searchText.value,
         };
         list(params).then((res) => {
-          console.log(111111, res)
           if (res.records) {
             if (knowledgeIds.value.length > 0) {
               for (const item of res.records) {

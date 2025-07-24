@@ -8,7 +8,7 @@ export enum Api {
   release = '/llm/chat_app/release',
   delete = '/llm/chat_app/delete',
   queryById = '/llm/chat_app/queryById',
-  queryBathById = '/airag/knowledge/query/batch/byId',
+  queryBathById = '/rag/dataset//queryAllList',
   queryFlowById = '/airag/flow/queryById',
   promptGenerate = '/airag/app/prompt/generate',
 }

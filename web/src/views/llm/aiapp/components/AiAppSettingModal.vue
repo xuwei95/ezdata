@@ -12,11 +12,11 @@
           </div>
           <div>
             应用编排
-            <a-tooltip title="AI应用文档">
+            <!-- <a-tooltip title="AI应用文档">
               <a style="color: unset" href="https://help.jeecg.com/aigc/guide/app" target="_blank">
                 <Icon style="position:relative;left:2px;top:1px" icon="ant-design:question-circle-outlined"></Icon>
               </a>
-            </a-tooltip>
+            </a-tooltip> -->
           </div>
           <div style="display: flex">
             <a-button v-if="!isRelease" @click="handleOk" style="margin-right: 30px" type="primary">保存</a-button>
@@ -258,7 +258,7 @@
             </a-form>
           </a-col>
           <a-col :span="14" class="setting-right">
-            <chat :uuid="uuid" :prologue="prologue" :appId="appId" :formState="formState" url="/airag/app/debug" :presetQuestion="presetQuestion" :quickCommandData="quickCommandList"></chat>
+            <chat :uuid="uuid" :prologue="prologue" :appId="appId" :formState="formState" url="/llm/chat_app/app/debug" :presetQuestion="presetQuestion" :quickCommandData="quickCommandList"></chat>
           </a-col>
         </a-row>
       </div>
@@ -337,21 +337,19 @@
       const type = ref<string>('chat');
       //form表单数据
       const formState = reactive<any>({
+        id: '',
+        type: '',
         name: '',
-        descr: '',
+        icon: '',
         msgNum: 1,
         prompt: '',
         prologue: null,
         knowledgeIds: '',
-        id: '',
-        type: '',
         modelId: 'default',
-        icon: '',
         presetQuestion:''
       });
       //表单验证
       const validatorRules = ref<any>({
-        name: [{ required: true, message: '请输入应用名称!' }],
         modelId: [{ required: true, message: '请选择AI模型!' }],
         flowId:[{ required: true, message: '请选择AI流程!' }]
       });
@@ -396,19 +394,21 @@
         } else {
           //新增成功之后需要有id
           queryById({ id: data.id }).then((res) => {
-            if (res.success) {
-              resetFields();
-              //赋值
-              Object.assign(formState, res.result);
-              formState.prompt = cloneDeep(AiAppJson.prompt);
-              formState.prologue = cloneDeep(AiAppJson.prologue);
-              formState.presetQuestion = JSON.stringify(cloneDeep(AiAppJson.presetQuestion));
-              formState.msgNum = 1;
-              prologue.value = cloneDeep(AiAppJson.prologue);
-              presetQuestion.value = formState.presetQuestion;
-              presetQuestionList.value = cloneDeep(AiAppJson.presetQuestion);
-              addRules(res.result.type)
-            }
+            resetFields();
+            //赋值
+            formState.id = res.data.id
+            formState.icon = res.data.icon
+            formState.name = res.data.name
+            formState.type = res.data.type
+            Object.assign(formState, res.data.chat_config);
+            formState.prompt = cloneDeep(AiAppJson.prompt);
+            formState.prologue = cloneDeep(AiAppJson.prologue);
+            formState.presetQuestion = JSON.stringify(cloneDeep(AiAppJson.presetQuestion));
+            formState.msgNum = 1;
+            prologue.value = cloneDeep(AiAppJson.prologue);
+            presetQuestion.value = formState.presetQuestion;
+            presetQuestionList.value = cloneDeep(AiAppJson.presetQuestion);
+            addRules(res.data.type)
           });
         }
         setModalProps({ bodyStyle: { padding: '10px' } });
@@ -428,9 +428,31 @@
       async function handleOk() {
         try {
           let values = await validate();
+          console.log(112211, values);
           setModalProps({ confirmLoading: true });
           formState.knowledgeIds = knowledgeIds.value;
-          await saveApp(formState);
+          // 组装 chat_config
+          const chatConfigFields = [
+            'msgNum',
+            'prompt',
+            'prologue',
+            'knowledgeIds',
+            'modelId',
+            'presetQuestion',
+            'metadata'
+          ];
+          const chat_config: Record<string, any> = {};
+          chatConfigFields.forEach(key => {
+            chat_config[key] = formState[key];
+          });
+
+          // 只传 id 和 chat_config
+          const payload = {
+            id: formState.id,
+            chat_config: chat_config
+          };
+
+          await saveApp(payload);
           emit('success')
         } finally {
           setModalProps({ confirmLoading: false });
@@ -513,8 +535,9 @@
       function getKnowledgeDataList(ids) {
         queryKnowledgeBathById({ ids: ids }).then((res) => {
           //update-begin---author:wangshuai---date:2025-04-24---for:【QQYUN-12133】【AI】应用关联的知识库呗删除后，再次进入应用看不到已删除的知识库，并且无法清理掉知识库。---
-          if (res.success && res.result) {
-            let result = res.result;
+          console.log(2223, res)
+          if (res.records) {
+            let result = res.records;
             let idArray = ids.split(",");
             let arr = [];
             for (const id of idArray) {
@@ -565,12 +588,10 @@
       function addRules(type){
         if(type === 'chat') {
           validatorRules.value = {
-            name: [{ required: true, message: '请输入应用名称!' }],
             modelId: [{ required: true, message: '请选择AI模型!' }],
           }
         }else if(type === 'chatFLow') {
           validatorRules.value = {
-            name: [{ required: true, message: '请输入应用名称!' }],
             flowId:[{ required: true, message: '请选择AI流程!' }]
           }
         }
@@ -780,7 +801,15 @@
        */
       function setFormState(data: any) {
         resetFields();
-        addRules(data.type)
+        // 赋值chat_config
+        let app_type = data.type
+        addRules(app_type)
+        formState.id = data.id
+        formState.icon = data.icon
+        formState.name = data.name
+        formState.type = app_type
+        data = data.chat_config;
+
         if (data.prologue) {
           prologue.value = data.prologue ? data.prologue : '';
         }

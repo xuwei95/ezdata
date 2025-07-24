@@ -4,11 +4,11 @@
       <template #title>
          <span style="display: flex">
           {{title}}
-          <a-tooltip title="AI应用文档">
+          <!-- <a-tooltip title="AI应用文档">
             <a style="color: unset" href="https://help.jeecg.com/aigc/guide/app" target="_blank">
               <Icon style="position:relative;left:2px;top:1px" icon="ant-design:question-circle-outlined"></Icon>
             </a>
-          </a-tooltip>
+          </a-tooltip> -->
         </span>
       </template>
       <BasicForm @register="registerForm">
@@ -99,7 +99,6 @@
           let values = await validate();
           setModalProps({ confirmLoading: true });
           let result = await saveApp(values);
-          console.log(1111, result)
           if (result) {
             //关闭弹窗
             closeModal();

@@ -170,21 +170,54 @@ def chat_generate(req_dict, user_info=None):
                 for chunk in agent.chat(prompt):
                     if chunk['type'] == 'text':
                         answer += chunk['content']
-                    t = f"id:{conversation_id}\ndata:{json.dumps(chunk, ensure_ascii=False)}"
+                    event_type_map = {
+                        'text': "MESSAGE",
+                        'html': "HTML",
+                        'data': "DATATABLE",
+                        'step': "STEP",
+                        'flow': "STEP"
+                    }
+                    msg = {
+                        "conversationId": conversation_id,
+                        "data": {
+                            "message": chunk['content']
+                        },
+                        "event": event_type_map.get(chunk['type'], "MESSAGE")
+                    }
+                    t = f"data:{json.dumps(msg, ensure_ascii=False)}"
                     yield f"{t}\n\n"
             else:
                 # 直接使用llm回答
                 for c in llm.stream(prompt):
-                    data = {'content': c.content, 'type': 'text'}
                     answer += c.content
-                    t = f"id:{conversation_id}\ndata:{json.dumps(data, ensure_ascii=False)}"
+                    msg = {
+                        "conversationId": conversation_id,
+                        "data": {
+                            "message": c.content
+                        },
+                        "event": "MESSAGE"
+                    }
+                    t = f"data:{json.dumps(msg, ensure_ascii=False)}"
                     yield f"{t}\n\n"
-            yield f"id:[DONE]\ndata:[DONE]\n\n"
+            msg = {
+                "conversationId": conversation_id,
+                "data": None,
+                "event": "MESSAGE_END"
+            }
+            t = f"data:{json.dumps(msg, ensure_ascii=False)}"
+            yield f"{t}\n\n"
+
         except Exception as e:
-            yield f"[ERR]\ndata:{e}\n\n"
+            msg = {
+                "conversationId": conversation_id,
+                "data": {
+                    "message": str(e)
+                },
+                "event": "ERROR"
+            }
+            yield f"data:{json.dumps(msg, ensure_ascii=False)}\n\n"
         finally:
             chat_handler.handle_chat_close(answer)
-
 
 def chat_run(req_dict, user_info=None):
     '''

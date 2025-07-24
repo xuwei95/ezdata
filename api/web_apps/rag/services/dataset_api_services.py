@@ -82,6 +82,10 @@ class DatasetApiService(object):
         获取全量列表
         '''
         query = get_base_query(Dataset)
+        ids = req_dict.get('ids', '')
+        if ids:
+            ids = ids.split(',')
+            query = query.filter(Dataset.id.in_(ids))
         obj_list = query.filter(Dataset.status == 1).all()
         result = []
         for obj in obj_list:

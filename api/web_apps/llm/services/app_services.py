@@ -49,15 +49,15 @@ class ChatAppApiService(object):
         pass
 
     @staticmethod
-    def chat(chat_app, message, stream=True):
+    def chat(chat_config, message, stream=True):
         '''
         应用对话
         '''
-        chat_config = parse_json(chat_app.chat_config)
         req_data = {
             'message': message,
             'chatConfig': chat_config
         }
+        print(req_data)
         if stream:
             return chat_generate(req_data)
         else:
@@ -245,13 +245,12 @@ class ChatAppApiService(object):
         '''
         obj_id = req_dict.get('id')
         # 判重逻辑
-        exist_query = db.session.query(ChatApp).filter(ChatApp.id != obj_id)
         name = req_dict.get('name', '')
         if name != '':
-            exist_query = exist_query.filter(ChatApp.name == name)
-        exist_obj = exist_query.first()
-        if exist_obj:
-            return gen_json_response(code=400, msg='数据已存在')
+            exist_query = db.session.query(ChatApp).filter(ChatApp.id != obj_id).filter(ChatApp.name == name)
+            exist_obj = exist_query.first()
+            if exist_obj:
+                return gen_json_response(code=400, msg='数据已存在')
         obj = db.session.query(ChatApp).filter(ChatApp.id == obj_id).first()
         if obj is None:
             return gen_json_response(code=400, msg='未找到数据')

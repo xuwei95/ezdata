@@ -1,6 +1,7 @@
 '''
 对话应用管理模块api
 '''
+import json
 from flask import jsonify, request, Response
 from flask import Blueprint
 from utils.auth import validate_user, validate_permissions
@@ -12,6 +13,21 @@ from web_apps import db
 
 chat_app_bp = Blueprint('chat_app', __name__)
 
+@chat_app_bp.route('/app/debug', methods=['GET', 'POST'])
+@validate_user
+def debug_chat():
+    '''
+    app debug对话接口
+    '''
+    req_dict = get_req_para(request)
+    chat_config = req_dict.get('app', {})
+    message = req_dict.get('content', '')
+    from web_apps.llm.services.llm_services_v2 import chat_generate
+    req_data = {
+        'message': message,
+        'chatConfig': chat_config
+    }
+    return Response(chat_generate(req_data), mimetype='text/event-stream')
 
 @chat_app_bp.route('/app/chat', methods=['GET', 'POST'])
 @validate_user
@@ -26,6 +42,7 @@ def app_chat():
     if chat_app is None:
         err = '未找到应用'
         return f"[ERR]\ndata:[{err}]\n\n"
+    chat_config = json.loads(chat_app.chat_config)
     return Response(ChatAppApiService.chat(chat_app, message, True), mimetype='text/event-stream')
 
 
@@ -50,10 +67,11 @@ def api_chat():
         if stream:
             return f"[ERR]\ndata:[{err}]\n\n"
         return gen_json_response(code=500, msg=err)
+    chat_config = json.loads(chat_app.chat_config)
     if stream:
-        return Response(ChatAppApiService.chat(chat_app, message, True), mimetype='text/event-stream')
+        return Response(ChatAppApiService.chat(chat_config, message, True), mimetype='text/event-stream')
     else:
-        return ChatAppApiService.chat(chat_app, message, False)
+        return ChatAppApiService.chat(chat_config, message, False)
 
 
 @chat_app_bp.route('/token/list', methods=['GET'])
