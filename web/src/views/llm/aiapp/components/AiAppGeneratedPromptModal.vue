@@ -56,7 +56,7 @@
   import { ref, unref } from 'vue';
   import BasicModal from '@/components/Modal/src/BasicModal.vue';
   import { useModalInner } from '@/components/Modal';
-  import { promptGenerate } from '@/views/super/airag/aiapp/AiApp.api';
+  import { promptGenerate } from '../AiApp.api';
 
   export default {
     name: 'AiAppGeneratedPrompt',

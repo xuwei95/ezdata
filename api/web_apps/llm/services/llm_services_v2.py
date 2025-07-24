@@ -56,37 +56,60 @@ def generate_history_summary(messages, llm=None):
         "用第三人称表述且保留数据细节：\n" + history_text
     ).content
 
+def generate_prompt(content):
+    llm = get_llm()
+    prompt = f"请为以下内容:\n{content}\n\n生成一个详细格式的llm prompt,只返回prompt，不要其他内容"
+    for c in llm.stream(prompt):
+        msg = {
+            "conversationId": '',
+            "data": {
+                "message": c.content
+            },
+            "event": "MESSAGE"
+        }
+        t = f"data:{json.dumps(msg, ensure_ascii=False)}"
+        yield f"{t}\n\n"
+    msg = {
+        "conversationId": '',
+        "data": None,
+        "event": "MESSAGE_END"
+    }
+    t = f"data:{json.dumps(msg, ensure_ascii=False)}"
+    yield f"{t}\n\n"
+
 
 class ChatHandler:
     def __init__(self, req_dict):
         self.req_dict = req_dict
-        self.conversation_id = req_dict.get('topicId', '')
+        self.conversation_id = req_dict.get('conversationId', '')
         self.chat_config = parse_json(req_dict.get('chatConfig'), {})
         self.message = req_dict.get('message', '')
-        self.llm = get_llm({'conversation_id': self.conversation_id})
-        self.data_chat_config = parse_json(self.chat_config.get('data_chat'), {})
-        self.rag_config = parse_json(self.chat_config.get('rag'), {})
-        self.memory_config = parse_json(self.chat_config.get('memory'), {})
-        self.history_size = self.memory_config.get('history_size', 3)
-        self.agent_config = parse_json(self.chat_config.get('agent'), {})
+        self.metadata = json.loads(self.chat_config.get('metadata', '{}'))
+        self.llm = get_llm({'conversation_id': self.conversation_id, **self.metadata})
+        self.system_prompt = self.chat_config.get('prompt', '')
+        self.history_size = self.chat_config.get('msgNum', 3)
 
     def prepare_context(self, user_info = None):
         if user_info is None:
             user_info = {'id': 0, 'user_name': 'test'}
         """准备聊天上下文，返回(prompt, llm, agent_enable, tools)"""
         # 处理数据对话配置
-        data_chat_enable = self.data_chat_config.get('enable', False)
-
+        datamodelIds = self.chat_config.get('datamodelIds', '')
+        knowledgeIds = self.chat_config.get('knowledgeIds', '')
+        toolIds = self.chat_config.get('toolIds', '')
         # 处理知识库
         knowledge = ''
-        if self.rag_config.get('enable', False):
-            rag_metadata = parse_json(self.chat_config.get('rag'), {'dataset_id': '1'})
-            if data_chat_enable:
-                rag_metadata['datamodel_id'] = self.data_chat_config.get('datamodel_id', '')
-            # 假设有get_knowledge实现
+        if knowledgeIds != '':
+            rag_metadata = parse_json({'daset_id': knowledgeIds}, {'dataset_id': '1'})
+            if datamodelIds:
+                rag_metadata['datamodel_id'] = datamodelIds
+            if self.metadata.get('topNumber'):
+                rag_metadata['k'] = self.metadata.get('topNumber')
+            if self.metadata.get('similarity'):
+                rag_metadata['score_threshold'] = self.metadata.get('similarity')
             knowledge = get_knowledge(self.message, metadata=rag_metadata)
         # 处理记忆配置
-        memory_enable = self.memory_config.get('enable', True)
+        memory_enable = self.metadata.get('multiSession', '0') == '1'
         core_memory = ''
         chat_history = []
 
@@ -107,6 +130,7 @@ class ChatHandler:
         history_part = f"对话历史：\n{history_section}\n\n" if history_section else ""
 
         prompt = (
+            f"System: {self.system_prompt}\n"
             f"{core_memory_section}"
             f"{history_part}"
             f"{knowledge_section}"
@@ -116,28 +140,24 @@ class ChatHandler:
         )
         # 处理工具配置
         tools = []
-        agent_enable = self.agent_config.get('enable', False)
-
+        agent_enable = toolIds != ''
         # 数据对话工具
-        if data_chat_enable:
-            datamodel_id = self.data_chat_config.get('datamodel_id', '')
-            datamodel_ids = datamodel_id.split(',') if isinstance(datamodel_id, str) else datamodel_id
+        if datamodelIds:
+            datamodel_ids = datamodelIds.split(',') if isinstance(datamodelIds, str) else datamodelIds
             tools += get_chat_data_tools(datamodel_ids)
             agent_enable = True
-
         # 记忆工具
         if memory_enable:
             tools += get_memory_tools(self.conversation_id)
             agent_enable = True
-
         # 其他工具
-        tools += get_tools(self.agent_config.get('tools', []))
+        tools += get_tools(toolIds)
         return prompt, self.llm, agent_enable, tools
 
     def handle_chat_close(self, answer):
         if answer != '':
             add_message(self.conversation_id, self.message, answer)
-            memory_enable = self.memory_config.get('enable', True)
+            memory_enable = self.metadata.get('multiSession', '0') == '1'
             if memory_enable:
                 history_messages, total = get_messages(self.conversation_id, page=1, size=self.history_size)
                 # 当消息总数达到分页尺寸倍数时触发归档

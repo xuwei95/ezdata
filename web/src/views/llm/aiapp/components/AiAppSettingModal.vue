@@ -439,7 +439,8 @@
             'knowledgeIds',
             'modelId',
             'presetQuestion',
-            'metadata'
+            'metadata',
+            'quickCommand'
           ];
           const chat_config: Record<string, any> = {};
           chatConfigFields.forEach(key => {
@@ -535,9 +536,8 @@
       function getKnowledgeDataList(ids) {
         queryKnowledgeBathById({ ids: ids }).then((res) => {
           //update-begin---author:wangshuai---date:2025-04-24---for:【QQYUN-12133】【AI】应用关联的知识库呗删除后，再次进入应用看不到已删除的知识库，并且无法清理掉知识库。---
-          console.log(2223, res)
-          if (res.records) {
-            let result = res.records;
+          if (res.data) {
+            let result = res.data;
             let idArray = ids.split(",");
             let arr = [];
             for (const id of idArray) {
@@ -838,11 +838,11 @@
         //赋值
         Object.assign(formState, data);
         //根据知识库id查询知识库内容
-        if (data.type === 'chat' && data.knowledgeIds) {
+        if (app_type === 'chat' && data.knowledgeIds) {
           getKnowledgeDataList(data.knowledgeIds);
         }
         //根据知识库id查询流程信息
-        if (data.type === 'chatFLow' && data.flowId) {
+        if (app_type === 'chatFLow' && data.flowId) {
           getFlowDataById(data.flowId);
         }
       }

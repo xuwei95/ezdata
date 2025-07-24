@@ -10,7 +10,7 @@ export enum Api {
   queryById = '/llm/chat_app/queryById',
   queryBathById = '/rag/dataset//queryAllList',
   queryFlowById = '/airag/flow/queryById',
-  promptGenerate = '/airag/app/prompt/generate',
+  promptGenerate = '/llm/chat_app/app/prompt/generate',
 }
 
 /**

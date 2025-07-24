@@ -13,6 +13,20 @@ from web_apps import db
 
 chat_app_bp = Blueprint('chat_app', __name__)
 
+
+@chat_app_bp.route('/app/prompt/generate', methods=['POST'])
+@validate_user
+def prompt_generate():
+    '''
+    prompt generate
+    '''
+    args = request.args
+    req_dict = args.to_dict()
+    content = req_dict.get('prompt', '')
+    from web_apps.llm.services.llm_services_v2 import generate_prompt
+    return Response(generate_prompt(content), mimetype='text/event-stream')
+
+
 @chat_app_bp.route('/app/debug', methods=['GET', 'POST'])
 @validate_user
 def debug_chat():
