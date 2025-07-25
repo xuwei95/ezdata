@@ -293,9 +293,6 @@
       conversationOptions: null,
       requestOptions: { prompt: message, options: { ...options } },
       referenceKnowledge: [],
-      steps: [], // 流程记录
-      html: '', // html内容
-      tableData: [], // 表格数据
     });
 
     scrollToBottom();
@@ -641,23 +638,25 @@
     if (item.event === 'HTML') {
       updateChat(uuid.value, chatData.value.length - 1, {
         ...chatData.value[chatData.value.length - 1],
-        html: item.data.message
+        html: item.data.message,
       });
-      console.log(11111, item.data.message);
-    } else if (item.event === 'DATATABLE') {
+      console.log(11111, chatData.value[chatData.value.length - 1], item.data.message);
+    }
+    if (item.event === 'DATATABLE') {
       updateChat(uuid.value, chatData.value.length - 1, {
         ...chatData.value[chatData.value.length - 1],
         tableData: item.data.message
       });
-      console.log(22222, item.data.message);
-    } else if (item.event === 'STEP') {
+      console.log(22222, chatData.value[chatData.value.length - 1], item.data.message);
+    }
+    if (item.event === 'STEP') {
       // steps 追加
       const oldSteps = chatData.value[chatData.value.length - 1]?.steps || [];
       updateChat(uuid.value, chatData.value.length - 1, {
         ...chatData.value[chatData.value.length - 1],
         steps: [...oldSteps, item.data.message]
       });
-      console.log(33333, item.data.message);
+      console.log(33333, chatData.value[chatData.value.length - 1], item.data.message);
     }
     //update-begin---author:wangshuai---date:2025-03-21---for:【QQYUN-11495】【AI】实时展示当前思考进度---
     if(item.event === "NODE_STARTED"){

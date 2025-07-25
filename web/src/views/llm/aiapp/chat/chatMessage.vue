@@ -5,8 +5,6 @@
       <img v-else :src="getAiImg()" />
     </div>
     <div class="content">
-
-
       <div v-if="steps && steps.length > 0">
         <a-dropdown trigger="click">
           <a-button type="primary" @click="showCollapse(steps.length - 1)">
@@ -32,7 +30,7 @@
         </JVxeTable>
       </div>
 
-      <div class="html-body" v-if="htmlText !== ''" style="width: 800px">
+      <div class="html-body" v-if="htmlText" style="width: 800px">
         <a-button @click="outputChart" style="float: right" preIcon="ant-design:export-outlined">导出图表</a-button>
         <iframe :srcdoc="htmlText" width="100%" height="100%"></iframe>
       </div>
@@ -137,6 +135,7 @@
   function handleData() {
     handleTableData();
     handleHtmlData();
+    console.log(6666, htmlText.value, dataSource.value)
   }
   async function outputChart() {
     const output_name = '图表导出_' + Date.now() + '.html';
@@ -388,5 +387,9 @@
     .content{
       width: 100%;
     }
+  }
+  .html-body {
+    height: 500px;
+    overflow: scroll;
   }
 </style>

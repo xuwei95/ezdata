@@ -81,9 +81,6 @@ class ToolsCallAgent:
                     else:
                         data = {'content': chunk['output'], 'type': 'text'}
                         yield data
-                    data = {'content': {'title': f"处理完成", 'content': f"处理完成",
-                                        'time': get_now_time(res_type='datetime')}, 'type': 'flow'}
-                    yield data
 
 
 if __name__ == '__main__':

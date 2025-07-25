@@ -247,7 +247,7 @@
                     <a-row>
                       <a-form-item :labelCol="labelCol" :wrapperCol="wrapperCol" v-bind="validateInfos.multiSession">
                         <div style="display: flex;margin-top: 10px">
-                          <div style="margin-left: 2px">多会话模式：</div>
+                          <div style="margin-left: 2px">长期记忆：</div>
                           <a-switch :disabled="isRelease" v-model:checked="multiSessionChecked" checked-children="开" un-checked-children="关" @change="handleMultiSessionChange"></a-switch>
                         </div>
                       </a-form-item>
