@@ -28,6 +28,9 @@
                 :images = "item.images"
                 :retrievalText="item.retrievalText"
                 :referenceKnowledge="item.referenceKnowledge"
+                :html="item.html"
+                :tableData="item.tableData"
+                :steps="item.steps"
                 @send="handleOutQuestion"
               ></chatMessage>
             </div>
@@ -290,6 +293,9 @@
       conversationOptions: null,
       requestOptions: { prompt: message, options: { ...options } },
       referenceKnowledge: [],
+      steps: [], // 流程记录
+      html: '', // html内容
+      tableData: [], // 表格数据
     });
 
     scrollToBottom();
@@ -362,17 +368,22 @@
       wrapClassName:'ai-chat-modal',
       async onOk() {
         try {
-          defHttp.get({
-            url: '/airag/chat/messages/clear/' + uuid.value,
-          },{ isTransformResponse: false }).then((res) => {
-            if(res.success){
-              chatData.value = [];
-              topicId.value = "";
-              if(props.prologue){
-                topChat(props.prologue);
-              }
-            }
-          })
+          chatData.value = [];
+          topicId.value = "";
+          if(props.prologue){
+            topChat(props.prologue);
+          }
+          // defHttp.get({
+          //   url: '/airag/chat/messages/clear/' + uuid.value,
+          // },{ isTransformResponse: false }).then((res) => {
+          //   if(res.success){
+          //     chatData.value = [];
+          //     topicId.value = "";
+          //     if(props.prologue){
+          //       topChat(props.prologue);
+          //     }
+          //   }
+          // })
         } catch {
           return console.log('Oops errors!');
         }
@@ -400,14 +411,15 @@
     //update-begin---author:wangshuai---date:2025-06-03---for:【issues/8338】AI应用聊天回复stop无效，仍会继续输出回复---
     const currentRequestId = requestId.value
     if(currentRequestId){
-      try{
-        //调用后端接口停止响应
-        defHttp.get({
-          url: '/airag/chat/stop/' + currentRequestId,
-        },{ isTransformResponse: false });
-      } finally {
-        handleStop();
-      }
+      handleStop();
+      // try{
+      //   //调用后端接口停止响应
+      //   defHttp.get({
+      //     url: '/airag/chat/stop/' + currentRequestId,
+      //   },{ isTransformResponse: false });
+      // } finally {
+      //   handleStop();
+      // }
       //update-end---author:wangshuai---date:2025-06-03---for:【issues/8338】AI应用聊天回复stop无效，仍会继续输出回复---
     }
   }
@@ -503,8 +515,8 @@
             if(content.indexOf(":::card:::") !== -1){
               content = content.replace(/\s+/g, '');
             }
-            let parse = JSON.parse(content);
-            await renderText(parse,conversationId,text,options).then((res)=>{
+            let item = JSON.parse(content);
+            await renderText(item,conversationId,text,options).then((res)=>{
               text = res.returnText;
               conversationId = res.conversationId;
             });
@@ -625,7 +637,28 @@
       handleStop();
       return "";
     }
-
+    // 自定义event处理
+    if (item.event === 'HTML') {
+      updateChat(uuid.value, chatData.value.length - 1, {
+        ...chatData.value[chatData.value.length - 1],
+        html: item.data.message
+      });
+      console.log(11111, item.data.message);
+    } else if (item.event === 'DATATABLE') {
+      updateChat(uuid.value, chatData.value.length - 1, {
+        ...chatData.value[chatData.value.length - 1],
+        tableData: item.data.message
+      });
+      console.log(22222, item.data.message);
+    } else if (item.event === 'STEP') {
+      // steps 追加
+      const oldSteps = chatData.value[chatData.value.length - 1]?.steps || [];
+      updateChat(uuid.value, chatData.value.length - 1, {
+        ...chatData.value[chatData.value.length - 1],
+        steps: [...oldSteps, item.data.message]
+      });
+      console.log(33333, item.data.message);
+    }
     //update-begin---author:wangshuai---date:2025-03-21---for:【QQYUN-11495】【AI】实时展示当前思考进度---
     if(item.event === "NODE_STARTED"){
       if(!item.data || item.data.type !== 'end'){

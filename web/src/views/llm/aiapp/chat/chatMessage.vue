@@ -5,6 +5,39 @@
       <img v-else :src="getAiImg()" />
     </div>
     <div class="content">
+
+
+      <div v-if="steps && steps.length > 0">
+        <a-dropdown trigger="click">
+          <a-button type="primary" @click="showCollapse(steps.length - 1)">
+            <span v-if="loading">
+              <a-icon type="loading-outlined" :spin="true" />
+            </span>
+            {{ steps[steps.length - 1].title }}
+            <a-icon type="down" />
+          </a-button>
+        </a-dropdown>
+        <a-collapse v-model:activeKey="activeKeys" v-if="showCollapsePanel">
+          <a-collapse-panel v-for="(item, index) in steps" :key="index" :header="item.time + '  ' + item.title" :panelKey="index.toString()">
+            <chatText :text="item.content"></chatText>
+          </a-collapse-panel>
+        </a-collapse>
+      </div>
+
+      <div v-if="showTable" style="width: 100%">
+        <JVxeTable ref="tableRef" toolbar resizable maxHeight="400" :toolbarConfig="{ btn: [] }" :columns="columns" :dataSource="dataSource">
+          <template #toolbarSuffix>
+            <a-button @click="outputData" style="float: right" preIcon="ant-design:export-outlined">导出数据</a-button>
+          </template>
+        </JVxeTable>
+      </div>
+
+      <div class="html-body" v-if="htmlText !== ''" style="width: 800px">
+        <a-button @click="outputChart" style="float: right" preIcon="ant-design:export-outlined">导出图表</a-button>
+        <iframe :srcdoc="htmlText" width="100%" height="100%"></iframe>
+      </div>
+
+
       <p class="date">
         <span v-if="inversion === 'ai'" style="margin-right: 10px">{{appData.name || 'AI助手'}}</span>
         <span>{{ dateTime }}</span>
@@ -46,11 +79,84 @@
   import { useUserStore } from '/@/store/modules/user';
   import defaultImg from '../img/ailogo.png';
 
-  const props = defineProps(['dateTime', 'text', 'inversion', 'error', 'loading','appData','presetQuestion','images','retrievalText', 'referenceKnowledge']);
+  const props = defineProps(['dateTime', 'text', 'inversion', 'error', 'loading','appData','presetQuestion','images','retrievalText', 'referenceKnowledge', 'html', 'tableData', 'steps']);
   import { getFileAccessHttpUrl } from '/@/utils/common/compUtils';
   import { createImgPreview } from "@/components/Preview";
-  import { computed } from "vue";
+  
+  // 自定义组件
+  import { computed, defineExpose, onMounted, ref } from "vue";
+  import { JVxeTypes, JVxeColumn, JVxeTableInstance } from '/@/components/jeecg/JVxeTable/types';
+  import { useMethods } from '@/hooks/system/useMethods';
+  // 数据表格相关配置
+  const tableRef = ref<JVxeTableInstance>();
+  const showTable = ref(false);
+  const columns = ref<JVxeColumn[]>([]); // 字段列表
+  const dataSource = ref<any[]>([]); // 数据列表
+  // html渲染相关配置
+  const htmlText = ref('');
+  // 流程展示
+  const activeKeys = ref([]);
+  const showCollapsePanel = ref(false);
+  const showCollapse = (index) => {
+    showCollapsePanel.value = !showCollapsePanel.value;
+    activeKeys.value = [index.toString()];
+  };
+  // 数据表格 导出excel
+  const { handleExportExcel } = useMethods();
+  async function outputData() {
+    console.log(dataSource.value);
+    handleExportExcel('数据导出_' + Date.now() + '.xlsx', dataSource.value);
+  }
+  function handleTableData() {
+    const data_li = props.tableData;
+    if (data_li && data_li.length > 0) {
+      columns.value = [];
+      const fields = Object.keys(data_li[0]);
+      console.log(fields);
+      for (let i in fields) {
+        const field_key = fields[i];
+        columns.value.push({
+          title: field_key,
+          key: field_key,
+          type: JVxeTypes.normal,
+          width: 200,
+        });
+      }
+      dataSource.value = data_li;
+      showTable.value = true;
+    }
+  }
+  // 渲染html图表
+  function handleHtmlData() {
+    const html_text = props.html;
+    if (html_text && html_text !== '') {
+      htmlText.value = html_text;
+    }
+  }
+  // 渲染表格或html
+  function handleData() {
+    handleTableData();
+    handleHtmlData();
+  }
+  async function outputChart() {
+    const output_name = '图表导出_' + Date.now() + '.html';
+    const data = new Blob([htmlText.value], { type: 'text/html' });
+    const url = URL.createObjectURL(data);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', output_name);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+  onMounted(() => {
+    handleData();
+  });
+  defineExpose({
+    handleData,
+  });
 
+  
   const getText = computed(()=>{
     let text = props.text || props.retrievalText;
     if(text){

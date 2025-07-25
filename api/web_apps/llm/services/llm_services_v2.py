@@ -4,7 +4,6 @@ from web_apps import app
 from web_apps.llm.agents.data_extract_agent import DataExtractAgent
 from web_apps.llm.llm_utils import get_llm
 from utils.common_utils import gen_json_response, gen_uuid, get_now_time, parse_json
-from utils.auth import get_auth_token_info
 from web_apps.rag.services.rag_service import get_knowledge
 from web_apps.llm.tools import tools_map
 from web_apps.llm.tools import get_tools
@@ -94,7 +93,7 @@ class ChatHandler:
             user_info = {'id': 0, 'user_name': 'test'}
         """准备聊天上下文，返回(prompt, llm, agent_enable, tools)"""
         # 处理数据对话配置
-        datamodelIds = self.chat_config.get('datamodelIds', '')
+        datamodelIds = self.chat_config.get('datamodelIds', 'e222b61c62be4d09908a5bc94aebf22d')
         knowledgeIds = self.chat_config.get('knowledgeIds', '')
         toolIds = self.chat_config.get('toolIds', '')
         # 处理知识库
@@ -128,9 +127,9 @@ class ChatHandler:
         core_memory_section = f"[核心记忆]\n{core_memory}\n\n" if core_memory else ''
         history_section = format_history(chat_history) if chat_history else ""
         history_part = f"对话历史：\n{history_section}\n\n" if history_section else ""
-
+        system_part = f"System: {self.system_prompt}\n\n"  if self.system_prompt else ''
         prompt = (
-            f"System: {self.system_prompt}\n"
+            f"{system_part}"
             f"{core_memory_section}"
             f"{history_part}"
             f"{knowledge_section}"
