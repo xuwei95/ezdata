@@ -170,7 +170,7 @@
     }
   }
   .html-body {
-    height: 500px;
+    height: 450px;
     overflow: scroll;
   }
 </style>

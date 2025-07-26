@@ -231,6 +231,47 @@
                     </a-form-item>
                   </div>
                 </a-col>
+                <!-- Add this after the "AI模型" form item -->
+                <a-col :span="24" v-if="formState.type==='chat'" class="mt-10">
+                  <div class="prologue-chunk">
+                    <a-form-item :labelCol="labelCol" :wrapperCol="wrapperCol" v-bind="validateInfos.datamodelIds">
+                      <template #label>
+                        <div class="item-title">数据分析</div>
+                      </template>
+                      <ApiSelect
+                        v-model:value="formState.datamodelIds"
+                        :api="allDataModelList"
+                        mode="multiple"
+                        :params="{}"
+                        labelField="name"
+                        valueField="id"
+                        :disabled="isRelease"
+                        placeholder="请选择数据模型"
+                      />
+                    </a-form-item>
+                  </div>
+                </a-col>
+
+                <!-- Add this after the "数据模型" form item -->
+                <a-col :span="24" v-if="formState.type==='chat'" class="mt-10">
+                  <div class="prologue-chunk">
+                    <a-form-item :labelCol="labelCol" :wrapperCol="wrapperCol" v-bind="validateInfos.toolIds">
+                      <template #label>
+                        <div class="item-title">工具使用</div>
+                      </template>
+                      <ApiSelect
+                        v-model:value="formState.toolIds"
+                        :api="toolList"
+                        mode="multiple"
+                        :params="{}"
+                        labelField="name"
+                        valueField="value"
+                        :disabled="isRelease"
+                        placeholder="请选择工具"
+                      />
+                    </a-form-item>
+                  </div>
+                </a-col>
                 <a-col :span="24" class="mt-10">
                   <div class="prologue-chunk">
                     <a-form-item :labelCol="labelCol" :wrapperCol="wrapperCol" v-bind="validateInfos.msgNum">
@@ -302,10 +343,13 @@
   import {getFileAccessHttpUrl, randomString, simpleDebounce} from "@/utils/common/compUtils";
   import JSearchSelect from "@/components/Form/src/jeecg/components/JSearchSelect.vue";
   import JMarkdownEditor from "@/components/Form/src/jeecg/components/JMarkdownEditor.vue";
-  import AiAppJson from './AiApp.json'
+  import AiAppJson from './AiApp.json';
   import draggable from 'vuedraggable';
   import { useMessage } from "@/hooks/web/useMessage";
   import defaultFlowImg from "@/assets/images/ai/aiflow.png";
+  import ApiSelect from '@/components/Form/src/components/ApiSelect.vue';
+  import { toolList } from '@/components/jeecg/AiChat/llm.api';
+  import { allList as allDataModelList } from '@/views/dataManage/dataModel/datamodel.api';
   export default {
     name: 'AiAppSettingModal',
     components: {
@@ -322,6 +366,7 @@
       chat,
       AiAppGeneratedPromptModal,
       AiAppQuickCommandModal,
+      ApiSelect,
     },
     emits: ['success', 'register'],
     setup(props, { emit }) {
@@ -346,7 +391,9 @@
         prologue: null,
         knowledgeIds: '',
         modelId: 'default',
-        presetQuestion:''
+        presetQuestion: '',
+        datamodelIds: [],
+        toolIds: [],
       });
       //表单验证
       const validatorRules = ref<any>({
@@ -440,7 +487,9 @@
             'modelId',
             'presetQuestion',
             'metadata',
-            'quickCommand'
+            'quickCommand',
+            'datamodelIds',
+            'toolIds',
           ];
           const chat_config: Record<string, any> = {};
           chatConfigFields.forEach(key => {

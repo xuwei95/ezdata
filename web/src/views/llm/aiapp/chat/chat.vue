@@ -25,7 +25,7 @@
                 :loading="item.loading"
                 :appData="appData"
                 :presetQuestion="item.presetQuestion"
-                :images = "item.images"
+                :images="item.images"
                 :retrievalText="item.retrievalText"
                 :referenceKnowledge="item.referenceKnowledge"
                 :html="item.html"
@@ -233,7 +233,7 @@
   const globSetting = useGlobSetting();
   const baseUploadUrl = globSetting.uploadUrl;
   const uploadUrl = ref<string>(`${baseUploadUrl}/airag/chat/upload`);
-  
+
   function handleEnter(event: KeyboardEvent) {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
@@ -639,13 +639,15 @@
       updateChat(uuid.value, chatData.value.length - 1, {
         ...chatData.value[chatData.value.length - 1],
         html: item.data.message,
+        content: "",
       });
       console.log(11111, chatData.value[chatData.value.length - 1], item.data.message);
     }
     if (item.event === 'DATATABLE') {
       updateChat(uuid.value, chatData.value.length - 1, {
         ...chatData.value[chatData.value.length - 1],
-        tableData: item.data.message
+        tableData: item.data.message,
+        content: "",
       });
       console.log(22222, chatData.value[chatData.value.length - 1], item.data.message);
     }
@@ -654,7 +656,8 @@
       const oldSteps = chatData.value[chatData.value.length - 1]?.steps || [];
       updateChat(uuid.value, chatData.value.length - 1, {
         ...chatData.value[chatData.value.length - 1],
-        steps: [...oldSteps, item.data.message]
+        steps: [...oldSteps, item.data.message],
+        content: "",
       });
       console.log(33333, chatData.value[chatData.value.length - 1], item.data.message);
     }
@@ -688,7 +691,7 @@
           updateChat(uuid.value, chatData.value.length - 1, {
             dateTime: new Date().toLocaleString(),
             retrievalText: aiText,
-            text:"",
+            text: "",
             inversion: 'ai',
             error: false,
             loading: true,
@@ -1113,7 +1116,7 @@
       display: flex;
     }
   }
-  
+
   @media (max-width: 600px) {
     //手机下的样式 平板不需要调整
     .footer{

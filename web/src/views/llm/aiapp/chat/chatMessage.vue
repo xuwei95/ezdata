@@ -1,10 +1,14 @@
 <template>
-  <div class="chat" :class="[inversion === 'user' ? 'self' : 'chatgpt']" v-if="getText || (props.presetQuestion && props.presetQuestion.length>0)">
+  <div class="chat" :class="[inversion === 'user' ? 'self' : 'chatgpt']" v-if="getText || (props.presetQuestion && props.presetQuestion.length>0) || (props.steps && props.steps.length>0) || showTable || props.html">
     <div class="avatar">
       <img v-if="inversion === 'user'" :src="avatar()" />
       <img v-else :src="getAiImg()" />
     </div>
     <div class="content">
+      <p class="date">
+        <span v-if="inversion === 'ai'" style="margin-right: 10px">{{appData.name || 'AI助手'}}</span>
+        <span>{{ dateTime }}</span>
+      </p>
       <div v-if="steps && steps.length > 0">
         <a-dropdown trigger="click">
           <a-button type="primary" @click="showCollapse(steps.length - 1)">
@@ -30,16 +34,10 @@
         </JVxeTable>
       </div>
 
-      <div class="html-body" v-if="htmlText" style="width: 800px">
+      <div class="html-body" v-if="props.html && props.html !== ''" style="width: 800px">
         <a-button @click="outputChart" style="float: right" preIcon="ant-design:export-outlined">导出图表</a-button>
-        <iframe :srcdoc="htmlText" width="100%" height="100%"></iframe>
+        <iframe :srcdoc="props.html" width="100%" height="100%"></iframe>
       </div>
-
-
-      <p class="date">
-        <span v-if="inversion === 'ai'" style="margin-right: 10px">{{appData.name || 'AI助手'}}</span>
-        <span>{{ dateTime }}</span>
-      </p>
       <div v-if="inversion === 'user' && images && images.length>0" class="images">
           <div v-for="(item,index) in images" :key="index" class="image" @click="handlePreview(item)">
             <img :src="getImageUrl(item)"/>
@@ -80,7 +78,6 @@
   const props = defineProps(['dateTime', 'text', 'inversion', 'error', 'loading','appData','presetQuestion','images','retrievalText', 'referenceKnowledge', 'html', 'tableData', 'steps']);
   import { getFileAccessHttpUrl } from '/@/utils/common/compUtils';
   import { createImgPreview } from "@/components/Preview";
-  
   // 自定义组件
   import { computed, defineExpose, onMounted, ref } from "vue";
   import { JVxeTypes, JVxeColumn, JVxeTableInstance } from '/@/components/jeecg/JVxeTable/types';
@@ -90,8 +87,6 @@
   const showTable = ref(false);
   const columns = ref<JVxeColumn[]>([]); // 字段列表
   const dataSource = ref<any[]>([]); // 数据列表
-  // html渲染相关配置
-  const htmlText = ref('');
   // 流程展示
   const activeKeys = ref([]);
   const showCollapsePanel = ref(false);
@@ -124,22 +119,13 @@
       showTable.value = true;
     }
   }
-  // 渲染html图表
-  function handleHtmlData() {
-    const html_text = props.html;
-    if (html_text && html_text !== '') {
-      htmlText.value = html_text;
-    }
-  }
   // 渲染表格或html
   function handleData() {
     handleTableData();
-    handleHtmlData();
-    console.log(6666, htmlText.value, dataSource.value)
   }
   async function outputChart() {
     const output_name = '图表导出_' + Date.now() + '.html';
-    const data = new Blob([htmlText.value], { type: 'text/html' });
+    const data = new Blob([props.html], { type: 'text/html' });
     const url = URL.createObjectURL(data);
     const link = document.createElement('a');
     link.href = url;
@@ -155,7 +141,7 @@
     handleData,
   });
 
-  
+
   const getText = computed(()=>{
     let text = props.text || props.retrievalText;
     if(text){

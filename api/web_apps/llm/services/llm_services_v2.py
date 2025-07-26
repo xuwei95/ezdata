@@ -99,7 +99,7 @@ class ChatHandler:
         # 处理知识库
         knowledge = ''
         if knowledgeIds != '':
-            rag_metadata = parse_json({'daset_id': knowledgeIds}, {'dataset_id': '1'})
+            rag_metadata = parse_json({'dataset_id': knowledgeIds}, {'dataset_id': '1'})
             if datamodelIds:
                 rag_metadata['datamodel_id'] = datamodelIds
             if self.metadata.get('topNumber'):
