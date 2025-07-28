@@ -7,7 +7,7 @@
 </template>
 
 <script setup>
-  import AiChat from '/@/components/jeecg/AiChat/index.vue';
+  import AiChat from '/@/views/llm/aiapp/chat/AiChat.vue';
 </script>
 
 <style lang="less" scoped>

@@ -93,7 +93,7 @@ class ChatHandler:
             user_info = {'id': 0, 'user_name': 'test'}
         """准备聊天上下文，返回(prompt, llm, agent_enable, tools)"""
         # 处理数据对话配置
-        datamodelIds = self.chat_config.get('datamodelIds', 'e222b61c62be4d09908a5bc94aebf22d')
+        datamodelIds = self.chat_config.get('datamodelIds', '')
         knowledgeIds = self.chat_config.get('knowledgeIds', '')
         toolIds = self.chat_config.get('toolIds', '')
         # 处理知识库
@@ -274,33 +274,68 @@ def data_chat_generate(req_dict):
     '''
     message = req_dict['message']
     model_id = req_dict.get('model_id', '')
-    conversation_id = req_dict.get('topicId', gen_uuid())
+    conversation_id = req_dict.get('conversationId', gen_uuid())
     _llm = get_llm()
     if _llm is None:
-        data = {'content': '未找到对应llm配置!', 'type': 'text'}
-        t = f"id:{conversation_id}\ndata:{json.dumps(data, ensure_ascii=False)}"
-        yield f"{t}\n\n"
-        yield f"id:[ERR]\ndata:[ERR]\n\n"
+        msg = {
+            "conversationId": conversation_id,
+            "data": {
+                "message": '未找到对应llm配置!'
+            },
+            "event": "ERROR"
+        }
+        yield f"data:{json.dumps(msg, ensure_ascii=False)}\n\n"
         return
     data_tool = get_chat_data_tool(model_id, is_chat=True)
     if data_tool is None:
         for c in _llm.stream(message):
-            data = {'content': c.content, 'type': 'text'}
-            t = f"id:{conversation_id}\ndata:{json.dumps(data, ensure_ascii=False)}"
+            msg = {
+                "conversationId": conversation_id,
+                "data": {
+                    "message": c.content
+                },
+                "event": "MESSAGE"
+            }
+            t = f"data:{json.dumps(msg, ensure_ascii=False)}"
             yield f"{t}\n\n"
     else:
-        data = {'content': {'title': '检索知识库', 'content': '正在检索知识库', 'time': get_now_time(res_type='datetime')},
-                'type': 'flow'}
-        t = f"id:{conversation_id}\ndata:{json.dumps(data, ensure_ascii=False)}"
+        msg = {
+            "conversationId": conversation_id,
+            "data": {
+                "message": {'title': '检索知识库', 'content': '正在检索知识库', 'time': get_now_time(res_type='datetime')}
+            },
+            "event": "STEP"
+        }
+        t = f"data:{json.dumps(msg, ensure_ascii=False)}"
         yield f"{t}\n\n"
         # 检索知识库中相关知识
         knowledge = get_knowledge(message, metadata={'datamodel_id': model_id})
         data_tool.knowledge = knowledge
         agent = ToolsCallAgent([data_tool], llm=_llm)
         for chunk in agent.chat(message):
-            t = f"id:{conversation_id}\ndata:{json.dumps(chunk, ensure_ascii=False)}"
+            event_type_map = {
+                'text': "MESSAGE",
+                'html': "HTML",
+                'data': "DATATABLE",
+                'step': "STEP",
+                'flow': "STEP"
+            }
+            msg = {
+                "conversationId": conversation_id,
+                "data": {
+                    "message": chunk['content']
+                },
+                "event": event_type_map.get(chunk['type'], "MESSAGE")
+            }
+            t = f"data:{json.dumps(msg, ensure_ascii=False)}"
             yield f"{t}\n\n"
-    yield f"id:[DONE]\ndata:[DONE]\n\n"
+    msg = {
+        "conversationId": conversation_id,
+        "data": None,
+        "event": "MESSAGE_END"
+    }
+    t = f"data:{json.dumps(msg, ensure_ascii=False)}"
+    yield f"{t}\n\n"
 
 
 if __name__ == '__main__':

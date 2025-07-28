@@ -18,7 +18,7 @@
       </div>
       <div class="rightArea" :class="[expand ? 'expand' : 'shrink']">
         <chat
-          url="/airag/chat/send"
+          url="/llm/chat"
           v-if="uuid && chatVisible"
           :uuid="uuid"
           :historyData="chatData"
@@ -126,7 +126,7 @@
           //根据选中的id查询聊天内容
           let params = { conversationId: value };
           uuid.value = value;
-          defHttp.get({ url: '/airag/chat/messages', params }, { isTransformResponse: false }).then((res) => {
+          defHttp.get({ url: '/llm/chat/messages', params }, { isTransformResponse: false }).then((res) => {
             if (res.success) {
               chatData.value = res.result;
             } else {
@@ -161,7 +161,7 @@
     defHttp
       .get(
         {
-          url: '/airag/chat/conversations',
+          url: '/llm/chat/conversations',
           params: { appId: appId },
         },
         { isTransformResponse: false }
@@ -191,9 +191,8 @@
     } else {
       initChartData();
       quickCommandData.value = [
-          { name: '请介绍一下JeecgBoot', descr: "请介绍一下JeecgBoot" },
-          { name: 'JEECG有哪些优势？', descr: "JEECG有哪些优势？" },
-          { name: 'JEECG可以做哪些事情？', descr: "JEECG可以做哪些事情？" },];
+          { name: '请介绍一下', descr: "请介绍一下" },
+    ]
     }
     let query: any = router.currentRoute.value.query;
     source.value = query.source;

@@ -8,9 +8,12 @@ export enum Api {
   release = '/llm/chat_app/release',
   delete = '/llm/chat_app/delete',
   queryById = '/llm/chat_app/queryById',
-  queryBathById = '/rag/dataset//queryAllList',
+  queryBathById = '/rag/dataset/queryAllList',
   queryFlowById = '/airag/flow/queryById',
   promptGenerate = '/llm/chat_app/app/prompt/generate',
+  // 数据模型和工具批量查询
+  queryDataModelBatchById = '/datamodel/queryAllList',
+  queryToolBatchById = '/llm/tool/list',
 }
 
 /**
@@ -82,6 +85,22 @@ export const deleteApp = (params, handleSuccess) => {
  */
 export const queryFlowById = (params) => {
   return defHttp.get({ url: Api.queryFlowById, params }, { isTransformResponse: false });
+};
+
+/**
+ * 批量查询数据模型
+ * @param params
+ */
+export const queryDataModelBatchById = (params) => {
+  return defHttp.get({ url: Api.queryDataModelBatchById, params }, { isTransformResponse: false });
+};
+
+/**
+ * 批量查询工具
+ * @param params
+ */
+export const queryToolBatchById = (params) => {
+  return defHttp.get({ url: Api.queryToolBatchById, params }, { isTransformResponse: false });
 };
 
 /**

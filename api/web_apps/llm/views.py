@@ -7,7 +7,7 @@ from utils.web_utils import get_req_para
 from utils.auth import validate_user, set_insert_user, set_update_user, get_auth_token_info
 from web_apps import db
 from web_apps.llm.db_models import ChatHistory
-from web_apps.llm.services.llm_services import chat_generate, data_chat_generate, get_tool_list
+from web_apps.llm.services.llm_services_v2 import chat_generate, data_chat_generate, get_tool_list
 logger = get_logger(p_name='system_log', f_name='llm', log_level='INFO')
 llm_bp = Blueprint('llm', __name__)
 
@@ -76,6 +76,34 @@ def save_llm_chat_history():
     }
     return jsonify(res_data)
 
+
+@llm_bp.route('/chat/conversations', methods=['GET'])
+@validate_user
+def get_chat_conversations():
+    user_info = get_auth_token_info()
+    user_id = user_info['id']
+    res_data = {
+        "success": True,
+        "msg": "",
+        "code": 200,
+        "data": [],
+        "timestamp": int(time.time() * 1000)
+    }
+    return jsonify(res_data)
+
+@llm_bp.route('/chat/messages', methods=['GET'])
+@validate_user
+def get_chat_messages():
+    user_info = get_auth_token_info()
+    user_id = user_info['id']
+    res_data = {
+        "success": True,
+        "msg": "",
+        "code": 200,
+        "data": [],
+        "timestamp": int(time.time() * 1000)
+    }
+    return jsonify(res_data)
 
 @llm_bp.route('/chat', methods=['GET', 'POST'])
 @validate_user

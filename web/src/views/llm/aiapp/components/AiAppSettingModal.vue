@@ -236,18 +236,32 @@
                   <div class="prologue-chunk">
                     <a-form-item :labelCol="labelCol" :wrapperCol="wrapperCol" v-bind="validateInfos.datamodelIds">
                       <template #label>
-                        <div class="item-title">数据分析</div>
+                        <div style="display: flex; justify-content: space-between; width: 100%;margin-left: 2px;">
+                          <div class="item-title">数据分析</div>
+                          <div v-if="!isRelease">
+                            <span @click="handleAddDataModelClick" class="knowledge-txt">
+                              <Icon icon="ant-design:plus-outlined" size="13" style="margin-right: 2px"></Icon>添加
+                            </span>
+                          </div>
+                        </div>
                       </template>
-                      <ApiSelect
-                        v-model:value="formState.datamodelIds"
-                        :api="allDataModelList"
-                        mode="multiple"
-                        :params="{}"
-                        labelField="name"
-                        valueField="id"
-                        :disabled="isRelease"
-                        placeholder="请选择数据模型"
-                      />
+                      <a-row :span="24">
+                        <a-col :span="12" v-for="item in datamodelDataList" v-if="datamodelDataList && datamodelDataList.length>0">
+                          <a-card hoverable class="knowledge-card" :body-style="{ width: '100%' }">
+                            <div style="display: flex; width: 100%; justify-content: space-between">
+                              <div>
+                                <img class="knowledge-img" :src="datamodel" />
+                                <span class="knowledge-name" style="color: #e03e2d;text-decoration: line-through" v-if="item.type && item.type === 'delete'">{{ item.name }}</span>
+                                <span class="knowledge-name" v-else>{{ item.name }}</span>
+                              </div>
+                              <Icon v-if="!isRelease" @click="handleDeleteDataModel(item.id)" icon="ant-design:close-outlined" size="20" class="knowledge-icon"></Icon>
+                            </div>
+                          </a-card>
+                        </a-col>
+                        <div v-else class="data-empty-text">
+                          添加数据模型后，用户发送消息时，智能体能够查询和分析数据模型中的内容。
+                        </div>
+                      </a-row>
                     </a-form-item>
                   </div>
                 </a-col>
@@ -257,18 +271,32 @@
                   <div class="prologue-chunk">
                     <a-form-item :labelCol="labelCol" :wrapperCol="wrapperCol" v-bind="validateInfos.toolIds">
                       <template #label>
-                        <div class="item-title">工具使用</div>
+                        <div style="display: flex; justify-content: space-between; width: 100%;margin-left: 2px;">
+                          <div class="item-title">工具使用</div>
+                          <div v-if="!isRelease">
+                            <span @click="handleAddToolClick" class="knowledge-txt">
+                              <Icon icon="ant-design:plus-outlined" size="13" style="margin-right: 2px"></Icon>添加
+                            </span>
+                          </div>
+                        </div>
                       </template>
-                      <ApiSelect
-                        v-model:value="formState.toolIds"
-                        :api="toolList"
-                        mode="multiple"
-                        :params="{}"
-                        labelField="name"
-                        valueField="value"
-                        :disabled="isRelease"
-                        placeholder="请选择工具"
-                      />
+                      <a-row :span="24">
+                        <a-col :span="12" v-for="item in toolDataList" v-if="toolDataList && toolDataList.length>0">
+                          <a-card hoverable class="knowledge-card" :body-style="{ width: '100%' }">
+                            <div style="display: flex; width: 100%; justify-content: space-between">
+                              <div>
+                                <img class="knowledge-img" :src="tool" />
+                                <span class="knowledge-name" style="color: #e03e2d;text-decoration: line-through" v-if="item.type">{{ item.name }}</span>
+                                <span class="knowledge-name" v-else>{{ item.name }}</span>
+                              </div>
+                              <Icon v-if="!isRelease" @click="handleDeleteTool(item.value)" icon="ant-design:close-outlined" size="20" class="knowledge-icon"></Icon>
+                            </div>
+                          </a-card>
+                        </a-col>
+                        <div v-else class="data-empty-text">
+                          添加工具后，用户发送消息时，智能体能够调用相应的工具来完成任务。
+                        </div>
+                      </a-row>
                     </a-form-item>
                   </div>
                 </a-col>
@@ -307,6 +335,10 @@
 
     <!--  Ai知识库选择弹窗   -->
     <AiAppAddKnowledgeModal @register="registerKnowledgeModal" @success="handleSuccess"></AiAppAddKnowledgeModal>
+    <!--  Ai数据模型选择弹窗   -->
+    <AiAppAddDataModelModal @register="registerDataModelModal" @success="handleDataModelSuccess"></AiAppAddDataModelModal>
+    <!--  Ai工具选择弹窗   -->
+    <AiAppAddToolModal @register="registerToolModal" @success="handleToolSuccess"></AiAppAddToolModal>
     <!--  Ai添加流程弹窗  -->
     <AiAppAddFlowModal @register="registerFlowModal" @success="handleAddFlowSuccess"></AiAppAddFlowModal>
     <!-- Ai配置弹窗   -->
@@ -326,9 +358,11 @@
   import { useModal, useModalInner } from '@/components/Modal';
   import { Form, TimePicker } from 'ant-design-vue';
   import { initDictOptions } from '@/utils/dict';
-  import {queryKnowledgeBathById, saveApp, queryById, queryFlowById} from '../AiApp.api';
+  import {queryKnowledgeBathById, saveApp, queryById, queryFlowById, queryDataModelBatchById, queryToolBatchById} from '../AiApp.api';
   import JDictSelectTag from '@/components/Form/src/jeecg/components/JDictSelectTag.vue';
   import AiAppAddKnowledgeModal from './AiAppAddKnowledgeModal.vue';
+  import AiAppAddDataModelModal from './AiAppAddDataModelModal.vue';
+  import AiAppAddToolModal from './AiAppAddToolModal.vue';
   import AiAppParamsSettingModal from './AiAppParamsSettingModal.vue';
   import AiAppGeneratedPromptModal from './AiAppGeneratedPromptModal.vue';
   import AiAppQuickCommandModal from './AiAppQuickCommandModal.vue';
@@ -336,6 +370,9 @@
   import AiAppModal from './AiAppModal.vue';
   import chat from '../chat/chat.vue';
   import knowledge from '/@/views/super/airag/aiknowledge/icon/knowledge.png';
+  // 暂时使用知识库图标作为数据模型和工具的图标
+  const datamodel = knowledge;
+  const tool = knowledge;
   import { cloneDeep } from 'lodash-es';
   import dayjs from 'dayjs';
   import JImageUpload from '@/components/Form/src/jeecg/components/JImageUpload.vue';
@@ -347,9 +384,6 @@
   import draggable from 'vuedraggable';
   import { useMessage } from "@/hooks/web/useMessage";
   import defaultFlowImg from "@/assets/images/ai/aiflow.png";
-  import ApiSelect from '@/components/Form/src/components/ApiSelect.vue';
-  import { toolList } from '@/components/jeecg/AiChat/llm.api';
-  import { allList as allDataModelList } from '@/views/dataManage/dataModel/datamodel.api';
   export default {
     name: 'AiAppSettingModal',
     components: {
@@ -360,13 +394,14 @@
       JDictSelectTag,
       BasicModal,
       AiAppAddKnowledgeModal,
+      AiAppAddDataModelModal,
+      AiAppAddToolModal,
       AiAppParamsSettingModal,
       AiAppAddFlowModal,
       AiAppModal,
       chat,
       AiAppGeneratedPromptModal,
       AiAppQuickCommandModal,
-      ApiSelect,
     },
     emits: ['success', 'register'],
     setup(props, { emit }) {
@@ -392,8 +427,8 @@
         knowledgeIds: '',
         modelId: 'default',
         presetQuestion: '',
-        datamodelIds: [],
-        toolIds: [],
+        datamodelIds: '',
+        toolIds: '',
       });
       //表单验证
       const validatorRules = ref<any>({
@@ -410,6 +445,14 @@
       const knowledgeIds = ref<any>('');
       //知识库集合
       const knowledgeDataList = ref<any>([]);
+      //关联数据模型的id
+      const datamodelIds = ref<any>('');
+      //数据模型集合
+      const datamodelDataList = ref<any>([]);
+      //关联工具的id
+      const toolIds = ref<any>('');
+      //工具集合
+      const toolDataList = ref<any>([]);
       //开场白的数据
       const prologue = ref<any>('');
       //应用id
@@ -463,6 +506,8 @@
 
       //注册modal
       const [registerKnowledgeModal, { openModal }] = useModal();
+      const [registerDataModelModal, { openModal: dataModelModalOpen }] = useModal();
+      const [registerToolModal, { openModal: toolModalOpen }] = useModal();
       const [registerFlowModal, { openModal: registerFlowOpen }] = useModal();
       const [registerParamsSettingModal, { openModal: paramsSettingOpen }] = useModal();
       const [registerAiAppModal, { openModal: aiAppModalOpen }] = useModal();
@@ -475,7 +520,6 @@
       async function handleOk() {
         try {
           let values = await validate();
-          console.log(112211, values);
           setModalProps({ confirmLoading: true });
           formState.knowledgeIds = knowledgeIds.value;
           // 组装 chat_config
@@ -552,6 +596,26 @@
       }
 
       /**
+       * 添加关联数据模型
+       */
+      function handleAddDataModelClick() {
+        dataModelModalOpen(true, {
+          datamodelIds: datamodelIds.value,
+          datamodelDataList: datamodelDataList.value,
+        });
+      }
+
+      /**
+       * 添加关联工具
+       */
+      function handleAddToolClick() {
+        toolModalOpen(true, {
+          toolIds: toolIds.value,
+          toolDataList: toolDataList.value,
+        });
+      }
+
+      /**
        * 选中回调事件
        * @param knowledgeId
        * @param knowledgeData
@@ -562,6 +626,32 @@
         knowledgeDataList.value = cloneDeep(knowledgeData);
         console.log("知识库的数据",knowledgeDataList.value);
         formState.knowledgeIds = knowledgeIds.value;
+      }
+
+      /**
+       * 数据模型选中回调事件
+       * @param datamodelId
+       * @param datamodelData
+       */
+      function handleDataModelSuccess(datamodelId, datamodelData) {
+        datamodelIds.value = cloneDeep(datamodelId.join(','));
+        console.log("数据模型id",datamodelIds.value);
+        datamodelDataList.value = cloneDeep(datamodelData);
+        console.log("数据模型的数据",datamodelDataList.value);
+        formState.datamodelIds = datamodelIds.value;
+      }
+
+      /**
+       * 工具选中回调事件
+       * @param toolId
+       * @param toolData
+       */
+      function handleToolSuccess(toolId, toolData) {
+        toolIds.value = cloneDeep(toolId.join(','));
+        console.log("工具id",toolIds.value);
+        toolDataList.value = cloneDeep(toolData);
+        console.log("工具的数据",toolDataList.value);
+        formState.toolIds = toolIds.value;
       }
 
       /**
@@ -579,6 +669,34 @@
       }
 
       /**
+       * 删除数据模型
+       */
+      function handleDeleteDataModel(id) {
+        let array = datamodelIds.value.split(',');
+        let findIndex = array.findIndex((item) => item === id);
+        if (findIndex != -1) {
+          array.splice(findIndex, 1);
+          datamodelIds.value = array ? array.join(',') : '';
+          datamodelDataList.value.splice(findIndex, 1);
+          formState.datamodelIds = datamodelIds.value;
+        }
+      }
+
+      /**
+       * 删除工具
+       */
+      function handleDeleteTool(id) {
+        let array = toolIds.value.split(',');
+        let findIndex = array.findIndex((item) => item === id);
+        if (findIndex != -1) {
+          array.splice(findIndex, 1);
+          toolIds.value = array ? array.join(',') : '';
+          toolDataList.value.splice(findIndex, 1);
+          formState.toolIds = toolIds.value;
+        }
+      }
+
+      /**
        * 根据知识库id查询知识库内容
        * @param ids
        */
@@ -588,7 +706,7 @@
           if (res.data) {
             let result = res.data;
             let idArray = ids.split(",");
-            let arr = [];
+            let arr: any[] = [];
             for (const id of idArray) {
               let filter = result.filter((item) => item.id === id);
               if(filter && filter.length > 0) {
@@ -600,7 +718,7 @@
             knowledgeDataList.value = arr;
             knowledgeIds.value = ids;
           } else {
-            let arr = [];
+            let arr: any[] = [];
             for (const id of ids) {
               arr.push({ name: '该知识库已被删除', id: id})
             }
@@ -608,6 +726,68 @@
             knowledgeIds.value = ids;
           }
           //update-end---author:wangshuai---date:2025-04-24---for:【QQYUN-12133】【AI】应用关联的知识库呗删除后，再次进入应用看不到已删除的知识库，并且无法清理掉知识库。---
+        });
+      }
+
+      /**
+       * 根据数据模型id查询数据模型内容
+       * @param ids
+       */
+      function getDataModelDataList(ids) {
+        queryDataModelBatchById({}).then((res) => {
+          if (res.data) {
+            let result = res.data;
+            let idArray = ids.split(",");
+            let arr: any[] = [];
+            for (const id of idArray) {
+              let filter = result.filter((item) => item.id === id);
+              if(filter && filter.length > 0) {
+                arr.push({ id: id, name: filter[0].name});
+              } else {
+                arr.push({ name: '该数据模型已被删除', id: id,type: 'delete' })
+              }
+            }
+            datamodelDataList.value = arr;
+            datamodelIds.value = ids;
+          } else {
+            let arr: any[] = [];
+            for (const id of ids) {
+              arr.push({ name: '该数据模型已被删除', id: id})
+            }
+            datamodelDataList.value = arr;
+            datamodelIds.value = ids;
+          }
+        });
+      }
+
+      /**
+       * 根据工具id查询工具内容
+       * @param ids
+       */
+      function getToolDataList(ids) {
+        queryToolBatchById({}).then((res) => {
+          if (res.data) {
+            let result = res.data;
+            let idArray = ids.split(",");
+            let arr: any[] = [];
+            for (const id of idArray) {
+              let filter = result.filter((item) => item.value === id);
+              if(filter && filter.length > 0) {
+                arr.push({ id: id, name: filter[0].name});
+              } else {
+                arr.push({ name: '该工具已被删除', id: id,type: 'delete' })
+              }
+            }
+            toolDataList.value = arr;
+            toolIds.value = ids;
+          } else {
+            let arr: any[] = [];
+            for (const id of ids) {
+              arr.push({ name: '该工具已被删除', id: id})
+            }
+            toolDataList.value = arr;
+            toolIds.value = ids;
+          }
         });
       }
 
@@ -834,6 +1014,10 @@
       function clearParam() {
         knowledgeIds.value = '';
         knowledgeDataList.value = [];
+        datamodelIds.value = '';
+        datamodelDataList.value = [];
+        toolIds.value = '';
+        toolDataList.value = [];
         prologue.value = '';
         flowId.value = '';
         flowData.value = null;
@@ -868,7 +1052,7 @@
           if(metadata.value?.multiSession){
             multiSessionChecked.value = metadata.value.multiSession === '1';
           }else{
-            multiSessionChecked.value = "1";
+            multiSessionChecked.value = true;
           }
         }
         if(data.presetQuestion){
@@ -889,6 +1073,14 @@
         //根据知识库id查询知识库内容
         if (app_type === 'chat' && data.knowledgeIds) {
           getKnowledgeDataList(data.knowledgeIds);
+        }
+        //根据数据模型id查询数据模型内容
+        if (app_type === 'chat' && data.datamodelIds) {
+          getDataModelDataList(data.datamodelIds);
+        }
+        //根据工具id查询工具内容
+        if (app_type === 'chat' && data.toolIds) {
+          getToolDataList(data.toolIds);
         }
         //根据知识库id查询流程信息
         if (app_type === 'chatFLow' && data.flowId) {
@@ -1010,10 +1202,22 @@
         validateInfos,
         handleAddKnowledgeIdClick,
         registerKnowledgeModal,
+        registerDataModelModal,
+        registerToolModal,
         knowledgeDataList,
         knowledge,
+        datamodelDataList,
+        datamodel,
+        toolDataList,
+        tool,
         handleSuccess,
         handleDeleteKnowledge,
+        handleDeleteDataModel,
+        handleDeleteTool,
+        handleAddDataModelClick,
+        handleAddToolClick,
+        handleDataModelSuccess,
+        handleToolSuccess,
         uuid,
         prologueTextAreaBlur,
         prologue,

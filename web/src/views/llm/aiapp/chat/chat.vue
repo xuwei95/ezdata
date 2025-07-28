@@ -592,6 +592,7 @@
       if (item.requestId) {
         requestId.value = item.requestId;
       }
+      const oldSteps = chatData.value[chatData.value.length - 1]?.steps || [];
       //更新聊天信息
       updateChat(uuid.value, chatData.value.length - 1, {
         dateTime: new Date().toLocaleString(),
@@ -602,6 +603,7 @@
         conversationOptions: { conversationId: conversationId, parentMessageId: topicId.value },
         requestOptions: { prompt: message, options: { ...options } },
         referenceKnowledge: knowList.value,
+        steps: oldSteps
       });
     }
     if(item.event == 'INIT_REQUEST_ID'){

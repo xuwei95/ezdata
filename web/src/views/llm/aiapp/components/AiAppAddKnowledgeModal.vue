@@ -148,7 +148,7 @@
             } else {
               appKnowledgeOption.value = res.records;
             }
-            total.value = res.result.total;
+            total.value = res.total;
           } else {
             appKnowledgeOption.value = [];
             total.value = 0;
