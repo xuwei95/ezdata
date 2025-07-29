@@ -7,7 +7,7 @@ const ChatRoutes: RouteRecordRaw[] = [
   {
     path: "/ai/app/chat/:appId",
     name: "ai-chat-@appId-@modeType",
-    component: () => import("/@/views/super/airag/aiapp/chat/AiChat.vue"),
+    component: () => import("/@/views/llm/aiapp/chat/AiChat.vue"),
     meta: {
       title: 'AI聊天',
       ignoreAuth: true,
@@ -16,7 +16,7 @@ const ChatRoutes: RouteRecordRaw[] = [
   {
     path: "/ai/app/chatIcon/:appId",
     name: "ai-chatIcon-@appId",
-    component: () => import("/@/views/super/airag/aiapp/chat/AiChatIcon.vue"),
+    component: () => import("/@/views/llm/aiapp/chat/AiChatIcon.vue"),
     meta: {
       title: 'AI聊天',
       ignoreAuth: true,
@@ -33,7 +33,7 @@ const ChatRoutes: RouteRecordRaw[] = [
       {
         path: "/ai/chat/:appId",
         name: "ai-chat-@appId",
-        component: () => import("/@/views/super/airag/aiapp/chat/AiChat.vue"),
+        component: () => import("/@/views/llm/aiapp/chat/AiChat.vue"),
         meta: {
           title:'AI助手',
           ignoreAuth: false,
@@ -42,7 +42,7 @@ const ChatRoutes: RouteRecordRaw[] = [
       {
         path: "/ai/chat",
         name: "ai-chat",
-        component: () => import("/@/views/super/airag/aiapp/chat/AiChat.vue"),
+        component: () => import("/@/views/llm/aiapp/chat/AiChat.vue"),
         meta: {
           title:'AI助手',
           ignoreAuth: false,

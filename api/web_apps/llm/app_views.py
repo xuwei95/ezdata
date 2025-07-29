@@ -55,7 +55,15 @@ def app_chat():
     chat_app = db.session.query(ChatApp).filter(ChatApp.id == app_id).first()
     if chat_app is None:
         err = '未找到应用'
-        return f"[ERR]\ndata:[{err}]\n\n"
+        msg = {
+                "conversationId": '',
+                "data": {
+                    "message": err
+                },
+                "event": "ERROR"
+            }
+        return Response(f"data:{json.dumps(msg, ensure_ascii=False)}\n\n", mimetype='text/event-stream')
+        
     chat_config = json.loads(chat_app.chat_config)
     return Response(ChatAppApiService.chat(chat_app, message, True), mimetype='text/event-stream')
 

@@ -127,8 +127,8 @@
           let params = { conversationId: value };
           uuid.value = value;
           defHttp.get({ url: '/llm/chat/messages', params }, { isTransformResponse: false }).then((res) => {
-            if (res.success) {
-              chatData.value = res.result;
+            if (res.data) {
+              chatData.value = res.data;
             } else {
               chatData.value = [];
             }
@@ -167,10 +167,10 @@
         { isTransformResponse: false }
       )
       .then((res) => {
-        if (res.success && res.result && res.result.length > 0) {
-          dataSource.value.history = res.result;
-          dataSource.value.active = res.result[0].id;
-          chatTitle.value = res.result[0].title;
+        if (res.data && res.data.length > 0) {
+          dataSource.value.history = res.data;
+          dataSource.value.active = res.data[0].id;
+          chatTitle.value = res.data[0].title;
           chatActiveKey.value = 0;
         } else {
           priming();
@@ -220,25 +220,26 @@
     await defHttp
       .get(
         {
-          url: '/airag/chat/init',
+          url: '/llm/chat_app/queryById',
           params: { id: appId },
         },
         { isTransformResponse: false }
       )
       .then((res) => {
-        if (res.success) {
-          appData.value = res.result;
-          if (res.result && res.result.prologue) {
-            prologue.value = res.result.prologue;
+        if (res.data) {
+          const chat_config = res.data.chatg_config;
+          appData.value = res.data;
+          if (chat_config && chat_config.prologue) {
+            prologue.value = chat_config.prologue;
           }  
-          if (res.result && res.result.quickCommand) {
-            quickCommandData.value = JSON.parse(res.result.quickCommand);
+          if (chat_config && chat_config.quickCommand) {
+            quickCommandData.value = JSON.parse(chat_config.quickCommand);
           } 
-          if (res.result && res.result.presetQuestion) {
-            presetQuestion.value = res.result.presetQuestion;
+          if (chat_config && chat_config.presetQuestion) {
+            presetQuestion.value = chat_config.presetQuestion;
           }
-          if (res.result && res.result.metadata) {
-            let metadata = JSON.parse(res.result.metadata);
+          if (chat_config && chat_config.metadata) {
+            let metadata = JSON.parse(chat_config.metadata);
             //判斷是否为手机模式
             if(!getIsMobile.value){
               //是否为多会话模式

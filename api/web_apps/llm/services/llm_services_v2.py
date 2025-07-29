@@ -80,7 +80,10 @@ def generate_prompt(content):
 class ChatHandler:
     def __init__(self, req_dict):
         self.req_dict = req_dict
-        self.conversation_id = req_dict.get('conversationId', '')
+        self.conversation_id = req_dict.get('conversationId')
+        if not self.conversation_id:
+            self.conversation_id = gen_uuid()
+        self.app_id = req_dict.get('appId', '')
         self.chat_config = parse_json(req_dict.get('chatConfig'), {})
         self.message = req_dict.get('message', '')
         self.metadata = json.loads(self.chat_config.get('metadata', '{}'))
@@ -108,20 +111,19 @@ class ChatHandler:
                 rag_metadata['score_threshold'] = self.metadata.get('similarity')
             knowledge = get_knowledge(self.message, metadata=rag_metadata)
         # 处理记忆配置
-        memory_enable = self.metadata.get('multiSession', '0') == '1'
+        memory_enable = self.metadata.get('multiSession')
         core_memory = ''
         chat_history = []
-
+        conversation = get_or_create_conversation(
+            self.conversation_id,
+            {'user_id': user_info.get('id'), 'user_name': user_info.get('username'), 'message': self.message, 'app_id': self.app_id}
+        )
+        # 获取对话历史
+        history_messages, _ = get_messages(self.conversation_id, page=1, size=self.history_size)
+        for msg in history_messages:
+            chat_history.extend([HumanMessage(content=msg["question"]), AIMessage(content=msg["answer"])])
         if memory_enable:
-            # 获取对话历史
-            conversation = get_or_create_conversation(
-                self.conversation_id,
-                {'user_id': user_info.get('id'), 'user_name': user_info.get('username')}
-            )
             core_memory = conversation.core_memory
-            history_messages, _ = get_messages(self.conversation_id, page=1, size=self.history_size)
-            for msg in history_messages:
-                chat_history.extend([HumanMessage(content=msg["question"]), AIMessage(content=msg["answer"])])
         # 构建prompt各部分
         knowledge_section = f"结合知识库信息，回答用户的问题，若知识库中无相关信息，请尝试直接回答。\n知识库：{knowledge}\n" if knowledge else ''
         core_memory_section = f"[核心记忆]\n{core_memory}\n\n" if core_memory else ''
@@ -137,6 +139,7 @@ class ChatHandler:
             f"Human: {self.message}\n"
             "AI:"
         )
+        print(1122, prompt)
         # 处理工具配置
         tools = []
         agent_enable = toolIds != ''

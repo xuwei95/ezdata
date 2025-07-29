@@ -72,11 +72,6 @@
       </ul>
     </div>
     <div class="left-footer" v-if="source!='chatJs'">
-      AI客服由
-      <a style="color: #4183c4;margin-left: 2px;margin-right: 2px" href="https://www.qiaoqiaoyun.com/aiCustomerService" target="_blank">
-        敲敲云
-      </a>
-      提供
     </div>
   </div>
 </template>
@@ -117,7 +112,7 @@
     defHttp
       .put(
         {
-          url: '/airag/chat/conversation/update/title',
+          url: '/llm/chat/conversation/update/title',
           params: { id: item.id, title: inputValue },
         },
         { joinParamsToUrl: true }
@@ -165,7 +160,7 @@
     }
     //update-end---author:wangshuai---date:2025-03-12---for:【QQYUN-11560】新建聊天内容为空，无法删除---
     defHttp.delete({
-      url: '/airag/chat/conversation/' + data.id,
+      url: '/llm/chat/conversation/' + data.id,
     },{ isTransformResponse: false });
   }
 

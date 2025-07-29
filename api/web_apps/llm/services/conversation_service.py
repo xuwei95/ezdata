@@ -1,5 +1,5 @@
 from web_apps import db
-from utils.common_utils import gen_uuid, parse_json, get_now_time
+from utils.common_utils import gen_uuid, parse_json, get_now_time, format_date
 from config import ES_CONF, SYS_CONF
 from etl.libs.es import EsClient
 from etl.utils.es_query_tool import EsQueryTool
@@ -22,10 +22,32 @@ def get_or_create_conversation(conversation_id, meta_data={}) -> Conversation:
         user_name=meta_data.get('user_name', ''),
         core_memory='',
         mode=meta_data.get('mode', 'console'),
+        description=meta_data.get('message', '')
     )
     db.session.add(conv)
     db.session.commit()
     return conv
+
+def get_conversations(meta_data={}) -> Conversation:
+    """获取会话列表"""
+    query = db.session.query(Conversation)
+    if 'app_id' in meta_data:
+        query = query.filter_by(app_id=meta_data['app_id'])
+    if 'user_id' in meta_data:
+        query = query.filter_by(user_id=meta_data['user_id'])
+    query = query.order_by(Conversation.create_time.desc())
+    conversation_list = query.all()
+    results = []
+    for conversation in conversation_list:
+        dic = {
+            "id": conversation.id,
+            "title": conversation.description or '新建标题',
+            "messages": None,
+            "app": conversation.app_id,
+            "createTime": format_date(conversation.create_time)
+        }
+        results.append(dic)
+    return results
 
 
 def add_message(conversation_id, question, answer) -> dict:
