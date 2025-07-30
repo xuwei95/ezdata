@@ -79,7 +79,7 @@
   import { getFileAccessHttpUrl } from '/@/utils/common/compUtils';
   import { createImgPreview } from "@/components/Preview";
   // 自定义组件
-  import { computed, defineExpose, onMounted, ref } from "vue";
+  import { computed, defineExpose, onMounted, ref, watch } from "vue";
   import { JVxeTypes, JVxeColumn, JVxeTableInstance } from '/@/components/jeecg/JVxeTable/types';
   import { useMethods } from '@/hooks/system/useMethods';
   // 数据表格相关配置
@@ -225,6 +225,14 @@
   function aiCardHandleClick(url){
     window.open(url,'_blank');
   }
+  // 监听 tableData 和 html 的变化
+  watch(
+    () => [props.tableData],
+    () => {
+      handleData();
+    },
+    { deep: true }
+  );
 </script>
 
 <style lang="less" scoped>

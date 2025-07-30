@@ -32,7 +32,7 @@ def serialize_chat_app_model(obj, ser_type='list'):
     elif ser_type == 'detail':
         for k in ['chat_config', 'depart_list']:
             dic[k] = json.loads(dic[k])
-        dic['status'] = 'release' if dic['status'] == 1 else 'enable'
+        dic['status'] = 'release' if dic['state'] == 1 else 'enable'
         for k in []:
             dic.pop(k)
     elif ser_type == 'all_list':
