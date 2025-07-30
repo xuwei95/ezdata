@@ -369,10 +369,12 @@
   import AiAppAddFlowModal from './AiAppAddFlowModal.vue';
   import AiAppModal from './AiAppModal.vue';
   import chat from '../chat/chat.vue';
-  import knowledge from '/@/views/super/airag/aiknowledge/icon/knowledge.png';
+  import knowledge from '/@/views/llm/aiapp/img/knowledge.png';
+  import toolImg from '/@/views/llm/aiapp/img/tool.png';
+  import dataImg from '/@/views/llm/aiapp/img/datamodel.png';
   // 暂时使用知识库图标作为数据模型和工具的图标
-  const datamodel = knowledge;
-  const tool = knowledge;
+  const datamodel = dataImg;
+  const tool = toolImg;
   import { cloneDeep } from 'lodash-es';
   import dayjs from 'dayjs';
   import JImageUpload from '@/components/Form/src/jeecg/components/JImageUpload.vue';

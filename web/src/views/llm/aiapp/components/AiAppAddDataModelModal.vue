@@ -49,7 +49,7 @@
     import { useModal, useModalInner } from '@/components/Modal';
     import { Pagination } from 'ant-design-vue';
     import { list } from '/@/views/dataManage/dataModel/datamodel.api';
-    import knowledge from '/@/views/super/airag/aiknowledge/icon/knowledge.png';
+    import dataImg from '/@/views/llm/aiapp/img/datamodel.png';
     import { cloneDeep } from 'lodash-es';
   
     export default {
@@ -63,7 +63,7 @@
         const title = ref<string>('添加关联数据模型');
   
         // 暂时使用知识库图标作为数据模型图标
-        const datamodel = knowledge;
+        const datamodel = dataImg;
   
         //app数据模型
         const appDataModelOption = ref<any>([]);

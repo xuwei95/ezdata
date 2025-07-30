@@ -193,7 +193,7 @@
   message.config({
     prefixCls: 'ai-chat-message',
   });
-
+  const abortController = ref<AbortController | null>(null);
   const props = defineProps(['uuid', 'prologue', 'formState', 'url', 'type','historyData','chatTitle','presetQuestion','quickCommandData','showAdvertising']);
   const emit = defineEmits(['save','reload-message-title']);
   const { scrollRef, scrollToBottom } = useScroll();
@@ -399,21 +399,13 @@
   /**
    * 停止消息
    */
-  function handleStopChat() {
+   function handleStopChat() {
     //update-begin---author:wangshuai---date:2025-06-03---for:【issues/8338】AI应用聊天回复stop无效，仍会继续输出回复---
-    const currentRequestId = requestId.value
-    if(currentRequestId){
-      handleStop();
-      // try{
-      //   //调用后端接口停止响应
-      //   defHttp.get({
-      //     url: '/airag/chat/stop/' + currentRequestId,
-      //   },{ isTransformResponse: false });
-      // } finally {
-      //   handleStop();
-      // }
-      //update-end---author:wangshuai---date:2025-06-03---for:【issues/8338】AI应用聊天回复stop无效，仍会继续输出回复---
+    if (abortController.value) {
+      abortController.value.abort(); // 终止请求
+      abortController.value = null;
     }
+    handleStop();
   }
 
   /**
@@ -422,6 +414,8 @@
    * @param options
    */
   async function sendMessage(message, options) {
+    // 创建新的 AbortController
+    abortController.value = new AbortController();
     let param = {};
     if (!props.type && props.type != 'view') {
       param = {
@@ -459,21 +453,22 @@
         adapter: 'fetch',
         responseType: 'stream',
         timeout: 5 * 60 * 1000,
+        signal: abortController.value.signal, // 绑定 AbortController
       },
       {
         isTransformResponse: false,
       }
     ).catch((e)=>{
-      //update-begin---author:wangshuai---date:2025-04-28---for:【QQYUN-12297】【AI】聊天，超时以后提示---
-      if(e.code === 'ETIMEDOUT'){
-        updateChatFail(uuid, chatData.value.length - 1, "当前用户较多，排队中，请稍候再次重试！");
-        handleStop();
-        return;
-      }else{
-        updateChatFail(uuid, chatData.value.length - 1, "服务器错误，请稍后重试！");
-        handleStop();
+      if (e.name === 'AbortError') {
+        console.log('请求已取消');
         return;
       }
+      if (e.code === 'ETIMEDOUT') {
+        updateChatFail(uuid, chatData.value.length - 1, "当前用户较多，排队中，请稍候再次重试！");
+      } else {
+        updateChatFail(uuid, chatData.value.length - 1, "服务器错误，请稍后重试！");
+      }
+      handleStop();
       console.error(e)
       //update-end---author:wangshuai---date:2025-04-28---for:【QQYUN-12297】【AI】聊天，超时以后提示---
     });
@@ -926,6 +921,11 @@
     scrollToBottom();
     uploadUrlList.value = [];
     fileInfoList.value = [];
+  });
+  onUnmounted(() => {
+    if (abortController.value) {
+      abortController.value.abort();
+    }
   });
 </script>
 

@@ -1,40 +1,41 @@
 <template>
   <div class="chatWrap">
     <div class="content">
-      <div class="header-title" v-if="type === 'view' && headerTitle">
+      <div class="header-title" v-if="headerTitle">
         {{headerTitle}}
-        <div v-if="showAdvertising" class="header-advertisint">
-        </div>
       </div>
       <div class="main">
         <div id="scrollRef" ref="scrollRef" class="scrollArea">
           <template v-if="chatData.length>0">
             <div class="chatContentArea">
-              <chatMessage
-                v-for="(item, index) of chatData"
-                :key="index"
-                :date-time="item.dateTime || item.datetime"
-                :text="item.content"
-                :inversion="item.inversion || item.role"
-                :error="item.error"
-                :loading="item.loading"
-                :appData="appData"
-                :presetQuestion="item.presetQuestion"
-                :images="item.images"
-                :retrievalText="item.retrievalText"
-                :referenceKnowledge="item.referenceKnowledge"
-                :html="item.html"
-                :tableData="item.tableData"
-                :steps="item.steps"
-                @send="handleOutQuestion"
-              ></chatMessage>
+              <div v-for="(item, index) of chatData">
+                <chatMessage
+                  :key="index"
+                  :date-time="item.dateTime || item.datetime"
+                  :text="item.content"
+                  :inversion="item.inversion || item.role"
+                  :error="item.error"
+                  :loading="item.loading"
+                  :appData="appData"
+                  :presetQuestion="item.presetQuestion"
+                  :images="item.images"
+                  :retrievalText="item.retrievalText"
+                  :referenceKnowledge="item.referenceKnowledge"
+                  :html="item.html"
+                  :tableData="item.tableData"
+                  :steps="item.steps"
+                  @send="handleOutQuestion"
+                ></chatMessage>
+                <div v-if="item.inversion == 'ai' && !item.error && !item.loading && item.answer">
+                  <a-rate :value="item.star_flag == '1' ? 1 : 0" :count="1" @click="starQa(index)" style="cursor: pointer" disabled />
+                </div>
+              </div>
             </div>
           </template>
         </div>
       </div>
       <div class="footer">
         <div class="topArea">
-          <presetQuestion @outQuestion="handleOutQuestion" :quickCommandData="quickCommandData"></presetQuestion>
         </div>
         <div class="bottomArea">
           <a-button type="text" class="delBtn" @click="handleDelSession()">
@@ -55,7 +56,7 @@
               ></path>
             </svg>
           </a-button>
-          <a-button v-if="type === 'view'" type="text" class="contextBtn" :class="[usingContext && 'enabled']" @click="handleUsingContext">
+          <a-button type="text" class="contextBtn" :class="[usingContext && 'enabled']" @click="handleUsingContext">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               xmlns:xlink="http://www.w3.org/1999/xlink"
@@ -115,7 +116,7 @@
                   <path d="M341.333333 341.333333h341.333334v341.333334H341.333333z" fill="currentColor" p-id="5216"></path>
                 </svg>
               </a-button>
-              <a-upload
+              <!-- <a-upload
                   accept=".jpg,.jpeg,.png"
                   v-if="!loading"
                   name="file"
@@ -133,7 +134,7 @@
                     <Icon icon="ant-design:picture-outlined" style="color: #3d4353"></Icon>
                   </a-button>
                 </a-tooltip>
-              </a-upload>
+              </a-upload> -->
               <a-divider v-if="!loading" type="vertical" style="border-color:#38374314"></a-divider>
               <a-button
                   @click="
@@ -189,25 +190,26 @@
   import { createImgPreview } from "@/components/Preview";
   import { useAppInject } from "@/hooks/web/useAppInject";
   import { useGlobSetting } from "@/hooks/setting";
-
+  import { starQaData } from '@/views/dataManage/dataQuery/dataquery.api';
+  const abortController = ref<AbortController | null>(null);
   message.config({
     prefixCls: 'ai-chat-message',
   });
 
-  const props = defineProps(['uuid', 'prologue', 'formState', 'url', 'type','historyData','chatTitle','presetQuestion','quickCommandData','showAdvertising']);
+  const props = defineProps(['model_id']);
   const emit = defineEmits(['save','reload-message-title']);
   const { scrollRef, scrollToBottom } = useScroll();
   const prompt = ref<string>('');
   const loading = ref<boolean>(false);
   const inputRef = ref<Ref | null>(null);
-  const headerTitle = ref<string>(props.chatTitle);
+  const headerTitle = ref<string>('');
 
   //聊天数据
   const chatData = ref<any>([]);
   //应用数据
   const appData = ref<any>({});
   const usingContext = ref<any>(true);
-  const uuid = ref<string>(props.uuid);
+  const uuid = ref<string>('');
   const topicId = ref<string>('');
   //请求id
   const requestId = ref<string>('');
@@ -228,7 +230,30 @@
   const globSetting = useGlobSetting();
   const baseUploadUrl = globSetting.uploadUrl;
   const uploadUrl = ref<string>(`${baseUploadUrl}/airag/chat/upload`);
-
+  async function starQa(index) {
+    console.log('star66666', chatData.value[index - 1], chatData.value[index]);
+    if (chatData.value[index].star_flag != '1'){
+      Modal.confirm({
+        title: '标记确认',
+        content: '确认标记此回答为正确答案？',
+        okText: '确认',
+        cancelText: '取消',
+        async onOk() {
+          const chatInfo = chatData.value[index];
+          const qaInfo = {
+            question: chatData.value[index - 1].content,
+            answer: chatInfo.answer,
+            metadata: {
+              datamodel_id: props.model_id,
+              star_flag: 1,
+            },
+          };
+          await starQaData(qaInfo);
+          chatData.value[index].star_flag = '1';
+        },
+      });
+    }
+  }
   function handleEnter(event: KeyboardEvent) {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
@@ -245,20 +270,6 @@
     onConversation(message);
   };
   async function onConversation(message) {
-    if(!props.type && props.type != 'view'){
-      if(appData.value.type && appData.value.type == 'chatSimple' && !appData.value.modelId) {
-        messageTip("请选择AI模型");
-        return;
-      }
-      if(appData.value.type && appData.value.type == 'chatFLow' && !appData.value.flowId) {
-        messageTip("请选择关联流程");
-        return;
-      }
-      if(!appData.value.name) {
-        messageTip("请填写应用名称");
-        return;
-      }
-    }
     if (loading.value) return;
     loading.value = true;
 
@@ -318,7 +329,7 @@
       loading: false,
       dateTime: dayjs().format('YYYY/MM/DD HH:mm:ss'),
       inversion: 'ai',
-      presetQuestion: props.presetQuestion ? JSON.parse(props.presetQuestion) : "",
+      presetQuestion: "",
     };
     if (chatData.value && chatData.value.length > 0) {
       let key = chatData.value[0].key;
@@ -362,20 +373,6 @@
         try {
           chatData.value = [];
           topicId.value = "";
-          if(props.prologue){
-            topChat(props.prologue);
-          }
-          // defHttp.get({
-          //   url: '/airag/chat/messages/clear/' + uuid.value,
-          // },{ isTransformResponse: false }).then((res) => {
-          //   if(res.success){
-          //     chatData.value = [];
-          //     topicId.value = "";
-          //     if(props.prologue){
-          //       topChat(props.prologue);
-          //     }
-          //   }
-          // })
         } catch {
           return console.log('Oops errors!');
         }
@@ -401,19 +398,11 @@
    */
   function handleStopChat() {
     //update-begin---author:wangshuai---date:2025-06-03---for:【issues/8338】AI应用聊天回复stop无效，仍会继续输出回复---
-    const currentRequestId = requestId.value
-    if(currentRequestId){
-      handleStop();
-      // try{
-      //   //调用后端接口停止响应
-      //   defHttp.get({
-      //     url: '/airag/chat/stop/' + currentRequestId,
-      //   },{ isTransformResponse: false });
-      // } finally {
-      //   handleStop();
-      // }
-      //update-end---author:wangshuai---date:2025-06-03---for:【issues/8338】AI应用聊天回复stop无效，仍会继续输出回复---
+    if (abortController.value) {
+      abortController.value.abort(); // 终止请求
+      abortController.value = null;
     }
+    handleStop();
   }
 
   /**
@@ -422,58 +411,47 @@
    * @param options
    */
   async function sendMessage(message, options) {
+    // 创建新的 AbortController
+    abortController.value = new AbortController();
     let param = {};
-    if (!props.type && props.type != 'view') {
-      param = {
-        content: message,
-        images: uploadUrlList.value?uploadUrlList.value:[],
-        topicId: topicId.value,
-        app: appData.value,
-        responseMode: 'streaming',
-      };
-    }else{
-      param = {
-        content: message,
-        topicId: usingContext.value?topicId.value:'',
-        images: uploadUrlList.value?uploadUrlList.value:[],
-        appId: appData.value.id,
-        responseMode: 'streaming',
-        conversationId: uuid.value === "1002"?'':uuid.value
-      };
+    param = {
+      message: message,
+      images: uploadUrlList.value?uploadUrlList.value:[],
+      model_id: props.model_id,
+      responseMode: 'streaming',
+      conversationId: uuid.value === "1002"?'':uuid.value
+    };
 
-      if(headerTitle.value == '新建聊天'){
-        headerTitle.value = message.length>10?truncateString(message,10):message
-      }
-
-      emit("reload-message-title",message.length>10?truncateString(message,10):message)
+    if(headerTitle.value == '新建聊天'){
+      headerTitle.value = message.length>10?truncateString(message,10):message
     }
 
-    uploadUrlList.value = [];
-    fileInfoList.value = [];
+    emit("reload-message-title",message.length>10?truncateString(message,10):message)
     knowList.value = [];
 
     const readableStream = await defHttp.post(
       {
-        url: props.url,
+        url: '/llm/data/chat',
         params: param,
         adapter: 'fetch',
         responseType: 'stream',
         timeout: 5 * 60 * 1000,
+        signal: abortController.value.signal, // 绑定 AbortController
       },
       {
         isTransformResponse: false,
       }
     ).catch((e)=>{
-      //update-begin---author:wangshuai---date:2025-04-28---for:【QQYUN-12297】【AI】聊天，超时以后提示---
-      if(e.code === 'ETIMEDOUT'){
-        updateChatFail(uuid, chatData.value.length - 1, "当前用户较多，排队中，请稍候再次重试！");
-        handleStop();
-        return;
-      }else{
-        updateChatFail(uuid, chatData.value.length - 1, "服务器错误，请稍后重试！");
-        handleStop();
+      if (e.name === 'AbortError') {
+        console.log('请求已取消');
         return;
       }
+      if (e.code === 'ETIMEDOUT') {
+        updateChatFail(uuid, chatData.value.length - 1, "当前用户较多，排队中，请稍候再次重试！");
+      } else {
+        updateChatFail(uuid, chatData.value.length - 1, "服务器错误，请稍后重试！");
+      }
+      handleStop();
       console.error(e)
       //update-end---author:wangshuai---date:2025-04-28---for:【QQYUN-12297】【AI】聊天，超时以后提示---
     });
@@ -654,9 +632,17 @@
       updateChat(uuid.value, chatData.value.length - 1, {
         ...chatData.value[chatData.value.length - 1],
         steps: [...oldSteps, item.data.message],
-        content: "",
+        content: ""
       });
       console.log(33333, chatData.value[chatData.value.length - 1], item.data.message);
+      let title = item.data.message.title;
+      if (title == '处理代码生成成功' || title == '修复处理代码成功') {
+        updateChat(uuid.value, chatData.value.length - 1, {
+          ...chatData.value[chatData.value.length - 1],
+          answer: item.data.message.content,
+          star_flag: '0',
+        });
+      }
     }
     //update-begin---author:wangshuai---date:2025-03-21---for:【QQYUN-11495】【AI】实时展示当前思考进度---
     if(item.event === "NODE_STARTED"){
@@ -863,69 +849,15 @@
     await defHttp.uploadFile({ url: "/airag/chat/upload" }, { file: image }, { success: isReturn });
   }
 
-  //监听开场白
-  watch(
-    () => props.prologue,
-    (val) => {
-      try {
-        if (val) {
-          topChat(val);
-        }
-      } catch (e) {}
-    }
-  );
-
-  //监听开场白预制问题
-  watch(
-    () => props.presetQuestion,
-    (val) => {
-      topChat(props.prologue);
-    }
-  );
-
-  //监听应用信息
-  watch(
-    () => props.formState,
-    (val) => {
-      try {
-        if (val) {
-          appData.value = val;
-        }
-      } catch (e) {}
-    },
-    { deep: true, immediate: true }
-  );
-
-  //监听历史信息
-  watch(
-    () => props.historyData,
-    (val) => {
-      try {
-        //update-begin---author:wangshuai---date:2025-03-06---for:【QQYUN-11384】浏览器打开应用开场白丢了---
-        if (val && val.length > 0) {
-          chatData.value = cloneDeep(val);
-          if(chatData.value[0]){
-            topicId.value = chatData.value[0].topicId
-          }
-        }else{
-          chatData.value = [];
-          headerTitle.value = props.chatTitle;
-        }
-        if(props.prologue && props.chatTitle){
-          topChat(props.prologue)
-        }
-      } catch (e) {
-        console.log(e)
-      }
-      //update-end---author:wangshuai---date:2025-03-06---for:【QQYUN-11384】浏览器打开应用开场白丢了---
-    },
-    { deep: true, immediate: true }
-  );
-
   onMounted(() => {
     scrollToBottom();
     uploadUrlList.value = [];
     fileInfoList.value = [];
+  });
+  onUnmounted(() => {
+    if (abortController.value) {
+      abortController.value.abort();
+    }
   });
 </script>
 
@@ -948,6 +880,7 @@
     .scrollArea {
       overflow-y: auto;
       height: 100%;
+      min-height: 300px;
     }
     .chatContentArea {
       padding: 10px;

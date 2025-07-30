@@ -102,10 +102,11 @@
   }
   function handleTableData() {
     const data_li = props.tableData;
+    console.log(44444, data_li);
     if (data_li && data_li.length > 0) {
       columns.value = [];
       const fields = Object.keys(data_li[0]);
-      console.log(fields);
+      console.log(5555, fields);
       for (let i in fields) {
         const field_key = fields[i];
         columns.value.push({

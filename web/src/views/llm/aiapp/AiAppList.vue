@@ -106,12 +106,17 @@
                       <Icon icon="ant-design:dribbble-outlined" size="16"></Icon>
                       嵌入网站
                     </a-menu-item>
-                    <a-menu-item v-if="isShowMenu" key="menu" @click.prevent.stop="handleSendClick(item,'menu')">
+                    <!-- <a-menu-item v-if="isShowMenu" key="menu" @click.prevent.stop="handleSendClick(item,'menu')">
                       <Icon icon="ant-design:menu-outlined" size="16"></Icon> 配置菜单
-                    </a-menu-item>
+                    </a-menu-item> -->
                   </a-menu>
                 </template>
               </a-dropdown>
+            </a-tooltip>
+            <a-tooltip title="api">
+              <div class="card-footer-icon" @click.prevent.stop="handleApiToken(item)">
+                <Icon class="operation" icon="ant-design:api-outlined" size="20" color="#1F2329"></Icon>
+              </div>
             </a-tooltip>
           </div>
         </a-card>
@@ -136,6 +141,8 @@
     <AiAppSettingModal @register="registerSettingModal" @success="reload"></AiAppSettingModal>
     <!-- 发布弹窗 -->
     <AiAppSendModal @register="registerAiAppSendModal"/>
+    <!-- api弹窗 -->
+    <ApiTokenDrawer @register="registerApiDrawer" @success="handleSuccess" />
   </div>
 </template>
 
@@ -157,6 +164,8 @@
   import JInput from '@/components/Form/src/jeecg/components/JInput.vue';
   import JDictSelectTag from '@/components/Form/src/jeecg/components/JDictSelectTag.vue';
   import { useRouter } from "vue-router";
+  import { useDrawer } from '@/components/Drawer';
+  import ApiTokenDrawer from './components/ApiTokenDrawer/index.vue';
 
   export default {
     name: 'AiAppList',
@@ -171,6 +180,7 @@
       BasicModal,
       AiAppModal,
       AiAppSettingModal,
+      ApiTokenDrawer,
     },
     emits: ['success', 'register'],
     setup(props, { emit }) {
@@ -190,6 +200,7 @@
       const [registerModal, { openModal }] = useModal();
       const [registerSettingModal, { openModal: openAppModal }] = useModal();
       const [registerAiAppSendModal, { openModal: openAiAppSendModal }] = useModal();
+      const [registerApiDrawer, { openDrawer: openApiDrawer }] = useDrawer();
       const { createMessage, createConfirmSync } = useMessage();
       //查询参数
       const queryParam = reactive<any>({});
@@ -281,7 +292,17 @@
           ...item,
         });
       }
-
+      /**
+       * api管理
+       * @param item
+       */
+      function handleApiToken(item) {
+        openApiDrawer(true, {
+          item,
+          isUpdate: false,
+          showFooter: true,
+        });
+      }
       /**
        * 演示
        */
@@ -318,7 +339,6 @@
         if (type === 'release' || type === 'un-release') {
           return onRelease(item);
         }
-
         openAiAppSendModal(true,{
           type: type,
           data: item
@@ -343,15 +363,8 @@
        * 发布
        */
       async function doRelease(item, release: boolean) {
-        let success: boolean = await releaseApp(item.id, release);
-        if (success) {
-          // 发布成功
-          if (release) {
-            item.status = 'release'
-          } else {
-            item.status = 'enable'
-          }
-        }
+        await releaseApp(item.id, release);
+        reload();
       }
 
       /**
@@ -402,6 +415,7 @@
         handleEditClick,
         handleViewClick,
         handleDeleteClick,
+        handleApiToken,
         registerSettingModal,
         reload,
         queryParam,
@@ -409,6 +423,7 @@
         wrapperCol,
         handleSendClick,
         registerAiAppSendModal,
+        registerApiDrawer,
         searchReset,
         formRef,
         isShowMenu,

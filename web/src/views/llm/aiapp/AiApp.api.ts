@@ -14,6 +14,7 @@ export enum Api {
   // 数据模型和工具批量查询
   queryDataModelBatchById = '/datamodel/queryAllList',
   queryToolBatchById = '/llm/tool/list',
+
 }
 
 /**
@@ -23,7 +24,13 @@ export enum Api {
 export const appList = (params) => {
   return defHttp.get({ url: Api.list, params }, { isTransformResponse: false });
 };
-
+/**
+ * 查询应用
+ * @param params
+ */
+export const toolList = (params) => {
+  return defHttp.get({ url: Api.queryToolBatchById, params }, { isTransformResponse: false });
+};
 /**
  * 查询知识库
  * @param params

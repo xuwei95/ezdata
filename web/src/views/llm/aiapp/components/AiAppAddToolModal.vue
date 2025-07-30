@@ -48,8 +48,8 @@
     import BasicModal from '@/components/Modal/src/BasicModal.vue';
     import { useModal, useModalInner } from '@/components/Modal';
     import { Pagination } from 'ant-design-vue';
-    import { toolList } from '/@/components/jeecg/AiChat/llm.api';
-    import knowledge from '/@/views/super/airag/aiknowledge/icon/knowledge.png';
+    import { toolList } from '/@/views/llm/aiapp/AiApp.api';
+    import toolImg from '/@/views/llm/aiapp/img/tool.png';
     import { cloneDeep } from 'lodash-es';
   
     export default {
@@ -63,7 +63,7 @@
         const title = ref<string>('添加关联工具');
   
         // 暂时使用知识库图标作为工具图标
-        const tool = knowledge;
+        const tool = toolImg;
   
         //app工具
         const appToolOption = ref<any>([]);
@@ -138,8 +138,8 @@
             name: searchText.value,
           };
           toolList(params).then((res) => {
-            if (res && res.length > 0) {
-              let records = res;
+            if (res.data && res.data.length > 0) {
+              let records = res.data;
               if (toolIds.value.length > 0) {
                 for (const item of records) {
                   if (toolIds.value.includes(item.value)) {

@@ -25,11 +25,14 @@ def serialize_chat_app_model(obj, ser_type='list'):
             if k in ['chat_config', 'depart_list']:
                 res[k] = json.loads(dic[k])
             else:
+                if k == 'state':
+                    res['status'] = 'release' if dic[k] == 1 else 'enable'
                 res[k] = dic[k]
         return res
     elif ser_type == 'detail':
         for k in ['chat_config', 'depart_list']:
             dic[k] = json.loads(dic[k])
+        dic['status'] = 'release' if dic['status'] == 1 else 'enable'
         for k in []:
             dic.pop(k)
     elif ser_type == 'all_list':

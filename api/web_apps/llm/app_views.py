@@ -9,7 +9,9 @@ from utils.web_utils import get_req_para, validate_params, generate_download_fil
 from utils.common_utils import gen_json_response
 from web_apps.llm.services.app_services import ChatAppApiService
 from web_apps.llm.db_models import ChatApp, ChatAppToken
+from web_apps.llm.services.llm_services import generate_prompt, chat_generate, chat_run
 from web_apps import db
+from models import User
 
 chat_app_bp = Blueprint('chat_app', __name__)
 
@@ -23,7 +25,6 @@ def prompt_generate():
     args = request.args
     req_dict = args.to_dict()
     content = req_dict.get('prompt', '')
-    from web_apps.llm.services.llm_services_v2 import generate_prompt
     return Response(generate_prompt(content), mimetype='text/event-stream')
 
 
@@ -36,36 +37,11 @@ def debug_chat():
     req_dict = get_req_para(request)
     chat_config = req_dict.get('app', {})
     message = req_dict.get('content', '')
-    from web_apps.llm.services.llm_services_v2 import chat_generate
     req_data = {
         'message': message,
         'chatConfig': chat_config
     }
     return Response(chat_generate(req_data), mimetype='text/event-stream')
-
-@chat_app_bp.route('/app/chat', methods=['GET', 'POST'])
-@validate_user
-def app_chat():
-    '''
-    app对话接口
-    '''
-    req_dict = get_req_para(request)
-    app_id = req_dict.get('app_id', '')
-    message = req_dict.get('message', '')
-    chat_app = db.session.query(ChatApp).filter(ChatApp.id == app_id).first()
-    if chat_app is None:
-        err = '未找到应用'
-        msg = {
-                "conversationId": '',
-                "data": {
-                    "message": err
-                },
-                "event": "ERROR"
-            }
-        return Response(f"data:{json.dumps(msg, ensure_ascii=False)}\n\n", mimetype='text/event-stream')
-        
-    chat_config = json.loads(chat_app.chat_config)
-    return Response(ChatAppApiService.chat(chat_app, message, True), mimetype='text/event-stream')
 
 
 @chat_app_bp.route('/api/chat', methods=['GET', 'POST'])
@@ -75,25 +51,60 @@ def api_chat():
     '''
     req_dict = get_req_para(request)
     api_key = req_dict.get('api_key', '')
-    message = req_dict.get('message', '')
-    stream = req_dict.get('stream', '1') == '1'
+    stream = req_dict.get('responseMode', 'streaming') == 'streaming'
     chat_token = db.session.query(ChatAppToken).filter(ChatAppToken.api_key == api_key).first()
     if chat_token is None:
         err = 'api_key错误'
         if stream:
-            return f"[ERR]\ndata:[{err}]\n\n"
+            msg = {
+                "conversationId": '',
+                "data": {
+                    "message": err
+                },
+                "event": "ERROR"
+            }
+            return Response(f"data:{json.dumps(msg, ensure_ascii=False)}\n\n", mimetype='text/event-stream')
         return gen_json_response(code=500, msg=err)
     chat_app = db.session.query(ChatApp).filter(ChatApp.id == chat_token.app_id).first()
     if chat_app is None:
         err = '未找到应用'
         if stream:
-            return f"[ERR]\ndata:[{err}]\n\n"
+            msg = {
+                "conversationId": '',
+                "data": {
+                    "message": err
+                },
+                "event": "ERROR"
+            }
+            return Response(f"data:{json.dumps(msg, ensure_ascii=False)}\n\n", mimetype='text/event-stream')
         return gen_json_response(code=500, msg=err)
-    chat_config = json.loads(chat_app.chat_config)
-    if stream:
-        return Response(ChatAppApiService.chat(chat_config, message, True), mimetype='text/event-stream')
+    req_dict['chat_config'] = json.loads(chat_app.chat_config)
+    user = db.session.query(User).filter(User.username == chat_token.create_by).first()
+    if user:
+        user_info = {'id': chat_token.create_by, 'user_name': chat_token.create_by}
     else:
-        return ChatAppApiService.chat(chat_config, message, False)
+        user_info = {}
+    if stream:
+        return Response(chat_generate(req_dict, user_info), mimetype='text/event-stream')
+    else:
+        return chat_run(req_dict)
+
+@chat_app_bp.route('/release', methods=['POST'])
+@validate_user
+def release():
+    '''
+    app release
+    '''
+    req_dict = get_req_para(request)
+    id = req_dict.get('id')
+    release = req_dict.get('release')
+    chat_app = db.session.query(ChatApp).filter(ChatApp.id == id).first()
+    if chat_app is None:
+        return gen_json_response(code=500, msg='未找到数据')
+    chat_app.state = 1 if release else 0
+    db.session.add(chat_app)
+    db.session.commit()
+    return gen_json_response(msg='ok', extends={'success': True})
 
 
 @chat_app_bp.route('/token/list', methods=['GET'])

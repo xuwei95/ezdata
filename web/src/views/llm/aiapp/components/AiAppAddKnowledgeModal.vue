@@ -49,7 +49,7 @@
   import { useModal, useModalInner } from '@/components/Modal';
   import { Pagination } from 'ant-design-vue';
   import { list } from '/@/views/rag/dataset/dataset.api';
-  import knowledge from '/@/views/super/airag/aiknowledge/icon/knowledge.png';
+  import knowledge from '/@/views/llm/aiapp/img/knowledge.png';
   import { cloneDeep } from 'lodash-es';
 
   export default {
