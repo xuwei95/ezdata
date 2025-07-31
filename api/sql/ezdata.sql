@@ -11,7 +11,7 @@
  Target Server Version : 80022 (8.0.22)
  File Encoding         : 65001
 
- Date: 31/07/2025 11:52:54
+ Date: 31/07/2025 15:53:17
 */
 
 SET NAMES utf8mb4;
@@ -379,7 +379,7 @@ CREATE TABLE `llm_chat_app`  (
 -- ----------------------------
 -- Records of llm_chat_app
 -- ----------------------------
-INSERT INTO `llm_chat_app` VALUES ('6626ab87793845bf942c8fec89deecbe', 'test', '', 'chat', 1, '[\"org_5\", \"org_1\"]', '{\n  \"rag\": {\n    \"enable\": true,\n    \"dataset_id\": [\n      \"1\"\n    ],\n    \"k\": 4,\n    \"retrieval_type\": \"vector\",\n    \"score_threshold\": 0.1,\n    \"rerank\": \"0\",\n    \"rerank_score_threshold\": 0\n  },\n  \"agent\": {\n    \"enable\": true,\n    \"tools\": [\n      \"now_time\",\n      \"get_url_content\",\n      \"summary_content\",\n      \"network_search\"\n    ]\n  },\n  \"data_chat\": {\n    \"enable\": false,\n    \"datamodel_id\": []\n  }\n}', '', 1, 0, 'admin', '2024-10-20 11:57:25', 'admin', '2024-10-21 09:32:44', 1);
+INSERT INTO `llm_chat_app` VALUES ('6626ab87793845bf942c8fec89deecbe', 'test', '', 'chat', 0, '[\"org_5\", \"org_1\"]', '{\n  \"msgNum\": 1,\n  \"prompt\": \"\",\n  \"prologue\": null,\n  \"knowledgeIds\": \"1\",\n  \"modelId\": \"default\",\n  \"presetQuestion\": \"\",\n  \"quickCommand\": \"[{\\\"key\\\":\\\"2\\\",\\\"name\\\":\\\"现在几点了\\\",\\\"descr\\\":\\\"现在几点了\\\"},{\\\"key\\\":\\\"1\\\",\\\"name\\\":\\\"excel前10条\\\",\\\"descr\\\":\\\"获取excel前10条数据\\\"}]\",\n  \"datamodelIds\": \"e222b61c62be4d09908a5bc94aebf22d\",\n  \"toolIds\": \"now_time,network_search\"\n}', '', 1, 0, 'admin', '2024-10-20 11:57:25', 'admin', '2025-07-31 07:53:05', 1);
 
 -- ----------------------------
 -- Table structure for llm_chat_app_token
@@ -436,11 +436,12 @@ CREATE TABLE `llm_conversation`  (
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `ix_llm_conversation_app_id`(`app_id` ASC) USING BTREE,
   INDEX `ix_llm_conversation_tenant_id`(`tenant_id` ASC) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of llm_conversation
 -- ----------------------------
+INSERT INTO `llm_conversation` VALUES ('3cc5bc44-a8f4-42ca-ab96-fc48116f0185', 1, '', 'admin', '', 'console', 1, 'hi', 1, 0, '', '2025-07-31 07:44:06', '', '2025-07-31 07:44:06');
 
 -- ----------------------------
 -- Table structure for rag_chunk
@@ -657,7 +658,7 @@ CREATE TABLE `sys_dict`  (
   `tenant_id` int NULL DEFAULT 1 COMMENT '租户id',
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `ix_sys_dict_tenant_id`(`tenant_id` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 35 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 36 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of sys_dict
@@ -691,6 +692,7 @@ INSERT INTO `sys_dict` VALUES (31, '', 1, 0, 'admin', '2023-06-20 07:02:29', '',
 INSERT INTO `sys_dict` VALUES (32, '', 1, 0, 'admin', '2023-10-22 06:39:57', '', '2023-10-22 06:39:57', 'akshare数据接口函数', 'akshare_method', 1, 1);
 INSERT INTO `sys_dict` VALUES (33, '', 1, 0, 'admin', '2024-07-19 18:24:58', '', '2024-07-19 18:24:58', '任务状态', 'task_status', 1, 1);
 INSERT INTO `sys_dict` VALUES (34, '', 1, 0, 'admin', '2024-07-19 18:26:13', '', '2024-07-19 18:26:13', '文档类型', 'document_type', 1, 1);
+INSERT INTO `sys_dict` VALUES (35, '', 1, 0, 'admin', '2025-07-31 07:47:05', '', '2025-07-31 07:47:05', '模型列表', 'airag_model', 1, 1);
 
 -- ----------------------------
 -- Table structure for sys_dict_item
@@ -713,7 +715,7 @@ CREATE TABLE `sys_dict_item`  (
   `tenant_id` int NULL DEFAULT 1 COMMENT '租户id',
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `ix_sys_dict_item_tenant_id`(`tenant_id` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 1005 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 1006 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of sys_dict_item
@@ -1713,6 +1715,7 @@ INSERT INTO `sys_dict_item` VALUES (1001, '', 1, 0, 'admin', '2024-07-19 18:30:5
 INSERT INTO `sys_dict_item` VALUES (1002, '', 10, 0, 'admin', '2024-07-21 10:52:13', 'admin', '2024-07-21 10:52:56', 34, '上传文件', 'upload_file', '{}', 1, 1);
 INSERT INTO `sys_dict_item` VALUES (1003, '', 1, 0, 'admin', '2024-07-21 10:52:31', '', '2024-07-21 10:52:31', 34, 'notion导入', 'notion_import', '{}', 1, 1);
 INSERT INTO `sys_dict_item` VALUES (1004, '', 9, 0, 'admin', '2024-07-21 10:52:51', 'admin', '2024-07-21 10:53:03', 34, '网络爬取', 'website_crawl', '{}', 1, 1);
+INSERT INTO `sys_dict_item` VALUES (1005, '', 1, 0, 'admin', '2025-07-31 07:47:20', '', '2025-07-31 07:47:20', 35, '默认模型', 'default', '{}', 1, 1);
 
 -- ----------------------------
 -- Table structure for sys_file
@@ -2112,7 +2115,7 @@ CREATE TABLE `sys_user`  (
 -- ----------------------------
 -- Records of sys_user
 -- ----------------------------
-INSERT INTO `sys_user` VALUES (1, '', 1, 0, 'system', '2022-10-31 09:41:34', 'admin', '2025-07-15 08:41:22', 'admin', 'pbkdf2:sha256:260000$uPkgXU614UEZVupq$f796a5bc254e02bfc78526a092ead4057073493f0115a9df56288f852cfb228a', 'admin', '', '2003-03-12 05:56:00', 1, '', '', 'org_5', 1, 2, NULL, NULL, '20213916', '', 1377, 1752568882, '58.240.25.62', NULL, NULL, 1);
+INSERT INTO `sys_user` VALUES (1, '', 1, 0, 'system', '2022-10-31 09:41:34', 'admin', '2025-07-31 07:43:44', 'admin', 'pbkdf2:sha256:260000$uPkgXU614UEZVupq$f796a5bc254e02bfc78526a092ead4057073493f0115a9df56288f852cfb228a', 'admin', '', '2003-03-12 05:56:00', 1, '', '', 'org_5', 1, 2, NULL, NULL, '20213916', '', 1378, 1753947824, '58.240.25.62', NULL, NULL, 1);
 INSERT INTO `sys_user` VALUES (11, '', 1, 0, 'admin', '2025-05-31 16:41:49', 'admin', '2025-05-31 16:51:25', 'user1', 'scrypt:32768:8:1$zdZdVs9s8Va8Skd8$e9489852fb98875c7b59f692469b366e092d1e76dc17087a87c9f68b1a1a5454073cb878ed9580c8595cb506c38c779dc147dc840d1b232f44200702302cb864', 'user1', NULL, '2025-06-01 00:48:29', 0, NULL, NULL, NULL, 1, 1, NULL, NULL, '0002', '', 1, 1748710285, '127.0.0.1', NULL, NULL, 1);
 
 -- ----------------------------

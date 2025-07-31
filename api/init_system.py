@@ -105,7 +105,7 @@ def check_storge():
 
 
 if __name__ == '__main__':
-    retry_num = 3
+    retry_num = 5
     retry = 1
     flag = True
     while retry < retry_num:
@@ -114,6 +114,6 @@ if __name__ == '__main__':
         flag = check_storge() and flag
         if flag:
             break
-        time.sleep(5)
+        time.sleep(10)
         retry += 1
         print(f"第{retry}次初始化")
