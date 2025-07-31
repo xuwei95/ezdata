@@ -109,10 +109,8 @@ def get_knowledge(question, metadata=None, res_type='text'):
             # 多线程召回
             documents = []  # 存储所有文档的总列表
             with ThreadPoolExecutor(max_workers=min(len(search_kwargs_list), 8)) as executor:
-                # 创建未来任务列表
                 future_to_search_kwargs = {executor.submit(query_knowledge, question, kwargs): kwargs for kwargs in
                                            search_kwargs_list}
-                # 遍历完成的未来任务
                 for future in as_completed(future_to_search_kwargs):
                     result = future.result()  # 获取返回的文档
                     documents.extend(result)  # 将返回的文档添加到总列表中

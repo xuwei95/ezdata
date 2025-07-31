@@ -6,7 +6,7 @@ from utils.logger.logger import get_logger
 from utils.web_utils import get_req_para
 from utils.auth import validate_user, set_insert_user, set_update_user, get_auth_token_info
 from web_apps import db
-from web_apps.llm.db_models import ChatHistory, Conversation, ChatApp
+from web_apps.llm.db_models import Conversation, ChatApp
 from web_apps.llm.services.llm_services import chat_generate, data_chat_generate, get_tool_list
 from web_apps.llm.services.conversation_service import get_conversations, get_messages
 from web_apps.llm.services.app_services import ChatAppApiService

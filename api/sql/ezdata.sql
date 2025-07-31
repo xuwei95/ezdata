@@ -11,7 +11,7 @@
  Target Server Version : 80022 (8.0.22)
  File Encoding         : 65001
 
- Date: 15/07/2025 17:29:15
+ Date: 31/07/2025 11:52:54
 */
 
 SET NAMES utf8mb4;
@@ -46,7 +46,7 @@ CREATE TABLE `alert`  (
   `tenant_id` int NULL DEFAULT 1 COMMENT '租户id',
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `ix_alert_tenant_id`(`tenant_id` ASC) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of alert
@@ -80,7 +80,7 @@ CREATE TABLE `alert_strategy`  (
   `tenant_id` int NULL DEFAULT 1 COMMENT '租户id',
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `ix_alert_strategy_tenant_id`(`tenant_id` ASC) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of alert_strategy
@@ -110,7 +110,7 @@ CREATE TABLE `algorithm`  (
   `tenant_id` int NULL DEFAULT 1 COMMENT '租户id',
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `ix_algorithm_tenant_id`(`tenant_id` ASC) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of algorithm
@@ -169,7 +169,7 @@ CREATE TABLE `code_gen_model`  (
   `tenant_id` int NULL DEFAULT 1 COMMENT '租户id',
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `ix_code_gen_model_tenant_id`(`tenant_id` ASC) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of code_gen_model
@@ -225,7 +225,7 @@ CREATE TABLE `data_interface`  (
   INDEX `ix_data_interface_api_key`(`api_key` ASC) USING BTREE,
   INDEX `ix_data_interface_datamodel_id`(`datamodel_id` ASC) USING BTREE,
   INDEX `ix_data_interface_tenant_id`(`tenant_id` ASC) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of data_interface
@@ -255,7 +255,7 @@ CREATE TABLE `datamodel`  (
   `tenant_id` int NULL DEFAULT 1 COMMENT '租户id',
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `ix_datamodel_tenant_id`(`tenant_id` ASC) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of datamodel
@@ -290,7 +290,7 @@ CREATE TABLE `datamodel_field`  (
   `tenant_id` int NULL DEFAULT 1 COMMENT '租户id',
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `ix_datamodel_field_tenant_id`(`tenant_id` ASC) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of datamodel_field
@@ -323,7 +323,7 @@ CREATE TABLE `datasource`  (
   `tenant_id` int NULL DEFAULT 1 COMMENT '租户id',
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `ix_datasource_tenant_id`(`tenant_id` ASC) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of datasource
@@ -346,7 +346,7 @@ CREATE TABLE `embeddings`  (
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `ix_embeddings_hash`(`hash` ASC) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of embeddings
@@ -374,7 +374,7 @@ CREATE TABLE `llm_chat_app`  (
   `tenant_id` int NULL DEFAULT 1 COMMENT '租户id',
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `ix_llm_chat_app_tenant_id`(`tenant_id` ASC) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of llm_chat_app
@@ -407,7 +407,7 @@ CREATE TABLE `llm_chat_app_token`  (
   INDEX `ix_llm_chat_app_token_app_id`(`app_id` ASC) USING BTREE,
   INDEX `ix_llm_chat_app_token_api_key`(`api_key` ASC) USING BTREE,
   INDEX `ix_llm_chat_app_token_tenant_id`(`tenant_id` ASC) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of llm_chat_app_token
@@ -415,14 +415,17 @@ CREATE TABLE `llm_chat_app_token`  (
 INSERT INTO `llm_chat_app_token` VALUES ('c7a6ffaec1a04f5ca29a2f671f0dcbd6', '6626ab87793845bf942c8fec89deecbe', '414005898c404dd2b0483229738b8790', 3153600000, 1, 'admin', 1729502388, 'forever', 1, '', 1, 0, 'admin', '2024-10-21 09:19:57', '', '2024-10-21 09:19:57', 1);
 
 -- ----------------------------
--- Table structure for llm_chat_history
+-- Table structure for llm_conversation
 -- ----------------------------
-DROP TABLE IF EXISTS `llm_chat_history`;
-CREATE TABLE `llm_chat_history`  (
+DROP TABLE IF EXISTS `llm_conversation`;
+CREATE TABLE `llm_conversation`  (
   `id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '主键',
-  `user_id` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '用户id',
+  `user_id` int NULL DEFAULT NULL COMMENT '用户id',
+  `app_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '所属对话appid',
   `user_name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '用户名',
-  `content` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL COMMENT '内容',
+  `core_memory` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL COMMENT '核心记忆',
+  `mode` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '类型 console-平台， api-接口',
+  `tenant_id` int NULL DEFAULT NULL COMMENT '租户id',
   `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL COMMENT '简介',
   `sort_no` float NULL DEFAULT NULL COMMENT '排序',
   `del_flag` smallint NULL DEFAULT NULL COMMENT '软删除标记',
@@ -430,15 +433,14 @@ CREATE TABLE `llm_chat_history`  (
   `create_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `update_by` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '修改者',
   `update_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '修改时间',
-  `tenant_id` int NULL DEFAULT 1 COMMENT '租户id',
   PRIMARY KEY (`id`) USING BTREE,
-  INDEX `ix_llm_chat_history_tenant_id`(`tenant_id` ASC) USING BTREE
+  INDEX `ix_llm_conversation_app_id`(`app_id` ASC) USING BTREE,
+  INDEX `ix_llm_conversation_tenant_id`(`tenant_id` ASC) USING BTREE
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
--- Records of llm_chat_history
+-- Records of llm_conversation
 -- ----------------------------
-INSERT INTO `llm_chat_history` VALUES ('fd2b3485-b42a-45a8-ae42-96ea9b3ec4ef', '1', 'admin', '{\"active\":\"DBCF5101A6\",\"usingContext\":true,\"history\":[{\"title\":\"你能做什么\",\"uuid\":\"DBCF5101A6\",\"isEdit\":false},{\"title\":\"工具调用demo\",\"uuid\":\"CF7436DA33\",\"isEdit\":false},{\"title\":\"你好\",\"uuid\":\"34BDAD2AEE\",\"isEdit\":false},{\"title\":\"知识库问答\",\"uuid\":\"476E20ABE5\",\"isEdit\":false},{\"title\":\"无知识库demo\",\"uuid\":\"4AFFE65494\",\"isEdit\":false}],\"chat\":[{\"uuid\":\"DBCF5101A6\",\"data\":[],\"config\":{\"rag\":{\"enable\":true,\"dataset_id\":[\"1\"],\"k\":3,\"retrieval_type\":\"vector\",\"score_threshold\":0.1,\"rerank\":\"0\",\"rerank_score_threshold\":0},\"agent\":{\"enable\":false,\"tools\":[]},\"data_chat\":{\"enable\":false,\"datamodel_id\":[]}}},{\"uuid\":\"CF7436DA33\",\"data\":[{\"dateTime\":\"2024/8/23 20:45:53\",\"text\":\"现在几点了\",\"inversion\":true,\"error\":false,\"conversationOptions\":null,\"requestOptions\":{\"prompt\":\"现在几点了\",\"options\":null}},{\"dateTime\":\"2024/8/23 20:45:57\",\"text\":\"现在是2024年8月23日 20:45:55。\",\"table_data\":[],\"html_data\":\"\",\"chat_flow\":[{\"title\":\"调用工具:get_time\",\"content\":\"{\'tool\': \'get_time\', \'input\': {\'format\': \'%Y-%m-%d %H:%M:%S\'}}\",\"time\":\"2024-08-23 20:45:55\"},{\"title\":\"获取工具get_time调用结果\",\"content\":\"{\'tool\': \'get_time\', \'result\': \'2024-08-23 20:45:55\'}\",\"time\":\"2024-08-23 20:45:55\"},{\"title\":\"处理完成\",\"content\":\"处理完成\",\"time\":\"2024-08-23 20:45:56\"}],\"inversion\":false,\"error\":false,\"loading\":false,\"conversationOptions\":{\"parentMessageId\":\"\"},\"requestOptions\":{\"prompt\":\"现在几点了\",\"options\":{}}}],\"config\":{\"rag\":{\"enable\":false,\"dataset_id\":[\"1\"],\"k\":3,\"retrieval_type\":\"vector\",\"score_threshold\":0.1,\"rerank\":\"0\",\"rerank_score_threshold\":0},\"agent\":{\"enable\":true,\"tools\":[\"now_time\",\"get_url_content\",\"summary_content\",\"network_search\"]}}},{\"uuid\":\"34BDAD2AEE\",\"data\":[],\"config\":{\"rag\":{\"enable\":false,\"dataset_id\":\"1\",\"k\":3,\"retrieval_type\":\"vector\",\"score_threshold\":0.1,\"rerank\":\"0\",\"rerank_score_threshold\":0}}},{\"uuid\":\"476E20ABE5\",\"data\":[{\"dateTime\":\"2024/10/21 09:40:12\",\"text\":\"数据库的表名 \",\"inversion\":true,\"error\":false,\"conversationOptions\":null,\"requestOptions\":{\"prompt\":\"数据库的表名 \",\"options\":null}},{\"dateTime\":\"2024/10/21 09:40:50\",\"text\":\"在数据库中，表名是用于标识和引用特定数据集合的名称。表名在数据库设计和管理中起着至关重要的作用，因为它们帮助用户和应用程序识别和访问存储在数据库中的数据。以下是关于数据库表名的一些关键点：\\n\\n### 1. **命名规范**\\n   - **简洁性**：表名应简洁明了，避免过长或过于复杂的名称。\\n   - **描述性**：表名应能清晰地描述表中存储的数据内容。\\n   - **一致性**：在整个数据库中，表名的命名风格应保持一致，例如使用驼峰命名法、下划线命名法等。\\n   - **避免保留字**：表名不应使用数据库系统中的保留字或关键字，以避免潜在的冲突和错误。\\n\\n### 2. **命名风格**\\n   - **驼峰命名法**：例如 `CustomerOrder`。\\n   - **下划线命名法**：例如 `customer_order`。\\n   - **全大写**：例如 `CUSTOMER_ORDER`（通常用于常量或配置文件中）。\\n   - **全小写**：例如 `customerorder`（较少使用，但有时用于简化）。\\n\\n### 3. **常见命名示例**\\n   - **用户表**：`users` 或 `user_info`。\\n   - **订单表**：`orders` 或 `order_details`。\\n   - **产品表**：`products` 或 `product_catalog`。\\n   - **日志表**：`logs` 或 `system_logs`。\\n\\n### 4. **数据库管理系统（DBMS）的限制**\\n   - **长度限制**：不同的数据库管理系统对表名的长度有不同的限制，例如 MySQL 允许最多 64 个字符，而 Oracle 允许最多 30 个字符。\\n   - **字符集**：表名通常使用 ASCII 字符，但某些数据库系统也支持 Unicode 字符。\\n   - **大小写敏感性**：某些数据库系统（如 MySQL）在 Windows 上不区分大小写，而在 Linux 上区分大小写。\\n\\n### 5. **最佳实践**\\n   - **使用复数形式**：通常建议使用复数形式的表名，例如 `users` 而不是 `user`，以明确表示表中存储的是多个实体。\\n   - **避免缩写**：除非缩写是广泛认可的，否则应避免使用缩写，以提高可读性和可维护性。\\n   - **版本控制**：如果数据库表名可能会随着时间变化，建议在表名中包含版本信息，例如 `user_v1`、`user_v2`。\\n\\n### 6. **示例**\\n   - **用户表**：`users`\\n   - **订单表**：`orders`\\n   - **产品表**：`products`\\n   - **日志表**：`system_logs`\\n\\n通过遵循这些命名规范和最佳实践，可以确保数据库表名的一致性、可读性和可维护性，从而提高数据库的整体质量和开发效率。\",\"table_data\":[],\"html_data\":\"\",\"chat_flow\":[],\"inversion\":false,\"error\":false,\"loading\":false,\"conversationOptions\":{\"parentMessageId\":\"\"},\"requestOptions\":{\"prompt\":\"数据库的表名 \",\"options\":{}}},{\"dateTime\":\"2024/10/21 09:40:52\",\"text\":\"当前数据库有哪几个表\",\"inversion\":true,\"error\":false,\"conversationOptions\":null,\"requestOptions\":{\"prompt\":\"当前数据库有哪几个表\",\"options\":null}},{\"dateTime\":\"2024/10/21 09:41:10\",\"text\":\"要获取当前数据库中的表列表，通常可以通过以下几种方式：\\n\\n### 1. 使用 SQL 查询\\n不同的数据库管理系统（DBMS）有不同的查询方式来列出表：\\n\\n#### MySQL/MariaDB\\n```sql\\nSHOW TABLES;\\n```\\n\\n#### PostgreSQL\\n```sql\\nSELECT table_name FROM information_schema.tables WHERE table_schema = \'public\';\\n```\\n\\n#### SQL Server\\n```sql\\nSELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = \'BASE TABLE\';\\n```\\n\\n#### Oracle\\n```sql\\nSELECT table_name FROM user_tables;\\n```\\n\\n#### SQLite\\n```sql\\n.tables\\n```\\n\\n### 2. 使用数据库管理工具\\n如果你使用的是数据库管理工具（如 MySQL Workbench、pgAdmin、SQL Server Management Studio 等），通常可以通过图形界面直接查看数据库中的表。\\n\\n### 3. 使用编程语言的 ORM 或数据库连接库\\n如果你是通过编程语言（如 Python、Java、PHP 等）连接数据库，可以使用相应的库来查询数据库中的表。\\n\\n#### Python (使用 SQLAlchemy)\\n```python\\nfrom sqlalchemy import create_engine\\nfrom sqlalchemy import inspect\\n\\nengine = create_engine(\'数据库连接字符串\')\\ninspector = inspect(engine)\\ntables = inspector.get_table_names()\\nprint(tables)\\n```\\n\\n#### Java (使用 JDBC)\\n```java\\nimport java.sql.*;\\n\\npublic class ListTables {\\n    public static void main(String[] args) {\\n        String url = \\\"jdbc:数据库连接\",\"table_data\":[],\"html_data\":\"\",\"chat_flow\":[],\"inversion\":false,\"error\":false,\"loading\":false,\"conversationOptions\":{\"parentMessageId\":\"\"},\"requestOptions\":{\"prompt\":\"当前数据库有哪几个表\",\"options\":{\"parentMessageId\":\"\"}}},{\"dateTime\":\"2024/10/21 13:56:23\",\"text\":\"代码数据管理中连接测试失败怎么办\",\"inversion\":true,\"error\":false,\"conversationOptions\":null,\"requestOptions\":{\"prompt\":\"代码数据管理中连接测试失败怎么办\",\"options\":null}},{\"dateTime\":\"2024/10/21 13:56:55\",\"text\":\"在代码数据管理中，如果连接测试失败，可以按照以下步骤进行排查和解决：\\n\\n### 1. **检查网络连接**\\n   - **本地网络**：确保你的本地网络连接正常，可以访问互联网。\\n   - **服务器网络**：确保目标服务器（如数据库服务器、API服务器等）可以被访问。\\n   - **防火墙和安全组**：检查是否有防火墙或安全组规则阻止了连接。\\n\\n### 2. **检查配置文件**\\n   - **连接字符串**：确保连接字符串（如数据库连接字符串、API URL等）正确无误。\\n   - **认证信息**：确保用户名、密码、API密钥等认证信息正确。\\n   - **端口号**：确保使用的端口号正确。\\n\\n### 3. **检查服务状态**\\n   - **服务是否运行**：确保目标服务（如数据库服务、API服务等）正在运行。\\n   - **服务日志**：查看服务日志，寻找可能的错误信息。\\n\\n### 4. **检查权限**\\n   - **用户权限**：确保连接使用的用户具有足够的权限访问目标资源。\\n   - **IP白名单**：如果目标服务器有IP白名单限制，确保你的IP地址在白名单中。\\n\\n### 5. **检查依赖库和工具**\\n   - **依赖库版本**：确保使用的依赖库（如数据库驱动、HTTP客户端等）版本与目标服务兼容。\\n   - **工具配置**：如果是通过工具（如数据库管理工具、API测试工具等）进行连接测试，确保工具配置正确。\\n\\n### 6. **重试连接**\\n   - **重新启动服务**：尝试重新启动目标服务或本地服务。\\n   - **重新测试**：重新进行连接测试，确保问题不是暂时的网络波动或服务重启导致的。\\n\\n### 7. **查看错误信息**\\n   - **详细错误日志**：查看连接测试失败时返回的详细错误信息，通常这些信息会指示问题的具体原因。\\n   - **调试模式**：如果可能，启用调试模式，获取更多的调试信息。\\n\\n### 8. **联系管理员或支持团队**\\n   - **内部支持**：如果是在公司内部环境，联系IT支持或系统管理员。\\n   - **外部支持**：如果是外部服务（如云服务提供商），联系他们的技术支持团队。\\n\\n### 9. **备份和回滚**\\n   - **备份数据**：在进行任何更改之前，确保数据已备份。\\n   - **回滚配置**：如果更改了配置，确保可以回滚到之前的配置。\\n\\n### 10. **参考文档和社区**\\n   - **官方文档**：查阅目标服务的官方文档，寻找可能的解决方案。\\n   - **社区论坛**：在相关的开发者社区或论坛中搜索类似问题，看看是否有其他人遇到并解决了类似的问题。\\n\\n通过以上步骤，你应该能够逐步排查并解决连接测试失败的问题。\",\"table_data\":[],\"html_data\":\"\",\"chat_flow\":[],\"inversion\":false,\"error\":false,\"loading\":false,\"conversationOptions\":{\"parentMessageId\":\"\"},\"requestOptions\":{\"prompt\":\"代码数据管理中连接测试失败怎么办\",\"options\":{\"parentMessageId\":\"\"}}}],\"config\":{\"rag\":{\"enable\":true,\"dataset_id\":[\"dc246ac52f23427ab5ac2b599234dcb1\"],\"k\":3,\"retrieval_type\":\"vector\",\"score_threshold\":0.1,\"rerank\":\"0\",\"rerank_score_threshold\":0},\"agent\":{\"enable\":false,\"tools\":[\"now_time\",\"get_url_content\"]}}},{\"uuid\":\"4AFFE65494\",\"data\":[],\"config\":{\"rag\":{\"enable\":false,\"dataset_id\":\"1\",\"k\":3,\"retrieval_type\":\"vector\",\"score_threshold\":0.1,\"rerank\":\"0\",\"rerank_score_threshold\":0}}}]}', '', 1, 0, 'admin', '2024-08-10 18:48:21', 'admin', '2025-07-15 09:12:06', 1);
 
 -- ----------------------------
 -- Table structure for rag_chunk
@@ -478,7 +480,7 @@ CREATE TABLE `rag_chunk`  (
   INDEX `ix_rag_chunk_dataset_id`(`dataset_id` ASC) USING BTREE,
   INDEX `ix_rag_chunk_chunk_type`(`chunk_type` ASC) USING BTREE,
   INDEX `ix_rag_chunk_tenant_id`(`tenant_id` ASC) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of rag_chunk
@@ -505,7 +507,7 @@ CREATE TABLE `rag_dataset`  (
   INDEX `ix_rag_dataset_status`(`status` ASC) USING BTREE,
   INDEX `ix_rag_dataset_name`(`name` ASC) USING BTREE,
   INDEX `ix_rag_dataset_tenant_id`(`tenant_id` ASC) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of rag_dataset
@@ -537,7 +539,7 @@ CREATE TABLE `rag_document`  (
   INDEX `ix_rag_document_status`(`status` ASC) USING BTREE,
   INDEX `ix_rag_document_name`(`name` ASC) USING BTREE,
   INDEX `ix_rag_document_tenant_id`(`tenant_id` ASC) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of rag_document
@@ -556,7 +558,7 @@ CREATE TABLE `rag_embedding`  (
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `ix_rag_embedding_hash`(`hash` ASC) USING BTREE,
   INDEX `ix_rag_embedding_tenant_id`(`tenant_id` ASC) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of rag_embedding
@@ -583,7 +585,7 @@ CREATE TABLE `screen_project`  (
   `tenant_id` int NULL DEFAULT 1 COMMENT '租户id',
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `ix_screen_project_tenant_id`(`tenant_id` ASC) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of screen_project
@@ -626,7 +628,7 @@ CREATE TABLE `sys_depart`  (
   INDEX `ix_sys_depart_depart_name_abbr`(`depart_name_abbr` ASC) USING BTREE,
   INDEX `ix_sys_depart_org_code`(`org_code` ASC) USING BTREE,
   INDEX `ix_sys_depart_tenant_id`(`tenant_id` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 8 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 8 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of sys_depart
@@ -655,7 +657,7 @@ CREATE TABLE `sys_dict`  (
   `tenant_id` int NULL DEFAULT 1 COMMENT '租户id',
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `ix_sys_dict_tenant_id`(`tenant_id` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 35 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 35 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of sys_dict
@@ -711,7 +713,7 @@ CREATE TABLE `sys_dict_item`  (
   `tenant_id` int NULL DEFAULT 1 COMMENT '租户id',
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `ix_sys_dict_item_tenant_id`(`tenant_id` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 1005 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 1005 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of sys_dict_item
@@ -1742,7 +1744,7 @@ CREATE TABLE `sys_file`  (
   `enable_down` smallint NULL DEFAULT NULL COMMENT '是否允许下载(1：是  0：否)',
   `enable_update` smallint NULL DEFAULT NULL COMMENT '是否允许修改(1：是  0：否)',
   PRIMARY KEY (`id`) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of sys_file
@@ -1782,7 +1784,7 @@ CREATE TABLE `sys_notice`  (
   `tenant_id` int NULL DEFAULT 1 COMMENT '租户id',
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `ix_sys_notice_tenant_id`(`tenant_id` ASC) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of sys_notice
@@ -1809,7 +1811,7 @@ CREATE TABLE `sys_notice_send`  (
   `tenant_id` int NULL DEFAULT 1 COMMENT '租户id',
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `ix_sys_notice_send_tenant_id`(`tenant_id` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of sys_notice_send
@@ -1851,7 +1853,7 @@ CREATE TABLE `sys_permission`  (
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `ix_sys_permission_name`(`name` ASC) USING BTREE,
   INDEX `ix_sys_permission_tenant_id`(`tenant_id` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 128 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 128 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of sys_permission
@@ -1873,7 +1875,7 @@ INSERT INTO `sys_permission` VALUES (16, '', 2.92, 0, 'admin', '2022-11-01 08:34
 INSERT INTO `sys_permission` VALUES (17, '', 2.91, 0, 'admin', '2022-11-01 08:35:30', 'admin', '2022-11-11 05:42:51', '对象存储', 4, '/system/ossfile', 'system/ossfile/index', '', '', 1, NULL, 1, 0, 'ant-design:file-add-outlined', 1, 1, 0, 0, 0, 0, 1, 0, 1);
 INSERT INTO `sys_permission` VALUES (18, '', 3, 0, 'admin', '2022-11-01 09:27:13', 'admin', '2022-11-09 01:40:15', '个人中心', 4, '/system/account/setting', 'system/account/setting/index', '', '', 1, NULL, 1, 0, 'ant-design:user-outlined', 1, 1, 0, 1, 0, 0, 1, 0, 1);
 INSERT INTO `sys_permission` VALUES (19, '', 2.945, 0, 'admin', '2022-11-10 06:10:27', 'admin', '2022-11-10 06:10:59', '租户管理', 4, '/system/tenant', 'system/tenant/index', '', '', 1, NULL, 1, 0, 'ant-design:appstore-twotone', 1, 1, 0, 0, 0, 0, 1, 0, 1);
-INSERT INTO `sys_permission` VALUES (20, '', 8, 0, 'admin', '2023-12-23 16:20:54', 'admin', '2024-10-20 07:45:45', '数据可视化', NULL, '/visualization', 'layouts/default/index', '', '', 0, NULL, 1, 0, 'chart|svg', 1, 0, 0, 0, 0, 0, 1, 0, 1);
+INSERT INTO `sys_permission` VALUES (20, '', 8, 1, 'admin', '2023-12-23 16:20:54', 'admin', '2025-07-31 03:43:27', '数据可视化', NULL, '/visualization', 'layouts/default/index', '', '', 0, NULL, 1, 0, 'chart|svg', 1, 0, 0, 0, 0, 0, 1, 0, 1);
 INSERT INTO `sys_permission` VALUES (21, '', 1, 0, 'admin', '2022-11-16 14:06:40', 'admin', '2023-04-15 08:12:43', '大屏设计器', 20, '/visualization/bigscreen', '{{ window._CONFIG[\'domianURL\'] }}/bigscreen/#/token_login?token=${token}', '', '', 1, NULL, 1, 0, 'ant-design:dot-chart-outlined', 1, 1, 0, 0, 0, 0, 1, 0, 1);
 INSERT INTO `sys_permission` VALUES (22, '', 1, 0, '2222', '2022-11-19 19:23:40', 'admin', '2023-05-04 09:33:18', '部门用户管理', 13, '', '', '', '', 2, 'user-depart:user', 1, 1, NULL, 1, 1, 1, 1, 1, 0, 1, 1, 1);
 INSERT INTO `sys_permission` VALUES (23, '', 8, 0, 'admin', '2022-11-21 16:11:58', 'admin', '2023-04-19 17:27:27', '开发工具', NULL, '/devtools', 'layouts/default/index', '', '', 0, NULL, 1, 0, 'dev|svg', 1, 0, 0, 0, 0, 0, 1, 0, 1);
@@ -1974,8 +1976,7 @@ INSERT INTO `sys_permission` VALUES (122, '', 8, 0, 'admin', '2024-07-13 16:10:4
 INSERT INTO `sys_permission` VALUES (123, '', 7, 0, 'admin', '2024-07-13 16:11:43', 'admin', '2024-07-13 16:13:27', '知识段管理', 120, '/rag/chunk', '/rag/chunk/index', '', '', 1, NULL, 1, 0, 'ant-design:file-text-outlined', 1, 1, 0, 0, 0, 0, 1, 0, 1);
 INSERT INTO `sys_permission` VALUES (124, '', 1, 0, 'admin', '2024-07-24 16:27:04', 'admin', '2024-07-24 16:51:23', '知识检索', 120, '/rag/chunk/retrieval', '/rag/chunk/retrieval', '', '', 1, NULL, 1, 0, 'ant-design:file-search-outlined', 1, 1, 0, 0, 0, 0, 1, 0, 1);
 INSERT INTO `sys_permission` VALUES (125, '', 9.3, 0, 'admin', '2024-10-20 07:44:18', 'admin', '2024-10-22 16:31:24', 'ai应用', NULL, '/ai', 'layouts/default/index', '', '/ai/index', 0, NULL, 1, 0, 'ai|svg', 1, 0, 0, 0, 0, 0, 1, 0, 1);
-INSERT INTO `sys_permission` VALUES (126, '', 1, 0, 'admin', '2024-10-20 07:47:41', 'admin', '2024-10-20 08:10:37', '应用管理', 125, '/ai/apps', '/llm/chatApp/index', '', '', 1, NULL, 1, 0, 'ai-apps|svg', 1, 1, 0, 0, 0, 0, 1, 0, 1);
-INSERT INTO `sys_permission` VALUES (127, '', 1, 0, 'admin', '2025-07-15 08:45:13', 'admin', '2025-07-15 09:26:31', '应用对话', 126, '/ai/app/chat', '/llm/chatApp/chat', '', '', 1, NULL, 1, 0, NULL, 1, 1, 0, 1, 0, 0, 1, 0, 1);
+INSERT INTO `sys_permission` VALUES (126, '', 1, 0, 'admin', '2024-10-20 07:47:41', 'admin', '2025-07-31 03:43:00', '应用管理', 125, '/ai/apps', '/llm/aiapp/AiAppList', '', '', 1, NULL, 1, 0, 'ai-apps|svg', 1, 1, 0, 0, 0, 0, 1, 0, 1);
 
 -- ----------------------------
 -- Table structure for sys_position
@@ -1998,7 +1999,7 @@ CREATE TABLE `sys_position`  (
   `tenant_id` int NULL DEFAULT 1 COMMENT '租户id',
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `ix_sys_position_tenant_id`(`tenant_id` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 2 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 2 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of sys_position
@@ -2027,7 +2028,7 @@ CREATE TABLE `sys_role`  (
   INDEX `ix_sys_role_role_name`(`role_name` ASC) USING BTREE,
   INDEX `ix_sys_role_role_code`(`role_code` ASC) USING BTREE,
   INDEX `ix_sys_role_tenant_id`(`tenant_id` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 15 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 15 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of sys_role
@@ -2056,7 +2057,7 @@ CREATE TABLE `sys_tenant`  (
   `tenant_id` int NULL DEFAULT 1 COMMENT '租户id',
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `ix_sys_tenant_tenant_id`(`tenant_id` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 3 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 3 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of sys_tenant
@@ -2106,7 +2107,7 @@ CREATE TABLE `sys_user`  (
   INDEX `ix_sys_user_nickname`(`nickname` ASC) USING BTREE,
   INDEX `ix_sys_user_third_id`(`third_id` ASC) USING BTREE,
   INDEX `ix_sys_user_work_no`(`work_no` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 12 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 12 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of sys_user
@@ -2133,7 +2134,7 @@ CREATE TABLE `sys_user_tenant_join`  (
   `update_by` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '修改者',
   `update_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '修改时间',
   PRIMARY KEY (`id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 3 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 3 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of sys_user_tenant_join
@@ -2172,7 +2173,7 @@ CREATE TABLE `task`  (
   `tenant_id` int NULL DEFAULT 1 COMMENT '租户id',
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `ix_task_tenant_id`(`tenant_id` ASC) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of task
@@ -2204,7 +2205,7 @@ CREATE TABLE `task_instance`  (
   `closed` smallint NULL DEFAULT NULL COMMENT '是否已关闭',
   `node_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT 'dag任务节点id',
   PRIMARY KEY (`id`) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of task_instance
@@ -2236,7 +2237,7 @@ CREATE TABLE `task_template`  (
   `tenant_id` int NULL DEFAULT 1 COMMENT '租户id',
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `ix_task_template_tenant_id`(`tenant_id` ASC) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of task_template

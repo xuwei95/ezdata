@@ -14,7 +14,6 @@ def logs_query():
     系统日志查询
     """
     req_dict = get_req_para(request)
-    print(req_dict)
     res_data = SysLogService().query_logs(req_dict)
     return jsonify(res_data)
 
@@ -26,7 +25,6 @@ def dashboard_count():
     主页统计信息
     """
     req_dict = get_req_para(request)
-    print(req_dict)
     res_data = SysInfoService().query_dashboard_count(req_dict)
     return jsonify(res_data)
 
@@ -38,7 +36,6 @@ def visit_count():
     接口调用统计信息
     """
     req_dict = get_req_para(request)
-    print(req_dict)
     res_data = SysInfoService().query_visit_count(req_dict)
     return jsonify(res_data)
 
@@ -50,7 +47,6 @@ def task_count():
     任务执行统计信息
     """
     req_dict = get_req_para(request)
-    print(req_dict)
     res_data = SysInfoService().query_task_count(req_dict)
     return jsonify(res_data)
 
@@ -62,7 +58,6 @@ def datamodel_type_count():
     数据模型类型统计信息
     """
     req_dict = get_req_para(request)
-    print(req_dict)
     res_data = SysInfoService().query_datamodel_type_count(req_dict)
     return jsonify(res_data)
 
@@ -73,7 +68,6 @@ def task_status_count():
     任务状态统计信息
     """
     req_dict = get_req_para(request)
-    print(req_dict)
     res_data = SysInfoService().query_task_status_count(req_dict)
     return jsonify(res_data)
 
@@ -85,6 +79,5 @@ def interface_count():
     任务状态统计信息
     """
     req_dict = get_req_para(request)
-    print(req_dict)
     res_data = SysInfoService().query_interface_count(req_dict)
     return jsonify(res_data)

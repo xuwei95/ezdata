@@ -8,20 +8,6 @@ from config import DB_TYPE
 import datetime
 
 
-class ChatHistory(BaseModel):
-    '''
-    对话历史表
-    '''
-    __tablename__ = 'llm_chat_history'
-    id = db.Column(db.String(36), primary_key=True, nullable=False, default='', comment='主键')
-    user_id = db.Column(db.String(200), nullable=True, default='', comment='用户id')
-    user_name = db.Column(db.String(100), nullable=True, default='', comment='用户名')
-    if DB_TYPE == 'mysql':
-        content = db.Column(LONGTEXT, default='{}', comment='内容')
-    else:
-        content = db.Column(db.TEXT, default='{}', comment='内容')
-
-
 class Conversation(BaseModel):
     """会话表"""
     __tablename__ = 'llm_conversation'
