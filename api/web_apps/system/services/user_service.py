@@ -527,6 +527,97 @@ class UserService(object):
             res_data = gen_json_response(code=400, msg='token验证失败！', extends={'success': False})
         return res_data
 
+    def third_party_login(self, req_dict):
+        '''
+        第三方登录
+        :param req_dict:
+        :return:
+        '''
+        third_type = req_dict.get('third_type')
+        third_id = req_dict.get('third_id')
+        username = req_dict.get('username')
+        email = req_dict.get('email')
+        nickname = req_dict.get('nickname')
+        
+        if not all([third_type, third_id, username]):
+            return gen_json_response(code=400, msg='第三方登录信息不完整', extends={'success': False})
+        
+        # 查找是否已存在该第三方账号的用户
+        user = db.session.query(User).filter(
+            User.third_type == third_type,
+            User.third_id == third_id,
+            User.del_flag == 0
+        ).first()
+        
+        if user is None:
+            # 创建新用户
+            user = User()
+            user.username = f"{third_type}_{username}"
+            user.nickname = nickname or username
+            user.email = email
+            user.third_type = third_type
+            user.third_id = third_id
+            user.status = 1  # 正常状态
+            user.password = generate_password_hash('third_party_user')  # 设置默认密码
+            user.depart_id_list = '[]'
+            user.post_id_list = '[]'
+            user.role_id_list = '[]'
+            user.tenant_id_list = '[]'
+            user.login_times = 0
+            
+            # 设置默认租户和部门
+            default_tenant = db.session.query(Tenant).filter(Tenant.del_flag == 0).first()
+            if default_tenant:
+                user.tenant_id = default_tenant.id
+                user.tenant_id_list = f'[{default_tenant.id}]'
+                
+                default_depart = db.session.query(Depart).filter(
+                    Depart.tenant_id == default_tenant.id,
+                    Depart.del_flag == 0
+                ).first()
+                if default_depart:
+                    user.org_code = default_depart.org_code
+                    user.depart_id_list = f'[{default_depart.id}]'
+            
+            set_insert_user(user)
+            db.session.add(user)
+            db.session.commit()
+            db.session.flush()
+        
+        # 更新登录信息
+        login_time = get_now_time()
+        user.login_time = login_time
+        user.login_times = user.login_times + 1
+        user.login_ip = get_user_ip().split(',')[0]
+        
+        db.session.add(user)
+        db.session.commit()
+        db.session.flush()
+        
+        # 生成token
+        role_id_list = json.loads(user.role_id_list)
+        role_objs = get_base_query(Role, tenant_id=user.tenant_id).filter(Role.id.in_(role_id_list))
+        role_code_list = [i.role_code for i in role_objs]
+        permissions = self.get_user_permissions(role_code_list=role_code_list, org_code=user.org_code, is_admin=user.username == 'admin', tenant_id=user.tenant_id)
+        extends = {
+            'roles': role_code_list,
+            'permissions': permissions
+        }
+        token = encode_auth_token(user, extends=extends)
+        
+        data = {
+            "token": token,
+            "userinfo": {
+                'id': user.id,
+                'tenant_id': user.tenant_id,
+                'username': user.username,
+                'nickname': user.nickname,
+                'avatar': user.avatar
+            }
+        }
+        
+        return gen_json_response(data=data, code=200, msg='第三方登录成功。', extends={'success': True})
+
     def get_obj_list(self, req_dict):
         '''
         获取列表

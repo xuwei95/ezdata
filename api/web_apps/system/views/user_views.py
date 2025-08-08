@@ -1,10 +1,12 @@
-from flask import jsonify, request, Blueprint
+from flask import jsonify, request, Blueprint, redirect, url_for
 from utils.auth import get_auth_token_info
 from utils.auth import validate_user, validate_permissions
 from web_apps.system.services.user_service import UserService
 from web_apps.dictionary.services import DictService
 from utils.web_utils import get_req_para, validate_params
 from utils.common_utils import gen_json_response
+from utils.oauth import GitHubOAuth
+from config import GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, GITHUB_REDIRECT_URI
 user_bp = Blueprint('sys_user', __name__)
 
 
@@ -51,6 +53,7 @@ def get_user_depart_list():
         return gen_json_response(code=400, msg=not_valid)
     res_data = UserService().get_user_departs(req_dict)
     return jsonify(res_data)
+
 
 
 @user_bp.route('/editSysDepartWithUser', methods=['POST'])
@@ -317,6 +320,53 @@ def user_register():
         return gen_json_response(code=400, msg=not_valid)
     res_data = UserService().register(req_dict)
     return jsonify(res_data)
+
+
+@user_bp.route('/thirdLogin/render/<provider>', methods=['GET'])
+def third_login(provider):
+    """
+    第三方登录
+    """
+    if provider == 'github':
+        oauth = GitHubOAuth(GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, GITHUB_REDIRECT_URI)
+        auth_url = oauth.get_authorization_url()
+        return redirect(auth_url)
+    else:
+        return gen_json_response(code=400, msg='不支持的第三方登录提供商')
+
+
+@user_bp.route('/thirdLogin/callback/<provider>', methods=['GET'])
+def third_login_callback(provider):
+    """
+    第三方登录回调
+    """
+    if provider == 'github':
+        code = request.args.get('code')
+        state = request.args.get('state')
+        
+        if not code:
+            return gen_json_response(code=400, msg='授权码缺失')
+        
+        try:
+            oauth = GitHubOAuth(GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, GITHUB_REDIRECT_URI)
+            access_token = oauth.get_access_token(code)
+            user_info = oauth.get_user_info(access_token)
+            
+            # 调用用户服务处理第三方登录
+            req_dict = {
+                'third_type': 'github',
+                'third_id': user_info.id,
+                'username': user_info.name,
+                'email': user_info.email,
+                'nickname': user_info.name
+            }
+            res_data = UserService().third_party_login(req_dict)
+            return jsonify(res_data)
+            
+        except Exception as e:
+            return gen_json_response(code=400, msg=f'GitHub登录失败: {str(e)}')
+    else:
+        return gen_json_response(code=400, msg='不支持的第三方登录提供商')
 
 
 @user_bp.route('/login', methods=['POST'])

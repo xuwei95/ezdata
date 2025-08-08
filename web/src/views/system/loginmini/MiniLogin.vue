@@ -111,7 +111,7 @@
                       <a title="github" @click="onThirdLogin('github')"><GithubFilled /></a>
                     </div>
                   </div>
-                  <div class="aui-flex-box">
+                  <!-- <div class="aui-flex-box">
                     <div class="aui-third-login">
                       <a title="企业微信" @click="onThirdLogin('wechat_enterprise')"><icon-font class="item-icon" type="icon-qiyeweixin3" /></a>
                     </div>
@@ -125,7 +125,7 @@
                     <div class="aui-third-login">
                       <a title="微信" @click="onThirdLogin('wechat_open')"><WechatFilled /></a>
                     </div>
-                  </div>
+                  </div> -->
                 </div>
               </a-form>
             </div>
