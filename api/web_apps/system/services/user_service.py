@@ -559,27 +559,9 @@ class UserService(object):
             user.third_id = third_id
             user.status = 1  # 正常状态
             user.password = generate_password_hash('third_party_user')  # 设置默认密码
-            user.depart_id_list = '[]'
-            user.post_id_list = '[]'
-            user.role_id_list = '[]'
-            user.tenant_id_list = '[]'
             user.login_times = 0
-            
-            # 设置默认租户和部门
-            default_tenant = db.session.query(Tenant).filter(Tenant.del_flag == 0).first()
-            if default_tenant:
-                user.tenant_id = default_tenant.id
-                user.tenant_id_list = f'[{default_tenant.id}]'
-                
-                default_depart = db.session.query(Depart).filter(
-                    Depart.tenant_id == default_tenant.id,
-                    Depart.del_flag == 0
-                ).first()
-                if default_depart:
-                    user.org_code = default_depart.org_code
-                    user.depart_id_list = f'[{default_depart.id}]'
-            
-            set_insert_user(user)
+            user.tenant_id = 1
+            set_insert_user(user, 'system')
             db.session.add(user)
             db.session.commit()
             db.session.flush()
@@ -588,35 +570,20 @@ class UserService(object):
         login_time = get_now_time()
         user.login_time = login_time
         user.login_times = user.login_times + 1
-        user.login_ip = get_user_ip().split(',')[0]
+        user.login_ip = ''
         
         db.session.add(user)
         db.session.commit()
         db.session.flush()
         
         # 生成token
-        role_id_list = json.loads(user.role_id_list)
-        role_objs = get_base_query(Role, tenant_id=user.tenant_id).filter(Role.id.in_(role_id_list))
-        role_code_list = [i.role_code for i in role_objs]
-        permissions = self.get_user_permissions(role_code_list=role_code_list, org_code=user.org_code, is_admin=user.username == 'admin', tenant_id=user.tenant_id)
+        permissions = self.get_user_permissions(role_code_list=[], org_code=user.org_code, is_admin=user.username == 'admin', tenant_id=user.tenant_id)
         extends = {
-            'roles': role_code_list,
+            'roles': [],
             'permissions': permissions
         }
         token = encode_auth_token(user, extends=extends)
-        
-        data = {
-            "token": token,
-            "userinfo": {
-                'id': user.id,
-                'tenant_id': user.tenant_id,
-                'username': user.username,
-                'nickname': user.nickname,
-                'avatar': user.avatar
-            }
-        }
-        
-        return gen_json_response(data=data, code=200, msg='第三方登录成功。', extends={'success': True})
+        return token
 
     def get_obj_list(self, req_dict):
         '''

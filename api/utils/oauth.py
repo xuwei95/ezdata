@@ -83,4 +83,5 @@ class GitHubOAuth(OAuth):
         email = raw_info.get("email")
         if not email:
             email = f"{raw_info['id']}+{raw_info['login']}@users.noreply.github.com"
-        return OAuthUserInfo(id=str(raw_info["id"]), name=raw_info["name"], email=email)
+
+        return OAuthUserInfo(id=str(raw_info["id"]), name=raw_info.get('login'), email=email)

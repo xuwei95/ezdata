@@ -7,6 +7,7 @@ from utils.web_utils import get_req_para, validate_params
 from utils.common_utils import gen_json_response
 from utils.oauth import GitHubOAuth
 from config import GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, GITHUB_REDIRECT_URI
+from urllib.parse import quote
 user_bp = Blueprint('sys_user', __name__)
 
 
@@ -360,8 +361,11 @@ def third_login_callback(provider):
                 'email': user_info.email,
                 'nickname': user_info.name
             }
-            res_data = UserService().third_party_login(req_dict)
-            return jsonify(res_data)
+            token = UserService().third_party_login(req_dict)
+            # 使用hash路由将token带回前端
+            base_url = request.host_url.rstrip('/')
+            redirect_url = f"{base_url}/#/oauth2-app/login?oauth2LoginToken={quote(token)}&thirdType=github"
+            return redirect(redirect_url)
             
         except Exception as e:
             return gen_json_response(code=400, msg=f'GitHub登录失败: {str(e)}')
