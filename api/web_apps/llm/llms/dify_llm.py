@@ -12,9 +12,9 @@ from langchain_core.outputs import (
 
 
 class DifyChatModel(BaseChatModel):
-    url = 'https://api.dify.ai/v1'
-    api_key = ''
-    conversation_id = ''
+    url: str = 'https://api.dify.ai/v1'
+    api_key: str = ''
+    conversation_id: str = ''
 
     def _generate(
             self,

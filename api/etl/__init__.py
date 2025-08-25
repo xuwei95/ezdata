@@ -32,7 +32,7 @@ reader_map = {
     'oracle:None': 'etl.data_models.oracle_models.OracleSqlModel',
     'oracle:sql': 'etl.data_models.oracle_models.OracleSqlModel',
     'oracle:oracle_table': 'etl.data_models.oracle_models.OracleTableModel',
-    'clickhouse:None': 'etl.data_models.clickhouse_table.BaseDBSqlModel',
+    'clickhouse:None': 'etl.data_models.base_db_sql.BaseDBSqlModel',
     'clickhouse:sql': 'etl.data_models.base_db_sql.BaseDBSqlModel',
     'clickhouse:clickhouse_table': 'etl.data_models.clickhouse_table.CkTableModel',
     'hive:None': 'etl.data_models.hive_models.HiveSqlModel',

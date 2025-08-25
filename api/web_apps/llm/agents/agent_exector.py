@@ -14,8 +14,8 @@ from utils.common_utils import gen_uuid
 
 
 class ToolsAgentExecutor(AgentExecutor, ABC):
-    object_map = {}
-    max_token = 2000
+    object_map: dict = {}
+    max_tokenL: str = 2000
 
     def serialize_value(self, value):
         """

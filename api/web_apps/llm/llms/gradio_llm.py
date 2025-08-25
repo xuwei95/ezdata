@@ -14,9 +14,9 @@ gradio_url = "https://s5k.cn/api/v1/studio/ZhipuAI/glm-4-9b-chat-vllm/gradio/"
 
 
 class GradioChatModel(BaseChatModel, ABC):
-    url = gradio_url
-    messages = []
-    is_first = True
+    url: str = gradio_url
+    messages: list = []
+    is_first: bool = True
     client: Optional[Client] = None
 
     def transform_messages(self, messages: List[BaseMessage]):
