@@ -27,22 +27,45 @@ def serialize_datasource_model(obj, ser_type='list'):
         res = {}
         for k in ['id', 'name', 'type', 'conn_conf', 'status', 'ext_params', 'description', 'create_by', 'create_time', 'update_by', 'update_time', 'sort_no', 'del_flag']:
             if k in ['conn_conf', 'ext_params']:
-                res[k] = json.loads(dic[k])
+                # 安全地解析JSON，如果解析失败则返回空字典
+                try:
+                    if dic.get(k) and isinstance(dic[k], str):
+                        res[k] = json.loads(dic[k])
+                    elif dic.get(k) and isinstance(dic[k], dict):
+                        res[k] = dic[k]
+                    else:
+                        res[k] = {}
+                except (json.JSONDecodeError, TypeError):
+                    res[k] = {}
             else:
-                res[k] = dic[k]
+                res[k] = dic.get(k)
         return res
     elif ser_type == 'detail':
         for k in ['conn_conf']:
-            dic[k] = json.loads(dic[k])
+            try:
+                if dic.get(k) and isinstance(dic[k], str):
+                    dic[k] = json.loads(dic[k])
+                elif not dic.get(k) or not isinstance(dic[k], dict):
+                    dic[k] = {}
+            except (json.JSONDecodeError, TypeError):
+                dic[k] = {}
         for k in []:
             dic.pop(k)
     elif ser_type == 'all_list':
         res = {}
         for k in ['id', 'name', 'type']:
             if k in ['conn_conf', 'ext_params']:
-                res[k] = json.loads(dic[k])
+                try:
+                    if dic.get(k) and isinstance(dic[k], str):
+                        res[k] = json.loads(dic[k])
+                    elif dic.get(k) and isinstance(dic[k], dict):
+                        res[k] = dic[k]
+                    else:
+                        res[k] = {}
+                except (json.JSONDecodeError, TypeError):
+                    res[k] = {}
             else:
-                res[k] = dic[k]
+                res[k] = dic.get(k)
         return res
         
     return dic
@@ -321,7 +344,7 @@ class DataSourceApiService(object):
         if flag:
             flag, res = reader.connect()
             if flag:
-                return gen_json_response(msg=res, extends={'success': True})
+                return gen_json_response(msg=res)
             else:
                 return gen_json_response(code=400, msg=f'连接失败:{res}')
         else:
@@ -334,4 +357,280 @@ class DataSourceApiService(object):
         datasource_id = req_dict.get('datasource_id')
         self_gen_datasource_model.apply_async(args=(datasource_id,))
         return gen_json_response(msg='同步成功', extends={'success': True})
+
+    def get_datasource_types(self, req_dict):
+        '''
+        获取所有数据源类型
+        '''
+        try:
+            from etl2.registry import get_registry
+
+            registry = get_registry()
+            available_sources = registry.list_available_sources()
+
+            # 构建数据源类型列表
+            datasource_types = []
+
+            # 添加自定义数据源类型
+            for source_type in available_sources['custom']:
+                datasource_types.append({'label': source_type, 'value': source_type})
+
+            # 添加MindsDB支持的数据源类型
+
+            for source_type in available_sources['mindsdb_data']:
+                source_type = source_type.replace('_handler', '')
+                datasource_types.append({'label': source_type, 'value': source_type})
+
+            # 排序并去重
+            unique_types = {}
+            for item in datasource_types:
+                unique_types[item['value']] = item
+
+            result = sorted(unique_types.values(), key=lambda x: x['label'])
+
+            return gen_json_response(data=result)
+
+        except Exception as e:
+            # 如果etl2模块不可用，返回默认数据源类型
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"无法从etl2获取数据源类型，使用默认配置: {e}")
+
+            default_types = [
+                {'label': 'MySQL', 'value': 'mysql'},
+                {'label': 'PostgreSQL', 'value': 'pgsql'},
+                {'label': 'Redis', 'value': 'redis'},
+                {'label': 'HTTP请求', 'value': 'http'},
+                {'label': '文件', 'value': 'file'},
+            ]
+            return gen_json_response(data=default_types)
+
+    def get_datasource_config(self, req_dict):
+        '''
+        根据数据源类型获取连接配置表单
+        '''
+        datasource_type = req_dict.get('type')
+
+        try:
+            from etl2.registry import get_registry
+
+            registry = get_registry()
+
+            # 自定义数据源类型配置映射
+            custom_config_map = {
+                'http': [
+                    {'label': '连接地址', 'field': 'url', 'required': True, 'component': 'Input'},
+                    {'label': '请求方式', 'field': 'method', 'required': True, 'component': 'Select', 'default': 'get', 'options': [
+                        {'label': 'GET', 'value': 'get'},
+                        {'label': 'POST', 'value': 'post'},
+                        {'label': 'PUT', 'value': 'put'},
+                        {'label': 'DELETE', 'value': 'delete'}
+                    ]},
+                    {'label': '超时时长(s)', 'field': 'timeout', 'required': True, 'component': 'Number', 'default': 30, 'min': 0},
+                    {'label': '请求头', 'field': 'headers', 'required': True, 'component': 'JSONEditor', 'default': '{}'},
+                    {'label': '请求体', 'field': 'req_body', 'required': True, 'component': 'JSONEditor', 'default': '{}'}
+                ],
+                'file': [
+                    {'label': '文件地址', 'field': 'path', 'required': True, 'component': 'Input'}
+                ],
+                'minio': [
+                    {'label': 'URL', 'field': 'url', 'required': True, 'component': 'Input'},
+                    {'label': '用户名', 'field': 'username', 'required': True, 'component': 'Input'},
+                    {'label': '密码', 'field': 'password', 'required': True, 'component': 'Password'},
+                    {'label': 'Bucket', 'field': 'bucket', 'required': True, 'component': 'Input'}
+                ],
+                'redis': [
+                    {'label': '服务器', 'field': 'host', 'required': True, 'component': 'Input'},
+                    {'label': '端口', 'field': 'port', 'required': True, 'component': 'Number'},
+                    {'label': '密码', 'field': 'password', 'required': False, 'component': 'Password'},
+                    {'label': '数据库', 'field': 'db', 'required': True, 'component': 'Number'}
+                ],
+                'kafka': [
+                    {'label': 'Bootstrap Servers', 'field': 'bootstrap_servers', 'required': True, 'component': 'Input'}
+                ],
+                'akshare': [],
+                'ccxt': []
+            }
+
+            # 优先检查自定义数据源类型
+            if datasource_type in custom_config_map:
+                return gen_json_response(data=custom_config_map[datasource_type])
+
+            # 尝试从etl2 registry获取handler信息
+            handler_info = registry.get_handler_info(datasource_type)
+
+            if 'error' in handler_info:
+                # 如果无法从etl2获取，使用基础数据库配置
+                base_db_types = ['mysql', 'postgres', 'pgsql', 'sqlserver', 'oracle', 'clickhouse', 'hive']
+                if datasource_type in base_db_types:
+                    base_db_config = [
+                        {'label': '服务器', 'field': 'host', 'required': True, 'component': 'Input'},
+                        {'label': '端口', 'field': 'port', 'required': True, 'component': 'Number'},
+                        {'label': '用户名', 'field': 'username', 'required': True, 'component': 'Input'},
+                        {'label': '密码', 'field': 'password', 'required': True, 'component': 'Password'},
+                        {'label': '数据库', 'field': 'database_name', 'required': True, 'component': 'Input'}
+                    ]
+                    return gen_json_response(data=base_db_config)
+                else:
+                    return gen_json_response(code=400, msg=f'不支持的数据源类型: {datasource_type}')
+
+            # 根据handler的connection_args生成表单配置
+            connection_args = handler_info.get('connection_args', {})
+            connection_args_example = handler_info.get('connection_args_example', {})
+
+            config = []
+
+            # 使用connection_args_example生成表单，因为包含了实际的字段名
+            if connection_args_example:
+                for field_name, example_value in connection_args_example.items():
+                    field_info = connection_args.get(field_name, {})
+
+                    # 跳过一些系统内部字段，但保留用户需要配置的字段
+                    skip_fields = ['protocol']  # port不再跳过，因为用户需要配置
+                    if field_name in skip_fields:
+                        continue
+
+                    # 根据字段类型和名称确定组件类型
+                    component_type = self._determine_component_type(field_name, example_value, field_info)
+
+                    field_config = {
+                        'label': self._generate_field_label(field_name, field_info),
+                        'field': field_name,
+                        'required': field_info.get('required', True),
+                        'component': component_type
+                    }
+
+                    # 设置默认值
+                    if example_value is not None:
+                        field_config['default'] = example_value
+
+                    # 设置组件属性
+                    if component_type == 'Number':
+                        field_config['componentProps'] = {'min': 0}
+                    elif component_type == 'Select':
+                        field_config['componentProps'] = {'options': []}
+
+                    config.append(field_config)
+
+            # 如果没有生成任何字段，使用通用配置
+            if not config:
+                config = [
+                    {'label': '连接配置', 'field': 'connection_config', 'required': True, 'component': 'JSONEditor', 'default': '{}'}
+                ]
+
+            return gen_json_response(data=config)
+
+        except Exception as e:
+            # 如果etl2不可用，使用基础配置
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"无法从etl2获取数据源配置，使用默认配置: {e}")
+
+            # 基础数据库配置
+            base_db_types = ['mysql', 'postgres', 'pgsql', 'sqlserver', 'oracle', 'clickhouse', 'hive']
+            if datasource_type in base_db_types:
+                config = [
+                    {'label': '服务器', 'field': 'host', 'required': True, 'component': 'Input'},
+                    {'label': '端口', 'field': 'port', 'required': True, 'component': 'Number'},
+                    {'label': '用户名', 'field': 'username', 'required': True, 'component': 'Input'},
+                    {'label': '密码', 'field': 'password', 'required': True, 'component': 'Password'},
+                    {'label': '数据库', 'field': 'database_name', 'required': True, 'component': 'Input'}
+                ]
+                return gen_json_response(data=config)
+            else:
+                return gen_json_response(code=400, msg=f'不支持的数据源类型: {datasource_type}')
+
+    def _determine_component_type(self, field_name, example_value, field_info):
+        """根据字段名和值确定组件类型"""
+        field_name_lower = field_name.lower()
+
+        # 优先使用connection_args中的type信息
+        field_type = field_info.get('type')
+        if field_type:
+            # 根据MindsDB handler中的type字段确定组件类型
+            field_type_lower = field_type.lower()
+            if field_type_lower == 'pwd' or field_type_lower == 'password':
+                # 密码类型，使用密码输入框
+                return 'Password'
+            elif field_type_lower == 'path':
+                # 路径类型，使用普通输入框
+                return 'Input'
+            elif field_type_lower in ['string', 'str']:
+                # 检查是否是特殊类型的字符串字段
+                if 'password' in field_name_lower or 'secret' in field_name_lower or field_info.get('secret', False):
+                    return 'Password'
+                elif 'url' in field_name_lower or 'uri' in field_name_lower:
+                    return 'Input'
+                else:
+                    return 'Input'
+            elif field_type_lower in ['integer', 'int', 'number', 'float']:
+                return 'Number'
+            elif field_type_lower in ['boolean', 'bool']:
+                return 'Radio'
+            elif field_type_lower in ['array', 'list', 'dict', 'object', 'json']:
+                return 'JSONEditor'
+
+        # 回退到基于字段名和值类型的判断
+        if 'password' in field_name_lower or 'secret' in field_name_lower or field_info.get('secret', False):
+            return 'Password'
+        elif 'port' in field_name_lower:
+            return 'Number'
+        elif 'url' in field_name_lower or 'uri' in field_name_lower:
+            return 'Input'
+        elif isinstance(example_value, int):
+            return 'Number'
+        elif isinstance(example_value, float):
+            return 'Number'
+        elif isinstance(example_value, bool):
+            return 'Radio'
+        elif isinstance(example_value, dict) or isinstance(example_value, list):
+            return 'JSONEditor'
+        else:
+            return 'Input'
+
+    def _generate_field_label(self, field_name, field_info):
+        """生成字段标签"""
+        # 优先使用MindsDB handler中的label信息
+        if field_info.get('label'):
+            # 将英文标签转换为中文（如果已知映射存在）
+            english_label = field_info['label']
+            label_mapping = {
+                'User': '用户名',
+                'Password': '密码',
+                'Host': '服务器',
+                'Port': '端口',
+                'Database': '数据库',
+                'Schema': '模式',
+                'URI': '连接URI',
+                'URL': '连接地址'
+            }
+            return label_mapping.get(english_label, english_label)
+
+        # 回退到title信息
+        if field_info.get('title'):
+            return field_info['title']
+
+        # 根据字段名生成友好标签
+        field_name_mapping = {
+            'host': '服务器',
+            'port': '端口',
+            'user': '用户名',
+            'username': '用户名',
+            'password': '密码',
+            'database': '数据库',
+            'database_name': '数据库名',
+            'schema': '模式',
+            'api_key': 'API密钥',
+            'access_key': '访问密钥',
+            'secret_key': '密钥',
+            'region': '区域',
+            'bucket': 'Bucket',
+            'path': '路径',
+            'endpoint': '端点',
+            'hosts': '服务器地址',
+            'cloud_id': 'Cloud ID',
+            'sslmode': 'SSL模式'
+        }
+
+        return field_name_mapping.get(field_name, field_name.title())
 

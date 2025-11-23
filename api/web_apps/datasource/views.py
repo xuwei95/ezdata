@@ -261,3 +261,38 @@ def datasource_sync_models():
         return jsonify(gen_json_response(code=400, msg=not_valid))
     res_data = DataSourceApiService().syncModels(req_dict)
     return jsonify(res_data)
+
+
+@datasource_bp.route('/types', methods=['GET'])
+@validate_user
+@validate_permissions([])
+def datasource_types():
+    '''
+    获取所有数据源类型
+    '''
+    req_dict = get_req_para(request)
+    verify_dict = {
+    }
+    not_valid = validate_params(req_dict, verify_dict)
+    if not_valid:
+        return jsonify(gen_json_response(code=400, msg=not_valid))
+    res_data = DataSourceApiService().get_datasource_types(req_dict)
+    return jsonify(res_data)
+
+
+@datasource_bp.route('/config/<datasource_type>', methods=['GET'])
+@validate_user
+@validate_permissions([])
+def datasource_config(datasource_type):
+    '''
+    根据数据源类型获取连接配置表单
+    '''
+    req_dict = get_req_para(request)
+    req_dict['type'] = datasource_type
+    verify_dict = {
+    }
+    not_valid = validate_params(req_dict, verify_dict)
+    if not_valid:
+        return jsonify(gen_json_response(code=400, msg=not_valid))
+    res_data = DataSourceApiService().get_datasource_config(req_dict)
+    return jsonify(res_data)

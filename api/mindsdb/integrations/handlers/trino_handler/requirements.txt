@@ -1,0 +1,2 @@
+trino~=0.313.0
+pyhive

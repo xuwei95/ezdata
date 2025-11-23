@@ -3,7 +3,7 @@ from models import Notice, User
 from web_apps import db
 from utils.common_utils import parse_json, format_date, request_url
 from web_apps.notice.services import NoticeSendService
-from etl.libs.kafka_utils import Producer
+from etl2.utils.kafka_utils import Producer
 
 
 def handle_alert_forward(alert_obj, forward_conf_list):

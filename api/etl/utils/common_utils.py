@@ -658,8 +658,12 @@ def df_to_list(df):
     # 将所有 datetime 类型的列转换为字符串
     for col in df.select_dtypes(include=['datetime']).columns:
         df[col] = df[col].astype(str)
-    # 填充 NaN 值为空字符串
-    df.fillna("", inplace=True)
+    # 填充 NaN 值
+    for col in df.columns:
+        if pd.api.types.is_numeric_dtype(df[col]):
+            df[col].fillna(0, inplace=True)
+        else:
+            df[col].fillna("", inplace=True)
     # 将 DataFrame 转换为字典列表
     data_li = df.to_dict(orient='records')
     # 确保所有值都是 JSON 可序列化的
@@ -668,4 +672,23 @@ def df_to_list(df):
             record[key] = convert_to_json_serializable(value)
     return data_li
 
-
+def get_res_fields(res_data):
+    '''
+    获取返回字段列表
+    '''
+    res_fields = []
+    if isinstance(res_data, list) and res_data != []:
+        dic = res_data[0]
+        if isinstance(dic, dict):
+            res_fields = list(dic.keys())
+    if isinstance(res_data, dict):
+        if 'records' in res_data:
+            if res_data['records'] != []:
+                res_fields = list(res_data['records'][0].keys())
+            else:
+                res_fields = []
+        else:
+            if 'code' in res_data and res_data['code'] != 200:
+                return []
+            res_fields = list(res_data.keys())
+    return list(set(res_fields))

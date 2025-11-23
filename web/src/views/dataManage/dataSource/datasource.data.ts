@@ -1,4 +1,5 @@
 import { BasicColumn, FormSchema } from '/@/components/Table';
+import { getDataSourceTypes } from './datasource.api';
 // import { render } from "/@/utils/common/renderUtils";
 // import { rules } from '/@/utils/helper/validator';
 //列表数据
@@ -67,11 +68,17 @@ export const searchFormSchema: FormSchema[] = [
   {
     label: '数据源类型',
     field: 'type',
-    component: 'JDictSelectTag',
+    component: 'ApiSelect',
     componentProps: {
-      dictCode: 'datasource_type',
+      api: getDataSourceTypes,
+      params: {},
       placeholder: '请选择数据源类型',
-      stringToNumber: false,
+      labelField: 'label',
+      valueField: 'value',
+      showSearch: true,
+      filterOption: (input, option) => {
+        return (option?.label ?? '').toLowerCase().includes(input.toLowerCase());
+      },
     },
   },
 ];

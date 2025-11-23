@@ -5,8 +5,8 @@ from web_apps import db
 from web_apps.task.db_models import TaskInstance
 from utils.common_utils import get_now_time
 from config import ES_CONF, TASK_LOG_INDEX
-from etl.libs.es import EsClient
-from etl.utils.es_query_tool import EsQueryTool
+from utils.es import EsClient
+from utils.es_query_tool import EsQueryTool
 
 
 def get_task_logs(uuid, page=1, pagesize=10):

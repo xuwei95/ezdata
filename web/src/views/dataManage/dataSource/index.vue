@@ -54,6 +54,11 @@
       api: list,
       columns,
       canResize: false,
+      // 确保数据格式正确
+      fetchSetting: {
+        listField: 'records',
+        totalField: 'total',
+      },
       formConfig: {
         //labelWidth: 120,
         schemas: searchFormSchema,
@@ -65,6 +70,14 @@
       actionColumn: {
         width: 220,
         fixed: 'right',
+      },
+      // 添加错误处理
+      afterFetch: (data) => {
+        console.log('数据源列表数据:', data);
+        if (!data || !Array.isArray(data)) {
+          console.error('数据源列表数据格式错误:', data);
+        }
+        return data;
       },
     },
     importConfig: {

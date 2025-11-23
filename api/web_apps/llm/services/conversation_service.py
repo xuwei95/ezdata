@@ -1,8 +1,8 @@
 from web_apps import db
 from utils.common_utils import gen_uuid, parse_json, get_now_time, format_date
 from config import ES_CONF, SYS_CONF
-from etl.libs.es import EsClient
-from etl.utils.es_query_tool import EsQueryTool
+from utils.es import EsClient
+from utils.es_query_tool import EsQueryTool
 from web_apps.llm.db_models import Conversation
 from web_apps.rag.utils import vector_index
 

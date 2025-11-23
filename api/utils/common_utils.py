@@ -99,6 +99,31 @@ def get_now_time(res_type='int'):
         return timestamp_to_date(t)
     return t
 
+def trans_value_type(value, trans_type='str'):
+    '''
+    转换值类型
+    :param value:
+    :param trans_type:
+    :return:
+    '''
+    if trans_type == 'str':
+        value = str(value)
+    elif trans_type == 'int':
+        try:
+            value = int(value)
+        except Exception as e:
+            print(e)
+    elif trans_type == 'float':
+        try:
+            value = float(value)
+        except Exception as e:
+            print(e)
+    elif trans_type in ['date', 'datetime', 'timestamp']:
+        try:
+            value = format_date(value, res_type=trans_type)
+        except Exception as e:
+            print(e)
+    return value
 
 def print_run_time(func):
     '''
@@ -597,9 +622,80 @@ def trans_dict_to_rules(api_form):
     print(extract_rules)
     return extract_rules
 
+def get_res_fields(res_data):
+    '''
+    获取返回字段列表
+    '''
+    res_fields = []
+    if isinstance(res_data, list) and res_data != []:
+        dic = res_data[0]
+        if isinstance(dic, dict):
+            res_fields = list(dic.keys())
+    if isinstance(res_data, dict):
+        if 'records' in res_data:
+            if res_data['records'] != []:
+                res_fields = list(res_data['records'][0].keys())
+            else:
+                res_fields = []
+        else:
+            if 'code' in res_data and res_data['code'] != 200:
+                return []
+            res_fields = list(res_data.keys())
+    return list(set(res_fields))
+
+def parse_to_list(s, split_text=','):
+    '''
+    将字符串数据转换为列表
+    :param s:
+    :param split_text:
+    :return:
+    '''
+    if s is None:
+        return []
+    if isinstance(s, str):
+        if s == '':
+            return []
+        else:
+            s = s.split(split_text)
+    return s
+
+def convert_to_json_serializable(value):
+    """
+    将值转换为 JSON 可序列化的格式。
+    """
+    if isinstance(value, (pd.Timestamp, pd.Period)):
+        return str(value)
+    elif isinstance(value, (list, dict)):
+        try:
+            json.dumps(value)
+            return value
+        except TypeError:
+            return str(value)
+    elif pd.isna(value):
+        return ""
+    else:
+        return value
+
+def df_to_list(df):
+    # 将所有 datetime 类型的列转换为字符串
+    for col in df.select_dtypes(include=['datetime']).columns:
+        df[col] = df[col].astype(str)
+    # 填充 NaN 值
+    for col in df.columns:
+        if pd.api.types.is_numeric_dtype(df[col]):
+            df[col].fillna(0, inplace=True)
+        else:
+            df[col].fillna("", inplace=True)
+    # 将 DataFrame 转换为字典列表
+    data_li = df.to_dict(orient='records')
+    # 确保所有值都是 JSON 可序列化的
+    for record in data_li:
+        for key, value in record.items():
+            record[key] = convert_to_json_serializable(value)
+    return data_li
 
 if __name__ == '__main__':
-    print(md5('bb0a6b83b1f97378faf13b4e7b82a8f3'))
+    print(md5('faad49866e9498fc1719f5289e7a0269'))
     # a = format_date('2021-01-01 01:01:01')
     # print(a)
     # print(trans_rule_value('date: %Y-%m-01'))

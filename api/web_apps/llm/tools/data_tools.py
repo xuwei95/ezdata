@@ -1,7 +1,7 @@
 from langchain.tools import BaseTool
 from typing import Optional, Type
 from langchain_core.callbacks import CallbackManagerForToolRun
-from langchain_core.pydantic_v1 import BaseModel, Field
+from pydantic import BaseModel, Field
 from web_apps import app, db
 from web_apps.datamodel.db_models import DataModel
 from utils.etl_utils import get_reader_model
@@ -25,8 +25,8 @@ class DataChatTool(BaseTool):
     description: str = (
         "数据分析"
     )
-    return_direct = True
-    is_chat = True
+    return_direct: bool = True
+    is_chat: bool = True
     datamodel_id: str = ''
     knowledge: str = ''
     reader: Optional[object] = None

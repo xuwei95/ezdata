@@ -155,7 +155,7 @@ export const useUserStore = defineStore({
         const { token, userinfo } = data;
         // save token
         this.setToken(token);
-        this.setTenant(userinfo.tenant_id);
+        this.setTenant(userinfo?.tenant_id);
         return this.afterLoginAction(goHome, data);
       } catch (error) {
         return Promise.reject(error);
@@ -228,7 +228,7 @@ export const useUserStore = defineStore({
         }
         //update-end---author:wangshuai---date:2024-04-03---for:【issues/1102】设置单点登录后页面，进入首页提示404，也没有绘制侧边栏 #1102---
       }
-      return data;
+      return { ...data, userInfo };
     },
     /**
      * 手机号登录
@@ -244,8 +244,8 @@ export const useUserStore = defineStore({
         const { goHome = true, mode, ...loginParams } = params;
         const data = await phoneLoginApi(loginParams, mode);
         //update-begin---author:wangshuai---date:2024-11-25---for:【issues/7488】手机号码登录，在请求头中无法获取租户id---
-        const { token , userInfo } = data;
-        this.setTenant(userInfo!.loginTenantId);
+        const { token , userinfo } = data;
+        this.setTenant(userinfo?.loginTenantId);
         //update-end---author:wangshuai---date:2024-11-25---for:【issues/7488】手机号码登录，在请求头中无法获取租户id---
         // save token
         this.setToken(token);
@@ -356,8 +356,8 @@ export const useUserStore = defineStore({
         const { goHome = true, mode, ...ThirdLoginParams } = params;
         const data = await thirdLogin(ThirdLoginParams, mode);
         //update-begin---author:wangshuai---date:2024-07-01---for:【issues/6652】开启租户数据隔离，接入钉钉后登录默认租户为0了---
-        const { token, userInfo } = data;
-        this.setTenant(userInfo?.loginTenantId);
+        const { token, userinfo } = data;
+        this.setTenant(userinfo?.loginTenantId);
         //update-end---author:wangshuai---date:2024-07-01---for:【issues/6652】开启租户数据隔离，接入钉钉后登录默认租户为0了---
         // save token
         this.setToken(token);

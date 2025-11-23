@@ -5,8 +5,11 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import MetaData
 from sqlalchemy.schema import CreateTable, Table
 import pandas as pd
-import sqlparse
 import re
+import sqlparse
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class BaseDBSqlModel(DataModel):

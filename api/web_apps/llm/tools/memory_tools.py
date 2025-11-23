@@ -1,7 +1,7 @@
 from langchain.tools import BaseTool
 from typing import Optional, Type
 from langchain_core.callbacks import CallbackManagerForToolRun
-from langchain_core.pydantic_v1 import BaseModel, Field
+from pydantic import BaseModel, Field
 from web_apps import app
 from web_apps.llm.services.conversation_service import add_core_memory, replace_core_memory, get_core_memory, search_archival_memory
 
@@ -30,7 +30,7 @@ class CoreMemoryAppendTool(BaseTool):
     description: str = (
         "追加加核心记忆，若用户提到新的关键信息，请使用此工具添加记忆"
     )
-    return_direct = False
+    return_direct: bool = False
     conversation_id: str = ''
     args_schema: Type[BaseModel] = MemoryInput
 
@@ -52,7 +52,7 @@ class CoreMemoryReplaceTool(BaseTool):
     description: str = (
         "若用户提到的信息与当前核心记忆有冲突，请使用此工具替换现有核心记忆的一部分为新的核心记忆，只替换需变更部分的记忆"
     )
-    return_direct = False
+    return_direct: bool = False
     conversation_id: str = ''
     args_schema: Type[BaseModel] = MemoryReplaceInput
 
@@ -81,7 +81,7 @@ class ArchivalMemorySearchTool(BaseTool):
     description: str = (
         "若用户提出未知的问题，可使用该工具查询相关历史归档记忆"
     )
-    return_direct = False
+    return_direct: bool = False
     conversation_id: str = ''
     args_schema: Type[BaseModel] = MemorySearchInput
 

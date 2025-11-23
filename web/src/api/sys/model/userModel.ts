@@ -20,10 +20,16 @@ export interface RoleInfo {
  * @description: Login interface return value
  */
 export interface LoginResultModel {
-  userId: string | number;
   token: string;
-  role: RoleInfo;
-  userInfo?: any
+  userinfo: {
+    id: string | number;
+    tenant_id?: string | number;
+    username: string;
+    nickname: string;
+    avatar: string;
+    // 兼容其他可能的字段
+    [key: string]: any;
+  };
 }
 
 /**

@@ -15,12 +15,19 @@ enum Api {
   exportXls = '/datasource/exportXls',
   connTest = '/datasource/connect',
   syncModels = '/datasource/sync_models',
+  types = '/datasource/types',
+  config = '/datasource/config',
 }
 /**
  * 列表接口
  * @param params
  */
-export const list = (params) => defHttp.get({ url: Api.list, params });
+export const list = (params) => {
+  return defHttp.get({ url: Api.list, params }).catch((error) => {
+    console.error('获取数据源列表失败:', error);
+    throw error;
+  });
+};
 /**
  * 详情接口
  * @param params
@@ -88,3 +95,13 @@ export const ConnTest = (params) => {
 export const syncModels = (params) => {
   return defHttp.post({ url: Api.syncModels, params, timeout: 60 * 1000 });
 };
+
+/**
+ * 获取所有数据源类型
+ */
+export const getDataSourceTypes = (params?) => defHttp.get({ url: Api.types, params });
+
+/**
+ * 根据数据源类型获取连接配置
+ */
+export const getDataSourceConfig = (type: string) => defHttp.get({ url: `${Api.config}/${type}` });
