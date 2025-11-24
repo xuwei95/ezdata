@@ -47,7 +47,8 @@ class LocalFileModel(DataModel):
         self.table_name = model_conf.get('name') or self._model.get('name', '')
 
         # 使用localfile模型，从conn_conf获取配置
-        self.file_path = self.conn_conf.get('path') or ''
+        # 支持多种字段名: 'path' 或 'file_path'
+        self.file_path = self.conn_conf.get('path')
         self.sheet_name = self.conn_conf.get('sheet_name')
         self.encoding = self.conn_conf.get('encoding') or 'utf-8'  # 默认编码
         self.delimiter = self.conn_conf.get('delimiter')
@@ -55,15 +56,8 @@ class LocalFileModel(DataModel):
         # 从extract_info中获取批处理大小
         self.chunk_size = self._extract_info.get('batch_size', 1000)
 
-        # SQL筛选配置
+        # SQL筛选配置 - 从extract_info中获取
         self.sql_query = self._extract_info.get('sql', '')
-        self.where_clause = self._extract_info.get('where_clause', '')
-        self.select_columns = self._extract_info.get('select_columns', [])  # 列名列表
-        self.order_by = self._extract_info.get('order_by', '')
-        self.limit_count = self._extract_info.get('limit', None)
-        self.offset_count = self._extract_info.get('offset', 0)
-        self.group_by = self._extract_info.get('group_by', '')
-
         # 内部状态
         self._file_reader = None
         self._pages_list = []
@@ -104,9 +98,6 @@ class LocalFileModel(DataModel):
             if self.sheet_name and self.sheet_name not in self._pages_list:
                 return False, f"指定的sheet不存在: {self.sheet_name}. 可用的sheets: {self._pages_list}"
 
-            # 解析筛选规则
-            self.parse_extract_rules()
-
             return True, '连接成功'
 
         except Exception as e:
@@ -132,7 +123,7 @@ df = reader.query(sql)
         获取连接参数定义
         """
         return {
-            'file_path': {
+            'path': {
                 'type': 'string',
                 'required': True,
                 'description': '本地文件路径',
@@ -164,7 +155,10 @@ df = reader.query(sql)
         生成子数据模型（对于多页文件）
         """
         if not self._file_reader:
-            self.connect()
+            success, message = self.connect()
+            if not success:
+                print(f"无法连接到文件: {message}")
+                return []
 
         models = []
         for i, page_name in enumerate(self._pages_list):
@@ -194,116 +188,45 @@ df = reader.query(sql)
         except Exception:
             return []
 
+    def get_extract_rules(self):
+        """
+        获取可筛选项
+        """
+        # 使用统一规则构建器获取操作符
+        return self.sql_rule_builder.get_supported_operators()
+
     def get_search_type_list(self):
         """
         获取可用高级查询类型
         """
-        return [
-            {'value': 'equals', 'label': '等于'},
-            {'value': 'contains', 'label': '包含'},
-            {'value': 'starts_with', 'label': '开始于'},
-            {'value': 'ends_with', 'label': '结束于'},
-            {'value': 'greater_than', 'label': '大于'},
-            {'value': 'less_than', 'label': '小于'},
-            {'value': 'is_null', 'label': '为空'},
-            {'value': 'is_not_null', 'label': '不为空'}
-        ]
-
-    def get_extract_rules(self):
-        """
-        获取可筛选规则选项
-        """
-        fields = self.get_res_fields()
-        rules = []
-
-        for field in fields:
-            rules.append({
-                'field': field,
-                'label': field,
-                'type': 'string',  # 默认为字符串类型，可根据实际情况调整
-                'operators': [
-                    {'value': 'equals', 'label': '等于'},
-                    {'value': 'contains', 'label': '包含'},
-                    {'value': 'starts_with', 'label': '开始于'},
-                    {'value': 'ends_with', 'label': '结束于'},
-                    {'value': 'is_null', 'label': '为空'},
-                    {'value': 'is_not_null', 'label': '不为空'}
-                ]
-            })
-
-        return rules
-
-    def parse_extract_rules(self):
-        """
-        解析筛选规则 - 支持SQL和规则转换
-        """
-        extract_rules = self._extract_info.get('extract_rules', {})
-
-        if not extract_rules:
-            return ""
-
-        # 如果extract_rules包含完整的SQL查询
-        if 'sql' in extract_rules:
-            self.sql_query = extract_rules['sql']
-            return self.sql_query
-
-        # 解析各种筛选组件
-        where_conditions = []
-
-        # 解析字段条件
-        if 'conditions' in extract_rules:
-            conditions = extract_rules['conditions']
-            if isinstance(conditions, list):
-                for condition in conditions:
-                    if isinstance(condition, dict):
-                        field = condition.get('field', '')
-                        operator = condition.get('operator', '=')
-                        value = condition.get('value', '')
-
-                        if field:
-                            # 构建WHERE条件
-                            if operator.lower() == 'contains':
-                                where_conditions.append(f"CAST({field} AS VARCHAR) LIKE '%{value}%'")
-                            elif operator.lower() == 'starts_with':
-                                where_conditions.append(f"CAST({field} AS VARCHAR) LIKE '{value}%'")
-                            elif operator.lower() == 'ends_with':
-                                where_conditions.append(f"CAST({field} AS VARCHAR) LIKE '%{value}'")
-                            elif operator.lower() == 'equals':
-                                if isinstance(value, str):
-                                    where_conditions.append(f"CAST({field} AS VARCHAR) = '{value}'")
-                                else:
-                                    where_conditions.append(f"{field} = {value}")
-                            elif operator.lower() == 'greater_than':
-                                where_conditions.append(f"{field} > {value}")
-                            elif operator.lower() == 'less_than':
-                                where_conditions.append(f"{field} < {value}")
-                            elif operator.lower() == 'is_null':
-                                where_conditions.append(f"{field} IS NULL")
-                            elif operator.lower() == 'is_not_null':
-                                where_conditions.append(f"{field} IS NOT NULL")
-
-        # 组合WHERE条件
-        if where_conditions:
-            logic_operator = extract_rules.get('logic', 'AND')
-            self.where_clause = f" {logic_operator} ".join(where_conditions)
-        else:
-            self.where_clause = extract_rules.get('where_clause', '')
-
-        # 解析其他组件
-        self.select_columns = extract_rules.get('select_columns', [])
-        self.order_by = extract_rules.get('order_by', '')
-        self.limit_count = extract_rules.get('limit')
-        self.offset_count = extract_rules.get('offset', 0)
-        self.group_by = extract_rules.get('group_by', '')
-
-        return self.where_clause
+        return [{
+            'name': 'sql',
+            'value': 'sql',
+            "default": 'select * from df limit 100'
+        }]
 
     def query(self, sql=None, limit=1000, offset=0):
         """
-        使用SQL查询数据，优先使用配置的SQL查询
+        智能SQL查询数据
+
+        优先级：
+        1. 如果传入SQL参数，直接执行
+        2. 如果配置了self.sql_query，执行配置的SQL查询
+        3. 如果没有完整SQL，使用筛选规则拼接SQL查询
+        4. 最后作为备选，应用pandas筛选条件
         """
+        print(f"执行查询 - 传入SQL: {sql}, 配置SQL: {self.sql_query}")
+
         try:
-            # 读取原始数据
+            # 确保文件读取器已初始化
+            if not self._file_reader:
+                print("文件读取器未初始化，正在尝试连接...")
+                success, message = self.connect()
+                if not success:
+                    print(f"连接失败: {message}")
+                    return pd.DataFrame()
+
+            # 构建读取参数
             read_kwargs = {}
             if self.encoding:
                 read_kwargs['encoding'] = self.encoding
@@ -312,40 +235,208 @@ df = reader.query(sql)
             if self.sheet_name:
                 read_kwargs['page_name'] = self.sheet_name
 
+            # 读取原始数据
+            print("正在读取文件数据...")
             df = self._file_reader.get_page_content(**read_kwargs)
 
             if df is None or df.empty:
+                print("文件数据为空")
                 return df
 
-            # 如果有自定义SQL查询，优先使用
-            if self.sql_query:
-                return self._apply_sql_query(df, self.sql_query)
+            print(f"成功读取 {len(df)} 行数据")
 
-            # 如果传入SQL参数，使用它
-            if sql:
-                return self._apply_sql_query(df, sql)
+            # 确定要执行的SQL查询
+            target_sql = None
 
-            # 否则应用筛选条件
-            filtered_df = self._apply_filters(df)
+            # 1. 优先使用传入的SQL参数
+            if sql and sql.strip():
+                target_sql = sql.strip()
+                print(f"使用传入的SQL查询: {target_sql}")
 
-            # 应用分页限制
-            if offset > 0:
-                filtered_df = filtered_df.iloc[offset:]
-            if limit is not None:
-                filtered_df = filtered_df.head(limit)
+            # 2. 使用配置的SQL查询
+            elif self.sql_query and self.sql_query.strip():
+                target_sql = self.sql_query.strip()
+                print(f"使用配置的SQL查询: {target_sql}")
 
-            return filtered_df
+            # 3. 没有完整SQL时，尝试从筛选规则构建SQL
+            else:
+                print("未发现完整SQL，尝试从筛选规则构建...")
+                target_sql = self._build_sql_from_filters()
+                if target_sql:
+                    print(f"从筛选规则构建SQL: {target_sql}")
+                else:
+                    print("无筛选条件，返回原始数据")
+
+            # 执行查询
+            if target_sql:
+                # 在SQL中添加分页逻辑（如果没有的话）
+                final_sql = self._add_pagination_to_sql(target_sql, limit, offset)
+                result_df = self._apply_sql_query(df, final_sql)
+                print(f"SQL查询完成，返回 {len(result_df)} 行数据")
+                return result_df
+            else:
+                # 没有SQL查询时，应用传统的pandas筛选
+                print("使用pandas筛选方式...")
+                filtered_df = self._apply_filters(df)
+
+                # 应用分页
+                if offset > 0:
+                    filtered_df = filtered_df.iloc[offset:]
+                if limit is not None:
+                    filtered_df = filtered_df.head(limit)
+
+                print(f"pandas筛选完成，返回 {len(filtered_df)} 行数据")
+                return filtered_df
 
         except Exception as e:
             print(f"查询数据失败: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return pd.DataFrame()
+
+    def _build_sql_from_filters(self) -> Optional[str]:
+        """
+        从筛选规则构建SQL查询
+
+        Returns:
+            构造的SQL查询字符串，如果没有筛选规则则返回None
+        """
+        try:
+            extract_rules = self._extract_info.get('extract_rules', {})
+
+            # 如果有完整的SQL规则，直接使用
+            if 'sql' in extract_rules and extract_rules['sql']:
+                return extract_rules['sql'].strip()
+
+            # 如果有条件列表，使用规则构建器
+            if 'conditions' in extract_rules and extract_rules['conditions']:
+                # 使用现有的规则构建逻辑
+                where_clauses, order_clauses = self.gen_extract_rules()
+
+                sql_parts = []
+
+                # SELECT子句
+                if self.select_columns:
+                    clean_columns = self._sanitize_column_names(self.select_columns)
+                    if clean_columns:
+                        sql_parts.append(f"SELECT {', '.join(clean_columns)}")
+                    else:
+                        sql_parts.append("SELECT *")
+                else:
+                    sql_parts.append("SELECT *")
+
+                # FROM子句
+                sql_parts.append("FROM df")
+
+                # WHERE子句
+                if where_clauses:
+                    sql_parts.append(f"WHERE {' AND '.join(where_clauses)}")
+
+                # GROUP BY子句
+                if self.group_by:
+                    sql_parts.append(f"GROUP BY {self.group_by}")
+
+                # ORDER BY子句
+                if self.order_by:
+                    sql_parts.append(f"ORDER BY {self.order_by}")
+                elif order_clauses:
+                    sql_parts.append(f"ORDER BY {', '.join(order_clauses)}")
+
+                # 组合SQL查询
+                return " ".join(sql_parts)
+
+            # 如果有组件化配置，使用简单规则
+            if self.where_clause or self.order_by or self.select_columns or self.group_by:
+                sql_parts = []
+
+                # SELECT子句
+                if self.select_columns:
+                    clean_columns = self._sanitize_column_names(self.select_columns)
+                    if clean_columns:
+                        sql_parts.append(f"SELECT {', '.join(clean_columns)}")
+                    else:
+                        sql_parts.append("SELECT *")
+                else:
+                    sql_parts.append("SELECT *")
+
+                # FROM子句
+                sql_parts.append("FROM df")
+
+                # WHERE子句
+                if self.where_clause:
+                    sql_parts.append(f"WHERE {self.where_clause}")
+
+                # GROUP BY子句
+                if self.group_by:
+                    sql_parts.append(f"GROUP BY {self.group_by}")
+
+                # ORDER BY子句
+                if self.order_by:
+                    sql_parts.append(f"ORDER BY {self.order_by}")
+
+                # 组合SQL查询
+                return " ".join(sql_parts)
+
+            # 没有筛选规则
+            return None
+
+        except Exception as e:
+            print(f"构建SQL查询失败: {str(e)}")
+            return None
+
+    def _add_pagination_to_sql(self, sql: str, limit: Optional[int], offset: int) -> str:
+        """
+        向SQL查询添加分页逻辑（如果尚未包含）
+
+        Args:
+            sql: 原始SQL查询
+            limit: 限制数量
+            offset: 偏移量
+
+        Returns:
+            添加了分页的SQL查询
+        """
+        sql_upper = sql.upper().strip()
+
+        # 检查是否已有LIMIT或OFFSET
+        has_limit = ' LIMIT ' in f' {sql_upper} '
+        has_offset = ' OFFSET ' in f' {sql_upper} '
+
+        # 如果已经有完整的LIMIT子句，不添加
+        if has_limit and has_offset:
+            return sql
+
+        # 如果有LIMIT但没有OFFSET，添加OFFSET
+        if has_limit and not has_offset and offset > 0:
+            # 简单替换，在LIMIT后添加OFFSET
+            return sql + f' OFFSET {offset}'
+
+        # 如果没有LIMIT或OFFSET，添加它们
+        if not has_limit and not has_offset:
+            # 如果limit不为None，添加LIMIT
+            if limit is not None and limit > 0:
+                if offset > 0:
+                    return sql + f' LIMIT {limit} OFFSET {offset}'
+                else:
+                    return sql + f' LIMIT {limit}'
+            elif offset > 0:
+                return sql + f' OFFSET {offset}'
+
+        return sql
 
     def get_total_count(self):
         """
         获取符合条件的总记录数
+        优先使用优化的SQL查询逻辑
         """
         try:
-            # 读取原始数据
+            # 确保文件读取器已初始化
+            if not self._file_reader:
+                success, message = self.connect()
+                if not success:
+                    return 0
+
+            # 构建读取参数
             read_kwargs = {}
             if self.encoding:
                 read_kwargs['encoding'] = self.encoding
@@ -354,21 +445,34 @@ df = reader.query(sql)
             if self.sheet_name:
                 read_kwargs['page_name'] = self.sheet_name
 
+            # 读取原始数据
             df = self._file_reader.get_page_content(**read_kwargs)
 
             if df is None or df.empty:
                 return 0
 
-            # 如果有完整SQL查询，需要计算总数
-            if self.sql_query:
-                # 尝试将SELECT部分改为COUNT(*)来获取总数
-                count_sql = self.sql_query
-                # 简单替换，实际使用中可能需要更复杂的SQL解析
-                if count_sql.strip().upper().startswith('SELECT'):
+            # 确定要执行的SQL查询
+            target_sql = None
+
+            # 1. 使用配置的SQL查询
+            if self.sql_query and self.sql_query.strip():
+                target_sql = self.sql_query.strip()
+                print(f"使用配置的SQL查询计算总数: {target_sql}")
+
+            # 2. 尝试从筛选规则构建SQL
+            else:
+                target_sql = self._build_sql_from_filters()
+                if target_sql:
+                    print(f"从筛选规则构建SQL计算总数: {target_sql}")
+
+            # 执行查询并计算总数
+            if target_sql:
+                # 尝试将查询转换为COUNT查询
+                if target_sql.strip().upper().startswith('SELECT'):
                     # 找到FROM位置
-                    from_pos = count_sql.upper().find(' FROM ')
+                    from_pos = target_sql.upper().find(' FROM ')
                     if from_pos != -1:
-                        count_sql = 'SELECT COUNT(*) as total' + count_sql[from_pos:]
+                        count_sql = 'SELECT COUNT(*) as total' + target_sql[from_pos:]
                         # 移除ORDER BY和LIMIT
                         order_pos = count_sql.upper().find(' ORDER BY ')
                         if order_pos != -1:
@@ -377,15 +481,21 @@ df = reader.query(sql)
                         if limit_pos != -1:
                             count_sql = count_sql[:limit_pos]
 
-                        count_df = self._apply_sql_query(df, count_sql)
-                        if not count_df.empty and 'total' in count_df.columns:
-                            return int(count_df.iloc[0]['total'])
+                        try:
+                            count_df = self._apply_sql_query(df, count_sql)
+                            if not count_df.empty and 'total' in count_df.columns:
+                                return int(count_df.iloc[0]['total'])
+                        except Exception as e:
+                            print(f"COUNT查询失败，使用原查询: {e}")
 
-                # 如果SQL解析失败，返回筛选后的数据长度
-                filtered_df = self._apply_sql_query(df, self.sql_query)
-                return len(filtered_df)
+                # 如果COUNT转换失败，执行原查询并计数
+                try:
+                    result_df = self._apply_sql_query(df, target_sql)
+                    return len(result_df)
+                except Exception as e:
+                    print(f"SQL查询失败，使用pandas筛选: {e}")
 
-            # 应用筛选条件并计数
+            # 如果没有SQL查询，使用pandas筛选并计数
             filtered_df = self._apply_filters(df)
             return len(filtered_df)
 
@@ -449,11 +559,9 @@ df = reader.query(sql)
                     'pagination': False  # 禁用分页
                 }
                 return True, gen_json_response(data=res_data)
-
             # 使用query方法进行分页查询
             offset = (page - 1) * pagesize
             df = self.query(limit=pagesize, offset=offset)
-
             # 获取总记录数
             total_count = self.get_total_count()
 
@@ -463,7 +571,8 @@ df = reader.query(sql)
             # 构建返回数据
             res_data = {
                 'records': data_li,
-                'total': total_count
+                'total': total_count,
+                'pagination': False if self.sql_query else True
             }
 
             return True, gen_json_response(data=res_data)
@@ -552,118 +661,9 @@ df = reader.query(sql)
             if len(df) > sample_size:
                 return df.head(sample_size)
             return df
-
         except Exception as e:
             print(f"读取样本数据失败: {str(e)}")
             return None
-
-    def _apply_filters(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        应用筛选规则 - 使用统一的SQL规则构建器
-        """
-        if df is None or df.empty:
-            return df
-
-        # 优先使用完整的SQL查询
-        if self.sql_query:
-            return self._apply_sql_query(df, self.sql_query)
-
-        # 使用统一规则构建器
-        extract_rules = self._extract_info.get('extract_rules', {})
-
-        # 如果是条件列表格式，转换为规则并构建SQL
-        if 'conditions' in extract_rules:
-            where_clauses, order_clauses = self.gen_extract_rules()
-
-            # 构建SQL查询
-            sql_parts = []
-
-            # SELECT子句
-            if self.select_columns:
-                clean_columns = self._sanitize_column_names(self.select_columns)
-                if clean_columns:
-                    sql_parts.append(f"SELECT {', '.join(clean_columns)}")
-                else:
-                    sql_parts.append("SELECT *")
-            else:
-                sql_parts.append("SELECT *")
-
-            # FROM子句
-            sql_parts.append("FROM df")
-
-            # WHERE子句
-            if where_clauses:
-                sql_parts.append(f"WHERE {' AND '.join(where_clauses)}")
-
-            # GROUP BY子句
-            if self.group_by:
-                sql_parts.append(f"GROUP BY {self.group_by}")
-
-            # ORDER BY子句
-            if self.order_by:
-                sql_parts.append(f"ORDER BY {self.order_by}")
-            elif order_clauses:
-                sql_parts.append(f"ORDER BY {', '.join(order_clauses)}")
-
-            # LIMIT和OFFSET子句
-            if self.limit_count is not None:
-                if self.offset_count > 0:
-                    sql_parts.append(f"LIMIT {self.limit_count} OFFSET {self.offset_count}")
-                else:
-                    sql_parts.append(f"LIMIT {self.limit_count}")
-            elif self.offset_count > 0:
-                sql_parts.append(f"OFFSET {self.offset_count}")
-
-            # 组合SQL查询
-            constructed_query = " ".join(sql_parts)
-
-            return self._apply_sql_query(df, constructed_query)
-
-        # 如果有组件化配置，构建简单查询
-        if self.where_clause or self.order_by or self.select_columns:
-            sql_parts = []
-
-            # SELECT子句
-            if self.select_columns:
-                clean_columns = self._sanitize_column_names(self.select_columns)
-                if clean_columns:
-                    sql_parts.append(f"SELECT {', '.join(clean_columns)}")
-                else:
-                    sql_parts.append("SELECT *")
-            else:
-                sql_parts.append("SELECT *")
-
-            # FROM子句
-            sql_parts.append("FROM df")
-
-            # WHERE子句
-            if self.where_clause:
-                sql_parts.append(f"WHERE {self.where_clause}")
-
-            # GROUP BY子句
-            if self.group_by:
-                sql_parts.append(f"GROUP BY {self.group_by}")
-
-            # ORDER BY子句
-            if self.order_by:
-                sql_parts.append(f"ORDER BY {self.order_by}")
-
-            # LIMIT和OFFSET子句
-            if self.limit_count is not None:
-                if self.offset_count > 0:
-                    sql_parts.append(f"LIMIT {self.limit_count} OFFSET {self.offset_count}")
-                else:
-                    sql_parts.append(f"LIMIT {self.limit_count}")
-            elif self.offset_count > 0:
-                sql_parts.append(f"OFFSET {self.offset_count}")
-
-            # 组合SQL查询
-            constructed_query = " ".join(sql_parts)
-
-            return self._apply_sql_query(df, constructed_query)
-
-        # 没有筛选条件，返回原始数据
-        return df
 
     def _apply_sql_query(self, df: pd.DataFrame, sql_query: str) -> pd.DataFrame:
         """
