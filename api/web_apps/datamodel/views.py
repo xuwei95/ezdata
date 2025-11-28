@@ -293,3 +293,39 @@ def datamodel_exportXls():
     except Exception as e:
         return jsonify(gen_json_response(code=500, msg=f"未知错误：{e}"))
 
+
+@datamodel_bp.route('/model_types/<datasource_id>', methods=['GET'])
+@validate_user
+@validate_permissions([])
+def datamodel_types(datasource_id):
+    '''
+    根据数据源ID获取可用的数据模型类型列表
+    '''
+    req_dict = get_req_para(request)
+    req_dict['datasource_id'] = datasource_id
+    verify_dict = {
+    }
+    not_valid = validate_params(req_dict, verify_dict)
+    if not_valid:
+        return jsonify(gen_json_response(code=400, msg=not_valid))
+    res_data = DataModelApiService().get_model_types(req_dict)
+    return jsonify(res_data)
+
+
+@datamodel_bp.route('/model_config/<model_type>', methods=['GET'])
+@validate_user
+@validate_permissions([])
+def datamodel_config(model_type):
+    '''
+    根据数据模型类型获取模型配置表单
+    '''
+    req_dict = get_req_para(request)
+    req_dict['model_type'] = model_type
+    verify_dict = {
+    }
+    not_valid = validate_params(req_dict, verify_dict)
+    if not_valid:
+        return jsonify(gen_json_response(code=400, msg=not_valid))
+    res_data = DataModelApiService().get_model_config(req_dict)
+    return jsonify(res_data)
+

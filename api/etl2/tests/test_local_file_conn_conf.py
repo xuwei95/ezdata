@@ -75,7 +75,7 @@ def test_new_conn_conf_structure():
         'source': {
             'type': 'file',
             'conn_conf': {
-                'file_path': str(csv_path),
+                'path': str(csv_path),
                 'encoding': 'utf-8',
                 'delimiter': ','
             }
@@ -123,7 +123,7 @@ def test_new_conn_conf_structure():
         'source': {
             'type': 'file',
             'conn_conf': {
-                'file_path': str(csv_path),
+                'path': str(csv_path),
                 'delimiter': ',',
                 'encoding': 'utf-8'
             }
@@ -162,7 +162,7 @@ def test_new_conn_conf_structure():
         'source': {
             'type': 'file',
             'conn_conf': {
-                'file_path': str(excel_path),
+                'path': str(excel_path),
                 'sheet_name': 'Sales'  # 指定工作表
             }
         },
@@ -199,7 +199,7 @@ def test_new_conn_conf_structure():
         'source': {
             'type': 'file',
             'conn_conf': {
-                'file_path': str(tsv_path),
+                'path': str(tsv_path),
                 'delimiter': '\t',  # 明确指定分隔符
                 'encoding': 'utf-8'
             }

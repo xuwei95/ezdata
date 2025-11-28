@@ -15,6 +15,50 @@ class CCxtModel(DataModel):
         self.method = model_conf.get('method', '')
         self.auth_types = model_conf.get('auth_type', '').split(',')
 
+    @classmethod
+    def get_form_config(cls):
+        '''
+        获取CCXT API模型的配置表单schema
+        '''
+        return [
+            {
+                'label': '交易所',
+                'field': 'exchange_id',
+                'required': True,
+                'component': 'Input',
+                'default': 'okx'
+            },
+            {
+                'label': '数据接口函数',
+                'field': 'method',
+                'required': True,
+                'component': 'JSelectInput',
+                'default': 'fetch_ohlcv',
+                'componentProps': {
+                    'options': [
+                        {'label': '指定交易对和时间段的历史K线数据', 'value': 'fetch_ohlcv'},
+                        {'label': '所有市场（交易对）的详情', 'value': 'load_markets'},
+                        {'label': '指定交易对的市场行情信息', 'value': 'fetch_ticker'},
+                        {'label': '指定交易对的最近交易记录', 'value': 'fetch_trades'},
+                        {'label': '指定交易对的订单簿信息', 'value': 'fetch_order_book'},
+                        {'label': '交易所的状态信息', 'value': 'fetch_status'}
+                    ]
+                }
+            },
+            {
+                'label': '允许操作',
+                'field': 'auth_type',
+                'component': 'JCheckbox',
+                'default': 'query,extract',
+                'componentProps': {
+                    'options': [
+                        {'label': '查询', 'value': 'query'},
+                        {'label': '数据抽取', 'value': 'extract'}
+                    ]
+                }
+            }
+        ]
+
     def connect(self):
         '''
         连通性测试

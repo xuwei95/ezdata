@@ -29,7 +29,7 @@ class MindsDBSqlModel(DataModel):
         self.db_type = self._source.get('type')
         self.conn_conf = self._source.get('conn_conf', {})
         model_conf = self._model.get('model_conf', {})
-        self.sql = model_conf.get('sql', 'SHOW TABLES')
+        self.sql = model_conf.get('sql', 'show tables')
         self.default_sql = self.sql
         self.auth_types = model_conf.get('auth_type', '').split(',')
 
@@ -37,6 +37,37 @@ class MindsDBSqlModel(DataModel):
         self.client = IntegrationsClient()
         self.handler = None
         self.standalone_handler = None
+
+    @classmethod
+    def get_form_config(cls):
+        '''
+        获取SQL类型模型的配置表单schema
+        '''
+        return [
+            {
+                'label': '查询语句',
+                'field': 'sql',
+                'required': True,
+                'default': '',
+                'component': 'MonacoEditor',
+                'componentProps': {
+                    'language': 'sql',
+                }
+            },
+            {
+                'label': '允许操作',
+                'field': 'auth_type',
+                'component': 'JCheckbox',
+                'default': 'query,extract',
+                'componentProps': {
+                    'options': [
+                        {'label': '查询', 'value': 'query'},
+                        {'label': '自定义sql查询', 'value': 'custom_sql'},
+                        {'label': '数据抽取', 'value': 'extract'},
+                    ]
+                }
+            }
+        ]
 
     def connect(self):
         """
@@ -88,17 +119,103 @@ class MindsDBSqlModel(DataModel):
                         break
 
                 if table_col:
-                    for table_name in tables_df[table_col]:
-                        if model_prompt == '' or str(table_name) in model_prompt:
-                            try:
-                                # 获取表的列信息
-                                columns_df = self.standalone_handler.get_columns(table_name)
-                                if not columns_df.empty:
-                                    columns_info = columns_df.to_string()
-                                    tables_info.append(f"Table: {table_name}\n{columns_info}")
-                            except Exception as e:
-                                logger.warning(f"获取表 {table_name} 的列信息失败: {e}")
-                                tables_info.append(f"Table: {table_name}\n(列信息获取失败)")
+                    # 筛选需要获取元数据的表
+                    if model_prompt == '':
+                        # 获取所有表
+                        target_tables = tables_df[table_col].tolist()
+                    else:
+                        # 只获取 model_prompt 中提到的表
+                        target_tables = [
+                            table_name for table_name in tables_df[table_col]
+                            if str(table_name) in model_prompt
+                        ]
+
+                    if target_tables:
+                        try:
+                            # 使用 meta_get_columns 一次性获取所有表的列元数据信息
+                            target_tables_str = [str(t).strip() for t in target_tables if str(t).strip()]
+                            meta_columns_df = self.standalone_handler.meta_get_columns(target_tables_str)
+
+                            if not meta_columns_df.empty:
+                                # 按表名分组，生成每个表的信息
+                                # 找到 TABLE_NAME 和 COLUMN_NAME 列
+                                table_name_col = None
+                                for col in ['TABLE_NAME', 'table_name', 'name', 'Name']:
+                                    if col in meta_columns_df.columns:
+                                        table_name_col = col
+                                        break
+
+                                if table_name_col:
+                                    for table_name in target_tables_str:
+                                        # 筛选该表的列信息
+                                        table_columns = meta_columns_df[
+                                            meta_columns_df[table_name_col] == table_name
+                                        ]
+
+                                        if not table_columns.empty:
+                                            # 格式化列信息，包含更多详细信息
+                                            columns_list = []
+                                            for _, row in table_columns.iterrows():
+                                                col_info_parts = []
+
+                                                # 列名
+                                                col_name = row.get('COLUMN_NAME') or row.get('column_name') or row.get('Field')
+                                                col_info_parts.append(f"  - {col_name}")
+
+                                                # 数据类型
+                                                data_type = row.get('DATA_TYPE') or row.get('data_type') or row.get('Type')
+                                                if data_type:
+                                                    col_info_parts.append(f"({data_type})")
+
+                                                # 是否可为空
+                                                is_nullable = row.get('IS_NULLABLE') or row.get('is_nullable') or row.get('Null')
+                                                if is_nullable is not None:
+                                                    nullable_str = 'NULL' if str(is_nullable).upper() in ['YES', 'TRUE', '1'] else 'NOT NULL'
+                                                    col_info_parts.append(nullable_str)
+
+                                                # 默认值
+                                                default_val = row.get('COLUMN_DEFAULT') or row.get('column_default') or row.get('Default')
+                                                if default_val and str(default_val).lower() != 'none':
+                                                    col_info_parts.append(f"DEFAULT {default_val}")
+
+                                                # 列描述
+                                                description = row.get('COLUMN_DESCRIPTION') or row.get('column_description') or row.get('Comment')
+                                                if description and str(description).lower() != 'none':
+                                                    col_info_parts.append(f"-- {description}")
+
+                                                columns_list.append(' '.join(col_info_parts))
+
+                                            columns_info = '\n'.join(columns_list)
+                                            tables_info.append(f"Table: {table_name}\n{columns_info}")
+                                        else:
+                                            tables_info.append(f"Table: {table_name}\n  (无列信息)")
+                                else:
+                                    # 如果找不到 TABLE_NAME 列，回退到简单格式
+                                    tables_info.append(f"所有表的列信息:\n{meta_columns_df.to_string()}")
+                            else:
+                                # 如果 meta_get_columns 返回空，尝试逐个获取
+                                for table_name in target_tables_str:
+                                    tables_info.append(f"Table: {table_name}\n  (无列信息)")
+
+                        except Exception as e:
+                            # 如果 meta_get_columns 失败，回退到原有逻辑
+                            logger.warning(f"使用 meta_get_columns 失败，回退到逐个获取: {e}")
+                            import traceback
+                            logger.debug(traceback.format_exc())
+
+                            for table_name in target_tables_str:
+                                try:
+                                    # 获取表的列信息
+                                    columns_df = self.standalone_handler.get_columns(table_name)
+
+                                    if columns_df is not None and not columns_df.empty:
+                                        columns_info = columns_df.to_string()
+                                        tables_info.append(f"Table: {table_name}\n{columns_info}")
+                                    else:
+                                        tables_info.append(f"Table: {table_name}\n  (无列信息)")
+                                except Exception as e2:
+                                    logger.warning(f"获取表 {table_name} 的列信息失败: {e2}")
+                                    tables_info.append(f"Table: {table_name}\n  (列信息获取失败: {str(e2)})")
 
             tables_metadata = '\n\n'.join(tables_info)
 

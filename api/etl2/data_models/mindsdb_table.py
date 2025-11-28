@@ -30,6 +30,39 @@ class MindsDBTableModel(DataModel):
         # 初始化SQL规则构建器
         self.sql_rule_builder = SQLRuleBuilder(field_type_getter=self._get_field_type)
 
+    @classmethod
+    def get_form_config(cls):
+        '''
+        获取表格类型模型的配置表单schema
+        '''
+        return [
+            {
+                'label': '表名',
+                'field': 'name',
+                'required': True,
+                'component': 'Input',
+                'default': '',
+            },
+            {
+                'label': '允许操作',
+                'field': 'auth_type',
+                'component': 'JCheckbox',
+                'componentProps': {
+                    'options': [
+                        {'label': '查询', 'value': 'query'},
+                        {'label': '创建', 'value': 'create'},
+                        {'label': '操作字段', 'value': 'edit_fields'},
+                        {'label': '删除', 'value': 'delete'},
+                        {'label': '数据抽取', 'value': 'extract'},
+                        {'label': '数据装载', 'value': 'load'},
+                        {'label': '添加数据', 'value': 'add_data'},
+                        {'label': '修改数据', 'value': 'edit_data'},
+                        {'label': '删除数据', 'value': 'delete_data'},
+                    ]
+                }
+            }
+        ]
+
     def connect(self):
         try:
             self.handler = self.client.create_handler(

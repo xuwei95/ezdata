@@ -89,3 +89,15 @@ export const getImportUrl = Api.importExcel;
  * @param params
  */
 export const getExportUrl = Api.exportXls;
+
+/**
+ * 根据数据源ID获取可用的数据模型类型列表
+ * @param datasourceId
+ */
+export const getModelTypes = (datasourceId: string) => defHttp.get({ url: `/datamodel/model_types/${datasourceId}` });
+
+/**
+ * 根据数据模型类型获取模型配置表单
+ * @param modelType
+ */
+export const getModelConfig = (modelType: string) => defHttp.get({ url: `/datamodel/model_config/${modelType}` });

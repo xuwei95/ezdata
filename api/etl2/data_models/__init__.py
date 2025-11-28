@@ -13,6 +13,27 @@ class DataModel(ABC):
         self.extract_rules = self._extract_info.get('extract_rules', [])
         self._load_info = model_info.get('load_info', {})
 
+    @classmethod
+    def get_form_config(cls):
+        '''
+        获取模型配置表单schema
+        返回格式：[
+            {
+                'label': '字段标签',
+                'field': '字段名',
+                'required': True/False,
+                'component': 'Input/Number/Select等',
+                'default': '默认值'
+            },
+            ...
+        ]
+        '''
+        # 默认配置
+        return [
+            {'label': '模型配置', 'field': 'model_conf', 'required': False, 'component': 'JSONEditor', 'default': '{}'},
+            {'label': '权限类型', 'field': 'auth_type', 'required': False, 'component': 'Input', 'default': 'read'}
+        ]
+
     @abstractmethod
     def connect(self):
         '''

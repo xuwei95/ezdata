@@ -16,12 +16,18 @@ class SQLRuleBuilder:
     支持标准化的操作符和类型安全的SQL条件生成
     """
 
-    # 支持的操作符定义 - 简化版本
+    # 支持的操作符定义
     SUPPORTED_OPERATORS = [
         {'name': '等于', 'value': 'eq'},
         {'name': '不等于', 'value': 'neq'},
         {'name': '包含', 'value': 'contain'},
-        {'name': '不包含', 'value': 'not_contain'}
+        {'name': '不包含', 'value': 'not_contain'},
+        {'name': '大于', 'value': 'gt'},
+        {'name': '大于等于', 'value': 'gte'},
+        {'name': '小于', 'value': 'lt'},
+        {'name': '小于等于', 'value': 'lte'},
+        {'name': '从大到小排序', 'value': 'sort_desc'},
+        {'name': '从小到大排序', 'value': 'sort_asc'}
     ]
 
     def __init__(self, field_type_getter=None):
@@ -54,10 +60,16 @@ class SQLRuleBuilder:
             if not field:
                 continue
 
+            # 处理排序操作
+            if operator in ['sort_desc', 'sort_asc']:
+                if operator == 'sort_desc':
+                    order_clauses.append(f"{field} DESC")
+                elif operator == 'sort_asc':
+                    order_clauses.append(f"{field} ASC")
+                continue
+
             # 获取字段类型
             field_type = self._get_field_type(field)
-
-            # 只处理 eq, neq, contain, not_contain 四种操作符
 
             # 转换值类型
             converted_value = self._convert_value_by_type(value, field_type)
@@ -214,7 +226,7 @@ class SQLRuleBuilder:
 
     def _build_where_clause(self, field: str, operator: str, value: Any, field_type: str) -> Optional[str]:
         """
-        构建WHERE子句 - 简化版本，只支持eq, neq, contain, not_contain
+        构建WHERE子句
 
         Args:
             field: 字段名
@@ -233,6 +245,26 @@ class SQLRuleBuilder:
             elif operator == 'neq':
                 sql_value = self._escape_sql_value(value, field_type)
                 return f"{field} != {sql_value}"
+
+            elif operator == 'gt':
+                # 大于
+                sql_value = self._escape_sql_value(value, field_type)
+                return f"{field} > {sql_value}"
+
+            elif operator == 'gte':
+                # 大于等于
+                sql_value = self._escape_sql_value(value, field_type)
+                return f"{field} >= {sql_value}"
+
+            elif operator == 'lt':
+                # 小于
+                sql_value = self._escape_sql_value(value, field_type)
+                return f"{field} < {sql_value}"
+
+            elif operator == 'lte':
+                # 小于等于
+                sql_value = self._escape_sql_value(value, field_type)
+                return f"{field} <= {sql_value}"
 
             elif operator == 'contain':
                 # 字符串包含操作

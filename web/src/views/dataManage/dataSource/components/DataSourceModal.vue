@@ -180,16 +180,26 @@
 
       if (schema && schema.length > 0) {
         // 重置连接配置表单schema
-        resetConnSchema(schema);
-        resetConnFields();
-        // 连接配置表单赋值
-        setConnFieldsValue({
-          ...formData.conn_conf,
+        await resetConnSchema(schema);
+        await resetConnFields();
+
+        // 先提取默认值
+        const defaultValues: Record<string, any> = {};
+        schema.forEach((item: any) => {
+          if (item.defaultValue !== undefined) {
+            defaultValues[item.field] = item.defaultValue;
+          }
         });
+
+        // 合并默认值和表单数据，表单数据优先级更高
+        const finalValues = { ...defaultValues, ...formData.conn_conf };
+
+        // 连接配置表单赋值
+        await setConnFieldsValue(finalValues);
       } else {
         // 如果schema为空，重置为空数组，避免表单显示错误
-        resetConnSchema([]);
-        resetConnFields();
+        await resetConnSchema([]);
+        await resetConnFields();
         createMessage.warning(`数据源类型 ${formData.type} 的配置表单未加载成功`);
       }
 
@@ -202,17 +212,33 @@
       conn_status.value = 0;
       // 加载默认数据源配置（mysql）
       const defaultType = 'mysql';
+      // 设置主表单的默认类型
+      setFieldsValue({
+        type: defaultType,
+      });
+      
       let schema = connFormSchemaMap.value[defaultType];
       if (!schema) {
         schema = await loadDataSourceConfig(defaultType);
       }
       if (schema && schema.length > 0) {
-        resetConnSchema(schema);
-        resetConnFields();
+        await resetConnSchema(schema);
+        await resetConnFields();
+
+        // 提取 schema 中的默认值并设置到表单
+        const defaultValues: Record<string, any> = {};
+        schema.forEach((item: any) => {
+          if (item.defaultValue !== undefined) {
+            defaultValues[item.field] = item.defaultValue;
+          }
+        });
+        if (Object.keys(defaultValues).length > 0) {
+          await setConnFieldsValue(defaultValues);
+        }
       } else {
         // 如果默认配置加载失败，重置为空数组
-        resetConnSchema([]);
-        resetConnFields();
+        await resetConnSchema([]);
+        await resetConnFields();
         createMessage.warning('默认数据源配置加载失败，请选择数据源类型后重试');
       }
     }
@@ -240,12 +266,23 @@
 
     if (schema && schema.length > 0) {
       // 重置连接配置表单schema
-      resetConnSchema(schema);
-      resetConnFields();
+      await resetConnSchema(schema);
+      await resetConnFields();
+
+      // 提取 schema 中的默认值并设置到表单
+      const defaultValues: Record<string, any> = {};
+      schema.forEach((item: any) => {
+        if (item.defaultValue !== undefined) {
+          defaultValues[item.field] = item.defaultValue;
+        }
+      });
+      if (Object.keys(defaultValues).length > 0) {
+        await setConnFieldsValue(defaultValues);
+      }
     } else {
       // 如果schema为空，重置为空数组
-      resetConnSchema([]);
-      resetConnFields();
+      await resetConnSchema([]);
+      await resetConnFields();
     }
   };
   // 连通性测试
@@ -270,8 +307,6 @@
     } catch (e) {
       conn_status.value = 0;
       loading.value = false;
-      const errorMsg = e?.response?.data?.msg || e?.message || '连接测试失败';
-      createMessage.error(`连接测试失败: ${errorMsg}`);
       console.log('connError', e, conn_status.value);
     }
   }

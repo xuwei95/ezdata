@@ -372,3 +372,134 @@ class DataModelApiService(object):
         # 文件seek位置，从头(0)开始
         output.seek(0)
         return output
+
+    def get_model_types(self, req_dict):
+        '''
+        根据数据源ID获取可用的数据模型类型列表
+        '''
+        datasource_id = req_dict.get('datasource_id')
+
+        if not datasource_id:
+            return gen_json_response(code=400, msg='数据源ID不能为空')
+
+        # 获取数据源信息
+        datasource = db.session.query(DataSource).filter(
+            DataSource.id == datasource_id,
+            DataSource.del_flag == 0).first()
+
+        if not datasource:
+            return gen_json_response(code=400, msg='数据源不存在')
+
+        datasource_type = datasource.type
+
+        try:
+            from etl2.registry import get_registry
+
+            registry = get_registry()
+            reader_map = registry.get_reader_map()
+
+            # 筛选出该数据源类型支持的模型类型
+            model_types = []
+            for key in reader_map.keys():
+                source_type, model_type = key.split(':', 1)
+                if source_type == datasource_type:
+                    if model_type != 'None':
+                        # 生成友好的标签名
+                        label = self._generate_model_type_label(model_type, datasource_type)
+                        model_types.append({
+                            'label': label,
+                            'value': model_type
+                        })
+
+            # 排序并去重
+            unique_types = {}
+            for item in model_types:
+                unique_types[item['value']] = item
+
+            result = sorted(unique_types.values(), key=lambda x: x['label'])
+
+            return gen_json_response(data=result)
+
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"获取数据模型类型失败: {e}")
+            return gen_json_response(code=500, msg=f'获取数据模型类型失败: {str(e)}')
+
+    def get_model_config(self, req_dict):
+        '''
+        根据数据模型类型获取模型配置表单
+        通过调用模型类的get_form_config方法获取配置
+        '''
+        model_type = req_dict.get('model_type')
+
+        if not model_type:
+            return gen_json_response(code=400, msg='模型类型不能为空')
+
+        try:
+            from etl2.registry import get_registry
+            from etl.utils.common_utils import import_class
+
+            registry = get_registry()
+            reader_map = registry.get_reader_map()
+
+            # 查找模型类
+            model_class = None
+            # 对于table类型，使用MindsDBTableModel
+            if model_type == 'table':
+                model_class = import_class('etl2.data_models.mindsdb_table.MindsDBTableModel')
+            # 对于sql类型，使用MindsDBSqlModel
+            elif model_type == 'sql':
+                model_class = import_class('etl2.data_models.mindsdb_sql.MindsDBSqlModel')
+            else:
+                # 尝试精确匹配 "source_type:model_type"
+                for key, handler_class_path in reader_map.items():
+                    if key.endswith(f':{model_type}'):
+                        model_class = import_class(handler_class_path)
+                        break
+            # 3调用模型类的get_form_config方法获取配置
+            if model_class and hasattr(model_class, 'get_form_config'):
+                config = model_class.get_form_config()
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.info(f"获取模型类型 {model_type}:{model_class}的配置成功: {config}")
+                return gen_json_response(data=config)
+            else:
+                # 如果没有找到模型类或没有get_form_config方法，返回默认配置
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"未找到模型类型 {model_type} 的配置，使用默认配置")
+
+                from etl2.data_models import DataModel
+                config = DataModel.get_form_config()
+                return gen_json_response(data=config)
+
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"获取数据模型配置失败: {e}", exc_info=True)
+
+            # 返回默认配置而不是错误
+            try:
+                from etl2.data_models import DataModel
+                config = DataModel.get_form_config()
+                return gen_json_response(data=config)
+            except:
+                return gen_json_response(code=500, msg=f'获取数据模型配置失败: {str(e)}')
+
+    def _generate_model_type_label(self, model_type, datasource_type):
+        '''
+        生成模型类型的友好标签
+        '''
+        # 模型类型标签映射
+        label_map = {
+            'sql': 'sql',
+            'table': 'table',
+            'mysql_binlog': 'MySQL Binlog流',
+            'kafka_topic': 'Kafka topic',
+            'akshare_api': 'AkShare接口',
+            'ccxt_api': 'CCXT交易所接口'
+        }
+        if '_table' in model_type:
+            model_type = 'table'
+        return label_map.get(model_type, model_type)

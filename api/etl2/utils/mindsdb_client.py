@@ -533,7 +533,6 @@ class StandaloneHandler:
         """
         try:
             response = self._handler.get_columns(table_name)
-            
             if response.resp_type == RESPONSE_TYPE.ERROR:
                 raise Exception(
                     f"获取列信息失败: {response.error_message}"
@@ -545,6 +544,80 @@ class StandaloneHandler:
                 return pd.DataFrame()
         except Exception as e:
             logger.error(f"获取列信息失败: {e}")
+            raise
+
+    def meta_get_columns(self, table_names: Optional[List[str]] = None) -> pd.DataFrame:
+        """
+        获取表的列元数据信息（更详细的列信息）
+
+        Args:
+            table_names: 表名列表，如果为 None 则获取所有表的列信息
+
+        Returns:
+            pandas DataFrame，包含列元数据信息：
+            - TABLE_NAME (str): 表名
+            - COLUMN_NAME (str): 列名
+            - DATA_TYPE (str): 数据类型
+            - COLUMN_DESCRIPTION (str): 列描述（可选）
+            - IS_NULLABLE (bool): 是否可为空（可选）
+            - COLUMN_DEFAULT (str): 默认值（可选）
+        """
+        try:
+            # 检查 handler 是否有 meta_get_columns 方法
+            if hasattr(self._handler, 'meta_get_columns'):
+                response = self._handler.meta_get_columns(table_names)
+                if response.resp_type == RESPONSE_TYPE.ERROR:
+                    raise Exception(
+                        f"获取列元数据信息失败: {response.error_message}"
+                    )
+
+                if response.resp_type == RESPONSE_TYPE.TABLE:
+                    return response.data_frame
+                else:
+                    return pd.DataFrame()
+            else:
+                # 如果 handler 不支持 meta_get_columns，回退到逐个获取列信息
+                logger.warning(f"Handler 不支持 meta_get_columns 方法，使用 get_columns 回退")
+
+                # 如果没有指定表名，先获取所有表
+                if table_names is None:
+                    tables_df = self.get_tables()
+                    if tables_df.empty:
+                        return pd.DataFrame()
+
+                    # 找到表名列
+                    table_col = None
+                    for col in ['TABLE_NAME', 'table_name', 'name', 'Name']:
+                        if col in tables_df.columns:
+                            table_col = col
+                            break
+
+                    if table_col:
+                        table_names = tables_df[table_col].tolist()
+                    else:
+                        return pd.DataFrame()
+
+                # 逐个获取表的列信息并合并
+                all_columns = []
+                for table_name in table_names:
+                    try:
+                        columns_df = self.get_columns(str(table_name))
+                        if not columns_df.empty:
+                            # 确保有 TABLE_NAME 列
+                            if 'TABLE_NAME' not in columns_df.columns:
+                                columns_df['TABLE_NAME'] = str(table_name)
+                            all_columns.append(columns_df)
+                    except Exception as e:
+                        logger.warning(f"获取表 {table_name} 的列信息失败: {e}")
+                        continue
+
+                if all_columns:
+                    return pd.concat(all_columns, ignore_index=True)
+                else:
+                    return pd.DataFrame()
+
+        except Exception as e:
+            logger.error(f"获取列元数据信息失败: {e}")
             raise
     
     def __enter__(self):

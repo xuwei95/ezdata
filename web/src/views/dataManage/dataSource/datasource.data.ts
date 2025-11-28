@@ -113,6 +113,16 @@ export const formSchema: FormSchema[] = [
     },
   },
   {
+    label: '自动建模',
+    field: 'auto_gen',
+    defaultValue: '1',
+    component: 'JSwitch',
+    componentProps: {
+      options: ['1', '0'],
+    },
+    ifShow: ({ values }) => !values.id,
+  },
+  {
     label: '额外参数',
     field: 'ext_params',
     required: false,
@@ -121,16 +131,6 @@ export const formSchema: FormSchema[] = [
     componentProps: {
       language: 'json',
     },
-  },
-  {
-    label: '自动建模',
-    field: 'auto_gen',
-    defaultValue: '0',
-    component: 'JSwitch',
-    componentProps: {
-      options: ['1', '0'],
-    },
-    ifShow: ({ values }) => !values.id,
   },
   {
     label: '描述',

@@ -48,6 +48,43 @@ class KafkaTopicModel(DataModel):
                 if isinstance(self.topic, list):
                     self.consumer = KafkaConsumer(self.topic[0], **conn_setting)
                     self.consumer.subscribe(self.topic)
+
+    @classmethod
+    def get_form_config(cls):
+        '''
+        获取Kafka Topic模型的配置表单schema
+        '''
+        return [
+            {
+                'label': '主题',
+                'field': 'name',
+                'required': True,
+                'component': 'Input',
+                'default': ''
+            },
+            {
+                'label': '拓展参数',
+                'field': 'ext_params',
+                'required': True,
+                'component': 'JSONEditor',
+                'default': '{}',
+                'componentProps': {
+                    'language': 'json'
+                }
+            },
+            {
+                'label': '允许操作',
+                'field': 'auth_type',
+                'component': 'JCheckbox',
+                'componentProps': {
+                    'options': [
+                        {'label': '创建', 'value': 'create'},
+                        {'label': '数据抽取', 'value': 'extract'},
+                        {'label': '数据装载', 'value': 'load'}
+                    ]
+                }
+            }
+        ]
                 else:
                     self.consumer = KafkaConsumer(self.topic, **conn_setting)
             except Exception as e:

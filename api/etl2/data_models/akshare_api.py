@@ -12,6 +12,38 @@ class AkShareModel(DataModel):
         self.method = model_conf.get('method', '')
         self.auth_types = model_conf.get('auth_type', '').split(',')
 
+    @classmethod
+    def get_form_config(cls):
+        '''
+        获取AkShare API模型的配置表单schema
+        '''
+        return [
+            {
+                'label': '数据接口函数',
+                'field': 'method',
+                'required': True,
+                'component': 'JDictSelectTag',
+                'componentProps': {
+                    'showSearch': True,
+                    'dictCode': 'akshare_method',
+                    'placeholder': '请选择数据接口函数',
+                    'stringToNumber': False,
+                }
+            },
+            {
+                'label': '允许操作',
+                'field': 'auth_type',
+                'component': 'JCheckbox',
+                'default': 'query,extract',
+                'componentProps': {
+                    'options': [
+                        {'label': '查询', 'value': 'query'},
+                        {'label': '数据抽取', 'value': 'extract'},
+                    ]
+                }
+            }
+        ]
+
     def connect(self):
         '''
         连通性测试

@@ -16,6 +16,39 @@ class N4jGraphModel(DataModel):
         self.node_matcher = NodeMatcher(self.n4j_client._client)
         self.relation_matcher = RelationshipMatcher(self.n4j_client._client)
 
+    @classmethod
+    def get_form_config(cls):
+        '''
+        获取Neo4j Graph模型的配置表单schema
+        '''
+        return [
+            {
+                'label': '名称',
+                'field': 'name',
+                'required': True,
+                'component': 'Input',
+                'default': ''
+            },
+            {
+                'label': '允许操作',
+                'field': 'auth_type',
+                'component': 'JCheckbox',
+                'componentProps': {
+                    'options': [
+                        {'label': '查询', 'value': 'query'},
+                        {'label': '创建', 'value': 'create'},
+                        {'label': '操作字段', 'value': 'edit_fields'},
+                        {'label': '删除', 'value': 'delete'},
+                        {'label': '添加数据', 'value': 'add_data'},
+                        {'label': '修改数据', 'value': 'edit_data'},
+                        {'label': '删除数据', 'value': 'delete_data'},
+                        {'label': '数据抽取', 'value': 'extract'},
+                        {'label': '数据装载', 'value': 'load'}
+                    ]
+                }
+            }
+        ]
+
     def connect(self):
         '''
         连通性测试
