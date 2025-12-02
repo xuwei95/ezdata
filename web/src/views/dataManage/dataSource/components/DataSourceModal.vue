@@ -1,5 +1,5 @@
 <template>
-  <BasicModal v-bind="$attrs" @register="registerModal" destroyOnClose showFooter :title="title" :width="'800px'" @ok="handleSubmit">
+  <BasicModal v-bind="$attrs" @register="registerModal" destroyOnClose showFooter :title="title" :width="'1000px'" @ok="handleSubmit">
     <BasicForm @register="registerForm">
       <template #type="{ model, field }">
         <a-select
@@ -9,6 +9,10 @@
           :options="dataSourceTypeOptions"
           @change="handleTypeChange"
           :disabled="typeDisabled"
+          show-search
+          :filter-option="(input, option) => {
+            return option.label.toLowerCase().indexOf(input.toLowerCase()) >= 0;
+          }"
         />
       </template>
       <template #conn_conf="">
@@ -37,6 +41,7 @@
   const typeDisabled = ref(false);
   const conn_status = ref(0);
   const loading = ref(false);
+  const formLoading = ref(false);
   const { createMessage } = useMessage();
 
   // 动态数据源类型选项和配置
@@ -64,70 +69,142 @@
     }
     try {
       const res = await getDataSourceConfig(type);
-      if (res&& Array.isArray(res) && res.length > 0) {
+      if (res && Array.isArray(res) && res.length > 0) {
         // 转换后端配置格式为前端表单schema格式
         const schema = convertToFormSchema(res);
         connFormSchemaMap.value[type] = schema;
         return schema;
       } else {
         console.warn(`数据源类型 ${type} 的配置为空`);
+        // 清空该类型的缓存
+        connFormSchemaMap.value[type] = [];
         return [];
       }
     } catch (error) {
       console.error('获取数据源配置失败:', error);
       createMessage.error(`获取数据源配置失败: ${error?.message || '未知错误'}`);
+      // 清空该类型的缓存，确保不会使用旧数据
+      connFormSchemaMap.value[type] = [];
       return [];
     }
   };
 
   // 转换后端配置格式为前端FormSchema格式
   const convertToFormSchema = (config: any[]) => {
-    return config.map(item => {
+    if (!config || !Array.isArray(config)) {
+      console.error('Invalid config:', config);
+      return [];
+    }
+
+    // 先转换所有字段
+    const schemas = config.map(item => {
+      // 获取原始组件类型
+      const componentType = item.type || item.component || 'Input';
+
       const schema: any = {
-        label: item.label,
-        field: item.field,
-        required: item.required,
-        component: convertComponentType(item.component),
+        label: item.label || item.field || '',
+        field: item.field || '',
+        required: item.required || false,
+        component: convertComponentType(componentType),
       };
 
-      if (item.default !== undefined) {
-        schema.defaultValue = item.default;
+      // 初始化 componentProps
+      schema.componentProps = {};
+
+      // 如果是 boolean/bool 类型且使用 RadioGroup，先添加默认选项
+      if ((componentType === 'boolean' || componentType === 'bool') && schema.component === 'RadioGroup') {
+        schema.componentProps.options = [
+          { label: '是', value: true },
+          { label: '否', value: false },
+        ];
+        // 确保 bool 类型有默认值，如果没有指定则默认为 false
+        if (item.default !== undefined && item.default !== null) {
+          schema.defaultValue = item.default;
+          // 确保默认值是布尔类型
+          if (typeof schema.defaultValue !== 'boolean') {
+            schema.defaultValue = schema.defaultValue === 'true' || schema.defaultValue === 1 || schema.defaultValue === '1' || schema.defaultValue === true;
+          }
+        } else {
+          // 如果没有指定默认值，设置为 false
+          schema.defaultValue = false;
+        }
+      } else {
+        // 处理其他类型的默认值
+        if (item.default !== undefined && item.default !== null) {
+          schema.defaultValue = item.default;
+        }
       }
 
-      if (item.options) {
+      // 处理 description - 作为帮助提示
+      if (item.description) {
+        schema.helpMessage = item.description;
+      }
+
+      // 处理 placeholder - 优先使用 example，其次使用 description
+      if (item.placeholder !== undefined) {
+        schema.componentProps.placeholder = item.placeholder;
+      } else if (item.description && !item.example) {
+        schema.componentProps.placeholder = item.description;
+      }
+
+      // 合并后端传递的 componentProps（不覆盖已设置的 options）
+      if (item.componentProps && typeof item.componentProps === 'object') {
         schema.componentProps = {
-          options: item.options
+          ...schema.componentProps,
+          ...item.componentProps,
+          // 如果是 RadioGroup 且我们已经设置了 options，不要被后端覆盖（除非后端明确提供了 options）
+          ...(schema.component === 'RadioGroup' && schema.componentProps.options && !item.componentProps.options
+            ? { options: schema.componentProps.options }
+            : {})
         };
       }
 
+      // 处理 min/max
       if (item.min !== undefined) {
-        schema.componentProps = schema.componentProps || {};
         schema.componentProps.min = item.min;
       }
-
-      if (item.if_show) {
-        schema.ifShow = ({ values }) => values[item.if_show.field] === item.if_show.value;
+      if (item.max !== undefined) {
+        schema.componentProps.max = item.max;
       }
 
       return schema;
     });
+
+    // 排序：必填参数在前，非必填参数在后
+    const requiredSchemas = schemas.filter(s => s.required);
+    const optionalSchemas = schemas.filter(s => !s.required);
+
+    return [...requiredSchemas, ...optionalSchemas];
   };
 
   // 转换组件类型
   const convertComponentType = (component: string) => {
     const componentMap = {
       'Input': 'Input',
+      'string': 'Input',
       'Number': 'InputNumber',
+      'number': 'InputNumber',
+      'InputNumber': 'InputNumber',
       'Password': 'InputPassword',
+      'password': 'InputPassword',
       'Select': 'JSelectInput',
       'Radio': 'RadioGroup',
-      'JSONEditor': 'MonacoEditor'
+      'RadioGroup': 'RadioGroup',
+      'boolean': 'RadioGroup',
+      'bool': 'RadioGroup',
+      'Switch': 'Switch',
+      'JSONEditor': 'MonacoEditor',
+      'MonacoEditor': 'MonacoEditor',
+      'JDictSelectTag': 'JDictSelectTag',
+      'JCheckbox': 'JCheckbox',
+      'JSelectInput': 'JSelectInput',
+      'Textarea': 'InputTextArea'
     };
     return componentMap[component] || 'Input';
   };
   //表单配置
   const [registerForm, { setProps, getFieldsValue, resetFields, setFieldsValue, validate }] = useForm({
-    labelWidth: 150,
+    labelWidth: 240,
     schemas: formSchema,
     showActionButtonGroup: false,
     baseColProps: { span: 24 },
@@ -142,7 +219,7 @@
       validate: connValidate,
     },
   ] = useForm({
-    labelWidth: 150,
+    labelWidth: 240,
     schemas: [],
     showActionButtonGroup: false,
     baseColProps: { span: 24 },
@@ -191,8 +268,15 @@
           }
         });
 
-        // 合并默认值和表单数据，表单数据优先级更高
-        const finalValues = { ...defaultValues, ...formData.conn_conf };
+        // 合并默认值和表单数据，只有当 conn_conf 中有明确的值时才覆盖默认值
+        const finalValues = { ...defaultValues };
+        if (formData.conn_conf && typeof formData.conn_conf === 'object') {
+          Object.keys(formData.conn_conf).forEach(key => {
+            if (formData.conn_conf[key] !== undefined && formData.conn_conf[key] !== null) {
+              finalValues[key] = formData.conn_conf[key];
+            }
+          });
+        }
 
         // 连接配置表单赋值
         await setConnFieldsValue(finalValues);
@@ -232,9 +316,8 @@
             defaultValues[item.field] = item.defaultValue;
           }
         });
-        if (Object.keys(defaultValues).length > 0) {
-          await setConnFieldsValue(defaultValues);
-        }
+        // 设置默认值到表单（即使默认值为 false 也要设置）
+        await setConnFieldsValue(defaultValues);
       } else {
         // 如果默认配置加载失败，重置为空数组
         await resetConnSchema([]);
@@ -252,37 +335,55 @@
   const handleTypeChange = async (value: string) => {
     console.log(`selected ${value}`);
 
+    // 立即清空表单，避免旧数据残留
+    await resetConnSchema([]);
+    await resetConnFields();
+
     if (!value) {
-      resetConnSchema([]);
-      resetConnFields();
       return;
     }
 
-    // 加载该类型的配置schema
-    let schema = connFormSchemaMap.value[value];
-    if (!schema) {
-      schema = await loadDataSourceConfig(value);
-    }
+    // 设置表单加载状态
+    formLoading.value = true;
+    setConnProps({ loading: true });
 
-    if (schema && schema.length > 0) {
-      // 重置连接配置表单schema
-      await resetConnSchema(schema);
-      await resetConnFields();
-
-      // 提取 schema 中的默认值并设置到表单
-      const defaultValues: Record<string, any> = {};
-      schema.forEach((item: any) => {
-        if (item.defaultValue !== undefined) {
-          defaultValues[item.field] = item.defaultValue;
-        }
-      });
-      if (Object.keys(defaultValues).length > 0) {
-        await setConnFieldsValue(defaultValues);
+    try {
+      // 加载该类型的配置schema
+      let schema = connFormSchemaMap.value[value];
+      if (!schema) {
+        schema = await loadDataSourceConfig(value);
       }
-    } else {
-      // 如果schema为空，重置为空数组
+
+      if (schema && schema.length > 0) {
+        // 重置连接配置表单schema
+        await resetConnSchema(schema);
+        await resetConnFields();
+
+        // 提取 schema 中的默认值并设置到表单
+        const defaultValues: Record<string, any> = {};
+        schema.forEach((item: any) => {
+          if (item.defaultValue !== undefined) {
+            defaultValues[item.field] = item.defaultValue;
+          }
+        });
+        // 设置默认值到表单（即使默认值为 false 也要设置）
+        await setConnFieldsValue(defaultValues);
+      } else {
+        // 如果schema为空，确保表单被清空
+        await resetConnSchema([]);
+        await resetConnFields();
+        createMessage.warning(`数据源类型 ${value} 的配置加载失败`);
+      }
+    } catch (error) {
+      // 发生错误时，确保表单被清空
       await resetConnSchema([]);
       await resetConnFields();
+      console.error('切换数据源类型失败:', error);
+      createMessage.error('切换数据源类型失败，请重试');
+    } finally {
+      // 清除加载状态
+      formLoading.value = false;
+      setConnProps({ loading: false });
     }
   };
   // 连通性测试

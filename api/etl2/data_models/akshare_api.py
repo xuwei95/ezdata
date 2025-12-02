@@ -44,6 +44,14 @@ class AkShareModel(DataModel):
             }
         ]
 
+    @staticmethod
+    def get_connection_args():
+        """
+        获取连接参数定义
+        AkShare是免费开源的财经数据接口，无需连接参数
+        """
+        return {}
+
     def connect(self):
         '''
         连通性测试

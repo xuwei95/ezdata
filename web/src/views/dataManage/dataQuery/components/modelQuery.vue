@@ -99,11 +99,16 @@
     extract_rules.value = data.extract_rules || [];
     search_type_list.value = data.search_type_list || [];
     fields.value = data.fields || [];
+
+    // 重置所有查询表单状态
     extract_rule_list.value = [];
     search_type_map = {};
     search_type_options.value = [];
     search_type.value = '';
     search_text.value = '';
+    ai_query.value = false;
+    query_prompt.value = '';
+
     for (let i = 0; i < unref(search_type_list).length; i++) {
       // 高级查询默认设为第一个
       if (i == 0) {

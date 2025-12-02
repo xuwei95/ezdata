@@ -79,17 +79,7 @@ export const searchFormSchema: FormSchema[] = [
       labelField: 'name',
       valueField: 'id',
     },
-  },
-  {
-    label: '类型',
-    field: 'type',
-    component: 'JDictSelectTag',
-    componentProps: {
-      dictCode: 'datamodel_type',
-      placeholder: '请选择模型类型',
-      stringToNumber: false,
-    },
-  },
+  }
 ];
 //表单数据
 export const formSchema: FormSchema[] = [

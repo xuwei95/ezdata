@@ -41,6 +41,11 @@ CUSTOM_HANDLERS = {
 
     # File Handler - 使用localfile模型处理本地文件（只读）
     'file:None': 'etl2.data_models.local_file.LocalFileModel',
+    'file:file_table': 'etl2.data_models.local_file.LocalFileModel',
+
+    # Custom S3 - 支持MinIO等S3兼容存储
+    'custom_s3:None': 'etl2.data_models.custom_s3.CustomS3Model',
+    'custom_s3:custom_s3_table': 'etl2.data_models.custom_s3.CustomS3Model',
 
     # neo4j
     'neo4j:None': 'etl2.data_models.neo4j_models.N4jSqlModel',
@@ -229,21 +234,35 @@ class HandlerRegistry:
         Returns:
             dict: handler 信息
         """
+        # 检查自定义 handler
+        for key in self.custom_handlers.keys():
+            if key.startswith(f"{source_type}:None"):
+                handler_class_path = self.custom_handlers[key]
+                try:
+                    # 导入 handler 类
+                    handler_class = import_class(handler_class_path)
+                    # 获取连接参数定义
+                    connection_args = handler_class.get_connection_args()
+                    return {
+                        'name': source_type,
+                        'type': 'custom',
+                        'handler_class': handler_class_path,
+                        'connection_args': connection_args
+                    }
+                except Exception as e:
+                    logger.error(f"获取自定义 handler 信息失败: {key}, 错误: {e}")
+                    return {
+                        'name': source_type,
+                        'type': 'custom',
+                        'handler_class': handler_class_path,
+                        'error': str(e)
+                    }
         # 检查是否是 MindsDB handler
         if self._is_mindsdb_supported(source_type):
             try:
                 return self.mindsdb_client.get_handler_info(source_type)
             except Exception as e:
                 logger.error(f"获取 MindsDB handler 信息失败: {e}")
-
-        # 检查自定义 handler
-        for key in self.custom_handlers.keys():
-            if key.startswith(f"{source_type}:"):
-                return {
-                    'name': source_type,
-                    'type': 'custom',
-                    'handler_class': self.custom_handlers[key]
-                }
 
         return {'error': f'未找到 handler: {source_type}'}
 

@@ -98,6 +98,8 @@ export const getModelTypes = (datasourceId: string) => defHttp.get({ url: `/data
 
 /**
  * 根据数据模型类型获取模型配置表单
- * @param modelType
+ * @param modelKey
  */
-export const getModelConfig = (modelType: string) => defHttp.get({ url: `/datamodel/model_config/${modelType}` });
+export const getModelConfig = (modelKey: string) => {
+  return defHttp.get({ url: `/datamodel/model_config/${modelKey}`});
+};

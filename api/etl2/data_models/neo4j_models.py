@@ -49,6 +49,46 @@ class N4jGraphModel(DataModel):
             }
         ]
 
+    @staticmethod
+    def get_connection_args():
+        """
+        获取连接参数定义
+        """
+        return {
+            'host': {
+                'type': 'string',
+                'required': True,
+                'description': 'Neo4j服务器地址',
+                'example': 'localhost'
+            },
+            'port': {
+                'type': 'number',
+                'required': True,
+                'description': 'Neo4j HTTP端口',
+                'default': 7474,
+                'example': 7474
+            },
+            'username': {
+                'type': 'string',
+                'required': True,
+                'description': 'Neo4j用户名',
+                'default': 'neo4j',
+                'example': 'neo4j'
+            },
+            'password': {
+                'type': 'password',
+                'required': True,
+                'description': 'Neo4j密码'
+            },
+            'database': {
+                'type': 'string',
+                'required': False,
+                'description': '数据库名称（Neo4j 4.0+支持多数据库）',
+                'default': 'neo4j',
+                'example': 'neo4j'
+            }
+        }
+
     def connect(self):
         '''
         连通性测试
@@ -325,6 +365,94 @@ class N4jSqlModel(DataModel):
         n4j_url = f"http://{conn_conf.get('host')}:{conn_conf.get('port')}"
         self.n4j_client = NjClient(n4j_url,
                                    **{'username': conn_conf.get('username'), 'password': conn_conf.get('password')})
+
+    @classmethod
+    def get_form_config(cls):
+        '''
+        获取Neo4j Cypher SQL模型的配置表单schema
+        '''
+        return [
+            {
+                'label': 'Cypher查询语句',
+                'field': 'sql',
+                'required': True,
+                'default': '',
+                'component': 'MonacoEditor',
+                'componentProps': {
+                    'language': 'cypher',
+                }
+            },
+            {
+                'label': '允许操作',
+                'field': 'auth_type',
+                'component': 'JCheckbox',
+                'default': 'query,extract',
+                'componentProps': {
+                    'options': [
+                        {'label': '查询', 'value': 'query'},
+                        {'label': '自定义查询', 'value': 'custom_sql'},
+                        {'label': '数据抽取', 'value': 'extract'}
+                    ]
+                }
+            }
+        ]
+
+    @staticmethod
+    def get_connection_args():
+        """
+        获取连接参数定义（与N4jGraphModel相同）
+        """
+        return {
+            'host': {
+                'type': 'string',
+                'required': True,
+                'description': 'Neo4j服务器地址',
+                'example': 'localhost'
+            },
+            'port': {
+                'type': 'number',
+                'required': True,
+                'description': 'Neo4j HTTP端口',
+                'default': 7474,
+                'example': 7474
+            },
+            'username': {
+                'type': 'string',
+                'required': True,
+                'description': 'Neo4j用户名',
+                'default': 'neo4j',
+                'example': 'neo4j'
+            },
+            'password': {
+                'type': 'password',
+                'required': True,
+                'description': 'Neo4j密码'
+            },
+            'database': {
+                'type': 'string',
+                'required': False,
+                'description': '数据库名称（Neo4j 4.0+支持多数据库）',
+                'default': 'neo4j',
+                'example': 'neo4j'
+            },
+            'encrypted': {
+                'type': 'boolean',
+                'required': False,
+                'description': '是否使用加密连接',
+                'default': False
+            },
+            'trust': {
+                'type': 'string',
+                'required': False,
+                'description': '信任级别',
+                'options': ['TRUST_ALL_CERTIFICATES', 'TRUST_SYSTEM_CA_SIGNED_CERTIFICATES'],
+                'default': 'TRUST_ALL_CERTIFICATES',
+                'if_show': {
+                    'field': 'encrypted',
+                    'value': True
+                }
+            }
+        }
 
     def connect(self):
         '''

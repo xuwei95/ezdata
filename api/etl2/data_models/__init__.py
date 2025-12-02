@@ -30,9 +30,27 @@ class DataModel(ABC):
         '''
         # 默认配置
         return [
-            {'label': '模型配置', 'field': 'model_conf', 'required': False, 'component': 'JSONEditor', 'default': '{}'},
-            {'label': '权限类型', 'field': 'auth_type', 'required': False, 'component': 'Input', 'default': 'read'}
+            {
+                'label': '允许操作',
+                'field': 'auth_type',
+                'component': 'JCheckbox',
+                'default': 'query,extract',
+                'componentProps': {
+                    'options': [
+                        {'label': '查询', 'value': 'query'},
+                        {'label': '数据抽取', 'value': 'extract'}
+                    ]
+                }
+            }
         ]
+
+    @staticmethod
+    def get_connection_args():
+        '''
+        获取连接参数定义
+        用于前端展示和验证
+        '''
+        return {}
 
     @abstractmethod
     def connect(self):
@@ -43,13 +61,6 @@ class DataModel(ABC):
 
     def get_info_prompt(self, model_prompt=''):
         return ""
-
-    def get_connection_args(self):
-        '''
-        获取连接参数定义
-        用于前端展示和验证
-        '''
-        return {}
 
     def gen_models(self):
         '''

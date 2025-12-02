@@ -42,12 +42,25 @@ class KafkaTopicModel(DataModel):
         self.err_info = ''
         self.read_type = 'latest'  # 默认从最新开始读
         self.gen_extract_rules()  # 判断是从头读还是从现在开始读
-        conn_setting['auto_offset_reset'] = self.read_type
         if self._extract_info and self.topic:
             try:
                 if isinstance(self.topic, list):
                     self.consumer = KafkaConsumer(self.topic[0], **conn_setting)
                     self.consumer.subscribe(self.topic)
+                else:
+                    self.consumer = KafkaConsumer(self.topic, **conn_setting)
+            except Exception as e:
+                self.err_info = str(e)
+        if self._load_info:
+            try:
+                self.producer = KafkaProducer(
+                    bootstrap_servers=self.bootstrap_servers,
+                    value_serializer=lambda x: json.dumps(x, cls=DateEncoder).encode('utf-8'),
+                    api_version=(0, 10)
+                )
+            except Exception as e:
+                print(e)
+                self.err_info = str(e)
 
     @classmethod
     def get_form_config(cls):
@@ -85,20 +98,20 @@ class KafkaTopicModel(DataModel):
                 }
             }
         ]
-                else:
-                    self.consumer = KafkaConsumer(self.topic, **conn_setting)
-            except Exception as e:
-                self.err_info = str(e)
-        if self._load_info:
-            try:
-                self.producer = KafkaProducer(
-                    bootstrap_servers=self.bootstrap_servers,
-                    value_serializer=lambda x: json.dumps(x, cls=DateEncoder).encode('utf-8'),
-                    api_version=(0, 10)
-                )
-            except Exception as e:
-                print(e)
-                self.err_info = str(e)
+
+    @staticmethod
+    def get_connection_args():
+        """
+        获取连接参数定义
+        """
+        return {
+            'bootstrap_servers': {
+                'type': 'string',
+                'required': True,
+                'description': 'Kafka broker地址列表，格式：host:port 或 host1:port1,host2:port2',
+                'example': 'localhost:9092'
+            }
+        }
 
     def connect(self):
         '''

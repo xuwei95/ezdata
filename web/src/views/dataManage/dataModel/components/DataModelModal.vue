@@ -9,6 +9,10 @@
           :options="datasourceOptions"
           @change="handleSourceChange"
           :disabled="datasourceDisabled"
+          show-search
+          :filter-option="(input, option) => {
+            return option.label.toLowerCase().indexOf(input.toLowerCase()) >= 0;
+          }"
         />
       </template>
       <template #type="{ model, field }">
@@ -19,6 +23,10 @@
           :options="typeOptions"
           @change="handleTypeChange"
           :disabled="typeDisabled"
+          show-search
+          :filter-option="(input, option) => {
+            return option.label.toLowerCase().indexOf(input.toLowerCase()) >= 0;
+          }"
         />
       </template>
       <template #model_conf="">
@@ -48,7 +56,7 @@
   const modelConfSchemaMap = ref({});
   const { createMessage } = useMessage();
   //表单配置
-  const [registerForm, { setProps, resetFields, setFieldsValue, validate }] = useForm({
+  const [registerForm, { setProps, resetFields, setFieldsValue, getFieldsValue, validate }] = useForm({
     labelWidth: 150,
     schemas: formSchema,
     showActionButtonGroup: false,
@@ -88,7 +96,6 @@
           if (isCopy.value) {
             formData.id = '';
             formData.name = formData.name + '_copy';
-            console.log('copy35324523', formData);
           }
         } else {
           console.log('error', res_data);
@@ -125,8 +132,15 @@
           }
         });
 
-        // 合并默认值和表单数据，表单数据优先级更高
-        const finalValues = { ...defaultValues, ...formData.model_conf };
+        // 合并默认值和表单数据，只有当 model_conf 中有明确的值时才覆盖默认值
+        const finalValues = { ...defaultValues };
+        if (formData.model_conf && typeof formData.model_conf === 'object') {
+          Object.keys(formData.model_conf).forEach(key => {
+            if (formData.model_conf[key] !== undefined && formData.model_conf[key] !== null) {
+              finalValues[key] = formData.model_conf[key];
+            }
+          });
+        }
 
         // 模型配置表单赋值
         await setModelConfFieldsValue(finalValues);
@@ -173,7 +187,7 @@
         console.warn(`数据源 ${datasource_id} 的模型类型为空`);
         return [];
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('获取数据模型类型失败:', error);
       createMessage.error(`获取数据模型类型失败: ${error?.message || '未知错误'}`);
       return [];
@@ -187,8 +201,23 @@
       return [];
     }
     try {
-      console.log(`开始加载模型配置: ${model_type}`);
-      const res = await getModelConfig(model_type);
+      console.log(`开始加载模型配置: ${model_type}`, datasourceTypeMap.value);
+
+      // 获取当前选择的数据源ID和类型
+      const formData = await getFieldsValue();
+      const datasourceId = formData?.datasource_id;
+      const datasourceType = datasourceId ? datasourceTypeMap.value[datasourceId] : null;
+
+      if (!datasourceType) {
+        console.warn(`数据源ID ${datasourceId} 的类型未找到`);
+        createMessage.warning(`无法获取数据源类型，请先选择数据源`);
+        return [];
+      }
+
+      console.log(`数据源ID: ${datasourceId}, 数据源类型: ${datasourceType}`);
+      const modelKey = `${datasourceType}:${model_type}`;
+      console.log(`模型key: ${modelKey}`);
+      const res = await getModelConfig(modelKey);
       console.log(`后端返回的配置:`, res);
 
       if (res && Array.isArray(res) && res.length > 0) {
@@ -201,7 +230,7 @@
         console.warn(`数据模型类型 ${model_type} 的配置为空`, res);
         return [];
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('获取数据模型配置失败:', error);
       createMessage.error(`获取数据模型配置失败: ${error?.message || '未知错误'}`);
       return [];
@@ -216,24 +245,49 @@
     }
 
     return config.map(item => {
+      // 获取原始组件类型
+      const componentType = item.type || item.component || 'Input';
+
       const schema: any = {
         label: item.label || '',
         field: item.field || '',
         required: item.required || false,
-        component: convertComponentType(item.component || 'Input'),
+        component: convertComponentType(componentType),
       };
 
       // 初始化 componentProps
       schema.componentProps = {};
 
-      // 处理默认值
-      if (item.default !== undefined && item.default !== null) {
-        schema.defaultValue = item.default;
+      // 如果是 boolean/bool 类型且使用 RadioGroup，先添加默认选项
+      if ((componentType === 'boolean' || componentType === 'bool') && schema.component === 'RadioGroup') {
+        schema.componentProps.options = [
+          { label: '是', value: true },
+          { label: '否', value: false },
+        ];
+        // 确保 bool 类型有默认值，如果没有指定则默认为 false
+        if (item.default !== undefined && item.default !== null) {
+          schema.defaultValue = item.default;
+          // 确保默认值是布尔类型
+          if (typeof schema.defaultValue !== 'boolean') {
+            schema.defaultValue = schema.defaultValue === 'true' || schema.defaultValue === 1 || schema.defaultValue === '1' || schema.defaultValue === true;
+          }
+        } else {
+          // 如果没有指定默认值，设置为 false
+          schema.defaultValue = false;
+        }
+      } else {
+        // 处理其他类型的默认值
+        if (item.default !== undefined && item.default !== null) {
+          schema.defaultValue = item.default;
+        }
       }
 
-      // 合并后端传递的 componentProps
+      // 合并后端传递的 componentProps（不覆盖已设置的 options）
       if (item.componentProps && typeof item.componentProps === 'object') {
-        schema.componentProps = { ...item.componentProps };
+        const preservedOptions = schema.component === 'RadioGroup' && schema.componentProps.options && !item.componentProps.options
+          ? { options: schema.componentProps.options }
+          : {};
+        schema.componentProps = { ...schema.componentProps, ...item.componentProps, ...preservedOptions };
       }
 
       // 处理 options（向后兼容，如果后端直接传 options）
@@ -252,7 +306,6 @@
       }
 
       // 处理 MonacoEditor 特殊逻辑
-      const componentType = item.component || '';
       if (componentType === 'JSONEditor' || componentType === 'MonacoEditor') {
         // 如果后端没有指定 language，默认使用 json
         if (!schema.componentProps.language) {
@@ -286,6 +339,8 @@
       'Password': 'InputPassword',
       'Select': 'JSelectInput',
       'Radio': 'RadioGroup',
+      'boolean': 'RadioGroup',
+      'bool': 'RadioGroup',
       'JSONEditor': 'MonacoEditor',
       'MonacoEditor': 'MonacoEditor',
       'JDictSelectTag': 'JDictSelectTag',
@@ -343,9 +398,8 @@
           defaultValues[item.field] = item.defaultValue;
         }
       });
-      if (Object.keys(defaultValues).length > 0) {
-        await setModelConfFieldsValue(defaultValues);
-      }
+      // 设置默认值到表单（即使默认值为 false 也要设置）
+      await setModelConfFieldsValue(defaultValues);
     } else {
       // 如果schema为空，重置为空数组
       await resetModelConfSchema([]);
@@ -359,17 +413,15 @@
     datasourceTypeMap.value = {};
     for (let i = 0; i < data_li.length; i++) {
       datasourceOptions.value.push({ label: data_li[i].name, value: data_li[i].id });
-      datasourceTypeMap[data_li[i].id] = data_li[i].type;
+      datasourceTypeMap.value[data_li[i].id] = data_li[i].type;
     }
   }
   //表单提交事件
-  async function handleSubmit(v) {
+  async function handleSubmit() {
     try {
       let values = await validate();
       // 设置连接配置
-      console.log(666, values);
       let v = await getModelConfFieldsValue();
-      console.log(777, v);
       values.model_conf = await getModelConfFieldsValue();
       console.log('submit', values);
       setModalProps({ confirmLoading: true });

@@ -13,6 +13,7 @@ import pandas as pd
 import io
 from utils.etl_utils import get_reader_model
 from tasks.data_tasks import self_gen_datasource_model
+from etl2.registry import get_registry
 
 
 def serialize_datasource_model(obj, ser_type='list'):
@@ -363,7 +364,6 @@ class DataSourceApiService(object):
         获取所有数据源类型
         '''
         try:
-            from etl2.registry import get_registry
 
             registry = get_registry()
             available_sources = registry.list_available_sources()
@@ -391,19 +391,7 @@ class DataSourceApiService(object):
             return gen_json_response(data=result)
 
         except Exception as e:
-            # 如果etl2模块不可用，返回默认数据源类型
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.warning(f"无法从etl2获取数据源类型，使用默认配置: {e}")
-
-            default_types = [
-                {'label': 'MySQL', 'value': 'mysql'},
-                {'label': 'PostgreSQL', 'value': 'pgsql'},
-                {'label': 'Redis', 'value': 'redis'},
-                {'label': 'HTTP请求', 'value': 'http'},
-                {'label': '文件', 'value': 'file'},
-            ]
-            return gen_json_response(data=default_types)
+            return gen_json_response(code=400, msg=f"无法从etl2获取数据源类型: {e}")
 
     def get_datasource_config(self, req_dict):
         '''
@@ -412,94 +400,39 @@ class DataSourceApiService(object):
         datasource_type = req_dict.get('type')
 
         try:
-            from etl2.registry import get_registry
-
             registry = get_registry()
-
-            # 自定义数据源类型配置映射
-            custom_config_map = {
-                'http': [
-                    {'label': '连接地址', 'field': 'url', 'required': True, 'component': 'Input'},
-                    {'label': '请求方式', 'field': 'method', 'required': True, 'component': 'Select', 'default': 'get', 'options': [
-                        {'label': 'GET', 'value': 'get'},
-                        {'label': 'POST', 'value': 'post'},
-                        {'label': 'PUT', 'value': 'put'},
-                        {'label': 'DELETE', 'value': 'delete'}
-                    ]},
-                    {'label': '超时时长(s)', 'field': 'timeout', 'required': True, 'component': 'Number', 'default': 30, 'min': 0},
-                    {'label': '请求头', 'field': 'headers', 'required': True, 'component': 'JSONEditor', 'default': '{}'},
-                    {'label': '请求体', 'field': 'req_body', 'required': True, 'component': 'JSONEditor', 'default': '{}'}
-                ],
-                'file': [
-                    {'label': '文件地址', 'field': 'path', 'required': True, 'component': 'Input'}
-                ],
-                'minio': [
-                    {'label': 'URL', 'field': 'url', 'required': True, 'component': 'Input'},
-                    {'label': '用户名', 'field': 'username', 'required': True, 'component': 'Input'},
-                    {'label': '密码', 'field': 'password', 'required': True, 'component': 'Password'},
-                    {'label': 'Bucket', 'field': 'bucket', 'required': True, 'component': 'Input'}
-                ],
-                'redis': [
-                    {'label': '服务器', 'field': 'host', 'required': True, 'component': 'Input'},
-                    {'label': '端口', 'field': 'port', 'required': True, 'component': 'Number'},
-                    {'label': '密码', 'field': 'password', 'required': False, 'component': 'Password'},
-                    {'label': '数据库', 'field': 'db', 'required': True, 'component': 'Number'}
-                ],
-                'kafka': [
-                    {'label': 'Bootstrap Servers', 'field': 'bootstrap_servers', 'required': True, 'component': 'Input'}
-                ],
-                'akshare': [],
-                'ccxt': []
-            }
-
-            # 优先检查自定义数据源类型
-            if datasource_type in custom_config_map:
-                return gen_json_response(data=custom_config_map[datasource_type])
 
             # 尝试从etl2 registry获取handler信息
             handler_info = registry.get_handler_info(datasource_type)
-
             if 'error' in handler_info:
-                # 如果无法从etl2获取，使用基础数据库配置
-                base_db_types = ['mysql', 'postgres', 'pgsql', 'sqlserver', 'oracle', 'clickhouse', 'hive']
-                if datasource_type in base_db_types:
-                    base_db_config = [
-                        {'label': '服务器', 'field': 'host', 'required': True, 'component': 'Input'},
-                        {'label': '端口', 'field': 'port', 'required': True, 'component': 'Number'},
-                        {'label': '用户名', 'field': 'username', 'required': True, 'component': 'Input'},
-                        {'label': '密码', 'field': 'password', 'required': True, 'component': 'Password'},
-                        {'label': '数据库', 'field': 'database_name', 'required': True, 'component': 'Input'}
-                    ]
-                    return gen_json_response(data=base_db_config)
-                else:
-                    return gen_json_response(code=400, msg=f'不支持的数据源类型: {datasource_type}')
+                return gen_json_response(code=400, msg=f'不支持的数据源类型: {datasource_type}')
 
             # 根据handler的connection_args生成表单配置
             connection_args = handler_info.get('connection_args', {})
             connection_args_example = handler_info.get('connection_args_example', {})
-
             config = []
 
-            # 使用connection_args_example生成表单，因为包含了实际的字段名
-            if connection_args_example:
-                for field_name, example_value in connection_args_example.items():
+            # 使用connection_args生成表单，因为包含了实际的字段名
+            if connection_args:
+                for field_name, _value in connection_args.items():
                     field_info = connection_args.get(field_name, {})
 
-                    # 跳过一些系统内部字段，但保留用户需要配置的字段
-                    skip_fields = ['protocol']  # port不再跳过，因为用户需要配置
-                    if field_name in skip_fields:
-                        continue
-
                     # 根据字段类型和名称确定组件类型
-                    component_type = self._determine_component_type(field_name, example_value, field_info)
+                    component_type = self._determine_component_type(field_name, _value, field_info)
 
                     field_config = {
                         'label': self._generate_field_label(field_name, field_info),
                         'field': field_name,
-                        'required': field_info.get('required', True),
+                        'required': field_info.get('required', False),
                         'component': component_type
                     }
-
+                    if 'description' in field_info:
+                        field_config['description'] = field_info['description']
+                    if 'placeholder' in field_info:
+                        field_config['placeholder'] = field_info['placeholder']
+                    if 'default' in field_info:
+                        field_config['default'] = field_info['default']
+                    example_value = connection_args_example.get(field_name)
                     # 设置默认值
                     if example_value is not None:
                         field_config['default'] = example_value
@@ -521,24 +454,7 @@ class DataSourceApiService(object):
             return gen_json_response(data=config)
 
         except Exception as e:
-            # 如果etl2不可用，使用基础配置
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.warning(f"无法从etl2获取数据源配置，使用默认配置: {e}")
-
-            # 基础数据库配置
-            base_db_types = ['mysql', 'postgres', 'pgsql', 'sqlserver', 'oracle', 'clickhouse', 'hive']
-            if datasource_type in base_db_types:
-                config = [
-                    {'label': '服务器', 'field': 'host', 'required': True, 'component': 'Input'},
-                    {'label': '端口', 'field': 'port', 'required': True, 'component': 'Number'},
-                    {'label': '用户名', 'field': 'username', 'required': True, 'component': 'Input'},
-                    {'label': '密码', 'field': 'password', 'required': True, 'component': 'Password'},
-                    {'label': '数据库', 'field': 'database_name', 'required': True, 'component': 'Input'}
-                ]
-                return gen_json_response(data=config)
-            else:
-                return gen_json_response(code=400, msg=f'不支持的数据源类型: {datasource_type}')
+            return gen_json_response(code=400, msg=f"无法获取数据源配置，使用默认配置: {e}")
 
     def _determine_component_type(self, field_name, example_value, field_info):
         """根据字段名和值确定组件类型"""
@@ -566,7 +482,7 @@ class DataSourceApiService(object):
             elif field_type_lower in ['integer', 'int', 'number', 'float']:
                 return 'Number'
             elif field_type_lower in ['boolean', 'bool']:
-                return 'Radio'
+                return 'RadioGroup'
             elif field_type_lower in ['array', 'list', 'dict', 'object', 'json']:
                 return 'JSONEditor'
 
@@ -582,7 +498,7 @@ class DataSourceApiService(object):
         elif isinstance(example_value, float):
             return 'Number'
         elif isinstance(example_value, bool):
-            return 'Radio'
+            return 'RadioGroup'
         elif isinstance(example_value, dict) or isinstance(example_value, list):
             return 'JSONEditor'
         else:

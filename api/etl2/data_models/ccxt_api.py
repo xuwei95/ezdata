@@ -59,6 +59,15 @@ class CCxtModel(DataModel):
             }
         ]
 
+    @staticmethod
+    def get_connection_args():
+        """
+        获取连接参数定义
+        CCXT连接加密货币交易所，可选配置API密钥
+        """
+        return {
+        }
+
     def connect(self):
         '''
         连通性测试

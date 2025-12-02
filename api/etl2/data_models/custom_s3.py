@@ -1,4 +1,10 @@
-# coding: utf-8
+# -*- coding: utf-8 -*-
+"""
+自定义S3兼容存储数据模型
+支持连接MinIO、DigitalOcean Spaces、阿里云OSS等S3兼容存储服务
+使用host:port配置方式，简化配置参数
+"""
+
 import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent.parent))
@@ -7,21 +13,42 @@ from etl2.data_models import DataModel
 from etl2.utils.mindsdb_client import IntegrationsClient, StandaloneHandler
 from etl2.utils.sql_rule_builder import SQLRuleBuilder
 from utils.common_utils import gen_json_response, df_to_list
+from .custom_s3_handler import CustomS3Handler
 import logging
-import re
 
 logger = logging.getLogger(__name__)
 
 
-class MindsDBTableModel(DataModel):
+class CustomS3Model(DataModel):
+    """
+    自定义S3兼容存储模型
+    支持MinIO、DigitalOcean Spaces、阿里云OSS等S3兼容存储服务
+    使用host:port方式配置，无需AWS前缀
+    """
+
+    name = "custom_s3"
 
     def __init__(self, model_info):
         super().__init__(model_info)
-        self.db_type = self._source.get('type')
+        self.db_type = self._source.get('type', 'custom_s3')
         self.conn_conf = self._source.get('conn_conf', {})
         model_conf = self._model.get('model_conf', {})
-        self.table_name = model_conf.get('name')
+        self.table_name = model_conf.get('name', '')
         self.auth_types = model_conf.get('auth_type', '').split(',')
+        # S3连接配置
+        self.host = self.conn_conf.get('host', '')
+        self.port = self.conn_conf.get('port', 9000)
+        self.access_key = self.conn_conf.get('access_key', '')
+        self.secret_key = self.conn_conf.get('secret_key', '')
+        self.bucket_name = self.conn_conf.get('bucket_name', '')
+        self.region = self.conn_conf.get('region', 'us-east-1')
+        self.use_ssl = self.conn_conf.get('use_ssl', False)
+        self.verify_ssl = self.conn_conf.get('verify_ssl', True)
+
+        # 构建endpoint_url
+        protocol = 'https' if self.use_ssl else 'http'
+        self.endpoint_url = f"{protocol}://{self.host}:{self.port}"
+
         self.client = IntegrationsClient()
         self.handler = None
         self.standalone_handler = None
@@ -33,78 +60,161 @@ class MindsDBTableModel(DataModel):
     @classmethod
     def get_form_config(cls):
         '''
-        获取表格类型模型的配置表单schema
+        获取自定义S3模型的配置表单schema
         '''
         return [
             {
-                'label': '表名',
+                'label': '表名/对象名',
                 'field': 'name',
                 'required': True,
                 'component': 'Input',
                 'default': '',
+                'componentProps': {
+                    'placeholder': '例如: my-data-table 或 folder/file.csv'
+                }
             },
             {
                 'label': '允许操作',
                 'field': 'auth_type',
                 'component': 'JCheckbox',
+                'default': 'query,extract',
                 'componentProps': {
                     'options': [
                         {'label': '查询', 'value': 'query'},
-                        {'label': '创建', 'value': 'create'},
-                        {'label': '操作字段', 'value': 'edit_fields'},
-                        {'label': '删除', 'value': 'delete'},
-                        {'label': '数据抽取', 'value': 'extract'},
-                        {'label': '数据装载', 'value': 'load'},
-                        {'label': '添加数据', 'value': 'add_data'},
-                        {'label': '修改数据', 'value': 'edit_data'},
-                        {'label': '删除数据', 'value': 'delete_data'},
+                        {'label': '数据抽取', 'value': 'extract'}
                     ]
                 }
             }
         ]
 
+    @staticmethod
+    def get_connection_args():
+        """
+        获取连接参数定义
+        """
+        return {
+            'host': {
+                'type': 'string',
+                'required': True,
+                'description': 'S3兼容服务的主机地址',
+                'placeholder': '例如: localhost (MinIO), s3.amazonaws.com (AWS S3), spaces.digitalocean.com (DO Spaces)'
+            },
+            'port': {
+                'type': 'number',
+                'required': True,
+                'description': '端口号',
+                'default': 9000,
+                'componentProps': {
+                    'min': 1,
+                    'max': 65535
+                }
+            },
+            'access_key': {
+                'type': 'string',
+                'required': True,
+                'description': '访问密钥（Access Key）',
+                'placeholder': '输入access_key'
+            },
+            'secret_key': {
+                'type': 'string',
+                'required': True,
+                'description': '秘密密钥（Secret Key）',
+                'placeholder': '输入secret_key'
+            },
+            'bucket_name': {
+                'type': 'string',
+                'required': True,
+                'description': '存储桶名称',
+                'placeholder': '输入bucket名称'
+            },
+            'region': {
+                'type': 'string',
+                'required': False,
+                'description': '区域（可选）',
+                'default': 'us-east-1',
+                'placeholder': '例如: us-east-1, ap-northeast-1'
+            },
+            # 'use_ssl': {
+            #     'type': 'boolean',
+            #     'required': False,
+            #     'description': '是否使用SSL',
+            #     'default': False
+            # },
+            # 'verify_ssl': {
+            #     'type': 'boolean',
+            #     'required': False,
+            #     'description': '是否验证SSL证书',
+            #     'default': True
+            # }
+        }
+
     def connect(self):
         try:
-            self.handler = self.client.create_handler(
-                handler_type=self.db_type,
-                connection_data=self.conn_conf
+            # 验证必需参数
+            if not self.host:
+                return False, "host不能为空"
+            if not self.access_key:
+                return False, "access_key不能为空"
+            if not self.secret_key:
+                return False, "secret_key不能为空"
+            if not self.bucket_name:
+                return False, "bucket_name不能为空"
+
+            # 构建连接配置 - 使用自定义handler
+            connection_data = {
+                'endpoint_url': self.endpoint_url,
+                'access_key': self.access_key,
+                'secret_key': self.secret_key,
+                'bucket': self.bucket_name,
+                'region': self.region,
+                'verify_ssl': self.verify_ssl
+            }
+
+            # 使用自定义s3 handler
+            self.handler = CustomS3Handler(
+                name='custom_s3_handler',
+                connection_data=connection_data
             )
             self.standalone_handler = StandaloneHandler(self.handler)
             status = self.standalone_handler.check_connection()
             if not status.get('success'):
                 return False, status.get('error_message', 'connect failed')
-            columns_df = self.standalone_handler.get_columns(self.table_name)
-            if not columns_df.empty:
-                self.table_columns = columns_df.to_dict('records')
+
+            # 获取表/对象信息
+            if self.table_name:
+                columns_df = self.standalone_handler.get_columns(self.table_name)
+                if not columns_df.empty:
+                    self.table_columns = columns_df.to_dict('records')
+                    return True, 'success'
+                return False, f'object {self.table_name} not found'
+            else:
                 return True, 'success'
-            return False, f'table {self.table_name} not found'
+
         except Exception as e:
             return False, str(e)
 
     def get_info_prompt(self, model_prompt=''):
         """
-        获取使用提示及数据库元数据信息
+        获取使用提示及存储服务元数据信息
         """
         if not self.standalone_handler:
             self.connect()
         try:
             info_prompt = f"""
-一个基于 MindsDB 的 数据表模型类，提供了数据表操作的方法
+一个基于 MindsDB S3 Handler 的自定义S3兼容存储模型
+支持连接MinIO、DigitalOcean Spaces、阿里云OSS等S3兼容存储服务
+
 # 使用示例：
 实例化此类的 reader 对象，查询 SQL 转为 dataframe：
 df = reader.query(sql)
 
-# DataSource type:
-{self.db_type}
-# MetaData:
-table_name:{self.table_name}
-columns:
+# 字段信息：
 {self.table_columns}
-                """
+            """
             return info_prompt
         except Exception as e:
             logger.error(f"获取元数据信息失败: {e}")
-            return f"MindsDB SQL Model for {self.db_type}"
+            return f"Custom S3 Compatible Storage Model for {self.endpoint_url}"
 
     def get_res_fields(self):
         if not self.table_columns:
@@ -237,7 +347,7 @@ columns:
                 raise RuntimeError(f'connect failed: {msg}')
         if sql is None:
             where_clauses, order_clauses = self.gen_extract_rules()
-            sql = f"SELECT * FROM {self.table_name}"
+            sql = f"SELECT * FROM {self.table_name if self.table_name else 's3_object'}"
             if where_clauses:
                 sql += " WHERE " + " AND ".join(where_clauses)
             if order_clauses:
@@ -256,7 +366,7 @@ columns:
 
         try:
             where_clauses, order_clauses = self.gen_extract_rules()
-            count_sql = f"SELECT COUNT(*) as total FROM {self.table_name}"
+            count_sql = f"SELECT COUNT(*) as total FROM {self.table_name if self.table_name else 's3_object'}"
             if where_clauses:
                 count_sql += " WHERE " + " AND ".join(where_clauses)
 
@@ -332,7 +442,7 @@ columns:
 
     def get_table_info(self):
         """
-        获取表的详细统计信息
+        获取存储对象的详细统计信息
         """
         if not self.standalone_handler:
             flag, msg = self.connect()
@@ -344,32 +454,14 @@ columns:
                 'table_name': self.table_name,
                 'total_count': self.get_total_count(),
                 'columns': self.table_columns,
-                'column_count': len(self.table_columns) if self.table_columns else 0
+                'column_count': len(self.table_columns) if self.table_columns else 0,
+                'endpoint': self.endpoint_url,
+                'bucket': self.bucket_name
             }
             return info
         except Exception as e:
             logger.error(f"获取表信息失败: {str(e)}")
             return None
-
-    def write(self, res_data):
-        if 'load' not in self.auth_types:
-            return False, 'no permission'
-        if not self.standalone_handler:
-            flag, msg = self.connect()
-            if not flag:
-                return False, msg
-        records = res_data if isinstance(res_data, list) else res_data.get('records', [res_data])
-        if not records:
-            return False, 'no data'
-        try:
-            for record in records:
-                cols = ', '.join(record.keys())
-                vals = ', '.join([f"'{v}'" if isinstance(v, str) else str(v) for v in record.values()])
-                sql = f"INSERT INTO {self.table_name} ({cols}) VALUES ({vals})"
-                self.standalone_handler.query(sql)
-            return True, f'inserted {len(records)} records'
-        except Exception as e:
-            return False, str(e)
 
     def disconnect(self):
         if self.standalone_handler:

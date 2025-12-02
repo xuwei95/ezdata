@@ -312,15 +312,15 @@ def datamodel_types(datasource_id):
     return jsonify(res_data)
 
 
-@datamodel_bp.route('/model_config/<model_type>', methods=['GET'])
+@datamodel_bp.route('/model_config/<model_key>', methods=['GET'])
 @validate_user
 @validate_permissions([])
-def datamodel_config(model_type):
+def datamodel_config(model_key):
     '''
     根据数据模型类型获取模型配置表单
     '''
     req_dict = get_req_para(request)
-    req_dict['model_type'] = model_type
+    req_dict['model_key'] = model_key
     verify_dict = {
     }
     not_valid = validate_params(req_dict, verify_dict)

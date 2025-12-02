@@ -197,7 +197,8 @@ columns:{column_names}
         """
         return info
 
-    def get_connection_args(self):
+    @staticmethod
+    def get_connection_args():
         """
         获取连接参数定义
         """

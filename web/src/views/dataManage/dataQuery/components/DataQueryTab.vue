@@ -73,9 +73,12 @@
   function initData() {
     columns.value = [];
     dataSource.value = [];
-    queryInfo.extract_rules = [];
-    queryInfo.search_type_list = [];
-    queryInfo.fields = [];
+    // 重置查询配置到空状态，确保 modelQuery 能检测到变化
+    Object.assign(queryInfo, {
+      extract_rules: [],
+      search_type_list: [],
+      fields: [],
+    });
     pagination.pageSize = 100;
     pagination.current = 1;
   }
