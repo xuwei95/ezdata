@@ -147,9 +147,12 @@
         }
         if (is_init) {
           // 重置筛选规则列表, 高级查询列表
-          queryInfo.extract_rules = res_data.extract_rules || [];
-          queryInfo.search_type_list = res_data.search_type_list || [];
-          queryInfo.fields = res_data.fields || [];
+          // 使用 Object.assign 确保响应式更新
+          Object.assign(queryInfo, {
+            extract_rules: res_data.extract_rules || [],
+            search_type_list: res_data.search_type_list || [],
+            fields: res_data.fields || [],
+          });
           console.log(7, queryInfo);
         }
       } else {

@@ -181,10 +181,7 @@ class LocalFileModel(DataModel):
         """
         获取模型信息提示
         """
-        # 获取字段列表并提取字段名
-        fields = self.get_res_fields()
-        column_names = [f['field_name'] for f in fields] if fields else []
-
+        df = self.query()
         info = f"""
 本地文件数据模型
 # 使用示例：
@@ -193,7 +190,9 @@ df = reader.query()
 # DataSource type:
 {self.db_type}
 # MetaData:
-columns:{column_names}
+<dataframe>
+{df.shape[0]}x{df.shape[1]}\n{df.head(3).to_csv()}
+</dataframe>
         """
         return info
 

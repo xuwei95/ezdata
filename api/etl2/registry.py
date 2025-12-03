@@ -50,7 +50,24 @@ CUSTOM_HANDLERS = {
     # neo4j
     'neo4j:None': 'etl2.data_models.neo4j_models.N4jSqlModel',
     'neo4j:sql': 'etl2.data_models.neo4j_models.N4jSqlModel',
-    'neo4j:neo4j_graph': 'etl2.data_models.neo4j_models.N4jGraphModel'
+    'neo4j:neo4j_graph': 'etl2.data_models.neo4j_models.N4jGraphModel',
+
+    # Prometheus - 监控指标数据源（只读）
+    'prometheus:None': 'etl2.data_models.prometheus_models.PromQlModel',
+    'prometheus:promql': 'etl2.data_models.prometheus_models.PromQlModel',
+    'prometheus:metric': 'etl2.data_models.prometheus_models.PromMetricModel',
+
+    # HTTP - HTTP API和HTML页面数据源（只读）
+    'http:None': 'etl2.data_models.http_models.BaseHttpModel',
+    'http:http_json': 'etl2.data_models.http_models.HttpApiModel',
+    'http:http_html': 'etl2.data_models.http_models.HttpHtmlModel',
+
+    # Redis - Redis数据库（可读可写）
+    'redis:None': 'etl2.data_models.redis_models.BaseRedisModel',
+    'redis:redis_string': 'etl2.data_models.redis_models.RedisStringModel',
+    'redis:redis_list': 'etl2.data_models.redis_models.RedisListModel',
+    'redis:redis_list_stream': 'etl2.data_models.redis_models.RedisListStreamModel',
+    'redis:redis_map': 'etl2.data_models.redis_models.RedisMapModel'
 }
 
 # 自定义 handlers 中支持写入的模型
@@ -59,6 +76,13 @@ WRITABLE_HANDLERS = {
     # Kafka - 支持写入消息
     'kafka:None',
     'kafka:kafka_topic',
+
+    # Redis - 支持写入数据
+    'redis:None',
+    'redis:redis_string',
+    'redis:redis_list',
+    'redis:redis_list_stream',
+    'redis:redis_map',
 }
 
 

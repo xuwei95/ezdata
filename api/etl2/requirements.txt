@@ -6,13 +6,5 @@ pyarrow>=12.0.0
 akshare
 ccxt
 psycopg2-binary
-pymssql
-cx_oracle
-clickhouse-sqlalchemy
-thrift
-thrift_sasl
-pyhive
 py2neo
 prometheus-api-client
-mongoengine
-influxdb==5.3.1

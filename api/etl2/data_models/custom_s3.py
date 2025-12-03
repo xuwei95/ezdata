@@ -134,18 +134,18 @@ class CustomS3Model(DataModel):
                 'default': 'us-east-1',
                 'placeholder': '例如: us-east-1, ap-northeast-1'
             },
-            # 'use_ssl': {
-            #     'type': 'boolean',
-            #     'required': False,
-            #     'description': '是否使用SSL',
-            #     'default': False
-            # },
-            # 'verify_ssl': {
-            #     'type': 'boolean',
-            #     'required': False,
-            #     'description': '是否验证SSL证书',
-            #     'default': True
-            # }
+            'use_ssl': {
+                'type': 'boolean',
+                'required': False,
+                'description': '是否使用SSL',
+                'default': False
+            },
+            'verify_ssl': {
+                'type': 'boolean',
+                'required': False,
+                'description': '是否验证SSL证书',
+                'default': True
+            }
         }
 
     def connect(self):

@@ -430,19 +430,27 @@ class DataSourceApiService(object):
                         field_config['description'] = field_info['description']
                     if 'placeholder' in field_info:
                         field_config['placeholder'] = field_info['placeholder']
+
+                    # 设置默认值
                     if 'default' in field_info:
                         field_config['default'] = field_info['default']
                     example_value = connection_args_example.get(field_name)
-                    # 设置默认值
                     if example_value is not None:
                         field_config['default'] = example_value
+                    if component_type == 'JSONEditor' and 'default' in field_config:
+                        field_config['default'] = str(field_config['default'])
 
                     # 设置组件属性
+                    if component_type == 'select':
+                        field_config['component'] = 'Select'
+                        field_config['componentProps'] = field_info.get('componentProps', {'options': []})
                     if component_type == 'Number':
                         field_config['componentProps'] = {'min': 0}
-                    elif component_type == 'Select':
-                        field_config['componentProps'] = {'options': []}
-
+                    elif component_type == 'RadioGroup':
+                        field_config['componentProps'] = {'options': [
+                          { 'label': '是', 'value': True },
+                          { 'label': '否', 'value': False },
+                        ]}
                     config.append(field_config)
 
             # 如果没有生成任何字段，使用通用配置
@@ -450,7 +458,6 @@ class DataSourceApiService(object):
                 config = [
                     {'label': '连接配置', 'field': 'connection_config', 'required': True, 'component': 'JSONEditor', 'default': '{}'}
                 ]
-
             return gen_json_response(data=config)
 
         except Exception as e:
@@ -485,6 +492,8 @@ class DataSourceApiService(object):
                 return 'RadioGroup'
             elif field_type_lower in ['array', 'list', 'dict', 'object', 'json']:
                 return 'JSONEditor'
+            else:
+                return field_type
 
         # 回退到基于字段名和值类型的判断
         if 'password' in field_name_lower or 'secret' in field_name_lower or field_info.get('secret', False):

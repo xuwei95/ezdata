@@ -30,7 +30,7 @@
         />
       </template>
       <template #model_conf="">
-        <BasicForm @register="registerModelConfForm" />
+        <BasicForm :key="modelConfFormKey" @register="registerModelConfForm" />
       </template>
     </BasicForm>
   </BasicModal>
@@ -54,6 +54,7 @@
   const datasourceDisabled = ref(false);
   const datasourceTypeMap = ref({});
   const modelConfSchemaMap = ref({});
+  const modelConfFormKey = ref(0); // 用于强制重新渲染模型配置表单
   const { createMessage } = useMessage();
   //表单配置
   const [registerForm, { setProps, resetFields, setFieldsValue, getFieldsValue, validate }] = useForm({
@@ -257,46 +258,16 @@
 
       // 初始化 componentProps
       schema.componentProps = {};
-
-      // 如果是 boolean/bool 类型且使用 RadioGroup，先添加默认选项
-      if ((componentType === 'boolean' || componentType === 'bool') && schema.component === 'RadioGroup') {
-        schema.componentProps.options = [
-          { label: '是', value: true },
-          { label: '否', value: false },
-        ];
-        // 确保 bool 类型有默认值，如果没有指定则默认为 false
-        if (item.default !== undefined && item.default !== null) {
-          schema.defaultValue = item.default;
-          // 确保默认值是布尔类型
-          if (typeof schema.defaultValue !== 'boolean') {
-            schema.defaultValue = schema.defaultValue === 'true' || schema.defaultValue === 1 || schema.defaultValue === '1' || schema.defaultValue === true;
-          }
-        } else {
-          // 如果没有指定默认值，设置为 false
-          schema.defaultValue = false;
-        }
-      } else {
-        // 处理其他类型的默认值
-        if (item.default !== undefined && item.default !== null) {
-          schema.defaultValue = item.default;
-        }
+      // 处理默认值
+      if (item.default !== undefined && item.default !== null) {
+        schema.defaultValue = item.default;
       }
-
-      // 合并后端传递的 componentProps（不覆盖已设置的 options）
+      
+      
+      // 合并后端传递的 componentProps
       if (item.componentProps && typeof item.componentProps === 'object') {
-        const preservedOptions = schema.component === 'RadioGroup' && schema.componentProps.options && !item.componentProps.options
-          ? { options: schema.componentProps.options }
-          : {};
-        schema.componentProps = { ...schema.componentProps, ...item.componentProps, ...preservedOptions };
+        schema.componentProps = { ...schema.componentProps, ...item.componentProps };
       }
-
-      // 处理 options（向后兼容，如果后端直接传 options）
-      if (item.options && Array.isArray(item.options)) {
-        if (!schema.componentProps.options) {
-          schema.componentProps.options = item.options;
-        }
-      }
-
       // 处理 min/max
       if (item.min !== undefined) {
         schema.componentProps.min = item.min;
@@ -317,17 +288,24 @@
       if (item.placeholder) {
         schema.componentProps.placeholder = item.placeholder;
       }
+      // 验证 schema 完整性
+      if (!schema.field) {
+        console.error('[Convert Schema] Invalid schema: missing field', item);
+        return null;
+      }
+      if (!schema.component) {
+        console.error('[Convert Schema] Invalid schema: missing component', schema);
+        return null;
+      }
 
-      // 处理条件显示
-      if (item.if_show && typeof item.if_show === 'object') {
-        const ifShowField = item.if_show.field;
-        const ifShowValue = item.if_show.value;
-        schema.ifShow = ({ values }) => values[ifShowField] === ifShowValue;
+      // 确保 componentProps 始终是一个对象
+      if (!schema.componentProps || typeof schema.componentProps !== 'object') {
+        schema.componentProps = {};
       }
 
       console.log('Converted schema:', schema);
       return schema;
-    });
+    }).filter(s => s !== null); // 过滤掉无效的 schema
   };
 
   // 转换组件类型
@@ -338,7 +316,7 @@
       'InputNumber': 'InputNumber',
       'Password': 'InputPassword',
       'Select': 'JSelectInput',
-      'Radio': 'RadioGroup',
+      'RadioGroup': 'RadioGroup',
       'boolean': 'RadioGroup',
       'bool': 'RadioGroup',
       'JSONEditor': 'MonacoEditor',
@@ -372,38 +350,91 @@
 
   // 数据模型类型切换
   const handleTypeChange = async (value) => {
-    console.log(`type selected ${value}`);
+    console.log(`[Model Type Change] selected ${value}`);
 
     if (!value) {
-      resetModelConfSchema([]);
-      resetModelConfFields();
+      console.log('[Model Type Change] value is empty, clearing form');
+      try {
+        modelConfFormKey.value++; // 强制重新渲染
+        await clearModelConfValidate();
+        await resetModelConfSchema([]);
+        await resetModelConfFields();
+      } catch (error) {
+        console.error('[Model Type Change] Error clearing form:', error);
+      }
       return;
     }
 
-    // 加载该类型的配置schema
-    let schema = modelConfSchemaMap.value[value];
-    if (!schema) {
-      schema = await loadModelConfig(value);
-    }
+    try {
+      // 强制重新渲染表单组件，避免组件复用导致的状态问题
+      modelConfFormKey.value++;
 
-    if (schema && schema.length > 0) {
-      // 重置模型配置表单schema
-      await resetModelConfSchema(schema);
-      await resetModelConfFields();
-
-      // 提取 schema 中的默认值并设置到表单
-      const defaultValues: Record<string, any> = {};
-      schema.forEach((item: any) => {
-        if (item.defaultValue !== undefined) {
-          defaultValues[item.field] = item.defaultValue;
-        }
-      });
-      // 设置默认值到表单（即使默认值为 false 也要设置）
-      await setModelConfFieldsValue(defaultValues);
-    } else {
-      // 如果schema为空，重置为空数组
+      // 清空旧表单
+      console.log('[Model Type Change] Clearing old form data');
+      // 先清除验证，避免卸载时的验证错误
+      await clearModelConfValidate();
       await resetModelConfSchema([]);
       await resetModelConfFields();
+
+      // 等待 Vue 完成清理，使用 nextTick 确保响应式更新完成
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      // 加载该类型的配置schema
+      console.log('[Model Type Change] Loading config for:', value);
+      let schema = modelConfSchemaMap.value[value];
+      if (!schema) {
+        console.log('[Model Type Change] Schema not cached, fetching from backend');
+        schema = await loadModelConfig(value);
+      } else {
+        console.log('[Model Type Change] Using cached schema');
+      }
+
+      if (schema && schema.length > 0) {
+        console.log(`[Model Type Change] Loaded ${schema.length} fields`);
+
+        // 验证 schema 完整性
+        const validSchema = schema.filter(item => item && item.field && item.component);
+        if (validSchema.length !== schema.length) {
+          console.warn('[Model Type Change] Some schema items are invalid', schema);
+        }
+
+        // 重置模型配置表单schema
+        await resetModelConfSchema(validSchema);
+
+        // 等待 Vue 完成渲染
+        await new Promise(resolve => setTimeout(resolve, 50));
+
+        await resetModelConfFields();
+
+        // 提取 schema 中的默认值并设置到表单
+        const defaultValues: Record<string, any> = {};
+        validSchema.forEach((item: any) => {
+          if (item.defaultValue !== undefined) {
+            defaultValues[item.field] = item.defaultValue;
+          }
+        });
+        console.log('[Model Type Change] Setting default values:', defaultValues);
+
+        // 设置默认值到表单（即使默认值为 false 也要设置）
+        await setModelConfFieldsValue(defaultValues);
+        console.log('[Model Type Change] Form initialized successfully');
+      } else {
+        // 如果schema为空，重置为空数组
+        console.warn('[Model Type Change] Schema is empty');
+        await clearModelConfValidate();
+        await resetModelConfSchema([]);
+        await resetModelConfFields();
+      }
+    } catch (error) {
+      console.error('[Model Type Change] Error occurred:', error);
+      try {
+        await clearModelConfValidate();
+        await resetModelConfSchema([]);
+        await resetModelConfFields();
+      } catch (resetError) {
+        console.error('[Model Type Change] Error resetting form:', resetError);
+      }
+      createMessage.error(`切换模型类型失败: ${error?.message || '未知错误'}`);
     }
   };
   // 查询数据源列表

@@ -17,5 +17,5 @@ RUN git clone https://github.com/xuwei95/ezdata.git /opt/ezdata
 WORKDIR /opt/ezdata/api
 RUN cd /opt/ezdata/api
 RUN pip install -r requirements.txt --use-deprecated=legacy-resolver
-RUN pip install -r etl/requirements.txt
+RUN pip install -r etl2/requirements.txt
 CMD ["tail -f /dev/null"]

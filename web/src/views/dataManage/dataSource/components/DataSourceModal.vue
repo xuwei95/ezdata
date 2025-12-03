@@ -16,7 +16,7 @@
         />
       </template>
       <template #conn_conf="">
-        <BasicForm @register="registerConnForm">
+        <BasicForm :key="connFormKey" @register="registerConnForm">
           <template #formFooter>
             <div style="width: 100%; text-align: center">
               <a-button :loading="loading" @click="connectTest">连通性测试</a-button>
@@ -47,6 +47,7 @@
   // 动态数据源类型选项和配置
   const dataSourceTypeOptions = ref([]);
   const connFormSchemaMap = ref({});
+  const connFormKey = ref(0); // 用于强制重新渲染连接配置表单
 
   // 获取数据源类型
   const loadDataSourceTypes = async () => {
@@ -64,24 +65,29 @@
   // 获取数据源配置
   const loadDataSourceConfig = async (type: string) => {
     if (!type) {
-      console.warn('数据源类型为空');
+      console.warn('[Load Config] 数据源类型为空');
       return [];
     }
     try {
+      console.log(`[Load Config] Fetching config for type: ${type}`);
       const res = await getDataSourceConfig(type);
+      console.log(`[Load Config] Backend response:`, res);
+
       if (res && Array.isArray(res) && res.length > 0) {
+        console.log(`[Load Config] Converting ${res.length} fields to form schema`);
         // 转换后端配置格式为前端表单schema格式
         const schema = convertToFormSchema(res);
+        console.log(`[Load Config] Converted schema:`, schema);
         connFormSchemaMap.value[type] = schema;
         return schema;
       } else {
-        console.warn(`数据源类型 ${type} 的配置为空`);
+        console.warn(`[Load Config] 数据源类型 ${type} 的配置为空`);
         // 清空该类型的缓存
         connFormSchemaMap.value[type] = [];
         return [];
       }
     } catch (error) {
-      console.error('获取数据源配置失败:', error);
+      console.error('[Load Config] 获取数据源配置失败:', error);
       createMessage.error(`获取数据源配置失败: ${error?.message || '未知错误'}`);
       // 清空该类型的缓存，确保不会使用旧数据
       connFormSchemaMap.value[type] = [];
@@ -111,28 +117,9 @@
       // 初始化 componentProps
       schema.componentProps = {};
 
-      // 如果是 boolean/bool 类型且使用 RadioGroup，先添加默认选项
-      if ((componentType === 'boolean' || componentType === 'bool') && schema.component === 'RadioGroup') {
-        schema.componentProps.options = [
-          { label: '是', value: true },
-          { label: '否', value: false },
-        ];
-        // 确保 bool 类型有默认值，如果没有指定则默认为 false
-        if (item.default !== undefined && item.default !== null) {
-          schema.defaultValue = item.default;
-          // 确保默认值是布尔类型
-          if (typeof schema.defaultValue !== 'boolean') {
-            schema.defaultValue = schema.defaultValue === 'true' || schema.defaultValue === 1 || schema.defaultValue === '1' || schema.defaultValue === true;
-          }
-        } else {
-          // 如果没有指定默认值，设置为 false
-          schema.defaultValue = false;
-        }
-      } else {
-        // 处理其他类型的默认值
-        if (item.default !== undefined && item.default !== null) {
-          schema.defaultValue = item.default;
-        }
+      // 处理默认值
+      if (item.default !== undefined && item.default !== null) {
+        schema.defaultValue = item.default;
       }
 
       // 处理 description - 作为帮助提示
@@ -147,15 +134,11 @@
         schema.componentProps.placeholder = item.description;
       }
 
-      // 合并后端传递的 componentProps（不覆盖已设置的 options）
+      // 合并后端传递的 componentProps
       if (item.componentProps && typeof item.componentProps === 'object') {
         schema.componentProps = {
           ...schema.componentProps,
           ...item.componentProps,
-          // 如果是 RadioGroup 且我们已经设置了 options，不要被后端覆盖（除非后端明确提供了 options）
-          ...(schema.component === 'RadioGroup' && schema.componentProps.options && !item.componentProps.options
-            ? { options: schema.componentProps.options }
-            : {})
         };
       }
 
@@ -167,8 +150,28 @@
         schema.componentProps.max = item.max;
       }
 
+      // 验证 schema 完整性
+      if (!schema.field) {
+        console.error('[Convert Schema] Invalid schema: missing field', item);
+        return null;
+      }
+      if (!schema.component) {
+        console.error('[Convert Schema] Invalid schema: missing component', schema);
+        return null;
+      }
+
+      // 确保 componentProps 始终是一个对象
+      if (!schema.componentProps || typeof schema.componentProps !== 'object') {
+        schema.componentProps = {};
+      }
+
+      // 添加调试日志
+      if ((componentType === 'boolean' || componentType === 'bool')) {
+        console.log(`[Bool Field Debug] field: ${schema.field}, component: ${schema.component}, defaultValue: ${schema.defaultValue}, options:`, schema.componentProps.options);
+      }
+
       return schema;
-    });
+    }).filter(s => s !== null); // 过滤掉无效的 schema
 
     // 排序：必填参数在前，非必填参数在后
     const requiredSchemas = schemas.filter(s => s.required);
@@ -333,13 +336,17 @@
   const title = computed(() => (!unref(isUpdate) ? '新增' : '编辑'));
   // 数据源类型切换
   const handleTypeChange = async (value: string) => {
-    console.log(`selected ${value}`);
-
-    // 立即清空表单，避免旧数据残留
-    await resetConnSchema([]);
-    await resetConnFields();
+    console.log(`[Type Change] selected: ${value}`);
 
     if (!value) {
+      console.log('[Type Change] value is empty, clearing form');
+      try {
+        connFormKey.value++; // 强制重新渲染
+        await resetConnSchema([]);
+        await resetConnFields();
+      } catch (error) {
+        console.error('[Type Change] Error clearing form:', error);
+      }
       return;
     }
 
@@ -348,42 +355,78 @@
     setConnProps({ loading: true });
 
     try {
+      // 强制重新渲染表单组件，避免组件复用导致的状态问题
+      connFormKey.value++;
+
+      // 立即清空表单，避免旧数据残留
+      console.log('[Type Change] Clearing old form data');
+      await resetConnSchema([]);
+      await resetConnFields();
+
+      // 等待 Vue 完成清理
+      await new Promise(resolve => setTimeout(resolve, 50));
+
       // 加载该类型的配置schema
+      console.log('[Type Change] Loading config for:', value);
       let schema = connFormSchemaMap.value[value];
       if (!schema) {
+        console.log('[Type Change] Schema not cached, fetching from backend');
         schema = await loadDataSourceConfig(value);
+      } else {
+        console.log('[Type Change] Using cached schema');
       }
 
       if (schema && schema.length > 0) {
+        console.log(`[Type Change] Loaded ${schema.length} fields`);
+
+        // 验证 schema 完整性
+        const validSchema = schema.filter(item => item && item.field && item.component);
+        if (validSchema.length !== schema.length) {
+          console.warn('[Type Change] Some schema items are invalid', schema);
+        }
+
         // 重置连接配置表单schema
-        await resetConnSchema(schema);
+        await resetConnSchema(validSchema);
+
+        // 等待 Vue 完成渲染
+        await new Promise(resolve => setTimeout(resolve, 50));
+
         await resetConnFields();
 
         // 提取 schema 中的默认值并设置到表单
         const defaultValues: Record<string, any> = {};
-        schema.forEach((item: any) => {
+        validSchema.forEach((item: any) => {
           if (item.defaultValue !== undefined) {
             defaultValues[item.field] = item.defaultValue;
           }
         });
+        console.log('[Type Change] Setting default values:', defaultValues);
+
         // 设置默认值到表单（即使默认值为 false 也要设置）
         await setConnFieldsValue(defaultValues);
+        console.log('[Type Change] Form initialized successfully');
       } else {
         // 如果schema为空，确保表单被清空
+        console.warn('[Type Change] Schema is empty');
         await resetConnSchema([]);
         await resetConnFields();
         createMessage.warning(`数据源类型 ${value} 的配置加载失败`);
       }
     } catch (error) {
       // 发生错误时，确保表单被清空
-      await resetConnSchema([]);
-      await resetConnFields();
-      console.error('切换数据源类型失败:', error);
-      createMessage.error('切换数据源类型失败，请重试');
+      console.error('[Type Change] Error occurred:', error);
+      try {
+        await resetConnSchema([]);
+        await resetConnFields();
+      } catch (resetError) {
+        console.error('[Type Change] Error resetting form:', resetError);
+      }
+      createMessage.error(`切换数据源类型失败: ${error?.message || '未知错误'}`);
     } finally {
       // 清除加载状态
       formLoading.value = false;
       setConnProps({ loading: false });
+      console.log('[Type Change] Finished');
     }
   };
   // 连通性测试
