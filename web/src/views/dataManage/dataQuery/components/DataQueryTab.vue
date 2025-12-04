@@ -18,7 +18,7 @@
     :loading="loading"
     :columns="columns"
     :dataSource="dataSource"
-    :pagination="pagination && !hidePagination"
+    :pagination="!hidePagination && pagination"
     @pageChange="handlePageChange"
   >
     <template #toolbarSuffix>

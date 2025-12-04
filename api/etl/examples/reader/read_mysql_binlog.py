@@ -1,4 +1,4 @@
-from etl.utils import get_reader
+from etl import get_reader
 
 reader_info = {
     'source': {

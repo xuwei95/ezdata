@@ -2,8 +2,8 @@
 使用代码读取csv，清洗数据后写入另一个csv
 '''
 import pandas as pd
-from etl.utils import get_reader
-from etl.utils.common_utils import md5
+from etl import get_reader
+from utils.common_utils import md5
 
 
 def trans_volume(volume):
@@ -83,4 +83,4 @@ for flag, read_data in reader.read_batch():
         for record in write_data:
             data_li.append(transform(record))
 df = pd.DataFrame(data_li)
-df.to_csv('btc_history_target.csv', index=False)
+df.to_csv('../data/btc_history_target.csv', index=False)

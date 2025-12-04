@@ -1,7 +1,7 @@
 '''
 使用代码读取mysql，转换后写入elasticsearch
 '''
-from etl.utils import get_reader, get_writer
+from etl import get_reader, get_writer
 
 reader_info = {
     'source': {

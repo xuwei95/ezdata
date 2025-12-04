@@ -1,5 +1,4 @@
 from etl.transform_algs import filter_algs, count_algs, map_algs, content_algs
-from etl.transform_algs.content_algs import df_to_data
 
 # 算法字典
 transform_alg_dict = {

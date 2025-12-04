@@ -8,7 +8,7 @@ from utils.log_utils import get_task_logger
 from utils.common_utils import gen_uuid, parse_json, format_date, get_now_time
 from web_apps.scheduler.services.celery_api_services import CeleryApiService
 from config import LOGGER_TYPE, ES_CONF, SYS_CONF
-from etl.libs.es import EsClient
+from utils.es import EsClient
 from datetime import datetime, timedelta
 from web_apps.task.db_models import TaskInstance
 from utils.task_util import update_task_instance

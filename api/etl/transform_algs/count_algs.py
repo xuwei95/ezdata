@@ -2,7 +2,7 @@
 统计类转换算法
 '''
 import pandas as pd
-from etl.utils.common_utils import parse_to_list
+from utils.common_utils import parse_to_list
 
 
 def group_agg_count(source_data={}, rule_dict={}, context={}):

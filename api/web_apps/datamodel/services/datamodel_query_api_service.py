@@ -162,7 +162,6 @@ class DataModelQueryApiService(object):
             res_data['data']['fields'] = get_res_fields(res_data['data'])
             extract_rules = reader.get_extract_rules()
             search_type_list = reader.get_search_type_list()
-            print(res_data)
             res_data['data']['extract_rules'] = extract_rules
             res_data['data']['search_type_list'] = search_type_list
             return res_data

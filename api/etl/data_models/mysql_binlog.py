@@ -1,6 +1,6 @@
 import random
 from etl.data_models import DataModel
-from etl.utils.common_utils import gen_json_response
+from utils.common_utils import gen_json_response
 from pymysqlreplication import BinLogStreamReader
 from pymysqlreplication.row_event import (
     DeleteRowsEvent,
@@ -45,6 +45,51 @@ class MysqlBinlogModel(DataModel):
             if event == 'update':
                 self.only_events.append(UpdateRowsEvent)
         self.read_type = 'latest'  # 默认从最新开始读
+
+    @classmethod
+    def get_form_config(cls):
+        '''
+        获取MySQL Binlog模型的配置表单schema
+        '''
+        return [
+            {
+                'label': '监听数据库',
+                'field': 'listen_dbs',
+                'required': True,
+                'component': 'Input',
+                'default': ''
+            },
+            {
+                'label': '监听表',
+                'field': 'listen_tables',
+                'required': True,
+                'component': 'Input',
+                'default': ''
+            },
+            {
+                'label': '监听操作',
+                'field': 'only_events',
+                'required': True,
+                'component': 'JCheckbox',
+                'componentProps': {
+                    'options': [
+                        {'label': '写入', 'value': 'write'},
+                        {'label': '更新', 'value': 'update'},
+                        {'label': '删除', 'value': 'delete'}
+                    ]
+                }
+            },
+            {
+                'label': '允许操作',
+                'field': 'auth_type',
+                'component': 'JCheckbox',
+                'componentProps': {
+                    'options': [
+                        {'label': '数据抽取', 'value': 'extract'}
+                    ]
+                }
+            }
+        ]
 
     def connect(self):
         '''

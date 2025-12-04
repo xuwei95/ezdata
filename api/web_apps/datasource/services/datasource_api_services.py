@@ -13,7 +13,7 @@ import pandas as pd
 import io
 from utils.etl_utils import get_reader_model
 from tasks.data_tasks import self_gen_datasource_model
-from etl2.registry import get_registry
+from etl.registry import get_registry
 
 
 def serialize_datasource_model(obj, ser_type='list'):
@@ -391,7 +391,7 @@ class DataSourceApiService(object):
             return gen_json_response(data=result)
 
         except Exception as e:
-            return gen_json_response(code=400, msg=f"无法从etl2获取数据源类型: {e}")
+            return gen_json_response(code=400, msg=f"无法获取数据源类型: {e}")
 
     def get_datasource_config(self, req_dict):
         '''
@@ -402,7 +402,7 @@ class DataSourceApiService(object):
         try:
             registry = get_registry()
 
-            # 尝试从etl2 registry获取handler信息
+            # 尝试从etl registry获取handler信息
             handler_info = registry.get_handler_info(datasource_type)
             if 'error' in handler_info:
                 return gen_json_response(code=400, msg=f'不支持的数据源类型: {datasource_type}')

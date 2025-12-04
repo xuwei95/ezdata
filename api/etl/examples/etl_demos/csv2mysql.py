@@ -1,8 +1,8 @@
 '''
 使用代码读取csv，清洗数据后写入mysql
 '''
-from etl.utils import get_reader, get_writer
-from etl.utils.common_utils import md5
+from etl import get_reader, get_writer
+from utils.common_utils import md5
 
 def trans_volume(volume):
     '''

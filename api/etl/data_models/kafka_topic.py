@@ -2,8 +2,8 @@ import json
 import datetime
 from etl.data_models import DataModel
 from kafka import KafkaConsumer, KafkaProducer
-from etl.libs.kafka_utils import fetch_kafka_data_by_page, list_all_topics
-from etl.utils.common_utils import gen_json_response, parse_json
+from etl.utils.kafka_utils import fetch_kafka_data_by_page, list_all_topics
+from utils.common_utils import gen_json_response, parse_json
 
 
 class DateEncoder(json.JSONEncoder):
@@ -42,7 +42,6 @@ class KafkaTopicModel(DataModel):
         self.err_info = ''
         self.read_type = 'latest'  # 默认从最新开始读
         self.gen_extract_rules()  # 判断是从头读还是从现在开始读
-        conn_setting['auto_offset_reset'] = self.read_type
         if self._extract_info and self.topic:
             try:
                 if isinstance(self.topic, list):
@@ -62,6 +61,57 @@ class KafkaTopicModel(DataModel):
             except Exception as e:
                 print(e)
                 self.err_info = str(e)
+
+    @classmethod
+    def get_form_config(cls):
+        '''
+        获取Kafka Topic模型的配置表单schema
+        '''
+        return [
+            {
+                'label': '主题',
+                'field': 'name',
+                'required': True,
+                'component': 'Input',
+                'default': ''
+            },
+            {
+                'label': '拓展参数',
+                'field': 'ext_params',
+                'required': True,
+                'component': 'JSONEditor',
+                'default': '{}',
+                'componentProps': {
+                    'language': 'json'
+                }
+            },
+            {
+                'label': '允许操作',
+                'field': 'auth_type',
+                'component': 'JCheckbox',
+                'componentProps': {
+                    'options': [
+                        {'label': '创建', 'value': 'create'},
+                        {'label': '数据抽取', 'value': 'extract'},
+                        {'label': '数据装载', 'value': 'load'}
+                    ]
+                }
+            }
+        ]
+
+    @staticmethod
+    def get_connection_args():
+        """
+        获取连接参数定义
+        """
+        return {
+            'bootstrap_servers': {
+                'type': 'string',
+                'required': True,
+                'description': 'Kafka broker地址列表，格式：host:port 或 host1:port1,host2:port2',
+                'example': 'localhost:9092'
+            }
+        }
 
     def connect(self):
         '''

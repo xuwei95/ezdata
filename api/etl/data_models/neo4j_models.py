@@ -1,7 +1,7 @@
 from py2neo import NodeMatcher, RelationshipMatcher
 from etl.data_models import DataModel
-from etl.utils.common_utils import trans_rule_value, flatten_dict, gen_json_response
-from etl.libs.n4j import NjClient
+from utils.common_utils import trans_rule_value, flatten_dict, gen_json_response
+from etl.utils.n4j import NjClient
 
 
 class N4jGraphModel(DataModel):
@@ -15,6 +15,79 @@ class N4jGraphModel(DataModel):
         self.n4j_client = NjClient(n4j_url, **{'username': conn_conf.get('username'), 'password': conn_conf.get('password')})
         self.node_matcher = NodeMatcher(self.n4j_client._client)
         self.relation_matcher = RelationshipMatcher(self.n4j_client._client)
+
+    @classmethod
+    def get_form_config(cls):
+        '''
+        获取Neo4j Graph模型的配置表单schema
+        '''
+        return [
+            {
+                'label': '名称',
+                'field': 'name',
+                'required': True,
+                'component': 'Input',
+                'default': ''
+            },
+            {
+                'label': '允许操作',
+                'field': 'auth_type',
+                'component': 'JCheckbox',
+                'componentProps': {
+                    'options': [
+                        {'label': '查询', 'value': 'query'},
+                        {'label': '创建', 'value': 'create'},
+                        {'label': '操作字段', 'value': 'edit_fields'},
+                        {'label': '删除', 'value': 'delete'},
+                        {'label': '添加数据', 'value': 'add_data'},
+                        {'label': '修改数据', 'value': 'edit_data'},
+                        {'label': '删除数据', 'value': 'delete_data'},
+                        {'label': '数据抽取', 'value': 'extract'},
+                        {'label': '数据装载', 'value': 'load'}
+                    ]
+                }
+            }
+        ]
+
+    @staticmethod
+    def get_connection_args():
+        """
+        获取连接参数定义
+        """
+        return {
+            'host': {
+                'type': 'string',
+                'required': True,
+                'description': 'Neo4j服务器地址',
+                'example': 'localhost'
+            },
+            'port': {
+                'type': 'number',
+                'required': True,
+                'description': 'Neo4j HTTP端口',
+                'default': 7474,
+                'example': 7474
+            },
+            'username': {
+                'type': 'string',
+                'required': True,
+                'description': 'Neo4j用户名',
+                'default': 'neo4j',
+                'example': 'neo4j'
+            },
+            'password': {
+                'type': 'password',
+                'required': True,
+                'description': 'Neo4j密码'
+            },
+            'database': {
+                'type': 'string',
+                'required': False,
+                'description': '数据库名称（Neo4j 4.0+支持多数据库）',
+                'default': 'neo4j',
+                'example': 'neo4j'
+            }
+        }
 
     def connect(self):
         '''
@@ -117,10 +190,10 @@ neo4j
         '''
         rules = [{
             'name': '等于',
-            'value': 'equal'
+            'value': 'eq'
           }, {
             'name': '不等于',
-            'value': 'f_equal'
+            'value': 'neq'
           }, {
             'name': '包含',
             'value': 'contain'
@@ -158,9 +231,9 @@ neo4j
                 if value:
                     if isinstance(value, str):
                         value = f"'{value}'"
-                    if rule in ['equal', 'eq']:
+                    if rule in ['eq']:
                         query = query.where(f"_.{field} = {value}")
-                    elif rule in ['f_equal', 'neq']:
+                    elif rule in ['neq']:
                         query = query.where(f"NOT _.{field} = {value}")
                     elif rule == 'gt':
                         query = query.where(f"_.{field} > {value}")
@@ -170,12 +243,12 @@ neo4j
                         query = query.where(f"_.{field} >= {value}")
                     elif rule == 'lte':
                         query = query.where(f"_.{field} <= {value}")
-                    elif rule in ['contain', 'f_contain']:
+                    elif rule in ['contain', 'not_contain']:
                         if isinstance(value, str):
                             value = f"'.*{value[1:-1]}.*'"
                         else:
                             value = f"'.*{value}.*'"
-                        query = query.where(f"{'NOT ' if rule == 'f_contain' else ''}_.{field} =~ {value}")
+                        query = query.where(f"{'NOT ' if rule == 'not_contain' else ''}_.{field} =~ {value}")
         return True, query
 
     def trans_obj_to_dict(self, obj):
@@ -292,6 +365,94 @@ class N4jSqlModel(DataModel):
         n4j_url = f"http://{conn_conf.get('host')}:{conn_conf.get('port')}"
         self.n4j_client = NjClient(n4j_url,
                                    **{'username': conn_conf.get('username'), 'password': conn_conf.get('password')})
+
+    @classmethod
+    def get_form_config(cls):
+        '''
+        获取Neo4j Cypher SQL模型的配置表单schema
+        '''
+        return [
+            {
+                'label': 'Cypher查询语句',
+                'field': 'sql',
+                'required': True,
+                'default': '',
+                'component': 'MonacoEditor',
+                'componentProps': {
+                    'language': 'cypher',
+                }
+            },
+            {
+                'label': '允许操作',
+                'field': 'auth_type',
+                'component': 'JCheckbox',
+                'default': 'query,extract',
+                'componentProps': {
+                    'options': [
+                        {'label': '查询', 'value': 'query'},
+                        {'label': '自定义查询', 'value': 'custom_sql'},
+                        {'label': '数据抽取', 'value': 'extract'}
+                    ]
+                }
+            }
+        ]
+
+    @staticmethod
+    def get_connection_args():
+        """
+        获取连接参数定义（与N4jGraphModel相同）
+        """
+        return {
+            'host': {
+                'type': 'string',
+                'required': True,
+                'description': 'Neo4j服务器地址',
+                'example': 'localhost'
+            },
+            'port': {
+                'type': 'number',
+                'required': True,
+                'description': 'Neo4j HTTP端口',
+                'default': 7474,
+                'example': 7474
+            },
+            'username': {
+                'type': 'string',
+                'required': True,
+                'description': 'Neo4j用户名',
+                'default': 'neo4j',
+                'example': 'neo4j'
+            },
+            'password': {
+                'type': 'password',
+                'required': True,
+                'description': 'Neo4j密码'
+            },
+            'database': {
+                'type': 'string',
+                'required': False,
+                'description': '数据库名称（Neo4j 4.0+支持多数据库）',
+                'default': 'neo4j',
+                'example': 'neo4j'
+            },
+            'encrypted': {
+                'type': 'boolean',
+                'required': False,
+                'description': '是否使用加密连接',
+                'default': False
+            },
+            'trust': {
+                'type': 'string',
+                'required': False,
+                'description': '信任级别',
+                'options': ['TRUST_ALL_CERTIFICATES', 'TRUST_SYSTEM_CA_SIGNED_CERTIFICATES'],
+                'default': 'TRUST_ALL_CERTIFICATES',
+                'if_show': {
+                    'field': 'encrypted',
+                    'value': True
+                }
+            }
+        }
 
     def connect(self):
         '''

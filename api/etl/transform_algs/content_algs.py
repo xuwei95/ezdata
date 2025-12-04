@@ -1,7 +1,7 @@
 '''
 内容获取类转换算法
 '''
-from etl.utils.common_utils import trans_rule_value, parse_to_list
+from utils.common_utils import trans_rule_value, parse_to_list
 
 
 def code_transform(source_data=[], rule_dict={}, context={}):

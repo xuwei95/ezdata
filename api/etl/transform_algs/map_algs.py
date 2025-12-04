@@ -1,7 +1,7 @@
 '''
 映射类转换算法，字段映射，值映射
 '''
-from etl.utils.common_utils import format_date, md5, trans_rule_value, parse_json, parse_to_list, trans_value_type
+from utils.common_utils import format_date, md5, trans_rule_value, parse_json, parse_to_list, trans_value_type
 
 
 def map_field_names(source_data={}, rule_dict={}, context={}):

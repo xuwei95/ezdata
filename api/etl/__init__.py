@@ -1,76 +1,42 @@
-reader_map = {
-    'akshare:None': 'etl.data_models.akshare_models.AkShareModel',
-    'akshare:akshare_api': 'etl.data_models.akshare_models.AkShareModel',
-    'ccxt:None': 'etl.data_models.ccxt_models.CCxtModel',
-    'ccxt:ccxt_api': 'etl.data_models.ccxt_models.CCxtModel',
-    'file:None': 'etl.data_models.file_models.BaseFileModel',
-    'file:file_table': 'etl.data_models.file_models.TableFileModel',
-    'file:file_json': 'etl.data_models.file_models.JsonFileModel',
-    'file:file_h5': 'etl.data_models.file_models.H5FileModel',
-    'http:None': 'etl.data_models.http_models.BaseHttpModel',
-    'http:http_json': 'etl.data_models.http_models.HttpApiModel',
-    'http:http_html': 'etl.data_models.http_models.HttpHtmlModel',
-    'minio:None': 'etl.data_models.minio_models.BaseMinioModel',
-    'minio:minio_table': 'etl.data_models.minio_models.TableMinioModel',
-    'minio:minio_json': 'etl.data_models.minio_models.JsonMinioModel',
-    'minio:minio_h5': 'etl.data_models.minio_models.H5MinioModel',
-    'redis:None': 'etl.data_models.redis_models.BaseRedisModel',
-    'redis:redis_string': 'etl.data_models.redis_models.RedisStringModel',
-    'redis:redis_list': 'etl.data_models.redis_models.RedisListModel',
-    'redis:redis_list_stream': 'etl.data_models.redis_models.RedisListStreamModel',
-    'redis:redis_map': 'etl.data_models.redis_models.RedisMapModel',
-    'mysql:None': 'etl.data_models.base_db_sql.BaseDBSqlModel',
-    'mysql:sql': 'etl.data_models.base_db_sql.BaseDBSqlModel',
-    'mysql:mysql_table': 'etl.data_models.mysql_table.MysqlTableModel',
-    'mysql:mysql_binlog': 'etl.data_models.mysql_binlog.MysqlBinlogModel',
-    'pgsql:None': 'etl.data_models.pgsql_models.PgsqlSqlModel',
-    'pgsql:sql': 'etl.data_models.pgsql_models.PgsqlSqlModel',
-    'pgsql:pgsql_table': 'etl.data_models.pgsql_models.PgsqlTableModel',
-    'sqlserver:None': 'etl.data_models.sqlserver_models.SqlServerSqlModel',
-    'sqlserver:sql': 'etl.data_models.sqlserver_models.SqlServerSqlModel',
-    'sqlserver:sqlserver_table': 'etl.data_models.sqlserver_models.SqlServerTableModel',
-    'oracle:None': 'etl.data_models.oracle_models.OracleSqlModel',
-    'oracle:sql': 'etl.data_models.oracle_models.OracleSqlModel',
-    'oracle:oracle_table': 'etl.data_models.oracle_models.OracleTableModel',
-    'clickhouse:None': 'etl.data_models.base_db_sql.BaseDBSqlModel',
-    'clickhouse:sql': 'etl.data_models.base_db_sql.BaseDBSqlModel',
-    'clickhouse:clickhouse_table': 'etl.data_models.clickhouse_table.CkTableModel',
-    'hive:None': 'etl.data_models.hive_models.HiveSqlModel',
-    'hive:sql': 'etl.data_models.hive_models.HiveSqlModel',
-    'hive:hive_table': 'etl.data_models.hive_models.HiveTableModel',
-    'elasticsearch:None': 'etl.data_models.elasticsearch_index.EsIndexModel',
-    'elasticsearch:elasticsearch_index': 'etl.data_models.elasticsearch_index.EsIndexModel',
-    'mongodb:None': 'etl.data_models.mongo_models.MongoModel',
-    'mongodb:mongodb_collection': 'etl.data_models.mongo_models.MongoModel',
-    'neo4j:None': 'etl.data_models.neo4j_models.N4jSqlModel',
-    'neo4j:sql': 'etl.data_models.neo4j_models.N4jSqlModel',
-    'neo4j:neo4j_graph': 'etl.data_models.neo4j_models.N4jGraphModel',
-    'influxdb:None': 'etl.data_models.ixdb_models.InfluxDBSqlModel',
-    'influxdb:sql': 'etl.data_models.ixdb_models.InfluxDBSqlModel',
-    'influxdb:influxdb_table': 'etl.data_models.ixdb_models.InfluxDBTableModel',
-    'kafka:None': 'etl.data_models.kafka_topic.KafkaTopicModel',
-    'kafka:kafka_topic': 'etl.data_models.kafka_topic.KafkaTopicModel',
-    'prometheus:None': 'etl.data_models.prometheus_models.BasePromModel',
-    'prometheus:prometheus_metric': 'etl.data_models.prometheus_models.PromMetricModel',
-    'prometheus:prometheus_promql': 'etl.data_models.prometheus_models.PromQlModel',
-}
+# -*- coding: utf-8 -*-
+"""
+ETL 模块
+整合 MindsDB integrations 和自定义 handlers
+"""
+from .etl_task import EtlTask, etl_task_process
+from .registry import (
+    HandlerRegistry,
+    get_registry,
+    get_reader,
+    get_writer,
+    # 公共注册变量
+    CUSTOM_HANDLERS,
+    WRITABLE_HANDLERS,
+    # 便捷注册函数
+    register_handler,
+    register_writable,
+    unregister_handler,
+    list_registered_handlers,
+)
+from etl.utils.mindsdb_client import IntegrationsClient
 
-writer_map = {
-    'minio:minio_table': 'etl.data_models.minio_models.TableMinioModel',
-    'minio:minio_json': 'etl.data_models.minio_models.JsonMinioModel',
-    'minio:minio_h5': 'etl.data_models.minio_models.H5MinioModel',
-    'redis:redis_string': 'etl.data_models.redis_models.RedisStringModel',
-    'redis:redis_list': 'etl.data_models.redis_models.RedisListModel',
-    'redis:redis_map': 'etl.data_models.redis_models.RedisMapModel',
-    'mysql:mysql_table': 'etl.data_models.mysql_table.MysqlTableModel',
-    'pgsql:pgsql_table': 'etl.data_models.pgsql_models.PgsqlTableModel',
-    'sqlserver:sqlserver_table': 'etl.data_models.sqlserver_models.SqlServerTableModel',
-    'oracle:oracle_table': 'etl.data_models.oracle_models.OracleTableModel',
-    'clickhouse:clickhouse_table': 'etl.data_models.clickhouse_table.CkTableModel',
-    'hive:hive_table': 'etl.data_models.hive_models.HiveTableModel',
-    'elasticsearch:elasticsearch_index': 'etl.data_models.elasticsearch_index.EsIndexModel',
-    'kafka:kafka_topic': 'etl.data_models.kafka_topic.KafkaTopicModel',
-    'mongodb:mongodb_collection': 'etl.data_models.mongo_models.MongoModel',
-    'neo4j:neo4j_graph': 'etl.data_models.neo4j_models.N4jGraphModel',
-    'influxdb:influxdb_table': 'etl.data_models.ixdb_models.InfluxDBTableModel',
-}
+__version__ = '2.0.0'
+
+__all__ = [
+    # 核心类和函数
+    'EtlTask',
+    'etl_task_process',
+    'HandlerRegistry',
+    'get_registry',
+    'get_reader',
+    'get_writer',
+    'IntegrationsClient',
+    # 公共注册变量
+    'CUSTOM_HANDLERS',
+    'WRITABLE_HANDLERS',
+    # 便捷注册函数
+    'register_handler',
+    'register_writable',
+    'unregister_handler',
+    'list_registered_handlers',
+]

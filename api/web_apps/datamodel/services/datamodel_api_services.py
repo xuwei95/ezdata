@@ -14,8 +14,8 @@ from utils.web_utils import validate_params
 import pandas as pd
 import io
 import logging
-from etl2.registry import get_registry
-from etl.utils.common_utils import import_class
+from etl.registry import get_registry
+from utils.common_utils import import_class
 
 logger = logging.getLogger(__name__)
 registry = get_registry()

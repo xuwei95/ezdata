@@ -1,8 +1,8 @@
 '''
 使用代码读取kafka，转换后写入influxdb
 '''
-from etl.utils import get_reader, get_writer
-from etl.utils.common_utils import format_date
+from etl import get_reader, get_writer
+from utils.common_utils import format_date
 
 reader_info = {
     'source': {

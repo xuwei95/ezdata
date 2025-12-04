@@ -17,5 +17,12 @@ RUN git clone https://github.com/xuwei95/ezdata.git /opt/ezdata
 WORKDIR /opt/ezdata/api
 RUN cd /opt/ezdata/api
 RUN pip install -r requirements.txt --use-deprecated=legacy-resolver
-RUN pip install -r etl2/requirements.txt
+RUN pip install -r etl/requirements.txt
+
+# 安装 MindsDB handlers 的依赖
+# 通过环境变量 MINDSDB_HANDLERS 指定要安装的 handler 列表（逗号分隔）
+ARG MINDSDB_HANDLERS="elasticsearch,clickhouse,influxdb,mongodb,mssql"
+ENV MINDSDB_HANDLERS=${MINDSDB_HANDLERS}
+RUN python install_handlers.py || echo "部分 handler 安装失败，继续执行"
+
 CMD ["tail -f /dev/null"]

@@ -2,7 +2,7 @@
 数据清洗过滤类转换算法
 '''
 import pandas as pd
-from etl.utils.common_utils import trans_rule_value, parse_to_list
+from utils.common_utils import trans_rule_value, parse_to_list
 
 
 def empty_to_null(source_data={}, rule_dict={}, context={}):

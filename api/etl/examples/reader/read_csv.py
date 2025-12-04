@@ -1,4 +1,4 @@
-from etl.utils import get_reader
+from etl import get_reader
 
 reader_info = {
     'source': {
@@ -15,7 +15,7 @@ reader_info = {
     },
     'extract_info': {
         'batch_size': 10,
-        'extract_rules': {'equal[]': 'setosa'}
+        'extract_rules': {}
     }
 }
 
