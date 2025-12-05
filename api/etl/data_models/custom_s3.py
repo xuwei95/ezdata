@@ -11,10 +11,8 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from etl.data_models import DataModel
 from etl.utils.mindsdb_client import IntegrationsClient, StandaloneHandler
-from etl.utils.sql_rule_builder import SQLRuleBuilder
 from utils.common_utils import gen_json_response, df_to_list
 from .custom_s3_handler import CustomS3Handler
-from mindsdb.utilities.context import context as ctx
 import logging
 
 logger = logging.getLogger(__name__)
@@ -36,6 +34,10 @@ class CustomS3Model(DataModel):
         model_conf = self._model.get('model_conf', {})
         self.table_name = model_conf.get('name', '')
         self.auth_types = model_conf.get('auth_type', '').split(',')
+
+        # 记录配置信息
+        logger.info(f"Custom S3 模型初始化 - 表名: '{self.table_name}', model_conf: {model_conf}")
+
         # S3连接配置
         self.host = self.conn_conf.get('host', '')
         self.port = self.conn_conf.get('port', 9000)
@@ -55,9 +57,9 @@ class CustomS3Model(DataModel):
         self.handler = None
         self.standalone_handler = None
         self.table_columns = []
-
-        # 初始化SQL规则构建器
-        self.sql_rule_builder = SQLRuleBuilder(field_type_getter=self._get_field_type)
+        # SQL查询相关
+        self.sql_query = ''
+        self.default_sql = f'select * from s3_datasource.`{self.table_name}`'
 
     @classmethod
     def get_form_config(cls):
@@ -161,7 +163,9 @@ class CustomS3Model(DataModel):
         conn_str = json.dumps(connection_data, sort_keys=True)
         conn_hash = hashlib.md5(conn_str.encode()).hexdigest()
 
-        return f"custom_s3:{conn_hash}"
+        cache_key = f"custom_s3:{conn_hash}"
+        logger.debug(f"生成缓存键: {cache_key}, connection_data: {connection_data}")
+        return cache_key
 
     def connect(self):
         try:
@@ -185,32 +189,42 @@ class CustomS3Model(DataModel):
                 'verify_ssl': self.verify_ssl
             }
 
-            # 尝试从缓存获取 handler
+            # 优先从缓存获取 handler
             if self.client.enable_cache and IntegrationsClient._handlers_cache is not None:
                 cache_key = self._get_handler_cache_key(connection_data)
                 cached_handler = IntegrationsClient._handlers_cache.get(cache_key)
 
                 if cached_handler is not None:
-                    logger.debug(f"从缓存获取 custom_s3 handler: {cache_key}")
+                    logger.info(f"从缓存获取 custom_s3 handler: {cache_key}")
                     self.handler = cached_handler
-                else:
-                    # 缓存中没有，创建新的 handler
-                    logger.debug(f"创建新的 custom_s3 handler: {cache_key}")
-                    self.handler = CustomS3Handler(
-                        name='custom_s3_handler',
-                        connection_data=connection_data
-                    )
-                    # 将新创建的 handler 放入缓存
-                    original_name = self.handler.name
-                    self.handler.name = cache_key
-                    IntegrationsClient._handlers_cache.set(self.handler)
-                    self.handler.name = original_name  # 恢复原始名称
-            else:
-                # 没有启用缓存，直接创建新的 handler
-                self.handler = CustomS3Handler(
-                    name='custom_s3_handler',
-                    connection_data=connection_data
-                )
+
+                    # 使用缓存的 handler 创建 standalone_handler
+                    self.standalone_handler = StandaloneHandler(self.handler)
+
+                    # 获取表/对象信息
+                    if self.table_name:
+                        try:
+                            columns_df = self.standalone_handler.get_columns(self.table_name)
+                            if not columns_df.empty:
+                                self.table_columns = columns_df.to_dict('records')
+                                logger.info(f"成功使用缓存的 handler，缓存键: {cache_key}")
+                                return True, 'success (使用缓存)'
+                            return False, f'object {self.table_name} not found'
+                        except Exception as e:
+                            # 缓存的连接可能已失效，清除缓存并重新创建
+                            logger.warning(f"使用缓存的 handler 失败: {str(e)}，清除缓存并重新创建")
+                            IntegrationsClient._handlers_cache.delete(cache_key)
+                            # 继续下面的流程创建新的 handler
+                    else:
+                        logger.info(f"成功使用缓存的 handler，缓存键: {cache_key}")
+                        return True, 'success (使用缓存)'
+
+            # 缓存未命中或未启用缓存，创建新的 handler
+            logger.info(f"创建新的 custom_s3 handler")
+            self.handler = CustomS3Handler(
+                name='custom_s3_handler',
+                connection_data=connection_data
+            )
 
             self.standalone_handler = StandaloneHandler(self.handler)
             status = self.standalone_handler.check_connection()
@@ -219,13 +233,41 @@ class CustomS3Model(DataModel):
 
             # 获取表/对象信息
             if self.table_name:
-                columns_df = self.standalone_handler.get_columns(self.table_name)
-                if not columns_df.empty:
-                    self.table_columns = columns_df.to_dict('records')
-                    return True, 'success'
-                return False, f'object {self.table_name} not found'
-            else:
-                return True, 'success'
+                # 验证表名是否包含文件扩展名
+                if '.' not in self.table_name:
+                    logger.warning(f"表名 '{self.table_name}' 可能缺少文件扩展名。建议使用完整文件名，如 'data.csv'")
+
+                # 验证文件扩展名是否支持
+                extension = self.table_name.split(".")[-1] if "." in self.table_name else ""
+                supported_formats = ["csv", "tsv", "json", "parquet"]
+                if extension and extension not in supported_formats:
+                    return False, f"不支持的文件格式 '{extension}'。支持的格式: {', '.join(supported_formats)}"
+
+                try:
+                    columns_df = self.standalone_handler.get_columns(self.table_name)
+                    if not columns_df.empty:
+                        self.table_columns = columns_df.to_dict('records')
+                    else:
+                        return False, f'object {self.table_name} not found in bucket {self.bucket_name}'
+                except Exception as e:
+                    error_msg = f'获取对象 {self.table_name} 的列信息失败: {str(e)}'
+                    logger.error(error_msg)
+                    logger.error(f'提示: 1) 确保文件名包含扩展名（如 data.csv）; 2) 确保文件存在于 bucket {self.bucket_name} 中')
+                    return False, error_msg
+
+            # 如果启用了缓存，将新创建的 handler 放入缓存
+            if self.client.enable_cache and IntegrationsClient._handlers_cache is not None:
+                cache_key = self._get_handler_cache_key(connection_data)
+                logger.info(f"准备将 handler 放入缓存，缓存键: {cache_key}")
+                original_name = self.handler.name
+                self.handler.name = cache_key
+                logger.info(f"设置 handler.name 为缓存键: {cache_key}, thread_safe: {getattr(self.handler, 'thread_safe', True)}")
+                IntegrationsClient._handlers_cache.set(self.handler)
+                self.handler.name = original_name  # 恢复原始名称
+                logger.info(f"已将 custom_s3 handler 放入缓存: {cache_key}")
+                logger.info(f"缓存设置后，缓存中的所有键: {list(IntegrationsClient._handlers_cache.handlers.keys())}")
+
+            return True, 'success'
 
         except Exception as e:
             return False, str(e)
@@ -267,172 +309,172 @@ df = reader.query(sql)
 
     def get_extract_rules(self):
         """
-        获取可筛选项
+        获取可筛选项 - 文件模型不支持筛选规则
         """
-        # 使用统一规则构建器获取操作符
-        return self.sql_rule_builder.get_supported_operators()
+        return []
 
-    def get_supported_operators(self):
+    def get_search_type_list(self):
         """
-        获取支持的筛选操作符列表（使用统一的SQL规则构建器）
+        获取可用高级查询类型
         """
-        return self.sql_rule_builder.get_supported_operators()
-
-    def _get_field_type(self, field_name):
-        """
-        获取字段的数据类型
-        """
-        for col in self.table_columns:
-            col_name = col.get('COLUMN_NAME') or col.get('column_name') or col.get('name')
-            if col_name == field_name:
-                # 获取字段类型信息
-                data_type = col.get('DATA_TYPE') or col.get('data_type') or col.get('type', '').lower()
-                return data_type
-        return 'text'  # 默认为文本类型
-
-    def _convert_value_by_type(self, value, field_type):
-        """
-        根据字段类型转换值
-        """
-        if value is None or value == '':
-            return None
-
-        # 处理列表值（用于IN操作）
-        if isinstance(value, (list, tuple)):
-            converted_list = []
-            for v in value:
-                converted = self._convert_single_value_by_type(v, field_type)
-                if converted is not None:
-                    converted_list.append(converted)
-            return converted_list
-
-        return self._convert_single_value_by_type(value, field_type)
-
-    def _convert_single_value_by_type(self, value, field_type):
-        """
-        转换单个值
-        """
-        try:
-            field_type = field_type.lower()
-
-            # 数值类型
-            if field_type in ['int', 'integer', 'bigint', 'smallint', 'tinyint']:
-                return int(float(str(value)))  # 支持字符串数字转换
-
-            # 浮点类型
-            elif field_type in ['float', 'double', 'decimal', 'numeric', 'real']:
-                return float(str(value))
-
-            # 日期时间类型
-            elif field_type in ['date', 'datetime', 'timestamp', 'time']:
-                if isinstance(value, str):
-                    # 基本日期格式验证
-                    return value  # 保持原样，让数据库处理
-
-            # 布尔类型
-            elif field_type in ['boolean', 'bool']:
-                if isinstance(value, str):
-                    value_lower = value.lower()
-                    if value_lower in ['true', '1', 'yes', 'on']:
-                        return True
-                    elif value_lower in ['false', '0', 'no', 'off']:
-                        return False
-                    else:
-                        return None  # 无法转换，跳过
-                return bool(value)
-
-            # 文本类型（默认）
-            else:
-                return str(value) if value is not None else None
-
-        except (ValueError, TypeError) as e:
-            logger.warning(f"值转换失败: {value} -> {field_type}, 错误: {str(e)}")
-            return None  # 转换失败，返回None表示跳过此条件
-
-    def _escape_sql_value(self, value, field_type):
-        """
-        根据类型转义SQL值
-        """
-        if value is None:
-            return 'NULL'
-
-        field_type = field_type.lower()
-
-        # 数值类型不需要引号
-        if field_type in ['int', 'integer', 'bigint', 'smallint', 'tinyint',
-                         'float', 'double', 'decimal', 'numeric', 'real', 'boolean', 'bool']:
-            return str(value)
-
-        # 其他类型需要引号并转义
-        if isinstance(value, str):
-            # 转义单引号
-            escaped_value = value.replace("'", "''")
-            return f"'{escaped_value}'"
-
-        return f"'{str(value)}'"
+        return [{
+            'name': 'sql',
+            'value': 'sql',
+            "default": f'select * from s3_datasource.`{self.table_name}`'
+        }]
 
     def gen_extract_rules(self):
         """
-        解析筛选规则，使用统一的SQL规则构建器
+        解析筛选规则，优先使用SQL查询，否则使用统一的SQL规则构建器
         """
-        return self.sql_rule_builder.build_sql_clauses(self.extract_rules)
+        # 首先检查是否有SQL查询规则
+        sql_rules = [i for i in self.extract_rules if i['field'] == 'search_text' and i['rule'] == 'sql' and i['value']]
+        if sql_rules:
+            sql = sql_rules[0].get('value')
+            if sql != self.default_sql:
+                self.sql_query = sql
+                logger.info(f"使用自定义SQL查询: {self.sql_query}")
 
     def query(self, sql=None, limit=1000, offset=0):
+        """
+        SQL查询数据
+
+        优先级：
+        1. 如果传入SQL参数，直接执行
+        2. 如果配置了self.sql_query，执行配置的SQL查询
+        3. 构建默认查询（带筛选条件和分页）
+        """
+        logger.info(f"执行查询 - 传入SQL: {sql}, 配置SQL: {self.sql_query}")
+
         if not self.standalone_handler:
             flag, msg = self.connect()
             if not flag:
                 raise RuntimeError(f'connect failed: {msg}')
-        if sql is None:
-            where_clauses, order_clauses = self.gen_extract_rules()
-            sql = f"SELECT * FROM {self.table_name if self.table_name else 's3_object'}"
-            if where_clauses:
-                sql += " WHERE " + " AND ".join(where_clauses)
-            if order_clauses:
-                sql += " ORDER BY " + ", ".join(order_clauses)
-        sql += f" LIMIT {limit} OFFSET {offset}"
-        return self.standalone_handler.native_query(sql)
+        try:
+            # 确定要执行的SQL查询
+            target_sql = None
 
-    def get_total_count(self):
+            # 1. 优先使用传入的SQL参数
+            if sql and sql.strip():
+                target_sql = sql.strip()
+                logger.info(f"使用传入的SQL查询: {target_sql}")
+
+            # 2. 使用配置的SQL查询
+            elif self.sql_query and self.sql_query.strip():
+                target_sql = self.sql_query.strip()
+                logger.info(f"使用配置的SQL查询: {target_sql}")
+
+            # 执行查询
+            if target_sql:
+                # 在SQL中添加分页逻辑（如果没有的话）
+                final_sql = self._add_pagination_to_sql(target_sql, limit, offset)
+                result_df = self._apply_sql_query(final_sql)
+                logger.info(f"SQL查询完成，返回 {len(result_df)} 行数据")
+                return result_df
+            else:
+                # 没有SQL查询时，构建默认查询
+                logger.info("没有SQL查询，构建默认查询...")
+
+                # 使用配置的表名（应该是完整的文件名，如 data.csv）
+                table_name_for_query = self.table_name if self.table_name else 's3_object'
+                logger.info(f"Custom S3 查询使用的表名: '{table_name_for_query}'")
+
+                # 验证表名是否包含扩展名
+                if self.table_name and '.' not in self.table_name:
+                    error_msg = f"表名 '{self.table_name}' 缺少文件扩展名。请在数据源配置中将表名设置为完整文件名，如 'data.csv'"
+                    logger.error(error_msg)
+                    raise ValueError(error_msg)
+                default_sql = f"SELECT * FROM s3_datasource.`{table_name_for_query}`"
+                # 添加分页
+                default_sql += f" LIMIT {limit} OFFSET {offset}"
+                logger.info(f"执行默认查询: {default_sql}")
+                return self.standalone_handler.native_query(default_sql)
+
+        except Exception as e:
+            logger.error(f"查询数据失败: {str(e)}")
+            raise RuntimeError(f"查询数据失败: {str(e)}")
+
+    def _add_pagination_to_sql(self, sql: str, limit: int, offset: int) -> str:
         """
-        获取符合条件的总记录数
+        向SQL查询添加分页逻辑（如果尚未包含）
+
+        Args:
+            sql: 原始SQL查询
+            limit: 限制数量
+            offset: 偏移量
+
+        Returns:
+            添加了分页的SQL查询
+        """
+
+        sql_upper = sql.upper().strip()
+
+        # 检查是否已有LIMIT或OFFSET
+        has_limit = ' LIMIT ' in f' {sql_upper} '
+        has_offset = ' OFFSET ' in f' {sql_upper} '
+
+        # 如果已经有完整的LIMIT子句，不添加
+        if has_limit and has_offset:
+            return sql
+
+        # 如果有LIMIT但没有OFFSET，添加OFFSET
+        if has_limit and not has_offset and offset > 0:
+            return sql + f' OFFSET {offset}'
+
+        # 如果没有LIMIT或OFFSET，添加它们
+        if not has_limit and not has_offset:
+            if limit is not None and limit > 0:
+                if offset > 0:
+                    return sql + f' LIMIT {limit} OFFSET {offset}'
+                else:
+                    return sql + f' LIMIT {limit}'
+            elif offset > 0:
+                return sql + f' OFFSET {offset}'
+
+        return sql
+
+    def _apply_sql_query(self, sql_query: str):
+        """
+        执行SQL查询并返回结果
+
+        Args:
+            sql_query: SQL查询语句
+
+        Returns:
+            pd.DataFrame: 查询结果
         """
         if not self.standalone_handler:
-            flag, msg = self.connect()
-            if not flag:
-                return 0
+            logger.error("错误: StandaloneHandler 未初始化")
+            raise RuntimeError("StandaloneHandler 未初始化")
 
         try:
-            where_clauses, order_clauses = self.gen_extract_rules()
-            count_sql = f"SELECT COUNT(*) as total FROM {self.table_name if self.table_name else 's3_object'}"
-            if where_clauses:
-                count_sql += " WHERE " + " AND ".join(where_clauses)
-
-            count_df = self.standalone_handler.native_query(count_sql)
-            if not count_df.empty:
-                return int(count_df.iloc[0]['total'])
-            return 0
+            logger.info(f"执行 SQL 查询: {sql_query}")
+            result_df = self.standalone_handler.native_query(sql_query)
+            logger.info(f"SQL查询成功: 返回 {len(result_df)} 行数据")
+            return result_df
         except Exception as e:
-            logger.warning(f"获取总记录数失败: {str(e)}")
-            return 0
+            logger.error(f"SQL查询执行失败: {sql_query}")
+            logger.error(f"错误: {str(e)}")
+            raise RuntimeError(f"SQL查询执行失败: {str(e)}")
 
     def read_page(self, page=1, pagesize=20):
+        self.gen_extract_rules()
         if not self.standalone_handler:
             flag, msg = self.connect()
             if not flag:
                 return False, msg
         try:
-            offset = (page - 1) * pagesize
-
             # 查询数据
-            df = self.query(limit=pagesize, offset=offset)
+            df = self.query()
             data_li = df_to_list(df)
 
             # 获取总记录数
-            total_count = self.get_total_count()
+            total_count = len(data_li)
 
             res_data = {
                 'records': data_li,
-                'total': total_count
+                'total': total_count,
+                'pagination': False  # 禁用分页
             }
             return True, gen_json_response(data=res_data)
         except Exception as e:
@@ -440,38 +482,22 @@ df = reader.query(sql)
             return False, str(e)
 
     def read_batch(self):
+        self.gen_extract_rules()
         if not self.standalone_handler:
             flag, msg = self.connect()
             if not flag:
                 yield False, msg
                 return
         try:
-            # 首先获取总记录数
-            total_count = self.get_total_count()
-            processed_count = 0
-            batch_num = 0
+            df = self.query()
+            data_li = df_to_list(df)
+            total = len(data_li)
 
-            offset = 0
-            while True:
-                df = self.query(limit=self.batch_size, offset=offset)
-                data_li = df_to_list(df)
-                if not data_li:
-                    break
-
-                batch_num += 1
-                processed_count += len(data_li)
-
-                # 构建批次信息
-                batch_info = {
-                    'records': data_li,
-                    'total': total_count
-                }
-
-                yield True, gen_json_response(data=batch_info)
-
-                if len(data_li) < self.batch_size or processed_count >= total_count:
-                    break
-                offset += self.batch_size
+            res_data = {
+                'records': data_li,
+                'total': total
+            }
+            yield True, gen_json_response(data=res_data)
 
         except Exception as e:
             logger.error(f"批量读取数据失败: {str(e)}")
@@ -489,11 +515,8 @@ df = reader.query(sql)
         try:
             info = {
                 'table_name': self.table_name,
-                'total_count': self.get_total_count(),
                 'columns': self.table_columns,
                 'column_count': len(self.table_columns) if self.table_columns else 0,
-                'endpoint': self.endpoint_url,
-                'bucket': self.bucket_name
             }
             return info
         except Exception as e:

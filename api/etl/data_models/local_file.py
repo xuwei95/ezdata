@@ -13,7 +13,6 @@ from mindsdb.integrations.handlers.file_handler.file_handler import FileHandler
 from etl.data_models import DataModel
 from etl.utils.mindsdb_client import IntegrationsClient
 from utils.common_utils import gen_json_response, df_to_list
-from mindsdb.utilities.context import context as ctx
 import logging
 
 logger = logging.getLogger(__name__)
@@ -111,7 +110,7 @@ class LocalFileModel(DataModel):
             self.client = IntegrationsClient(enable_cache=True, cache_ttl=300)
         except Exception as e:
             # 如果无法设置 context，则禁用缓存
-            raise e
+            logger.exception(e)
             self.client = IntegrationsClient(enable_cache=False, cache_ttl=300)
         # 内部状态
         self._file_reader = None
@@ -172,6 +171,32 @@ class LocalFileModel(DataModel):
             if not os.path.exists(self.file_path):
                 return False, f"文件不存在: {self.file_path}"
 
+            # 优先从缓存获取 FileHandler
+            if self.client.enable_cache and IntegrationsClient._handlers_cache is not None:
+                cache_key = self._get_handler_cache_key()
+                cached_handler = IntegrationsClient._handlers_cache.get(cache_key)
+
+                if cached_handler is not None:
+                    logger.info(f"从缓存获取 local_file handler: {cache_key}")
+                    self._file_handler = cached_handler
+
+                    # 使用缓存的 handler，仍需创建 file_controller 用于更新
+                    self._file_controller = SimpleFileController(
+                        file_path=self.file_path,
+                        sheet_name=self.sheet_name,
+                        encoding=self.encoding,
+                        delimiter=self.delimiter
+                    )
+                    # 更新 file_controller（因为参数可能已经改变）
+                    self._file_handler.file_controller = self._file_controller
+
+                    # 从 file_controller 的 file_reader 获取 pages_list
+                    self._file_reader = self._file_controller._file_reader
+                    self._pages_list = self._file_reader.get_pages()
+
+                    return True, '连接成功（使用缓存）'
+
+            # 缓存未命中或未启用缓存，进行完整初始化
             # 初始化文件读取器
             self._file_reader = FileReader(path=self.file_path)
 
@@ -196,34 +221,21 @@ class LocalFileModel(DataModel):
                 delimiter=self.delimiter
             )
 
-            # 尝试从缓存获取 FileHandler
+            # 创建新的 FileHandler
+            logger.info(f"创建新的 local_file handler")
+            self._file_handler = FileHandler(
+                name='file',
+                file_controller=self._file_controller
+            )
+
+            # 如果启用了缓存，将新创建的 handler 放入缓存
             if self.client.enable_cache and IntegrationsClient._handlers_cache is not None:
                 cache_key = self._get_handler_cache_key()
-                cached_handler = IntegrationsClient._handlers_cache.get(cache_key)
-
-                if cached_handler is not None:
-                    logger.debug(f"从缓存获取 local_file handler: {cache_key}")
-                    self._file_handler = cached_handler
-                    # 更新 file_controller（因为可能已经改变）
-                    self._file_handler.file_controller = self._file_controller
-                else:
-                    # 缓存中没有，创建新的 FileHandler
-                    logger.debug(f"创建新的 local_file handler: {cache_key}")
-                    self._file_handler = FileHandler(
-                        name='file',
-                        file_controller=self._file_controller
-                    )
-                    # 将新创建的 handler 放入缓存
-                    original_name = self._file_handler.name
-                    self._file_handler.name = cache_key
-                    IntegrationsClient._handlers_cache.set(self._file_handler)
-                    self._file_handler.name = original_name  # 恢复原始名称
-            else:
-                # 没有启用缓存，直接创建新的 FileHandler
-                self._file_handler = FileHandler(
-                    name='file',
-                    file_controller=self._file_controller
-                )
+                original_name = self._file_handler.name
+                self._file_handler.name = cache_key
+                IntegrationsClient._handlers_cache.set(self._file_handler)
+                self._file_handler.name = original_name  # 恢复原始名称
+                logger.info(f"已将 local_file handler 放入缓存: {cache_key}")
 
             return True, '连接成功'
 

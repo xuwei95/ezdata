@@ -23,7 +23,7 @@ export const columns: BasicColumn[] = [
     align: 'center',
     dataIndex: 'type',
     customRender: ({ text }) => {
-      return render.renderDict(text, 'datamodel_type');
+      return text;
     },
   },
   {

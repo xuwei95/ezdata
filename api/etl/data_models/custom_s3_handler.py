@@ -165,15 +165,27 @@ class CustomS3Handler(APIHandler):
         duckdb_conn.execute(f"SET s3_access_key_id='{self.connection_data['access_key']}'")
         duckdb_conn.execute(f"SET s3_secret_access_key='{self.connection_data['secret_key']}'")
 
-        # 配置endpoint_url
-        duckdb_conn.execute(f"SET s3_endpoint='{self.connection_data['endpoint_url']}'")
+        # 从 endpoint_url 中提取主机名和端口（去除协议前缀）
+        endpoint_url = self.connection_data['endpoint_url']
+        # 去除 http:// 或 https://
+        if '://' in endpoint_url:
+            endpoint_without_protocol = endpoint_url.split('://', 1)[1]
+            use_ssl = endpoint_url.startswith('https://')
+        else:
+            endpoint_without_protocol = endpoint_url
+            use_ssl = self.connection_data.get("verify_ssl", True)
+
+        # 配置endpoint（不包含协议前缀）
+        duckdb_conn.execute(f"SET s3_endpoint='{endpoint_without_protocol}'")
+
+        # 配置SSL
+        duckdb_conn.execute(f"SET s3_use_ssl={'true' if use_ssl else 'false'}")
 
         # 配置region
         region = self.connection_data.get("region", "us-east-1")
         duckdb_conn.execute(f"SET s3_region='{region}'")
 
-        # 配置SSL验证
-        verify_ssl = self.connection_data.get("verify_ssl", True)
+        # 配置URL样式为路径样式（适用于MinIO等S3兼容存储）
         duckdb_conn.execute(f"SET s3_url_style='path'")
 
         try:
@@ -268,12 +280,25 @@ class CustomS3Handler(APIHandler):
         """
         bucket, key = self._get_bucket(key)
 
+        # 验证文件扩展名
+        extension = key.split(".")[-1] if "." in key else ""
+        if extension not in self.supported_file_formats:
+            error_msg = f"不支持的文件格式 '{extension}'。表名/文件名应包含完整扩展名，如 'data.csv'。支持的格式: {', '.join(self.supported_file_formats)}"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+
         with self._connect_duckdb(bucket) as connection:
             # 使用自定义endpoint的s3路径
             s3_path = f"s3://{bucket}/{key}"
-            cursor = connection.execute(f"SELECT * FROM '{s3_path}'")
+            logger.info(f"正在从 S3 读取文件: {s3_path}")
 
-            return cursor.fetchdf()
+            try:
+                cursor = connection.execute(f"SELECT * FROM '{s3_path}'")
+                return cursor.fetchdf()
+            except Exception as e:
+                logger.error(f"DuckDB 读取 S3 文件失败: {s3_path}, 错误: {str(e)}")
+                logger.error(f"请检查: 1) 文件名是否正确（需包含扩展名）; 2) 文件是否存在于 bucket '{bucket}' 中; 3) S3 连接配置是否正确")
+                raise
 
     def _read_as_content(self, key) -> None:
         """

@@ -1,5 +1,6 @@
 mindsdb_sql_parser
 appdirs
+duckdb
 xorbits>=0.3.2
 pyarrow>=12.0.0
 akshare

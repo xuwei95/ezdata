@@ -52,8 +52,6 @@ from mindsdb.integrations.libs.response import HandlerResponse, HandlerStatusRes
 from mindsdb_sql_parser.ast.base import ASTNode
 from mindsdb.utilities import log
 from mindsdb.interfaces.database.data_handlers_cache import HandlersCache
-from mindsdb.utilities.context import context as ctx
-
 logger = log.getLogger(__name__)
 
 
@@ -281,11 +279,11 @@ class IntegrationsClient:
         # 尝试从缓存获取
         cached_handler = IntegrationsClient._handlers_cache.get(cache_key)
         if cached_handler is not None:
-            logger.debug(f"从缓存获取 handler: {cache_key}")
+            logger.info(f"从缓存获取 handler: {cache_key}")
             return cached_handler
 
         # 缓存中没有，创建新的 handler
-        logger.debug(f"创建新的 handler: {cache_key}")
+        logger.info(f"创建新的 handler: {cache_key}")
         handler = self.create_handler(handler_type, connection_data, name, **kwargs)
 
         # 将新创建的 handler 放入缓存

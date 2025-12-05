@@ -11,7 +11,7 @@
  Target Server Version : 80022 (8.0.22)
  File Encoding         : 65001
 
- Date: 31/07/2025 15:53:17
+ Date: 05/12/2025 17:06:19
 */
 
 SET NAMES utf8mb4;
@@ -260,13 +260,10 @@ CREATE TABLE `datamodel`  (
 -- ----------------------------
 -- Records of datamodel
 -- ----------------------------
-INSERT INTO `datamodel` VALUES ('', 1, 0, 'admin', '2024-07-20 18:40:15', 'admin', '2024-08-23 02:41:25', '5993168737cb498f8d858896c796e901', '任务日志', '10a0f8f11faa41968f5e75ee5afce4e7', 'elasticsearch_index', 0, '{\n  \"name\": \"task_logs\",\n  \"auth_type\": \"query,extract\"\n}', '{}', 1, '[]', 1);
 INSERT INTO `datamodel` VALUES ('', 1, 0, 'admin', '2023-08-10 07:53:46', 'admin', '2023-09-15 17:48:53', '77b5008db89348348360893720a01b80', '任务实例表binlog流', 'fdf0938c7d5a44eca94ba093cc8be6c8', 'mysql_binlog', 1, '{\n  \"listen_dbs\": \"ezdata\",\n  \"listen_tables\": \"task_instance\",\n  \"auth_type\": \"extract\",\n  \"only_events\": \"write,update\"\n}', '{}', 0, '[]', 1);
-INSERT INTO `datamodel` VALUES ('', 1, 0, 'admin', '2024-06-22 16:12:31', 'admin', '2024-07-08 05:54:05', '8a862fdf980245459ac9ef89734c166f', 'sql示例', 'fdf0938c7d5a44eca94ba093cc8be6c8', 'sql', 1, '{\n  \"name\": \"\",\n  \"sql\": \"select * from sys_dict\",\n  \"auth_type\": \"query,custom_sql,extract\"\n}', '{}', 1, '[]', 1);
-INSERT INTO `datamodel` VALUES ('', 1, 0, 'admin', '2023-10-24 06:52:59', 'admin', '2024-06-22 16:12:36', 'a7f25e1805a44ea5a546158da95ad726', '任务执行历史索引', '10a0f8f11faa41968f5e75ee5afce4e7', 'elasticsearch_index', 1, '{\n  \"name\": \"task_instance_history\",\n  \"auth_type\": \"query,create,edit_fields,delete,extract,load\"\n}', '{}', 1, '[]', 1);
+INSERT INTO `datamodel` VALUES ('', 1, 0, 'admin', '2025-12-05 09:03:02', '', '2025-12-05 09:03:02', 'c20ae41fcaa74597ab83293add482ff0', 'sql demo', 'fdf0938c7d5a44eca94ba093cc8be6c8', 'sql', 0, '{\n  \"sql\": \"select * from sys_dict\",\n  \"auth_type\": \"query,custom_sql,extract\"\n}', '{}', 1, '[]', 1);
 INSERT INTO `datamodel` VALUES ('', 1, 0, 'admin', '2023-10-22 07:09:49', 'admin', '2023-10-24 06:46:46', 'd88b859297224ebcba7fe21efe118ebb', '股票历史数据接口', 'c4eccdd3fd294ac6b9d663519df485bb', 'akshare_api', 1, '{\n  \"auth_type\": \"query,extract\",\n  \"method\": \"stock_zh_a_hist\"\n}', '{}', 1, '[]', 1);
-INSERT INTO `datamodel` VALUES ('', 10, 0, 'admin', '2023-10-24 06:23:11', 'admin', '2023-12-23 16:47:15', 'e222b61c62be4d09908a5bc94aebf22d', 'excel文件', 'd018f252ef6740e89e387d32de4c412f', 'file_table', 1, '{\n  \"auth_type\": \"query,extract\"\n}', '{}', 1, '[]', 1);
-INSERT INTO `datamodel` VALUES ('', 1, 0, 'admin', '2023-10-24 06:50:19', 'admin', '2024-06-24 15:38:49', 'f4f58112235f4625a72f880a373ff697', '股票历史数据索引', '10a0f8f11faa41968f5e75ee5afce4e7', 'elasticsearch_index', 1, '{\n  \"name\": \"stock_history\",\n  \"auth_type\": \"query,create,edit_fields,delete,extract,load\"\n}', '{}', 1, '[]', 1);
+INSERT INTO `datamodel` VALUES ('', 10, 0, 'admin', '2023-10-24 06:23:11', 'admin', '2025-12-05 08:55:05', 'e222b61c62be4d09908a5bc94aebf22d', '文件示例', 'd018f252ef6740e89e387d32de4c412f', 'file_table', 1, '{\n  \"auth_type\": \"query,extract\"\n}', '{}', 1, '[]', 1);
 
 -- ----------------------------
 -- Table structure for datamodel_field
@@ -328,12 +325,10 @@ CREATE TABLE `datasource`  (
 -- ----------------------------
 -- Records of datasource
 -- ----------------------------
-INSERT INTO `datasource` VALUES ('', 1, 0, 'admin', '2023-09-13 05:33:32', 'admin', '2023-10-24 07:11:36', '0106d78d22a74df59c6f6b44f2caa843', '系统minio', 'minio', '{\n  \"username\": \"minio\",\n  \"password\": \"ezdata123\",\n  \"bucket\": \"ezdata\",\n  \"url\": \"10.233.31.5:9000\"\n}', 1, '{}', 1);
-INSERT INTO `datasource` VALUES ('', 1, 0, 'admin', '2023-09-16 07:12:38', 'admin', '2023-10-24 07:11:22', '10a0f8f11faa41968f5e75ee5afce4e7', '系统es', 'elasticsearch', '{\n  \"auth_type\": 1,\n  \"url\": \"10.233.31.6:9200\"\n}', 1, '{}', 1);
+INSERT INTO `datasource` VALUES ('', 1, 0, 'admin', '2023-09-16 07:12:38', 'admin', '2025-12-05 08:53:45', '10a0f8f11faa41968f5e75ee5afce4e7', '系统es', 'elasticsearch', '{\n  \"hosts\": \"10.233.31.6:9200\",\n  \"user\": \"\",\n  \"password\": \"\"\n}', 1, '{}', 1);
 INSERT INTO `datasource` VALUES ('', 1, 0, 'admin', '2023-10-22 06:38:51', 'admin', '2023-10-24 05:55:51', 'c4eccdd3fd294ac6b9d663519df485bb', 'akshare数据接口', 'akshare', '{}', 1, '{}', 1);
-INSERT INTO `datasource` VALUES ('', 10, 0, 'admin', '2023-08-10 07:31:27', 'admin', '2023-12-23 16:47:28', 'd018f252ef6740e89e387d32de4c412f', 'excel文件示例', 'file', '{\n  \"path\": \"examples/demo.xlsx\"\n}', 1, '{}', 1);
-INSERT INTO `datasource` VALUES ('', 1, 1, 'admin', '2024-08-09 05:47:27', 'admin', '2024-10-22 16:31:55', 'eb8dbc860af746e2bd46190c36f1c937', '测试1', 'file', '{\n  \"path\": \"http://110.40.157.36:9000/ezdata/AI数据分析数据集-demo.xlsx\"\n}', 1, '{}', 1);
-INSERT INTO `datasource` VALUES ('', 1, 0, 'admin', '2023-08-10 07:38:11', 'admin', '2024-07-06 17:11:20', 'fdf0938c7d5a44eca94ba093cc8be6c8', '系统mysql', 'mysql', '{\n  \"host\": \"110.40.157.36\",\n  \"port\": 3306,\n  \"username\": \"root\",\n  \"password\": \"ezdata123\",\n  \"database_name\": \"ezdata\"\n}', 1, '{}', 1);
+INSERT INTO `datasource` VALUES ('', 10, 0, 'admin', '2023-08-10 07:31:27', 'admin', '2025-12-05 08:52:29', 'd018f252ef6740e89e387d32de4c412f', '文件示例', 'file', '{\n  \"path\": \"etl/examples/data/btc_history_target.csv\",\n  \"encoding\": \"utf-8\"\n}', 1, '{}', 1);
+INSERT INTO `datasource` VALUES ('', 1, 0, 'admin', '2023-08-10 07:38:11', 'admin', '2025-12-05 08:54:16', 'fdf0938c7d5a44eca94ba093cc8be6c8', '系统mysql', 'mysql', '{\n  \"user\": \"root\",\n  \"password\": \"ezdata123\",\n  \"database\": \"database\",\n  \"host\": \"10.233.31.3\",\n  \"port\": 3306\n}', 1, '{}', 1);
 
 -- ----------------------------
 -- Table structure for embeddings
