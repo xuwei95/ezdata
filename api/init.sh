@@ -1,3 +1,4 @@
+sed -i 's/\r$//' init.sh
 unlink /var/run/supervisor.sock
 supervisord -c supervisord.ini
 if [ $run_upgrade == 1 ]; then
