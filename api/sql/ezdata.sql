@@ -261,7 +261,7 @@ CREATE TABLE `datamodel`  (
 -- Records of datamodel
 -- ----------------------------
 INSERT INTO `datamodel` VALUES ('', 1, 0, 'admin', '2023-08-10 07:53:46', 'admin', '2023-09-15 17:48:53', '77b5008db89348348360893720a01b80', '任务实例表binlog流', 'fdf0938c7d5a44eca94ba093cc8be6c8', 'mysql_binlog', 1, '{\n  \"listen_dbs\": \"ezdata\",\n  \"listen_tables\": \"task_instance\",\n  \"auth_type\": \"extract\",\n  \"only_events\": \"write,update\"\n}', '{}', 0, '[]', 1);
-INSERT INTO `datamodel` VALUES ('', 1, 0, 'admin', '2025-12-05 09:03:02', '', '2025-12-05 09:03:02', 'c20ae41fcaa74597ab83293add482ff0', 'sql demo', 'fdf0938c7d5a44eca94ba093cc8be6c8', 'sql', 0, '{\n  \"sql\": \"select * from sys_dict\",\n  \"auth_type\": \"query,custom_sql,extract\"\n}', '{}', 1, '[]', 1);
+INSERT INTO `datamodel` VALUES ('', 1, 0, 'admin', '2025-12-05 09:03:02', '', '2025-12-05 09:03:02', 'c20ae41fcaa74597ab83293add482ff0', 'sql demo', 'fdf0938c7d5a44eca94ba093cc8be6c8', 'sql', 1, '{\n  \"sql\": \"select * from sys_dict\",\n  \"auth_type\": \"query,custom_sql,extract\"\n}', '{}', 1, '[]', 1);
 INSERT INTO `datamodel` VALUES ('', 1, 0, 'admin', '2023-10-22 07:09:49', 'admin', '2023-10-24 06:46:46', 'd88b859297224ebcba7fe21efe118ebb', '股票历史数据接口', 'c4eccdd3fd294ac6b9d663519df485bb', 'akshare_api', 1, '{\n  \"auth_type\": \"query,extract\",\n  \"method\": \"stock_zh_a_hist\"\n}', '{}', 1, '[]', 1);
 INSERT INTO `datamodel` VALUES ('', 10, 0, 'admin', '2023-10-24 06:23:11', 'admin', '2025-12-05 08:55:05', 'e222b61c62be4d09908a5bc94aebf22d', '文件示例', 'd018f252ef6740e89e387d32de4c412f', 'file_table', 1, '{\n  \"auth_type\": \"query,extract\"\n}', '{}', 1, '[]', 1);
 
