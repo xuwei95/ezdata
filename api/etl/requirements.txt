@@ -9,4 +9,4 @@ mysql-connector-python==9.1.0
 psycopg2-binary
 py2neo
 prometheus-api-client
-numpy=1.24.3
+numpy==1.24.3
