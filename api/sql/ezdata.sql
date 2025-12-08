@@ -328,7 +328,7 @@ CREATE TABLE `datasource`  (
 INSERT INTO `datasource` VALUES ('', 1, 0, 'admin', '2023-09-16 07:12:38', 'admin', '2025-12-05 08:53:45', '10a0f8f11faa41968f5e75ee5afce4e7', '系统es', 'elasticsearch', '{\n  \"hosts\": \"10.233.31.6:9200\",\n  \"user\": \"\",\n  \"password\": \"\"\n}', 1, '{}', 1);
 INSERT INTO `datasource` VALUES ('', 1, 0, 'admin', '2023-10-22 06:38:51', 'admin', '2023-10-24 05:55:51', 'c4eccdd3fd294ac6b9d663519df485bb', 'akshare数据接口', 'akshare', '{}', 1, '{}', 1);
 INSERT INTO `datasource` VALUES ('', 10, 0, 'admin', '2023-08-10 07:31:27', 'admin', '2025-12-05 08:52:29', 'd018f252ef6740e89e387d32de4c412f', '文件示例', 'file', '{\n  \"path\": \"etl/examples/data/btc_history_target.csv\",\n  \"encoding\": \"utf-8\"\n}', 1, '{}', 1);
-INSERT INTO `datasource` VALUES ('', 1, 0, 'admin', '2023-08-10 07:38:11', 'admin', '2025-12-05 08:54:16', 'fdf0938c7d5a44eca94ba093cc8be6c8', '系统mysql', 'mysql', '{\n  \"user\": \"root\",\n  \"password\": \"ezdata123\",\n  \"database\": \"database\",\n  \"host\": \"10.233.31.3\",\n  \"port\": 3306\n}', 1, '{}', 1);
+INSERT INTO `datasource` VALUES ('', 1, 0, 'admin', '2023-08-10 07:38:11', 'admin', '2025-12-05 08:54:16', 'fdf0938c7d5a44eca94ba093cc8be6c8', '系统mysql', 'mysql', '{\n  \"user\": \"root\",\n  \"password\": \"ezdata123\",\n  \"database\": \"ezdata\",\n  \"host\": \"10.233.31.3\",\n  \"port\": 3306\n}', 1, '{}', 1);
 
 -- ----------------------------
 -- Table structure for embeddings

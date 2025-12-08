@@ -6,6 +6,7 @@ pyarrow>=12.0.0
 akshare
 ccxt
 mysql-connector-python==9.1.0
+mysql-replication==0.27
 psycopg2-binary
 py2neo
 prometheus-api-client

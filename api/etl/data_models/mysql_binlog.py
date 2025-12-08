@@ -20,11 +20,11 @@ class MysqlBinlogModel(DataModel):
         self.conn_setting = {
             'host': conn_conf['host'],
             'port': conn_conf['port'],
-            'user': conn_conf['username'],
+            'user': conn_conf['user'],
             'passwd': conn_conf['password']
         }
         # 监听数据库
-        database = conn_conf.get('database_name')
+        database = conn_conf.get('database')
         self.listen_dbs = [database]
         model_conf = self._model['model_conf']
         # 监听数据表
