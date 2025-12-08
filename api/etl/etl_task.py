@@ -195,15 +195,8 @@ class EtlTask(object):
                     'msg': f'数据装载出错：{res_data}'
                 }
                 return res_info
-
         # 若是dataframe，转回json数据用于前端展示
-        flag, res_data = df_to_list(res_data)
-        if not flag:
-            res_info = {
-                'code': 500,
-                'msg': f'{res_data}'
-            }
-            return res_info
+        res_data = df_to_list(res_data)
 
         # 获取返回字段
         res_fields = get_res_fields(res_data)

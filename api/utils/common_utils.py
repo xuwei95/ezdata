@@ -677,6 +677,8 @@ def convert_to_json_serializable(value):
         return value
 
 def df_to_list(df):
+    if not isinstance(df, pd.DataFrame):
+        return df
     # 将所有 datetime 类型的列转换为字符串
     for col in df.select_dtypes(include=['datetime']).columns:
         df[col] = df[col].astype(str)
