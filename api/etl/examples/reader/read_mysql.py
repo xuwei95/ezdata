@@ -5,19 +5,19 @@ reader_info = {
         "name": "test",
         "type": "mysql",
         "conn_conf": {
-            "host": "127.0.0.1",
-            "port": 3306,
-            "username": "root",
-            "password": "123456",
-            "database_name": "test"
+          "user": "root",
+          "password": "ezdata123",
+          "database": "ezdata",
+          "host": "127.0.0.1",
+          "port": 3306
         },
         "ext_params": {}
     },
     'model': {
-        "name": "btc_history",
+        "name": "sys_dict",
         "type": "mysql_table",
         "model_conf": {
-            "name": "btc_history",
+            "name": "sys_dict",
             "auth_type": "create,insert"
         },
         "ext_params": {},

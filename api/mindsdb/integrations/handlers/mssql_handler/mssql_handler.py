@@ -207,19 +207,13 @@ class SqlServerHandler(MetaDatabaseHandler):
         if not all(key in self.connection_args for key in ["host", "user", "password", "database"]):
             raise ValueError("Required parameters (host, user, password, database) must be provided.")
 
-        config = {
-            "host": self.connection_args.get("host"),
-            "user": self.connection_args.get("user"),
-            "password": self.connection_args.get("password"),
-            "database": self.connection_args.get("database"),
-        }
-
-        # Optional connection parameters
-        if "port" in self.connection_args:
-            config["port"] = self.connection_args.get("port")
-
-        if "server" in self.connection_args:
-            config["server"] = self.connection_args.get("server")
+        # Only include parameters that pymssql.connect() supports
+        # Filter out any unsupported parameters like 'credential_provider'
+        supported_params = ["host", "user", "password", "database", "port", "server"]
+        config = {}
+        for param in supported_params:
+            if param in self.connection_args:
+                config[param] = self.connection_args.get(param)
 
         try:
             self.connection = pymssql.connect(**config)
@@ -228,6 +222,12 @@ class SqlServerHandler(MetaDatabaseHandler):
         except OperationalError as e:
             logger.error(f"Error connecting to Microsoft SQL Server {self.database}, {e}!")
             self.is_connected = False
+            raise
+        except TypeError as e:
+            # Handle case where an unsupported parameter is passed
+            if "unexpected keyword argument" in str(e):
+                logger.error(f"Unsupported parameter in connection_args: {e}. Only these parameters are supported: {supported_params}")
+                raise ValueError(f"Unsupported connection parameter. Error: {e}") from e
             raise
 
     def _connect_odbc(self):

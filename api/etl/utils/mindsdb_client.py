@@ -635,7 +635,7 @@ class StandaloneHandler:
                     f"获取列信息失败: {response.error_message}"
                 )
             
-            if response.resp_type == RESPONSE_TYPE.TABLE:
+            if response.resp_type == RESPONSE_TYPE.COLUMNS_TABLE:
                 return response.data_frame
             else:
                 return pd.DataFrame()

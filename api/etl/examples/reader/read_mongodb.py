@@ -5,7 +5,7 @@ reader_info = {
         "name": "test",
         "type": "mongodb",
         "conn_conf": {
-            "database_name": "datacenter",
+            "database": "datacenter",
             "host": "127.0.0.1",
             "port": "27017",
             "username": "root",

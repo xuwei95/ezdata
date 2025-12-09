@@ -9,7 +9,7 @@ reader_info = {
             "port": 3306,
             "username": "root",
             "password": "123456",
-            "database_name": "test"
+            "database": "test"
         },
         "ext_params": {}
     },
