@@ -263,7 +263,7 @@ df = reader.query(sql)
                             'type': f'{self.db_type}_table',
                             'model_conf': {
                                 "name": str(table_name),
-                                "auth_type": "query,create,edit_fields,delete,extract,load"
+                                "auth_type": "query,extract"
                             }
                         }
                         model_list.append(dic)

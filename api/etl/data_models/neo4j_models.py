@@ -36,12 +36,6 @@ class N4jGraphModel(DataModel):
                 'componentProps': {
                     'options': [
                         {'label': '查询', 'value': 'query'},
-                        {'label': '创建', 'value': 'create'},
-                        {'label': '操作字段', 'value': 'edit_fields'},
-                        {'label': '删除', 'value': 'delete'},
-                        {'label': '添加数据', 'value': 'add_data'},
-                        {'label': '修改数据', 'value': 'edit_data'},
-                        {'label': '删除数据', 'value': 'delete_data'},
                         {'label': '数据抽取', 'value': 'extract'},
                         {'label': '数据装载', 'value': 'load'}
                     ]
@@ -516,7 +510,7 @@ class N4jSqlModel(DataModel):
                 'type': f'neo4j_graph',
                 'model_conf': {
                     "name": label['label'],
-                    "auth_type": "query,create,edit_fields,delete,extract,load"
+                    "auth_type": "query,extract,load"
                 }
             }
             model_list.append(dic)

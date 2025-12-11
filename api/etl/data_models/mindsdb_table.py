@@ -16,11 +16,6 @@ logger = logging.getLogger(__name__)
 
 
 class MindsDBTableModel(DataModel):
-    # 不支持 OFFSET 操作的数据源类型
-    NO_OFFSET_SUPPORT_TYPES = [
-        'elasticsearch',
-    ]
-
     def __init__(self, model_info):
         super().__init__(model_info)
         self.db_type = self._source.get('type')
@@ -56,24 +51,12 @@ class MindsDBTableModel(DataModel):
                 'componentProps': {
                     'options': [
                         {'label': '查询', 'value': 'query'},
-                        {'label': '创建', 'value': 'create'},
-                        {'label': '操作字段', 'value': 'edit_fields'},
-                        {'label': '删除', 'value': 'delete'},
                         {'label': '数据抽取', 'value': 'extract'},
                         {'label': '数据装载', 'value': 'load'},
-                        {'label': '添加数据', 'value': 'add_data'},
-                        {'label': '修改数据', 'value': 'edit_data'},
-                        {'label': '删除数据', 'value': 'delete_data'},
                     ]
                 }
             }
         ]
-
-    def supports_offset(self):
-        """
-        判断当前数据源是否支持 OFFSET 操作
-        """
-        return self.db_type.lower() not in [t.lower() for t in self.NO_OFFSET_SUPPORT_TYPES]
 
     def connect(self):
         try:
@@ -126,9 +109,11 @@ columns:
                 return []
         fields = []
         for col in self.table_columns:
-            col_name = col.get('COLUMN_NAME') or col.get('column_name') or col.get('name')
+            col_name = col.get('COLUMN_NAME') or col.get('column_name') or col.get('name') or col.get('Field')
             if col_name:
-                fields.append({'field_name': col_name, 'field_value': col_name})
+                data_type = col.get('DATA_TYPE') or col.get('data_type') or col.get('type', '').lower() or col.get('Type', '').lower()
+                col['type'] = data_type
+                fields.append({'field_name': col_name, 'field_value': col_name, 'ext_params': col})
         return fields
 
     def get_extract_rules(self):
@@ -249,14 +234,6 @@ columns:
             if not flag:
                 raise RuntimeError(f'connect failed: {msg}')
 
-        # 检查是否支持 OFFSET，如果不支持则忽略 offset 参数
-        supports_offset = self.supports_offset()
-        if not supports_offset:
-            offset = 0
-            # 对于不支持 offset 的数据源，限制最多查询 1000 条
-            limit = min(limit, 1000)
-            logger.info(f"数据源 {self.db_type} 不支持 OFFSET 操作，忽略 offset 参数，限制最多查询 {limit} 条")
-
         # 如果没有提供 SQL，构建查询
         if sql is None:
             where_clauses, order_clauses = self.gen_extract_rules()
@@ -284,8 +261,8 @@ columns:
             # 设置或更新 LIMIT
             if ast_query.limit is None:
                 ast_query.limit = Constant(limit)
-            # 设置或更新 OFFSET（仅当支持时）
-            if offset > 0 and supports_offset:
+            # 设置或更新 OFFSET
+            if offset > 0:
                 if ast_query.offset is None:
                     # 如果没有 OFFSET，添加 OFFSET
                     ast_query.offset = Constant(offset)
@@ -295,14 +272,14 @@ columns:
             # 设置或更新 LIMIT
             if ast_query.limit is None:
                 ast_query.limit = Constant(limit)
-            # 设置或更新 OFFSET（仅当支持时）
-            if offset > 0 and supports_offset:
+            # 设置或更新 OFFSET
+            if offset > 0:
                 if ast_query.offset is None:
                     # 如果没有 OFFSET，添加 OFFSET
                     ast_query.offset = Constant(offset)
         try:
             # 使用 query 方法传入 ASTNode
-            df = self.standalone_handler.query(ast_query)
+            df = (self.standalone_handler.query(ast_query))
             return df
         except Exception as e:
             logger.error(f"查询失败: {e}")
@@ -341,22 +318,7 @@ columns:
             if not flag:
                 return False, msg
         try:
-            supports_offset = self.supports_offset()
-
-            if not supports_offset:
-                # 对于不支持 offset 的数据源，忽略分页参数，最多查询 1000 条
-                logger.info(f"数据源 {self.db_type} 不支持分页，返回最多 1000 条数据")
-                df = self.query(limit=1000, offset=0)
-                data_li = df_to_list(df)
-
-                res_data = {
-                    'records': data_li,
-                    'total': len(data_li),
-                    'pagination': False  # 禁用前端分页
-                }
-                return True, gen_json_response(data=res_data)
-
-            # 支持 offset 的数据源，正常分页处理
+            # 正常分页处理
             offset = (page - 1) * pagesize
 
             # 查询数据
@@ -382,23 +344,7 @@ columns:
                 yield False, msg
                 return
         try:
-            supports_offset = self.supports_offset()
-
-            if not supports_offset:
-                # 对于不支持 offset 的数据源，一次性查询最多 1000 条
-                logger.info(f"数据源 {self.db_type} 不支持 offset，批量读取时一次性返回最多 1000 条数据")
-                df = self.query(limit=1000, offset=0)
-                data_li = df_to_list(df)
-
-                if data_li:
-                    batch_info = {
-                        'records': data_li,
-                        'total': len(data_li)
-                    }
-                    yield True, gen_json_response(data=batch_info)
-                return
-
-            # 支持 offset 的数据源，正常批量读取
+            # 正常批量读取
             # 首先获取总记录数
             total_count = self.get_total_count()
             processed_count = 0
@@ -452,24 +398,146 @@ columns:
             return None
 
     def write(self, res_data):
+        """
+        写入数据
+        
+        Args:
+            res_data: 要写入的数据，可以是 list 或 dict
+            
+        Returns:
+            (bool, str): 成功标志和消息
+        """
+        # 检查权限
         if 'load' not in self.auth_types:
-            return False, 'no permission'
+            return False, '无写入权限'
+        
+        # 获取写入类型
+        self.load_type = self._load_info.get('load_type', '')
+        if self.load_type not in ['insert', 'update', 'upsert']:
+            return False, f'写入类型参数错误,不支持类型{self.load_type}'
+        
+        # 获取用于匹配的字段（用于 update 和 upsert）
+        self.only_fields = self._load_info.get('only_fields', [])
+        
+        # 确保连接已建立
         if not self.standalone_handler:
             flag, msg = self.connect()
             if not flag:
                 return False, msg
-        records = res_data if isinstance(res_data, list) else res_data.get('records', [res_data])
+        
+        # 获取表名
+        table_name = self.table_name
+        # 处理输入数据
+        records = []
+        if isinstance(res_data, list) and res_data != []:
+            records = res_data
+        elif isinstance(res_data, dict):
+            if 'records' in res_data and res_data['records'] != []:
+                records = res_data['records']
+            else:
+                records = [res_data]
+        
         if not records:
-            return False, 'no data'
+            return False, '没有要写入的数据'
+        
         try:
-            for record in records:
-                cols = ', '.join(record.keys())
-                vals = ', '.join([f"'{v}'" if isinstance(v, str) else str(v) for v in record.values()])
-                sql = f"INSERT INTO {self.table_name} ({cols}) VALUES ({vals})"
-                self.standalone_handler.query(sql)
-            return True, f'inserted {len(records)} records'
+            insert_records = []
+            
+            if self.load_type == 'insert':
+                # 直接插入所有记录
+                insert_records = records
+                
+            elif self.load_type in ['update', 'upsert']:
+                # 对于 update 和 upsert，需要先查询是否存在
+                for record in records:
+                    # 构建查询条件
+                    query_dict = {k: v for k, v in record.items() if k in self.only_fields}
+
+                    if not query_dict:
+                        # 如果没有匹配字段，直接插入
+                        insert_records.append(record)
+                        continue
+
+                    # 构建 WHERE 条件
+                    where_conditions = []
+                    for k, v in query_dict.items():
+                        field_type = self._get_field_type(k)
+                        where_conditions.append(f"{k} = {self._escape_sql_value(v, field_type)}")
+
+                    where_clause = " AND ".join(where_conditions)
+
+                    # 查询是否存在
+                    check_sql = f"SELECT * FROM {table_name} WHERE {where_clause} LIMIT 1"
+
+                    try:
+                        # 解析 SQL 为 ASTNode
+                        ast_check = parse_sql(check_sql)
+                        df = self.standalone_handler.query(ast_check)
+
+                        if df is not None and not df.empty:
+                            # 记录存在，执行更新
+                            set_clauses = []
+                            for k, v in record.items():
+                                field_type = self._get_field_type(k)
+                                set_clauses.append(f"{k} = {self._escape_sql_value(v, field_type)}")
+
+                            set_clause = ", ".join(set_clauses)
+                            update_sql = f"UPDATE {table_name} SET {set_clause} WHERE {where_clause}"
+
+                            # 解析 SQL 为 ASTNode
+                            ast_update = parse_sql(update_sql)
+                            self.standalone_handler.query(ast_update)
+                            logger.info(f"更新记录: {where_clause}")
+                        else:
+                            # 记录不存在
+                            if self.load_type == 'upsert':
+                                # upsert 模式：不存在则插入
+                                insert_records.append(record)
+                            # update 模式：不存在则跳过
+
+                    except Exception as e:
+                        logger.warning(f"检查记录是否存在失败: {e}，将尝试插入")
+                        if self.load_type == 'upsert':
+                            insert_records.append(record)
+
+            # 执行批量插入
+            if insert_records:
+                batch = insert_records
+
+                # 获取第一条记录的列名作为基准
+                columns = list(batch[0].keys())
+                cols_str = ", ".join(columns)
+
+                # 构建所有记录的 VALUES 子句
+                values_clauses = []
+                for record in batch:
+                    # 确保所有记录都有相同的列
+                    values = [self._escape_sql_value(record.get(col), self._get_field_type(col)) for col in columns]
+                    vals_str = ", ".join(values)
+                    values_clauses.append(f"({vals_str})")
+                # 构建批量 INSERT 语句
+                values_str = ", ".join(values_clauses)
+                insert_sql = f"INSERT INTO {table_name} ({cols_str}) VALUES {values_str}"
+                try:
+                    # 解析 SQL 为 ASTNode
+                    ast_insert = parse_sql(insert_sql)
+                    self.standalone_handler.query(ast_insert)
+                    logger.info(f"批量插入 {len(batch)} 条记录到 {table_name}")
+                except Exception as e:
+                    logger.error(f"批量插入失败: {e}")
+                    raise
+                return True, records
+            
+            # 如果只有更新操作
+            if self.load_type == 'update':
+                return True, records
+            
+            return True, records
+            
         except Exception as e:
-            return False, str(e)
+            error_msg = str(e)[:200]  # 限制错误消息长度
+            logger.error(f"写入数据失败: {error_msg}")
+            return False, error_msg
 
     def disconnect(self):
         """

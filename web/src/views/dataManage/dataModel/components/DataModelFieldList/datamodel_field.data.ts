@@ -71,9 +71,12 @@ export const formSchema: FormSchema[] = [
   {
     label: '拓展参数',
     field: 'ext_params',
-    slot: 'ext_params',
     required: false,
-    component: 'InputTextArea',
+    component: 'MonacoEditor',
+    defaultValue: '{}',
+    componentProps: {
+      language: 'json',
+    },
   },
   // TODO 主键隐藏字段，目前写死为ID
   {

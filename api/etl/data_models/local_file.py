@@ -350,10 +350,15 @@ df = reader.query()
             # 构建字段列表
             fields = []
             for col_name in df.columns:
+                # 获取字段类型
+                dtype = df[col_name].dtype
+                
                 field_dic = {
                     'field_name': col_name,
                     'field_value': col_name,
-                    'ext_params': {}
+                    'ext_params': {
+                        'type': str(dtype)
+                    }
                 }
                 fields.append(field_dic)
 

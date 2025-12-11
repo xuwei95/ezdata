@@ -21,14 +21,6 @@ export const columns: BasicColumn[] = [
     },
   },
   {
-    title: '允许字段',
-    align: 'center',
-    dataIndex: 'valid_fields',
-    customRender: ({ text }) => {
-      return text;
-    },
-  },
-  {
     title: '描述',
     align: 'center',
     dataIndex: 'description',

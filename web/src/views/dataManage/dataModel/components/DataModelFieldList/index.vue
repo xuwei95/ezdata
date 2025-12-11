@@ -190,10 +190,10 @@
         label: '详情',
         onClick: handleDetail.bind(null, record),
       },
-      {
-        label: '同步字段',
-        onClick: handleSync.bind(null, record),
-      },
+      // {
+      //   label: '同步字段',
+      //   onClick: handleSync.bind(null, record),
+      // },
       {
         label: '删除',
         popConfirm: {

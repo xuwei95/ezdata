@@ -91,7 +91,6 @@ class KafkaTopicModel(DataModel):
                 'component': 'JCheckbox',
                 'componentProps': {
                     'options': [
-                        {'label': '创建', 'value': 'create'},
                         {'label': '数据抽取', 'value': 'extract'},
                         {'label': '数据装载', 'value': 'load'}
                     ]

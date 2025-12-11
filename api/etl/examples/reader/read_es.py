@@ -5,18 +5,17 @@ reader_info = {
         "name": "test",
         "type": "elasticsearch",
         "conn_conf": {
-            "url": "127.0.0.1:9200",
-            "auth_type": 2,
-            "username": "elastic",
-            "password": "elastic"
+          "hosts": "127.0.0.1:9200",
+          "user": "admin",
+          "password": "password"
         },
         "ext_params": {}
     },
     'model': {
-        "name": "btc_history",
-        "type": "elasticsearch_index",
+        "name": "test",
+        "type": "elasticsearch_table",
         "model_conf": {
-            "name": "btc_history",
+            "name": "sys_logs",
             "auth_type": "create,insert"
         }
     },

@@ -87,8 +87,7 @@ class BaseRedisModel(DataModel):
                 'componentProps': {
                     'options': [
                         {'label': '查询', 'value': 'query'},
-                        {'label': '数据抽取', 'value': 'extract'},
-                        {'label': '数据装载', 'value': 'load'}
+                        {'label': '数据抽取', 'value': 'extract'}
                     ]
                 }
             }

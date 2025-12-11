@@ -111,7 +111,6 @@ class DataInterfaceApiService(object):
             extract_rules = trans_dict_to_rules(rule_dict)
         else:
             extract_rules = parse_json(req_dict.get('extract_rules', []))
-        print(extract_rules)
         flag, interface_info = gen_interface_info(api_key)
         if not flag:
             return gen_json_response(code=400, msg=interface_info)

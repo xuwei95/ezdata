@@ -10,6 +10,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 from etl.utils.mindsdb_client import IntegrationsClient
 from etl.data_models.mindsdb_sql import MindsDBSqlModel
 from etl.data_models.mindsdb_table import MindsDBTableModel
+from etl.data_models.elasticsearch_table import ElasticsearchTableModel
 
 from utils.common_utils import import_class
 import logging
@@ -67,7 +68,10 @@ CUSTOM_HANDLERS = {
     'redis:redis_string': 'etl.data_models.redis_models.RedisStringModel',
     'redis:redis_list': 'etl.data_models.redis_models.RedisListModel',
     'redis:redis_list_stream': 'etl.data_models.redis_models.RedisListStreamModel',
-    'redis:redis_map': 'etl.data_models.redis_models.RedisMapModel'
+    'redis:redis_map': 'etl.data_models.redis_models.RedisMapModel',
+
+    # Elasticsearch - use custom table model for write operations
+    'elasticsearch:elasticsearch_table': 'etl.data_models.elasticsearch_table.ElasticsearchTableModel'
 }
 
 # 自定义 handlers 中支持写入的模型
@@ -83,6 +87,9 @@ WRITABLE_HANDLERS = {
     'redis:redis_list',
     'redis:redis_list_stream',
     'redis:redis_map',
+
+    # Elasticsearch - 支持写入数据
+    'elasticsearch:elasticsearch_table',
 }
 
 
