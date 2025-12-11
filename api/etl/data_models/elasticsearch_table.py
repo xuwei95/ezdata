@@ -43,6 +43,9 @@ records = [hit['_source'] for hit in response['hits']['hits']]
 df = pd.DataFrame(records)
 
 # DataSource type: {self.db_type}
+
+# MetaData:
+
 # Index: {self.table_name}
 # Mapping:
 {mapping_info}
