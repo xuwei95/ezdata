@@ -22,10 +22,11 @@ retrying>=1.3.3
 xlrd>=1.2.0
 pypinyin
 pyecharts
+pycares==4.9.0
 #中间件连接库
 boto3
 pymysql==1.0.2
-elasticsearch==7.15.2
+elasticsearch==7.13.4
 redis==6.1.1
 kafka-python==2.0.2
 # llm相关
