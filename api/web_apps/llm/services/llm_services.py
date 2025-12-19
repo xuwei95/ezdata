@@ -1,17 +1,81 @@
 import json
 from langchain_core.messages import AIMessage, HumanMessage
 from web_apps import app
-from web_apps.llm.agents.data_extract_agent import DataExtractAgent
+from web_apps.llm.agents.data_extract_langgraph import DataExtractLangGraph as DataExtractAgent
 from web_apps.llm.llm_utils import get_llm
 from utils.common_utils import gen_json_response, gen_uuid, get_now_time, parse_json
 from web_apps.rag.services.rag_service import get_knowledge
 from web_apps.llm.tools import tools_map
 from web_apps.llm.tools import get_tools
 from web_apps.llm.tools.data_tools import get_chat_data_tools, get_chat_data_tool
-from web_apps.llm.agents.tools_call_agent import ToolsCallAgent
+from web_apps.llm.agents.tools_call_langgraph import ToolsCallAgent
 from web_apps.llm.services.conversation_service import get_or_create_conversation, get_messages, add_message
 from web_apps.llm.tools.memory_tools import get_memory_tools
 from web_apps.llm.services.conversation_service import add_archival_memory
+
+
+# 事件类型映射（统一管理）
+EVENT_TYPE_MAP = {
+    'text': "MESSAGE",
+    'html': "HTML",
+    'data': "DATATABLE",
+    'step': "STEP",
+    'flow': "STEP"
+}
+
+
+def format_stream_event(conversation_id, chunk, event_type=None):
+    """
+    统一的流式事件格式化函数
+
+    Args:
+        conversation_id: 会话ID
+        chunk: 数据块（可以是 dict 或 str）
+        event_type: 事件类型（如果为None，从chunk中推断）
+
+    Returns:
+        格式化的 SSE 事件字符串
+    """
+    if isinstance(chunk, dict):
+        # Agent 输出格式: {'content': ..., 'type': ...}
+        content = chunk.get('content', '')
+        chunk_type = chunk.get('type', 'text')
+        event = event_type or EVENT_TYPE_MAP.get(chunk_type, "MESSAGE")
+    else:
+        # 字符串内容
+        content = chunk
+        event = event_type or "MESSAGE"
+
+    msg = {
+        "conversationId": conversation_id,
+        "data": {
+            "message": content
+        },
+        "event": event
+    }
+    return f"data:{json.dumps(msg, ensure_ascii=False)}\n\n"
+
+
+def format_end_event(conversation_id):
+    """格式化结束事件"""
+    msg = {
+        "conversationId": conversation_id,
+        "data": None,
+        "event": "MESSAGE_END"
+    }
+    return f"data:{json.dumps(msg, ensure_ascii=False)}\n\n"
+
+
+def format_error_event(conversation_id, error_message):
+    """格式化错误事件"""
+    msg = {
+        "conversationId": conversation_id,
+        "data": {
+            "message": error_message
+        },
+        "event": "ERROR"
+    }
+    return f"data:{json.dumps(msg, ensure_ascii=False)}\n\n"
 
 
 def get_tool_list():
@@ -177,199 +241,201 @@ class ChatHandler:
 
 def chat_generate(req_dict, user_info=None):
     '''
-    流式对话
+    流式对话 - 使用 LangGraph Agent 架构
+
+    工作流程：
+    1. 准备上下文（知识库、记忆、历史）
+    2. 路由执行：
+       - 如果有工具 → ToolsCallAgent (LangGraph)
+       - 否则 → 直接 LLM 流式回答
+    3. 统一格式化输出
     '''
     with app.app_context():
         chat_handler = ChatHandler(req_dict)
         conversation_id = chat_handler.conversation_id
         answer = ''
+
         try:
+            # 1. 准备上下文
             prompt, llm, agent_enable, tools = chat_handler.prepare_context(user_info)
-            if agent_enable and tools != []:
-                # agent工具调用模式
-                agent = ToolsCallAgent(tools, llm=llm)
+
+            # 2. 路由执行
+            if agent_enable and tools:
+                # Agent 模式：使用 LangGraph ToolsCallAgent
+                agent = ToolsCallAgent(
+                    tools=tools,
+                    llm=llm,
+                    system_prompt=chat_handler.system_prompt
+                )
+
                 for chunk in agent.chat(prompt):
-                    if chunk['type'] == 'text':
-                        answer += chunk['content']
-                    event_type_map = {
-                        'text': "MESSAGE",
-                        'html': "HTML",
-                        'data': "DATATABLE",
-                        'step': "STEP",
-                        'flow': "STEP"
-                    }
-                    msg = {
-                        "conversationId": conversation_id,
-                        "data": {
-                            "message": chunk['content']
-                        },
-                        "event": event_type_map.get(chunk['type'], "MESSAGE")
-                    }
-                    t = f"data:{json.dumps(msg, ensure_ascii=False)}"
-                    yield f"{t}\n\n"
+                    # 收集文本答案（用于保存）
+                    if chunk.get('type') == 'text':
+                        answer += str(chunk.get('content', ''))
+
+                    # 统一格式化输出
+                    yield format_stream_event(conversation_id, chunk)
+
             else:
-                # 直接使用llm回答
+                # 直接 LLM 模式：流式回答
                 for c in llm.stream(prompt):
                     answer += c.content
-                    msg = {
-                        "conversationId": conversation_id,
-                        "data": {
-                            "message": c.content
-                        },
-                        "event": "MESSAGE"
-                    }
-                    t = f"data:{json.dumps(msg, ensure_ascii=False)}"
-                    yield f"{t}\n\n"
-            msg = {
-                "conversationId": conversation_id,
-                "data": None,
-                "event": "MESSAGE_END"
-            }
-            t = f"data:{json.dumps(msg, ensure_ascii=False)}"
-            yield f"{t}\n\n"
+                    yield format_stream_event(conversation_id, c.content)
+
+            # 3. 输出结束事件
+            yield format_end_event(conversation_id)
 
         except Exception as e:
-            msg = {
-                "conversationId": conversation_id,
-                "data": {
-                    "message": str(e)
-                },
-                "event": "ERROR"
-            }
-            yield f"data:{json.dumps(msg, ensure_ascii=False)}\n\n"
+            # 错误处理
+            import traceback
+            error_msg = f"处理出错: {str(e)}\n{traceback.format_exc()}"
+            yield format_error_event(conversation_id, str(e))
+            # 重新抛出异常以便上层处理
+            raise e
+
         finally:
+            # 保存对话历史和记忆
             chat_handler.handle_chat_close(answer)
 
 def chat_run(req_dict, user_info=None):
     '''
-    返回对话结果
+    同步对话 - 返回完整结果（使用 LangGraph 架构）
+
+    工作流程：
+    1. 准备上下文（知识库、记忆、历史）
+    2. 路由执行：
+       - 如果有工具 → ToolsCallAgent (LangGraph)
+       - 否则 → 直接 LLM 回答
+    3. 返回统一格式结果
     '''
     with app.app_context():
         chat_handler = ChatHandler(req_dict)
         answer = ''
+
         try:
+            # 1. 准备上下文
             prompt, llm, agent_enable, tools = chat_handler.prepare_context(user_info)
-            if agent_enable and tools != []:
-                # agent工具调用模式
-                agent = ToolsCallAgent(tools, llm=llm)
+
+            # 2. 路由执行
+            if agent_enable and tools:
+                # Agent 模式：使用 LangGraph ToolsCallAgent
+                agent = ToolsCallAgent(
+                    tools=tools,
+                    llm=llm,
+                    system_prompt=chat_handler.system_prompt
+                )
                 output = agent.run(prompt)
             else:
-                # 直接使用llm回答
+                # 直接 LLM 模式
                 output = llm.invoke(prompt).content
+
+            # 3. 处理返回结果
             if isinstance(output, dict) and 'content' in output and 'type' in output:
+                # Agent 返回的格式化结果
                 if output['type'] == 'text':
-                    answer += output['content']
-                # 若是其他agent的输出格式，直接返回
+                    answer = str(output['content'])
                 return output
             else:
-                answer = output
-                return {'content': output, 'type': 'text'}
+                # 字符串结果，转换为统一格式
+                answer = str(output)
+                return {'content': answer, 'type': 'text'}
+
         except Exception as e:
-            return {'content': f'处理出错：{e}', 'type': 'text'}
+            import traceback
+            error_msg = f'处理出错：{str(e)}\n{traceback.format_exc()}'
+            return {'content': str(e), 'type': 'text'}
+
         finally:
+            # 保存对话历史
             chat_handler.handle_chat_close(answer)
 
 
 def data_chat_generate(req_dict):
     '''
-    数据对话-流式接口
+    数据对话 - 流式接口（使用 LangGraph 架构）
+
+    工作流程：
+    1. 验证 LLM 配置
+    2. 准备数据工具和知识库
+    3. 路由执行：
+       - 如果有数据工具 → ToolsCallAgent (LangGraph) + DataChatTool
+       - 否则 → 直接 LLM 回答
+    4. 统一格式化输出
     '''
     message = req_dict['message']
     model_id = req_dict.get('model_id', '')
     conversation_id = req_dict.get('conversationId', gen_uuid())
-    _llm = get_llm()
-    if _llm is None:
-        msg = {
-            "conversationId": conversation_id,
-            "data": {
-                "message": '未找到对应llm配置!'
-            },
-            "event": "ERROR"
-        }
-        yield f"data:{json.dumps(msg, ensure_ascii=False)}\n\n"
-        return
-    data_tool = get_chat_data_tool(model_id, is_chat=True)
-    if data_tool is None:
-        for c in _llm.stream(message):
-            msg = {
-                "conversationId": conversation_id,
-                "data": {
-                    "message": c.content
-                },
-                "event": "MESSAGE"
+
+    try:
+        # 1. 验证 LLM 配置
+        _llm = get_llm()
+        if _llm is None:
+            yield format_error_event(conversation_id, '未找到对应llm配置!')
+            return
+
+        # 2. 准备数据工具
+        data_tool = get_chat_data_tool(model_id, is_chat=True)
+
+        if data_tool is None:
+            # 无数据工具：直接 LLM 回答
+            for c in _llm.stream(message):
+                yield format_stream_event(conversation_id, c.content)
+
+        else:
+            # 有数据工具：使用 Agent 模式
+            # 2.1 输出检索步骤
+            search_step = {
+                'title': '检索知识库',
+                'content': '正在检索知识库',
+                'time': get_now_time(res_type='datetime')
             }
-            t = f"data:{json.dumps(msg, ensure_ascii=False)}"
-            yield f"{t}\n\n"
-    else:
-        msg = {
-            "conversationId": conversation_id,
-            "data": {
-                "message": {'title': '检索知识库', 'content': '正在检索知识库', 'time': get_now_time(res_type='datetime')}
-            },
-            "event": "STEP"
-        }
-        t = f"data:{json.dumps(msg, ensure_ascii=False)}"
-        yield f"{t}\n\n"
-        # 检索知识库中相关知识
-        knowledge = get_knowledge(message, metadata={'datamodel_id': model_id})
-        data_tool.knowledge = knowledge
-        agent = ToolsCallAgent([data_tool], llm=_llm)
-        for chunk in agent.chat(message):
-            event_type_map = {
-                'text': "MESSAGE",
-                'html': "HTML",
-                'data': "DATATABLE",
-                'step': "STEP",
-                'flow': "STEP"
-            }
-            msg = {
-                "conversationId": conversation_id,
-                "data": {
-                    "message": chunk['content']
-                },
-                "event": event_type_map.get(chunk['type'], "MESSAGE")
-            }
-            t = f"data:{json.dumps(msg, ensure_ascii=False)}"
-            yield f"{t}\n\n"
-    msg = {
-        "conversationId": conversation_id,
-        "data": None,
-        "event": "MESSAGE_END"
-    }
-    t = f"data:{json.dumps(msg, ensure_ascii=False)}"
-    yield f"{t}\n\n"
+            yield format_stream_event(conversation_id, search_step, event_type="STEP")
+
+            # 2.2 检索知识库
+            knowledge = get_knowledge(message, metadata={'datamodel_id': model_id})
+            data_tool.knowledge = knowledge
+
+            # 2.3 创建 Agent 并执行
+            agent = ToolsCallAgent(
+                tools=[data_tool],
+                llm=_llm,
+                system_prompt="你是一个数据分析助手，能够帮助用户分析数据"
+            )
+
+            # 2.4 流式输出结果
+            for chunk in agent.chat(message):
+                yield format_stream_event(conversation_id, chunk)
+
+        # 3. 输出结束事件
+        yield format_end_event(conversation_id)
+
+    except Exception as e:
+        # 错误处理
+        import traceback
+        error_msg = f"数据对话处理出错: {str(e)}\n{traceback.format_exc()}"
+        yield format_error_event(conversation_id, str(e))
+        raise e
 
 
 if __name__ == '__main__':
     req_dict = {
-        'topicId': 'test0007',  # '8a862fdf980245459ac9ef89734c1601',
-        "message": '9.11和9.9哪个大',  # '我喜欢弹钢琴',  # 查询sys_dict 表前10条数据
-        "chatConfig": {
-            # "rag": {
-            #     "enable": False,
-            #     "dataset_id": ["1"],
-            #     "k": 3,
-            #     "retrieval_type": "vector",
-            #     "score_threshold": 0.1,
-            #     "rerank": "0",
-            #     "rerank_score_threshold": 0
-            # },
-            # "agent": {
-            #     "enable": False,
-            #     "tools": []
-            # },
-            # "data_chat": {
-            #     "enable": False,
-            #     "datamodel_id": ["8a862fdf980245459ac9ef89734c166f", "22016439fbd0431887641544a0cf5cf4"]
-            # },
-            # "memory": {
-            #     "enable": True
-            # }
+        "conversationId": "test1111111",
+        "message": '几点了', #"字典表中字典项最多的10个字典， 返回表格统计结果",
+        'chatConfig': {
+            "msgNum": 1,
+            "prologue": None,
+            # "knowledgeIds": "1",
+            "modelId": "default",
+            "presetQuestion": "",
+            # "datamodelIds": "c20ae41fcaa74597ab83293add482ff0",
+            "toolIds": "now_time,network_search",
+            "metadata": '{"multiSession": true}'
         }
     }
+
     with app.app_context():
-        # chat_run(req_dict, False)
-        for i in chat_generate(req_dict, False):
+        # chat_run(req_dict, {})
+        for i in chat_generate(req_dict, {}):
             print(i)
     #     messages = '''
     # 我的爱好是弹琴。
@@ -388,5 +454,9 @@ if __name__ == '__main__':
     #     for message in messages:
     #         if message != '':
     #             req_dict['message'] = message
-    #             for i in chat_generate(req_dict, False):
-    #                 print(i)
+    #             res = chat_run(req_dict)
+    #             print(res)
+    #             import time
+    #             time.sleep(3)
+    #             # for i in chat_generate(req_dict, None):
+    #             #     print(i)

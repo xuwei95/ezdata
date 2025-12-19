@@ -1,4 +1,4 @@
-from langchain.tools import BaseTool
+from langchain_core.tools import BaseTool
 from typing import Optional, Type
 from langchain_core.callbacks import CallbackManagerForToolRun
 from pydantic import BaseModel, Field
@@ -81,7 +81,7 @@ def get_chat_data_tools(datamodel_ids, is_chat: bool = True):
 
 
 if __name__ == '__main__':
-    from web_apps.llm.agents.tools_call_agent import ToolsCallAgent
+    from web_apps.llm.agents.tools_call_langgraph import ToolsCallAgent
     with app.app_context():
         datamodel_ids = ['8a862fdf980245459ac9ef89734c166f']
         tools = get_chat_data_tools(datamodel_ids)

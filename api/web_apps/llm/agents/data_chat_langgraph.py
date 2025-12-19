@@ -99,12 +99,11 @@ Generate python code and return full updated code:
             if state['knowledge'] != '':
                 prompt = f"结合知识库信息:\n{state['knowledge']}\n回答以下问题:\n{prompt}"
             
-            llm_result = self.llm.invoke(prompt).content
-            code = extract_code(llm_result)
-            
             # 添加流程数据
             flow_data = state.get("flow_data", [])
             if state['answer'] != '':
+                llm_result = self.answer
+                code = extract_code(llm_result)
                 flow_data.append({
                     'content': {
                         'title': '生成处理代码', 
@@ -114,6 +113,8 @@ Generate python code and return full updated code:
                     'type': 'flow'
                 })
             else:
+                llm_result = self.llm.invoke(prompt).content
+                code = extract_code(llm_result)
                 flow_data.append({
                     'content': {
                         'title': '生成处理代码', 
@@ -397,10 +398,26 @@ Fix the python code above and return the new python code
             "max_token": self.max_token,
             "flow_data": []
         }
-        
+
+        # 用于跟踪已输出的 flow_data，避免重复
+        yielded_flow_count = 0
+
         # 执行工作流（流式）
         for chunk in app.stream(initial_state):
-            yield chunk
+            # 遍历所有节点的输出
+            for node_name, node_state in chunk.items():
+                if node_name == 'parse_result':
+                    # 最终节点：输出解析后的结果
+                    if 'parsed_result' in node_state and node_state['parsed_result']:
+                        yield node_state['parsed_result']
+                else:
+                    # 中间节点：输出新增的 flow_data
+                    if 'flow_data' in node_state:
+                        flow_data = node_state['flow_data']
+                        # 只输出新增的 flow_data（避免重复）
+                        for flow_item in flow_data[yielded_flow_count:]:
+                            yield flow_item
+                            yielded_flow_count += 1
 
 
 if __name__ == "__main__":
@@ -410,10 +427,8 @@ if __name__ == "__main__":
     from web_apps import app
     with app.app_context():
         from utils.etl_utils import get_reader_model
-        flag, reader = get_reader_model({'model_id': 'e222b61c62be4d09908a5bc94aebf22d'})
+        flag, reader = get_reader_model({'model_id': 'c20ae41fcaa74597ab83293add482ff0'})
         # 这里需要提供实际的reader对象进行测试
         agent = DataChatLangGraph(reader=reader)
-        # result = agent.run("查询数据")
-        # print(f"结果: {result}")
-        for chunk in agent.chat("查询前10条数据"):
+        for chunk in agent.chat("查询字典项数据，按创建时间按月分组统计数据，画出统计表"):
             print(chunk)

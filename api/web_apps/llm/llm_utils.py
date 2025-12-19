@@ -24,16 +24,16 @@ def get_llm(llm_config=None):
         }
     if LLM_TYPE == 'openai':
         return ChatOpenAI(
-            model_name=LLM_MODEL,
-            openai_api_key=LLM_API_KEY,
-            openai_api_base=LLM_URL,
+            model=LLM_MODEL,
+            api_key=LLM_API_KEY,
+            base_url=LLM_URL,
             temperature=llm_config.get('temperature', 0.5),
             top_p=llm_config.get('topP', 0.8),
             max_tokens=llm_config.get('maxTokens', 4000)
         )
     if LLM_TYPE == 'tongyi':
         return ChatTongyi(
-            model_name=LLM_MODEL,
+            model=LLM_MODEL,
             api_key=LLM_API_KEY,
             top_p=llm_config.get('topP', 0.8)
         )

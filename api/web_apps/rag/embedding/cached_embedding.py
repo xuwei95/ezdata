@@ -1,6 +1,6 @@
 from abc import ABC
 from typing import List
-from langchain.embeddings.base import Embeddings
+from langchain_core.embeddings import Embeddings
 from sqlalchemy.exc import IntegrityError
 from web_apps import db
 from web_apps.rag.db_models import Embedding

@@ -37,7 +37,7 @@ export function useThirdLogin() {
   const thirdCaptcha = ref('');
   //第三方登录
   function onThirdLogin(source) {
-    let url = `${glob.uploadUrl}/sys/user/thirdLogin/render/${source}`;
+    let url = `${glob.apiUrl}/sys/user/thirdLogin/render/${source}`;
     const openWin = window.open(
       url,
       `login ${source}`,

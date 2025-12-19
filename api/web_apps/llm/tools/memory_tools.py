@@ -1,4 +1,4 @@
-from langchain.tools import BaseTool
+from langchain_core.tools import BaseTool
 from typing import Optional, Type
 from langchain_core.callbacks import CallbackManagerForToolRun
 from pydantic import BaseModel, Field
@@ -103,7 +103,7 @@ def get_memory_tools(conversation_id):
 
 
 if __name__ == '__main__':
-    from web_apps.llm.agents.tools_call_agent import ToolsCallAgent
+    from web_apps.llm.agents.tools_call_langgraph import ToolsCallAgent
     conversation_id = '8a862fdf980245459ac9ef89734c1668'
     tools = get_memory_tools(conversation_id)
     agent = ToolsCallAgent(tools=tools)

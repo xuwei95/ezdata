@@ -1,6 +1,6 @@
 from abc import abstractmethod, ABC
-from langchain.embeddings.base import Embeddings
-from langchain.vectorstores import VectorStore
+from langchain_core.embeddings import Embeddings
+from langchain_core.vectorstores import VectorStore
 
 
 class BaseVectorIndex(ABC):
