@@ -174,7 +174,7 @@
 
 <script setup lang="ts">
   import { Ref, watch } from 'vue';
-  import { computed, ref, createVNode, onUnmounted, onMounted } from 'vue';
+  import { computed, ref, createVNode, onUnmounted, onMounted, watchEffect } from 'vue';
   import { useScroll } from '@/views/llm/aiapp/chat/js/useScroll';
   import chatMessage from '@/views/llm/aiapp/chat/chatMessage.vue';
   import presetQuestion from '@/views/llm/aiapp/chat/presetQuestion.vue';
@@ -197,7 +197,7 @@
   });
 
   const props = defineProps(['model_id']);
-  const emit = defineEmits(['save','reload-message-title']);
+  const emit = defineEmits(['save','reload-message-title','cancel-model-switch']);
   const { scrollRef, scrollToBottom } = useScroll();
   const prompt = ref<string>('');
   const loading = ref<boolean>(false);
@@ -230,6 +230,13 @@
   const globSetting = useGlobSetting();
   const baseUploadUrl = globSetting.uploadUrl;
   const uploadUrl = ref<string>(`${baseUploadUrl}/airag/chat/upload`);
+
+  // 当前实际使用的model_id
+  const currentModelId = ref(props.model_id);
+  // 待确认的model_id
+  const pendingModelId = ref<string | null>(null);
+  // 上一次确认的model_id，用于恢复父组件选中状态
+  const lastConfirmedModelId = ref(props.model_id);
   async function starQa(index) {
     console.log('star66666', chatData.value[index - 1], chatData.value[index]);
     if (chatData.value[index].star_flag != '1'){
@@ -244,7 +251,7 @@
             question: chatData.value[index - 1].content,
             answer: chatInfo.answer,
             metadata: {
-              datamodel_id: props.model_id,
+              datamodel_id: currentModelId.value,
               star_flag: 1,
             },
           };
@@ -371,8 +378,7 @@
       wrapClassName:'ai-chat-modal',
       async onOk() {
         try {
-          chatData.value = [];
-          topicId.value = "";
+          clearChatData();
         } catch {
           return console.log('Oops errors!');
         }
@@ -417,7 +423,7 @@
     param = {
       message: message,
       images: uploadUrlList.value?uploadUrlList.value:[],
-      model_id: props.model_id,
+      model_id: currentModelId.value,
       responseMode: 'streaming',
       conversationId: uuid.value === "1002"?'':uuid.value
     };
@@ -847,6 +853,60 @@
       }
     };
     await defHttp.uploadFile({ url: "/airag/chat/upload" }, { file: image }, { success: isReturn });
+  }
+
+  // 监听props.model_id变化，处理模型切换
+  watch(() => props.model_id, (newVal, oldVal) => {
+    if (newVal && oldVal && newVal !== oldVal && newVal !== currentModelId.value) {
+      // 保存待确认的model_id
+      pendingModelId.value = newVal;
+
+      // 检查是否有对话内容
+      if (chatData.value.length > 0) {
+        Modal.confirm({
+          title: '切换数据模型',
+          icon: createVNode(ExclamationCircleOutlined),
+          content: '切换数据模型将清空当前对话记录，是否继续？',
+          okText: '继续',
+          cancelText: '取消',
+          wrapClassName: 'ai-chat-modal',
+          onOk() {
+            // 用户确认后清空对话记录并切换模型
+            clearChatData();
+            currentModelId.value = pendingModelId.value;
+            lastConfirmedModelId.value = pendingModelId.value;
+            pendingModelId.value = null;
+            console.log('数据模型已切换，对话记录已清空');
+          },
+          onCancel() {
+            // 用户取消，不清空对话记录，保持在当前模型
+            // 通知父组件恢复选中状态
+            emit('cancel-model-switch', lastConfirmedModelId.value);
+            pendingModelId.value = null;
+            console.log('用户取消切换数据模型，恢复到之前的模型');
+          }
+        });
+      } else {
+        // 没有对话内容，直接切换
+        clearChatData();
+        currentModelId.value = newVal;
+        lastConfirmedModelId.value = newVal;
+        pendingModelId.value = null;
+        console.log('数据模型已切换');
+      }
+    }
+  });
+
+  // 清空对话数据的方法
+  function clearChatData() {
+    chatData.value = [];
+    topicId.value = "";
+    uuid.value = "";
+    requestId.value = "";
+    headerTitle.value = "";
+    // 清空上传的图片
+    uploadUrlList.value = [];
+    fileInfoList.value = [];
   }
 
   onMounted(() => {

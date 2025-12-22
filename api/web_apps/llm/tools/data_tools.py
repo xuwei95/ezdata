@@ -6,7 +6,7 @@ from web_apps import app, db
 from web_apps.datamodel.db_models import DataModel
 from utils.etl_utils import get_reader_model
 from web_apps.llm.llm_utils import get_llm
-from web_apps.llm.agents.data_chat_agent import DataChatAgent
+from web_apps.llm.agents.data_chat_langgraph import DataChatLangGraph
 from web_apps.rag.services.rag_service import get_star_qa_answer
 
 
@@ -31,6 +31,8 @@ class DataChatTool(BaseTool):
     knowledge: str = ''
     reader: Optional[object] = None
     args_schema: Type[BaseModel] = DataChatInput
+    history_context: str = ""  # 简单的历史上下文字符串
+    _agent: Optional[object] = None
 
     def bind_model(self):
         with app.app_context():
@@ -55,11 +57,16 @@ class DataChatTool(BaseTool):
         _llm = get_llm()
         # 查询知识库中是否有已标记的正确答案
         answer = get_star_qa_answer(question, metadata={'datamodel_id': self.datamodel_id})
-        _agent = DataChatAgent(_llm, self.reader, knowledge=self.knowledge, answer=answer, retry=1)
+        self._agent = DataChatLangGraph(llm=_llm, reader=self.reader, knowledge=self.knowledge, answer=answer, retry=1)
+
         if self.is_chat:
-            return _agent.chat(question)
+            return self._agent.chat(question, history_context=self.history_context)
         else:
-            return _agent.run(question)
+            return self._agent.run(question, history_context=self.history_context)
+
+    def set_history_context(self, context: str):
+        """设置历史上下文"""
+        self.history_context = context
 
 
 def get_chat_data_tool(datamodel_id: str, is_chat: bool = True):

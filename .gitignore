@@ -137,3 +137,6 @@ static/
 *.dat
 *.bak
 *.dir
+
+api/null
+api/nul

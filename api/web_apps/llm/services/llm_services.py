@@ -1,4 +1,5 @@
 import json
+import traceback
 from langchain_core.messages import AIMessage, HumanMessage
 from web_apps import app
 from web_apps.llm.agents.data_extract_langgraph import DataExtractLangGraph as DataExtractAgent
@@ -287,12 +288,8 @@ def chat_generate(req_dict, user_info=None):
 
         except Exception as e:
             # 错误处理
-            import traceback
             error_msg = f"处理出错: {str(e)}\n{traceback.format_exc()}"
-            yield format_error_event(conversation_id, str(e))
-            # 重新抛出异常以便上层处理
-            raise e
-
+            yield format_error_event(conversation_id, error_msg)
         finally:
             # 保存对话历史和记忆
             chat_handler.handle_chat_close(answer)
@@ -341,9 +338,8 @@ def chat_run(req_dict, user_info=None):
                 return {'content': answer, 'type': 'text'}
 
         except Exception as e:
-            import traceback
             error_msg = f'处理出错：{str(e)}\n{traceback.format_exc()}'
-            return {'content': str(e), 'type': 'text'}
+            return {'content': error_msg, 'type': 'text'}
 
         finally:
             # 保存对话历史
@@ -357,64 +353,90 @@ def data_chat_generate(req_dict):
     工作流程：
     1. 验证 LLM 配置
     2. 准备数据工具和知识库
-    3. 路由执行：
+    3. 获取历史对话作为上下文
+    4. 路由执行：
        - 如果有数据工具 → ToolsCallAgent (LangGraph) + DataChatTool
        - 否则 → 直接 LLM 回答
-    4. 统一格式化输出
+    5. 统一格式化输出
     '''
-    message = req_dict['message']
-    model_id = req_dict.get('model_id', '')
-    conversation_id = req_dict.get('conversationId', gen_uuid())
+    with app.app_context():
+        message = req_dict['message']
+        model_id = req_dict.get('model_id', '')
+        conversation_id = req_dict.get('conversationId')
+        if not conversation_id:
+            conversation_id = gen_uuid()
+        try:
+            # 1. 验证 LLM 配置
+            _llm = get_llm()
+            if _llm is None:
+                yield format_error_event(conversation_id, '未找到对应llm配置!')
+                return
 
-    try:
-        # 1. 验证 LLM 配置
-        _llm = get_llm()
-        if _llm is None:
-            yield format_error_event(conversation_id, '未找到对应llm配置!')
-            return
+            # 2. 准备数据工具
+            data_tool = get_chat_data_tool(model_id, is_chat=True)
 
-        # 2. 准备数据工具
-        data_tool = get_chat_data_tool(model_id, is_chat=True)
+            if data_tool is None:
+                # 无数据工具：直接 LLM 回答
+                for c in _llm.stream(message):
+                    yield format_stream_event(conversation_id, c.content)
 
-        if data_tool is None:
-            # 无数据工具：直接 LLM 回答
-            for c in _llm.stream(message):
-                yield format_stream_event(conversation_id, c.content)
+            else:
+                # 有数据工具：使用 Agent 模式
 
-        else:
-            # 有数据工具：使用 Agent 模式
-            # 2.1 输出检索步骤
-            search_step = {
-                'title': '检索知识库',
-                'content': '正在检索知识库',
-                'time': get_now_time(res_type='datetime')
-            }
-            yield format_stream_event(conversation_id, search_step, event_type="STEP")
+                # 2.2 检索知识库
+                knowledge = get_knowledge(message, metadata={'datamodel_id': model_id})
+                if knowledge:
+                    # 2.1 输出检索步骤
+                    search_step = {
+                        'content': {
+                        'title': '检索知识库',
+                        'content': knowledge,
+                        'time': get_now_time(res_type='datetime')
+                        },
+                        'type': 'flow'
+                    }
+                    yield format_stream_event(conversation_id, search_step)
+                    data_tool.knowledge = knowledge
 
-            # 2.2 检索知识库
-            knowledge = get_knowledge(message, metadata={'datamodel_id': model_id})
-            data_tool.knowledge = knowledge
+                # 2.3 获取历史对话作为上下文
+                history_messages, _ = get_messages(conversation_id, page=1, size=3)
+                history_context = ""
+                if history_messages:
+                    history_context = "\n### 对话历史\n"
+                    for msg in history_messages:
+                        history_context += f"human: {msg['question']}\nAI: {msg.get('answer', '')}\n"
 
-            # 2.3 创建 Agent 并执行
-            agent = ToolsCallAgent(
-                tools=[data_tool],
-                llm=_llm,
-                system_prompt="你是一个数据分析助手，能够帮助用户分析数据"
-            )
+                # 设置历史上下文
+                data_tool.set_history_context(history_context)
 
-            # 2.4 流式输出结果
-            for chunk in agent.chat(message):
-                yield format_stream_event(conversation_id, chunk)
+                # 2.4 创建 Agent 并执行
+                agent = ToolsCallAgent(
+                    tools=[data_tool],
+                    llm=_llm,
+                    system_prompt=f"{history_context}\n你是一个数据分析助手，能够帮助用户分析数据。"
+                )
 
-        # 3. 输出结束事件
-        yield format_end_event(conversation_id)
+                # 2.5 流式输出结果
+                final_answer = ""
+                for chunk in agent.chat(message):
+                    # 收集最终答案用于保存历史记录
+                    if chunk.get('type') == 'text':
+                        final_answer += chunk.get('content', '')
+                    yield format_stream_event(conversation_id, chunk)
+                # 保存对话历史记录
+                if final_answer == '' and data_tool._agent and data_tool._agent.answer != '':
+                    final_answer = data_tool._agent.answer
+                if final_answer:
+                    add_message(conversation_id, message, final_answer)
 
-    except Exception as e:
-        # 错误处理
-        import traceback
-        error_msg = f"数据对话处理出错: {str(e)}\n{traceback.format_exc()}"
-        yield format_error_event(conversation_id, str(e))
-        raise e
+            # 3. 输出结束事件
+            yield format_end_event(conversation_id)
+
+        except Exception as e:
+            # 错误处理
+            error_msg = f"数据对话处理出错: {str(e)}\n{traceback.format_exc()}"
+            yield format_error_event(conversation_id, error_msg)
+            raise e
 
 
 if __name__ == '__main__':

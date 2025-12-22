@@ -23,6 +23,7 @@ class DataChatState(TypedDict):
     max_retry: int                       # 最大重试次数
     max_token: int                       # 最大token数
     flow_data: List[Dict[str, Any]]     # 流程数据
+    history_context: str                 # 历史对话上下文字符串
 
 
 class DataChatLangGraph:
@@ -66,7 +67,7 @@ class DataChatLangGraph:
         def generate_code(state: DataChatState) -> DataChatState:
             """生成Python代码"""
             result_example_prompt = '{ "type": "string", "value": "100" } or { "type": "dataframe", "value": pd.DataFrame({...}) } or { "type": "html", "value": line.render_embed() }'
-            
+            # 构建提示词，包含历史上下文
             prompt = f"""
 I have a data reader object called reader, and the object information is：
 {state['info_prompt']}
@@ -77,7 +78,7 @@ Update this initial code:
 
 # Write code here
 
-# Declare result var: 
+# Declare result var:
 type (possible values "string", "dataframe", "html"). Example: {result_example_prompt}
 
 ```
@@ -85,6 +86,8 @@ type (possible values "string", "dataframe", "html"). Example: {result_example_p
 ### QUERY
 
 {state['question']}
+
+{state.get('history_context', '')}
 
 Variable `reader` is already declared.
 
@@ -95,10 +98,11 @@ If you are asked to plot a chart, use "pyecharts" for charts, use the render_emb
 Generate python code and return full updated code:
 请在代码中使用中文添加必要注释
 """
-            
             if state['knowledge'] != '':
                 prompt = f"结合知识库信息:\n{state['knowledge']}\n回答以下问题:\n{prompt}"
-            
+            history_context = state.get('history_context', '')
+            if history_context != '':
+                prompt = f"history_context:\n{history_context}\n{prompt}"
             # 添加流程数据
             flow_data = state.get("flow_data", [])
             if state['answer'] != '':
@@ -177,7 +181,8 @@ Generate python code and return full updated code:
                         }, 
                         'type': 'flow'
                     })
-                    
+                    # 标记最终答案
+                    self.answer = state["llm_result"]
                     return {
                         **state,
                         "executed_code": code,
@@ -214,19 +219,24 @@ Generate python code and return full updated code:
             fix_code_prompt = f"""
 I have a data reader object called reader, and the object information is：
 {state['info_prompt']}
+
 The user asked the following question:
 {state['question']}
+
 You generated this python code:
 {state['executed_code']}
+
 the code running throws an exception:
 {state['code_exception']}
+
 Fix the python code above and return the new python code
 请在代码中使用中文添加必要注释
         """
-            
             if state['knowledge'] != '':
                 fix_code_prompt = f"结合知识库信息:\n{state['knowledge']}\n回答以下问题:\n{fix_code_prompt}"
-            
+            history_context = state.get('history_context', '')
+            if history_context != '':
+                fix_code_prompt = f"history_context:\n{history_context}\n{fix_code_prompt}"
             llm_result = self.llm.invoke(fix_code_prompt).content
             new_code = extract_code(llm_result)
             
@@ -347,11 +357,11 @@ Fix the python code above and return the new python code
         workflow.add_edge("handle_error", END)
         return workflow.compile()
 
-    def run(self, prompt):
+    def run(self, prompt, history_context=""):
         """同步运行"""
         # 创建工作流
         app = self.create_langgraph_workflow()
-        
+
         # 初始化状态
         initial_state = {
             "messages": [HumanMessage(content=prompt)],
@@ -368,18 +378,20 @@ Fix the python code above and return the new python code
             "retry_count": 0,
             "max_retry": self.max_retry,
             "max_token": self.max_token,
-            "flow_data": []
+            "flow_data": [],
+            "history_context": history_context  # 简单的历史上下文字符串
         }
-        
+
         # 执行工作流
         result = app.invoke(initial_state)
-        
+
         return result["parsed_result"]
 
-    def chat(self, prompt):
+    def chat(self, prompt, history_context=""):
         """流式运行"""
         # 创建工作流
         app = self.create_langgraph_workflow()
+
         # 初始化状态
         initial_state = {
             "messages": [HumanMessage(content=prompt)],
@@ -396,7 +408,8 @@ Fix the python code above and return the new python code
             "retry_count": 0,
             "max_retry": self.max_retry,
             "max_token": self.max_token,
-            "flow_data": []
+            "flow_data": [],
+            "history_context": history_context  # 简单的历史上下文字符串
         }
 
         # 用于跟踪已输出的 flow_data，避免重复

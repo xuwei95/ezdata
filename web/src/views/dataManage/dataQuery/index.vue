@@ -24,7 +24,7 @@
           </a-tab-pane>
           <a-tab-pane tab="数据分析" key="data-chat" style="position: relative">
             <div style="padding: 0 20px 20px; height: 100%">
-              <DataChat :model_id="modelData.id" />
+              <DataChat :model_id="modelData.id" @cancel-model-switch="handleCancelModelSwitch" />
             </div>
           </a-tab-pane>
           <a-tab-pane tab="数据接口" key="data-interface">
@@ -76,6 +76,14 @@
   // 左侧树rootTreeData触发
   function onRootTreeData(data) {
     rootTreeData.value = data;
+  }
+
+  // 处理取消切换模型事件
+  function handleCancelModelSwitch(modelId) {
+    if (leftTree.value && modelId) {
+      // 找到对应模型ID的树节点并恢复选中状态
+      leftTree.value.restoreSelectedNode(modelId);
+    }
   }
 </script>
 

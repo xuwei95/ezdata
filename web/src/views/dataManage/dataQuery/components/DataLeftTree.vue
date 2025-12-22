@@ -120,6 +120,33 @@
     expandedKeys.value = keys;
     autoExpandParent.value = false;
   }
+
+  // 恢复选中节点
+  function restoreSelectedNode(modelId) {
+    // 在树数据中查找对应的节点
+    function findNodeInTree(nodes, targetId) {
+      for (const node of nodes) {
+        if (node.value === targetId) {
+          return node;
+        }
+        if (node.children) {
+          const found = findNodeInTree(node.children, targetId);
+          if (found) return found;
+        }
+      }
+      return null;
+    }
+
+    const targetNode = findNodeInTree(treeData.value, modelId);
+    if (targetNode) {
+      setSelectedKey(modelId, targetNode);
+    }
+  }
+
+  // 暴露方法给父组件
+  defineExpose({
+    restoreSelectedNode
+  });
 </script>
 <style lang="less" scoped>
   /*升级antd3后，查询框与树贴的太近，样式优化*/
