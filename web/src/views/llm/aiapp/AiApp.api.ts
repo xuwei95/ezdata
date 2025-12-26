@@ -13,7 +13,7 @@ export enum Api {
   promptGenerate = '/llm/chat_app/app/prompt/generate',
   // 数据模型和工具批量查询
   queryDataModelBatchById = '/datamodel/queryAllList',
-  queryToolBatchById = '/llm/tool/list',
+  queryToolBatchById = '/llm/tool/queryAllList',
 
 }
 
@@ -108,6 +108,14 @@ export const queryDataModelBatchById = (params) => {
  */
 export const queryToolBatchById = (params) => {
   return defHttp.get({ url: Api.queryToolBatchById, params }, { isTransformResponse: false });
+};
+
+/**
+ * 查询所有工具列表（内置 + 数据库）
+ * 用于下拉选择
+ */
+export const queryAllList = () => {
+  return defHttp.get({ url: Api.queryToolBatchById }, { isTransformResponse: false });
 };
 
 /**

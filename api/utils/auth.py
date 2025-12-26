@@ -81,10 +81,10 @@ def encode_interface_auth_token(info, exp_time):
             payload,
             SECRET_KEY,
             algorithm='HS256'
-        ).decode()
+        )
         return auth_token
     except Exception as e:
-        print(e)
+        print(f"Token encoding error: {e}")
 
 
 def encode_auth_token(user, timeout=TOKEN_EXP_TIME, extends={}):
@@ -118,16 +118,15 @@ def encode_auth_token(user, timeout=TOKEN_EXP_TIME, extends={}):
             payload,
             SECRET_KEY,
             algorithm='HS256'
-        ).decode()
+        )
         # 若开启刷新token机制，将客户端特征写入redis并设置过期时间
         if USE_TOKEN_REFRESH:
             feature_key = gen_user_feature(auth_token)
-            print(feature_key)
             now_time = int(time.time())
             set_key_exp(feature_key, now_time, TOKEN_EXP_TIME)
         return auth_token
     except Exception as e:
-        print(e)
+        print(f"Token encoding error: {e}")
 
 
 def decode_auth_token(auth_token):
@@ -138,14 +137,14 @@ def decode_auth_token(auth_token):
     """
     try:
         # 过期时间验证,若开启token刷新机制则不验证，改为从redis直接判断
-        payload = jwt.decode(auth_token, SECRET_KEY, options={'verify_exp': not USE_TOKEN_REFRESH})
+        payload = jwt.decode(auth_token, SECRET_KEY, algorithms=['HS256'], options={'verify_exp': not USE_TOKEN_REFRESH})
         if 'data' in payload and 'userId' in payload['data']:
             return payload
         else:
             raise jwt.InvalidTokenError
     except jwt.ExpiredSignatureError:
         return '用户验证token已过期！'
-    except jwt.InvalidTokenError:
+    except Exception as e:
         return '无效用户验证token！'
 
 

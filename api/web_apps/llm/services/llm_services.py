@@ -1,19 +1,21 @@
+import asyncio
 import json
 import traceback
 from langchain_core.messages import AIMessage, HumanMessage
+from langchain_mcp_adapters.client import MultiServerMCPClient
 from web_apps import app
 from web_apps.llm.agents.data_extract_langgraph import DataExtractLangGraph as DataExtractAgent
 from web_apps.llm.llm_utils import get_llm
-from utils.common_utils import gen_json_response, gen_uuid, get_now_time, parse_json
+from utils.common_utils import gen_uuid, get_now_time, parse_json
 from web_apps.rag.services.rag_service import get_knowledge
-from web_apps.llm.tools import tools_map
-from web_apps.llm.tools import get_tools
+from web_apps.llm.services.tool_service import get_tools
 from web_apps.llm.tools.data_tools import get_chat_data_tools, get_chat_data_tool
 from web_apps.llm.agents.tools_call_langgraph import ToolsCallAgent
 from web_apps.llm.services.conversation_service import get_or_create_conversation, get_messages, add_message
 from web_apps.llm.tools.memory_tools import get_memory_tools
 from web_apps.llm.services.conversation_service import add_archival_memory
-
+from utils.logger.logger import get_logger
+logger = get_logger(p_name='system_log', f_name='llm_services', log_level='INFO')
 
 # 事件类型映射（统一管理）
 EVENT_TYPE_MAP = {
@@ -79,19 +81,6 @@ def format_error_event(conversation_id, error_message):
     return f"data:{json.dumps(msg, ensure_ascii=False)}\n\n"
 
 
-def get_tool_list():
-    '''
-    获取工具列表
-    '''
-    result = []
-    for k, v in tools_map.items():
-        dic = {
-            'name': v['name'],
-            'value': k
-        }
-        result.append(dic)
-    return gen_json_response(data=result)
-
 
 def llm_query_data(reader, llm, query_prompt):
     '''
@@ -101,6 +90,69 @@ def llm_query_data(reader, llm, query_prompt):
     res = agent.run(query_prompt)
     llm_result = agent.llm_result
     return True, res, llm_result
+
+
+async def _get_mcp_tools_async(mcp_tool_config):
+    """
+    异步获取 MCP 工具（支持部分失败容错）
+
+    Args:
+        mcp_tool_config: MCP 工具配置字典
+
+    Returns:
+        MCP 工具列表（即使部分服务器失败也返回成功的工具）
+    """
+    all_tools = []
+    failed_servers = []
+
+    # 逐个服务器加载，一个失败不影响其他
+    for server_name, server_config in mcp_tool_config.items():
+        try:
+            logger.info(f"正在加载 MCP 服务器: {server_name}")
+            # 为每个服务器创建独立的客户端
+            single_server_config = {server_name: server_config}
+            client = MultiServerMCPClient(single_server_config)
+            server_tools = await client.get_tools()
+
+            logger.info(f"成功从服务器 '{server_name}' 获取 {len(server_tools)} 个工具: {[tool.name for tool in server_tools]}")
+            all_tools.extend(server_tools)
+        except Exception as e:
+            logger.error(f"从服务器 '{server_name}' 获取工具失败: {str(e)}")
+            failed_servers.append(server_name)
+            # 继续处理下一个服务器，不中断整体流程
+            continue
+
+    if failed_servers:
+        logger.warning(f"以下 MCP 服务器加载失败: {failed_servers}")
+
+    logger.info(f"MCP 工具加载完成，总共成功获取 {len(all_tools)} 个工具")
+    return all_tools
+
+def _get_mcp_tools_sync(mcp_tool_config):
+    """
+    同步方式获取 MCP 工具（在同步环境中调用）
+
+    Args:
+        mcp_tool_config: MCP 工具配置字典
+
+    Returns:
+        MCP 工具列表
+    """
+    try:
+        # 检查是否已有运行中的事件循环
+        try:
+            loop = asyncio.get_running_loop()
+            # 如果已有事件循环，在新线程中运行
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(asyncio.run, _get_mcp_tools_async(mcp_tool_config))
+                return future.result()
+        except RuntimeError:
+            # 没有运行中的事件循环，直接使用 asyncio.run
+            return asyncio.run(_get_mcp_tools_async(mcp_tool_config))
+    except Exception as e:
+        logger.error(f"同步获取 MCP 工具失败: {str(e)}")
+        return []
 
 
 def format_history(messages):
@@ -217,7 +269,18 @@ class ChatHandler:
             tools += get_memory_tools(self.conversation_id)
             agent_enable = True
         # 其他工具
-        tools += get_tools(toolIds)
+        builtin_tools, mcp_tool_config = get_tools(toolIds)
+        tools += builtin_tools
+        # MCP 工具支持
+        if mcp_tool_config:
+            logger.info(f"检测到 MCP 工具配置，开始获取 MCP 工具: {list(mcp_tool_config.keys())}")
+            mcp_tools = _get_mcp_tools_sync(mcp_tool_config)
+            if mcp_tools:
+                tools += mcp_tools
+                agent_enable = True
+                logger.info(f"成功添加 {len(mcp_tools)} 个 MCP 工具到工具列表")
+            else:
+                logger.warning("MCP 工具获取失败或为空")
         return prompt, self.llm, agent_enable, tools
 
     def handle_chat_close(self, answer):
@@ -442,7 +505,7 @@ def data_chat_generate(req_dict):
 if __name__ == '__main__':
     req_dict = {
         "conversationId": "test1111111",
-        "message": '几点了', #"字典表中字典项最多的10个字典， 返回表格统计结果",
+        "message": '3的5次放乘6减一等于多少，使用工具计算', #"字典表中字典项最多的10个字典， 返回表格统计结果",
         'chatConfig': {
             "msgNum": 1,
             "prologue": None,
@@ -450,7 +513,7 @@ if __name__ == '__main__':
             "modelId": "default",
             "presetQuestion": "",
             # "datamodelIds": "c20ae41fcaa74597ab83293add482ff0",
-            "toolIds": "now_time,network_search",
+            "toolIds": "now_time,a7128b38-b866-41ea-a912-2f25a65f10ec,fe504d80-41ad-4e5e-90c9-aca37d74f3c3",
             "metadata": '{"multiSession": true}'
         }
     }

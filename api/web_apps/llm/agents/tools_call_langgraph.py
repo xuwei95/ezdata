@@ -1,9 +1,10 @@
 # encoding: utf-8
 """
 ToolsCallAgent - LangGraph 版本
-使用 LangGraph StateGraph 替代传统 AgentExecutor
 支持工具调用、对象序列化、流式输出
 """
+import asyncio
+import traceback
 from typing import TypedDict, List, Any, Union, Dict, Iterator
 from collections.abc import Iterator as ABCIterator
 import types
@@ -70,6 +71,87 @@ class ToolsCallAgent:
         self.system_prompt = system_prompt + "\n在调用工具时，若遇到 object(<class 'XXX'>):XXX 形式变量，代表无法序列化的代指变量，传给后续工具时请保持此输入字符串"
         self.serializer = ObjectSerializer()
         self.workflow = self._create_workflow()
+
+    def _run_async_tool(self, tool, tool_input):
+        """
+        安全地运行异步工具（支持 Flask/WSGI 环境）
+
+        Args:
+            tool: 异步工具对象
+            tool_input: 工具输入参数
+
+        Returns:
+            工具执行结果
+        """
+        # 在 WSGI/Flask 环境中，直接使用线程方式最安全
+        # 避免在主线程中使用 asyncio API 导致栈溢出或进程崩溃
+        return self._run_async_tool_in_thread(tool, tool_input)
+
+    def _run_async_tool_in_thread(self, tool, tool_input):
+        """
+        备用方案：在线程中运行异步工具
+
+        Args:
+            tool: 异步工具对象
+            tool_input: 工具输入参数
+
+        Returns:
+            工具执行结果
+        """
+        import threading
+        import queue
+        result_queue = queue.Queue()
+        error_queue = queue.Queue()
+
+        # 保存当前栈大小设置
+        old_stack_size = threading.stack_size()
+
+        def run_in_thread():
+            """在新线程中运行异步工具"""
+            try:
+                # 在新线程中创建新的事件循环
+                new_loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(new_loop)
+                try:
+                    # 运行异步工具
+                    print(f"[线程] 准备调用工具: {tool.name}")
+                    result = new_loop.run_until_complete(tool.ainvoke(tool_input))
+                    print(f"[线程] 工具执行完成，结果: {result}")
+                    result_queue.put(result)
+                finally:
+                    # 确保清理事件循环
+                    new_loop.close()
+            except Exception as e:
+                traceback.print_exc()
+                error_queue.put(e)
+
+        try:
+            # 设置更大的栈大小 (16MB，默认通常是 1MB)
+            # 这可以防止深层调用链导致的栈溢出
+            threading.stack_size(16 * 1024 * 1024)  # 16MB
+
+            # 创建并启动线程
+            thread = threading.Thread(target=run_in_thread, daemon=False)
+            thread.start()
+            thread.join(timeout=300)  # 5分钟超时
+        finally:
+            # 恢复原来的栈大小设置
+            threading.stack_size(old_stack_size)
+
+        # 检查是否有错误
+        if not error_queue.empty():
+            error = error_queue.get()
+            raise error
+
+        # 检查是否超时
+        if thread.is_alive():
+            raise TimeoutError("工具执行超时（超过5分钟）")
+
+        # 获取结果
+        if not result_queue.empty():
+            result = result_queue.get()
+            return result
+        raise RuntimeError("工具执行失败：未返回结果")
 
     def _create_workflow(self) -> StateGraph:
         """
@@ -175,12 +257,19 @@ class ToolsCallAgent:
             },
             'type': 'flow'
         })
-
-        # 执行工具
+        # 执行工具（支持同步和异步工具）
         tool = self.tools.get(tool_name)
         if tool:
             try:
-                observation = tool.invoke(real_input)
+                # 检查工具是否是异步的（MCP 工具或其他异步工具）
+                # MCP 工具有 coroutine 属性，需要使用异步调用
+                is_async_tool = hasattr(tool, 'coroutine')
+                if is_async_tool:
+                    # 直接使用异步调用（避免同步调用导致栈溢出）
+                    observation = self._run_async_tool(tool, real_input)
+                else:
+                    # 同步工具，直接调用
+                    observation = tool.invoke(real_input)
             except Exception as e:
                 observation = f"工具执行错误: {str(e)}"
         else:
@@ -317,7 +406,6 @@ class ToolsCallAgent:
             "output": None,
             "flow_data": []
         }
-
         # 用于跟踪已输出的 flow_data，避免重复
         yielded_flow_count = 0
 

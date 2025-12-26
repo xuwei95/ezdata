@@ -6,6 +6,7 @@ from models import BaseModel
 from sqlalchemy.dialects.mysql import LONGTEXT
 from config import DB_TYPE
 import datetime
+import json
 
 
 class Conversation(BaseModel):
@@ -64,6 +65,36 @@ class ChatAppToken(BaseModel):
             value[column.name] = attribute
         return value
 
+class LLMTool(BaseModel):
+    """LLM工具配置表"""
+    __tablename__ = 'llm_tools'
+    id = db.Column(db.String(36), primary_key=True, nullable=False, default='', comment='主键')
+    name = db.Column(db.String(255), nullable=False, comment='工具名称')
+    code = db.Column(db.String(100), nullable=False, unique=True, comment='工具代码')
+    type = db.Column(db.String(50), nullable=False, comment='工具类型: mcp')
+    description = db.Column(db.TEXT, default='', comment='工具描述')
+    args = db.Column(db.TEXT, default='{}', comment='工具配置JSON')
+    status = db.Column(db.SmallInteger, default=1, comment='状态: 0禁用 1启用')
+
+    def to_dict(self):
+        '''转为字典'''
+        value = {}
+        for column in self.__table__.columns:
+            attribute = getattr(self, column.name)
+            if isinstance(attribute, datetime.datetime):
+                attribute = str(attribute)
+            # 解析args JSON字段
+            if column.name == 'args':
+                try:
+                    if isinstance(attribute, str):
+                        value[column.name] = json.loads(attribute)
+                    else:
+                        value[column.name] = attribute
+                except:
+                    value[column.name] = attribute if attribute else {}
+            else:
+                value[column.name] = attribute
+        return value
 
 if __name__ == '__main__':
     from web_apps import app

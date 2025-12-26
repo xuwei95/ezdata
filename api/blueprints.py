@@ -108,4 +108,8 @@ BLUEPRINT_DICT = {
         'blueprint': 'web_apps.llm.app_views.chat_app_bp',
         'url_prefix': '/api/llm/chat_app'
     },
+    'llm_tool': {
+        'blueprint': 'web_apps.llm.tool_views.tool_bp',
+        'url_prefix': '/api/llm/tool'
+    },
 }

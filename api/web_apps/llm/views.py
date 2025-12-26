@@ -4,12 +4,11 @@ from flask import Blueprint, request, jsonify, Response
 from utils.common_utils import gen_json_response, gen_uuid, format_date
 from utils.logger.logger import get_logger
 from utils.web_utils import get_req_para
-from utils.auth import validate_user, set_insert_user, set_update_user, get_auth_token_info
+from utils.auth import validate_user, get_auth_token_info
 from web_apps import db
 from web_apps.llm.db_models import Conversation, ChatApp
-from web_apps.llm.services.llm_services import chat_generate, data_chat_generate, get_tool_list
+from web_apps.llm.services.llm_services import chat_generate, data_chat_generate
 from web_apps.llm.services.conversation_service import get_conversations, get_messages
-from web_apps.llm.services.app_services import ChatAppApiService
 logger = get_logger(p_name='system_log', f_name='llm', log_level='INFO')
 llm_bp = Blueprint('llm', __name__)
 
@@ -81,11 +80,6 @@ def llm_data_chat_stream():
     return Response(data_chat_generate(req_dict), mimetype='text/event-stream')
 
 
-@llm_bp.route('/tool/list', methods=['GET'])
-@validate_user
-def tool_list():
-    res_data = get_tool_list()
-    return jsonify(res_data)
 
 
 @llm_bp.route('/chat/conversations', methods=['GET'])
