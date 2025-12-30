@@ -28,9 +28,10 @@ def summary_content(content: str, max_length: int = 4000, length: int = 500) -> 
 
 
 @tool(return_direct=True)
-def get_url_content(url: str) -> str:
+def get_url_content(url: str, summary_content: bool = False) -> str:
     '''
     请求网络url获取内容
+    summary_content: 是否总结内容
     '''
     extractor = HttpUrlExtractor(
         url=url,
@@ -39,7 +40,10 @@ def get_url_content(url: str) -> str:
     )
     documents = extractor.extract()
     text = '\n'.join([d.page_content for d in documents])
-    return summary_content(text)
+    if summary_content:
+        return summary_content(text)
+    else:
+        return text
 
 
 @tool(return_direct=True)
