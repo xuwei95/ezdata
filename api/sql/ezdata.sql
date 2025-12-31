@@ -11,7 +11,7 @@
  Target Server Version : 80022 (8.0.22)
  File Encoding         : 65001
 
- Date: 31/12/2025 11:31:48
+ Date: 31/12/2025 14:33:26
 */
 
 SET NAMES utf8mb4;
@@ -437,6 +437,34 @@ CREATE TABLE `llm_conversation`  (
 -- Records of llm_conversation
 -- ----------------------------
 INSERT INTO `llm_conversation` VALUES ('3cc5bc44-a8f4-42ca-ab96-fc48116f0185', 1, '', 'admin', '', 'console', 1, 'hi', 1, 0, '', '2025-07-31 07:44:06', '', '2025-07-31 07:44:06');
+
+-- ----------------------------
+-- Table structure for llm_tools
+-- ----------------------------
+DROP TABLE IF EXISTS `llm_tools`;
+CREATE TABLE `llm_tools`  (
+  `id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '主键',
+  `name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '工具名称',
+  `code` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '工具代码',
+  `type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '工具类型: mcp',
+  `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL COMMENT '工具描述',
+  `args` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL COMMENT '工具配置JSON',
+  `status` smallint NULL DEFAULT NULL COMMENT '状态: 0禁用 1启用',
+  `tenant_id` int NULL DEFAULT NULL COMMENT '租户id',
+  `sort_no` float NULL DEFAULT NULL COMMENT '排序',
+  `del_flag` smallint NULL DEFAULT NULL COMMENT '软删除标记',
+  `create_by` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '创建者',
+  `create_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_by` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '修改者',
+  `update_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '修改时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `code`(`code` ASC) USING BTREE,
+  INDEX `ix_llm_tools_tenant_id`(`tenant_id` ASC) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Records of llm_tools
+-- ----------------------------
 
 -- ----------------------------
 -- Table structure for rag_chunk
