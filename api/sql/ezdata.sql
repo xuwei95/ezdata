@@ -11,7 +11,7 @@
  Target Server Version : 80022 (8.0.22)
  File Encoding         : 65001
 
- Date: 05/12/2025 17:06:19
+ Date: 31/12/2025 11:31:48
 */
 
 SET NAMES utf8mb4;
@@ -1851,7 +1851,7 @@ CREATE TABLE `sys_permission`  (
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `ix_sys_permission_name`(`name` ASC) USING BTREE,
   INDEX `ix_sys_permission_tenant_id`(`tenant_id` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 128 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 129 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of sys_permission
@@ -1975,6 +1975,7 @@ INSERT INTO `sys_permission` VALUES (123, '', 7, 0, 'admin', '2024-07-13 16:11:4
 INSERT INTO `sys_permission` VALUES (124, '', 1, 0, 'admin', '2024-07-24 16:27:04', 'admin', '2024-07-24 16:51:23', '知识检索', 120, '/rag/chunk/retrieval', '/rag/chunk/retrieval', '', '', 1, NULL, 1, 0, 'ant-design:file-search-outlined', 1, 1, 0, 0, 0, 0, 1, 0, 1);
 INSERT INTO `sys_permission` VALUES (125, '', 9.3, 0, 'admin', '2024-10-20 07:44:18', 'admin', '2024-10-22 16:31:24', 'ai应用', NULL, '/ai', 'layouts/default/index', '', '/ai/index', 0, NULL, 1, 0, 'ai|svg', 1, 0, 0, 0, 0, 0, 1, 0, 1);
 INSERT INTO `sys_permission` VALUES (126, '', 1, 0, 'admin', '2024-10-20 07:47:41', 'admin', '2025-07-31 03:43:00', '应用管理', 125, '/ai/apps', '/llm/aiapp/AiAppList', '', '', 1, NULL, 1, 0, 'ai-apps|svg', 1, 1, 0, 0, 0, 0, 1, 0, 1);
+INSERT INTO `sys_permission` VALUES (128, '', 1, 0, 'admin', '2025-12-31 03:29:47', 'admin', '2025-12-31 03:31:21', '工具管理', 125, '/ai/tools', '/llm/tools/index', '', '', 1, NULL, 1, 0, 'ant-design:tool-outlined', 1, 1, 0, 0, 0, 0, 1, 0, 1);
 
 -- ----------------------------
 -- Table structure for sys_position
