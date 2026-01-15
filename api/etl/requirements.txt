@@ -10,4 +10,4 @@ mysql-replication==0.27
 psycopg2-binary
 py2neo
 prometheus-api-client
-numpy==1.24.3
+elasticsearch==7.17.12
