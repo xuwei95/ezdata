@@ -16,7 +16,7 @@ class NotionHandlerTest(unittest.TestCase):
     def setUpClass(cls):
         cls.kwargs = {
             "connection_data": {
-                "api_token": "YOUR_NOTION_API_TOKEN"
+                "api_token": ""
             }
         }
         cls.handler = NotionHandler("test_notion_handler", **cls.kwargs)

@@ -53,6 +53,6 @@ connection_args = OrderedDict(
 connection_args_example = OrderedDict(
     server_hostname="adb-1234567890123456.7.azuredatabricks.net",
     http_path="sql/protocolv1/o/1234567890123456/1234-567890-test123",
-    access_token="YOUR_DATABRICKS_ACCESS_TOKEN",
+    access_token="",
     schema="sales",
 )

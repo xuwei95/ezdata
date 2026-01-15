@@ -258,7 +258,7 @@ class FileReader(FormatDetector):
         func = self._get_fnc()
         self.file_obj.seek(0)
 
-        return [name for name, _ in func(self.file_obj, only_names=False, **kwargs)]
+        return [name for name, _ in func(self.file_obj, only_names=True, **kwargs)]
 
     def get_contents(self, **kwargs) -> dict[str, pd.DataFrame]:
         """
