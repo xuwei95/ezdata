@@ -4,6 +4,50 @@ from utils.common_utils import trans_rule_value, gen_json_response, parse_json
 import inspect
 
 
+def get_akshare_functions_options():
+    """
+    动态获取akshare所有公开函数，生成下拉框选项
+    返回格式: [{'label': '函数说明', 'value': '函数名'}, ...]
+    """
+    try:
+        import akshare as ak
+        options = []
+
+        # 获取akshare模块的所有成员
+        for name, obj in inspect.getmembers(ak):
+            # 过滤：只要函数，排除私有函数和内置函数
+            if inspect.isfunction(obj) and not name.startswith('_'):
+                try:
+                    # 获取函数文档的第一行作为描述
+                    doc = inspect.getdoc(obj) or ''
+                    # 取第一行作为简短描述
+                    doc_lines = doc.split('\n')
+                    first_line = doc_lines[0].strip() if doc_lines else name
+
+                    # 如果第一行太长，截取前80个字符
+                    if len(first_line) > 80:
+                        first_line = first_line[:77] + '...'
+
+                    # 如果没有文档，使用函数名作为label
+                    label = first_line if first_line else name
+
+                    options.append({
+                        'label': f"{label}_{name}" if label != name else name,
+                        'value': name
+                    })
+                except Exception as e:
+                    # 如果处理某个函数出错，跳过它
+                    continue
+
+        # 按函数名排序
+        options.sort(key=lambda x: x['value'])
+        return options
+    except Exception as e:
+        # 如果获取失败，返回空列表
+        print(f"获取akshare函数列表失败: {e}")
+        return []
+
+
 class AkShareModel(DataModel):
 
     def __init__(self, model_info):
@@ -17,17 +61,25 @@ class AkShareModel(DataModel):
         '''
         获取AkShare API模型的配置表单schema
         '''
+        # 动态获取akshare函数列表
+        akshare_options = get_akshare_functions_options()
+
         return [
             {
                 'label': '数据接口函数',
                 'field': 'method',
                 'required': True,
-                'component': 'JDictSelectTag',
+                'component': 'JSelectInput',
                 'componentProps': {
                     'showSearch': True,
-                    'dictCode': 'akshare_method',
-                    'placeholder': '请选择数据接口函数',
-                    'stringToNumber': False,
+                    'placeholder': '请选择或搜索数据接口函数',
+                    'options': akshare_options,
+                    'placement': 'bottomLeft',
+                    'dropdownStyle': {
+                        'position': 'absolute',
+                        'zIndex': 999999
+                    },
+                    'dropdownClassName': 'akshare-select-dropdown',
                 }
             },
             {
@@ -239,3 +291,7 @@ fetch_function doc
                 'total': total
             }
             yield True, gen_json_response(result)
+
+if __name__ == '__main__':
+    a = get_akshare_functions_options()
+    print(a)

@@ -101,9 +101,15 @@ class HandlersCache:
         with self._lock:
             try:
                 # If the handler is defined to be thread safe, set 0 as the last element of the key, otherwise set the thrad ID.
+                # todo: company_id暂时写死
+                # key = (
+                #     handler.name,
+                #     ctx.company_id,
+                #     0 if thread_safe else threading.get_native_id(),
+                # )
                 key = (
                     handler.name,
-                    ctx.company_id,
+                    '0',
                     0 if thread_safe else threading.get_native_id(),
                 )
                 record = HandlersCacheRecord(handler=handler, expired_at=time.time() + self.ttl)
@@ -124,9 +130,13 @@ class HandlersCache:
             tuple[list[HandlersCacheRecord] | None, str]: cache records and key of the handler in cache
         """
         # If the handler is not thread safe, the thread ID will be assigned to the last element of the key.
-        key = (name, ctx.company_id, 0)
+        # todo: company_id暂时写死
+        # key = (name, ctx.company_id, 0)
+        # if key not in self.handlers:
+        #     key = (name, ctx.company_id, threading.get_native_id())
+        key = (name, '0', 0)
         if key not in self.handlers:
-            key = (name, ctx.company_id, threading.get_native_id())
+            key = (name, '0', threading.get_native_id())
         return self.handlers.get(key, []), key
 
     def get(self, name: str) -> DatabaseHandler | None:
@@ -141,7 +151,9 @@ class HandlersCache:
         with self._lock:
             records, _ = self._get_cache_records(name)
             for record in records:
-                if record.expired is False and record.has_references is False:
+                # todo 暂时去除引用判断
+                # if record.expired is False and record.has_references is False:
+                if record.expired is False:
                     record.expired_at = time.time() + self.ttl
                     if record.connect_attempt_done.wait(timeout=10) is False:
                         logger.warning(f"Handler's connection attempt has not finished in 10s: {record.handler.name}")

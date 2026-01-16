@@ -10,7 +10,6 @@ sys.path.append(str(Path(__file__).parent.parent))
 from etl.utils.mindsdb_client import IntegrationsClient
 from etl.data_models.mindsdb_sql import MindsDBSqlModel
 from etl.data_models.mindsdb_table import MindsDBTableModel
-from etl.data_models.elasticsearch_table import ElasticsearchTableModel
 
 from utils.common_utils import import_class
 import logging

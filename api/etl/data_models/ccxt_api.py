@@ -73,7 +73,7 @@ class CCxtModel(DataModel):
         连通性测试
         '''
         try:
-            import ccxt_api
+            import ccxt
             if self.exchange_id != '':
                 exchange_class = getattr(ccxt, self.exchange_id)
                 self.exchange = exchange_class(self.ext_params)
