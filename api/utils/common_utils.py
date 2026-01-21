@@ -677,19 +677,22 @@ def convert_to_json_serializable(value):
         return value
 
 def df_to_list(df):
-    if not isinstance(df, pd.DataFrame):
-        return df
-    # 将所有 datetime 类型的列转换为字符串
-    for col in df.select_dtypes(include=['datetime']).columns:
-        df[col] = df[col].astype(str)
-    # 填充 NaN 值
-    for col in df.columns:
-        if pd.api.types.is_numeric_dtype(df[col]):
-            df[col].fillna(0, inplace=True)
-        else:
-            df[col].fillna("", inplace=True)
-    # 将 DataFrame 转换为字典列表
-    data_li = df.to_dict(orient='records')
+    if isinstance(df, pd.DataFrame):
+        # 将所有 datetime 类型的列转换为字符串
+        for col in df.select_dtypes(include=['datetime']).columns:
+            df[col] = df[col].astype(str)
+        # 填充 NaN 值
+        for col in df.columns:
+            if pd.api.types.is_numeric_dtype(df[col]):
+                df[col].fillna(0, inplace=True)
+            else:
+                df[col].fillna("", inplace=True)
+        # 将 DataFrame 转换为字典列表
+        data_li = df.to_dict(orient='records')
+    elif isinstance(df, list):
+        data_li = df
+    else:
+        data_li = [df]
     # 确保所有值都是 JSON 可序列化的
     for record in data_li:
         for key, value in record.items():

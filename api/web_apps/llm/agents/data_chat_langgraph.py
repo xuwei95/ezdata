@@ -1,8 +1,8 @@
 from typing import TypedDict, List, Optional, Dict, Any
 from langgraph.graph import StateGraph, END
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
-from web_apps.llm.llm_utils import extract_code, process_dataframe, get_llm
-from utils.common_utils import get_now_time
+from web_apps.llm.llm_utils import extract_code, get_llm
+from utils.common_utils import get_now_time, df_to_list
 import traceback
 
 
@@ -150,66 +150,72 @@ Generate python code and return full updated code:
         """创建代码执行器节点"""
         def execute_code(state: DataChatState) -> DataChatState:
             """执行Python代码"""
+            import os
+
+            # 检查是否启用安全模式
+            safe_mode = os.environ.get('SAFE_MODE', 'false').lower() == 'true'
             code = state["generated_code"]
-            
-            # 添加流程数据
-            flow_data = state.get("flow_data", [])
-            flow_data.append({
-                'content': {
-                    'title': '执行处理代码', 
-                    'content': f"```python\n{code}\n```", 
-                    'time': get_now_time(res_type='datetime')
-                }, 
-                'type': 'flow'
-            })
-            
-            try:
-                environment = {'reader': self.reader}
-                exec(code, environment)
-                
-                if "result" not in environment:
-                    raise ValueError("No result returned")
-                else:
-                    result = environment['result']
-                    
-                    # 添加成功流程数据
-                    flow_data.append({
-                        'content': {
-                            'title': '处理完成', 
-                            'content': '处理完成', 
-                            'time': get_now_time(res_type='datetime')
-                        }, 
-                        'type': 'flow'
-                    })
-                    # 标记最终答案
-                    self.answer = state["llm_result"]
+
+            if safe_mode:
+                # 在沙箱中执行代码
+                try:
+                    # 调用沙箱API执行数据处理代码
+                    from utils.sandbox_utils import execute_data_in_sandbox
+                    result = execute_data_in_sandbox(
+                        code=code,
+                        model_info=self.reader.model_info,
+                        timeout=600
+                    )
+                    if result.get('success'):
+                        execution_result = result.get('result')
+                        return {
+                            **state,
+                            "executed_code": code,
+                            "execution_result": execution_result
+                        }
+                    else:
+                        error_msg = result.get('error', 'Unknown error')
+                        return {
+                            **state,
+                            "executed_code": code,
+                            "code_exception": error_msg,
+                            "retry_count": state["retry_count"] + 1
+                        }
+
+                except Exception as e:
+                    traceback_errors = f"Sandbox execution exception: {str(e)}\n{traceback.format_exc()}"
                     return {
                         **state,
                         "executed_code": code,
-                        "execution_result": result,
-                        "flow_data": flow_data
+                        "code_exception": traceback_errors,
+                        "retry_count": state["retry_count"] + 1
                     }
-                    
-            except Exception as e:
-                traceback_errors = traceback.format_exc()
-                
-                # 添加错误流程数据
-                flow_data.append({
-                    'content': {
-                        'title': '执行代码出错，修复代码', 
-                        'content': f'执行代码报错：{traceback_errors}', 
-                        'time': get_now_time(res_type='datetime')
-                    }, 
-                    'type': 'flow'
-                })
-                
-                return {
-                    **state,
-                    "executed_code": code,
-                    "code_exception": traceback_errors,
-                    "flow_data": flow_data
-                }
-        
+            else:
+                # 本地执行代码
+                try:
+                    environment = {'reader': self.reader}
+                    exec(code, environment)
+
+                    if "result" not in environment:
+                        raise ValueError("No result returned")
+                    else:
+                        result = environment['result']
+                        self.answer = state["llm_result"]
+                        return {
+                            **state,
+                            "executed_code": code,
+                            "execution_result": result
+                        }
+
+                except Exception as e:
+                    traceback_errors = traceback.format_exc()
+                    return {
+                        **state,
+                        "executed_code": code,
+                        "code_exception": traceback_errors,
+                        "retry_count": state["retry_count"] + 1
+                    }
+
         return execute_code
 
     def create_code_fixer(self):
@@ -269,7 +275,7 @@ Fix the python code above and return the new python code
             if result['type'] == 'html':
                 parsed_result = {'content': result['value'], 'type': 'html'}
             elif result['type'] == 'dataframe':
-                data_li = process_dataframe(result)
+                data_li = df_to_list(result['value'])
                 parsed_result = {'content': data_li, 'type': 'data'}
             else:
                 parsed_result = {'content': result['value'], 'type': 'text'}

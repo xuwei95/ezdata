@@ -5,7 +5,8 @@ import json
 from web_apps import db
 from utils.query_utils import get_base_query
 from utils.auth import set_insert_user, set_update_user, get_auth_token_info
-from utils.common_utils import gen_json_response, gen_uuid, get_now_time, parse_json, timestamp_to_date, trans_dict_to_rules, trans_time_length
+from utils.common_utils import gen_json_response, gen_uuid, get_now_time, parse_json, timestamp_to_date, \
+    trans_dict_to_rules, trans_time_length, df_to_list
 from web_apps.datamodel.db_models import DataInterface, DataModel
 from web_apps.datamodel.services.datamodel_service import gen_datamodel_conf, gen_datasource_conf
 from utils.etl_utils import get_reader_model, get_res_fields
@@ -134,11 +135,7 @@ class DataInterfaceApiService(object):
             if _llm is None:
                 return gen_json_response(code=400, msg='未找到对应llm配置')
             _flag, res, llm_result = llm_query_data(reader, _llm, query_prompt)
-            df = res['value']
-            for col in df.select_dtypes(include=['datetime']).columns:
-                df[col] = df[col].astype(str)
-            df.fillna("", inplace=True)
-            data_li = df.to_dict(orient='records')
+            data_li = df_to_list(res['value'])
             res_data = {
                 'records': data_li,
                 'total': len(data_li),

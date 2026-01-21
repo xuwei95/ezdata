@@ -25,6 +25,7 @@ pypinyin
 pyecharts
 pycares==4.9.0
 mind-castle==0.4.9
+RestrictedPython==8.1
 #中间件连接库
 boto3
 pymysql==1.0.2

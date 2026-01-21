@@ -1,6 +1,7 @@
 '''
 内容获取类转换算法
 '''
+import os
 from utils.common_utils import trans_rule_value, parse_to_list
 
 
@@ -31,14 +32,63 @@ def code_transform(source_data=[], rule_dict={}, context={}):
     code = trans_rule_value(rule_dict.get('code'))
     if not code:
         return False, '代码不能为空'
+
     if language == 'python':
-        try:
-            exec(code, globals())
-            # 调用动态代码中transform函数转换数据
-            results = transform(source_data)
-            return True, results
-        except Exception as e:
-            return False, str(e)
+        # 检查是否启用安全模式
+        safe_mode = os.environ.get('SAFE_MODE', 'false').lower() == 'true'
+
+        if safe_mode:
+            # 在沙箱中执行
+            try:
+                from utils.sandbox_utils import get_sandbox_config, execute_python_in_sandbox
+                from utils.log_utils import get_task_logger
+
+                # 创建logger
+                logger = get_task_logger(p_name='code_transform', task_log_keys={'function': 'code_transform'})
+
+                # 准备context，包含source_data和context
+                exec_context = {
+                    'source_data': source_data,
+                    'context': context,
+                    'result': None  # 用于接收transform函数的结果
+                }
+
+                # 包装代码，确保result变量被设置
+                wrapped_code = f"""
+{code}
+result = transform(source_data)
+"""
+
+                # 在沙箱中执行代码
+                sandbox_result = execute_python_in_sandbox(
+                    code=wrapped_code,
+                    context=exec_context,
+                    logger=logger,
+                    timeout=rule_dict.get('timeout', 300)
+                )
+
+                if not sandbox_result.get('success'):
+                    return False, f"沙箱执行失败: {sandbox_result.get('error', 'Unknown error')}"
+
+                # 从执行结果中获取数据
+                if sandbox_result.get('result') is not None:
+                    return True, sandbox_result.get('result')
+                else:
+                    # 如果result字段没有数据，返回输出
+                    output = sandbox_result.get('output', '')
+                    return True, f"执行完成，输出: {output}"
+
+            except Exception as e:
+                return False, f"沙箱执行异常: {str(e)}"
+        else:
+            # 直接执行（原有逻辑）
+            try:
+                exec(code, globals())
+                # 调用动态代码中transform函数转换数据
+                results = transform(source_data)
+                return True, results
+            except Exception as e:
+                return False, str(e)
     return False, '处理失败'
 
 

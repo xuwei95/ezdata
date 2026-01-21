@@ -589,7 +589,7 @@ if __name__ == '__main__':
     print("=" * 50)
     tools = [get_llm_tool, parse_content_with_llm]
     agent = ToolsCallAgent(tools=tools)
-    res = agent.chat('获取一个大语言模型对象，然后用它总结这段话：人工智能正在改变世界')
+    res = agent.chat('获取一个大语言模型对象，然后用它总结这段话：')
     for chunk in res:
         print(chunk)
 

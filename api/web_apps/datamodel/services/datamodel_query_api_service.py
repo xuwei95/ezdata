@@ -4,7 +4,7 @@
 import json
 from web_apps import db
 from utils.auth import get_auth_token_info, set_update_user
-from utils.common_utils import gen_json_response
+from utils.common_utils import gen_json_response, df_to_list
 from web_apps.datamodel.db_models import DataModel, DataModelField
 from utils.common_utils import parse_json
 from web_apps.datamodel.services.datamodel_service import gen_extract_info, gen_datamodel_conf
@@ -14,7 +14,6 @@ from tasks.task_runners.etl_tasks import MyEtlTask
 from web_apps.llm.llm_utils import get_llm
 from web_apps.llm.services.llm_services import llm_query_data
 from tasks.data_tasks import self_train_rag_data
-
 
 class DataModelQueryApiService(object):
     def __init__(self):
@@ -140,11 +139,7 @@ class DataModelQueryApiService(object):
             if _llm is None:
                 return gen_json_response(code=400, msg='未找到对应llm配置')
             _flag, res, llm_result = llm_query_data(reader, _llm, query_prompt)
-            df = res['value']
-            for col in df.select_dtypes(include=['datetime']).columns:
-                df[col] = df[col].astype(str)
-            df.fillna("", inplace=True)
-            data_li = df.to_dict(orient='records')
+            data_li = df_to_list(res['value'])
             res_data = {
                 'records': data_li,
                 'total': len(data_li),

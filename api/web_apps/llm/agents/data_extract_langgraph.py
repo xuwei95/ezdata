@@ -133,36 +133,73 @@ Generate python code and return full updated code:
 
         def execute_code(state: DataExtractState) -> DataExtractState:
             """执行Python代码"""
+            import os
+            # 检查是否启用安全模式
+            safe_mode = os.environ.get('SAFE_MODE', 'false').lower() == 'true'
             code = state["generated_code"]
+            if safe_mode:
+                # 在沙箱中执行代码
+                try:
+                    # 调用沙箱API执行数据处理代码
+                    from utils.sandbox_utils import execute_data_in_sandbox
+                    result = execute_data_in_sandbox(
+                        code=code,
+                        model_info=self.reader.model_info,
+                        timeout=600
+                    )
+                    if result.get('success'):
+                        execution_result = result.get('result')
+                        return {
+                            **state,
+                            "executed_code": code,
+                            "execution_result": execution_result
+                        }
+                    else:
+                        error_msg = result.get('error', 'Unknown error')
+                        return {
+                            **state,
+                            "executed_code": code,
+                            "code_exception": error_msg,
+                            "retry_count": state["retry_count"] + 1
+                        }
 
-            try:
-                environment = {'reader': self.reader}
-                exec(code, environment)
-
-                if "result" not in environment:
-                    raise ValueError("No result returned")
-                else:
-                    result = environment['result']
-                    if not isinstance(result['value'], pd.DataFrame):
-                        raise ValueError(
-                            f'Value type {type(result["value"])} must match with type {result["type"]}'
-                        )
-
+                except Exception as e:
+                    traceback_errors = f"Sandbox execution exception: {str(e)}\n{traceback.format_exc()}"
                     return {
                         **state,
                         "executed_code": code,
-                        "execution_result": result
+                        "code_exception": traceback_errors,
+                        "retry_count": state["retry_count"] + 1
                     }
+            else:
+                # 本地执行代码
+                try:
+                    environment = {'reader': self.reader}
+                    exec(code, environment)
 
-            except Exception as e:
-                traceback_errors = traceback.format_exc()
+                    if "result" not in environment:
+                        raise ValueError("No result returned")
+                    else:
+                        result = environment['result']
+                        if not isinstance(result['value'], pd.DataFrame):
+                            raise ValueError(
+                                f'Value type {type(result["value"])} must match with type {result["type"]}'
+                            )
 
-                return {
-                    **state,
-                    "executed_code": code,
-                    "code_exception": traceback_errors,
-                    "retry_count": state["retry_count"] + 1
-                }
+                        return {
+                            **state,
+                            "executed_code": code,
+                            "execution_result": result
+                        }
+
+                except Exception as e:
+                    traceback_errors = traceback.format_exc()
+                    return {
+                        **state,
+                        "executed_code": code,
+                        "code_exception": traceback_errors,
+                        "retry_count": state["retry_count"] + 1
+                    }
 
         return execute_code
 

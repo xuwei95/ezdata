@@ -10,10 +10,6 @@ from utils.log_utils import get_task_logger
 from utils.common_utils import gen_uuid, parse_json
 from utils.etl_utils import get_reader_model
 from web_apps.rag.services.rag_service import train_datamodel, train_document
-# from utils.task_util import get_task_instance, update_task_instance, set_task_running_id, set_task_instance_running, set_task_instance_failed, set_task_instance_retry
-# from tasks.task_runners import runner_dict, DynamicTaskRunner
-# from web_apps.alert.strategys.task_alert_strategys import handle_task_fail_alert
-
 
 @celery_app.task(bind=True)
 def self_gen_datasource_model(self, datasource_id):
