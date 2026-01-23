@@ -24,6 +24,11 @@ if [ $run_scheduler == 1 ]; then
     supervisorctl start scheduler
 fi
 
+if [ $run_sandbox == 1 ]; then
+  echo "开启sandbox"
+    supervisorctl start sandbox
+fi
+
 if [ $run_flower == 1 ]; then
   echo "开启flower"
   # 以守护进程启动
