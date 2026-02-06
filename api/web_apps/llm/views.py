@@ -66,7 +66,7 @@ def llm_chat():
                     "event": "ERROR"
                 }
             return Response(f"data:{json.dumps(msg, ensure_ascii=False)}\n\n", mimetype='text/event-stream')
-        req_dict['chat_config'] = json.loads(chat_app.chat_config)
+        req_dict['chatConfig'] = json.loads(chat_app.chat_config)
     return Response(chat_generate(req_dict, user_info), mimetype='text/event-stream')
 
 
@@ -132,3 +132,36 @@ def delete_conversation(id):
         "code": 200
     }
     return jsonify(res_data)
+
+
+@llm_bp.route('/data/chat/feedback', methods=['POST'])
+@validate_user
+def datachat_feedback():
+    """
+    提交用户反馈到 Redis（用于 DataChat Human-in-the-Loop）
+
+    Request Body:
+    {
+        "thread_id": "线程ID",
+        "feedback": "用户反馈内容（yes/ok 或其他建议）"
+    }
+    """
+    from utils.redis_feedback import get_feedback_manager
+
+    req_dict = get_req_para(request)
+    thread_id = req_dict.get('thread_id', '')
+    feedback = req_dict.get('feedback', '')
+
+    if not thread_id:
+        return jsonify(gen_json_response(code=400, msg='thread_id 不能为空'))
+
+    if not feedback:
+        return jsonify(gen_json_response(code=400, msg='反馈内容不能为空'))
+
+    try:
+        redis_manager = get_feedback_manager()
+        redis_manager.set_feedback(thread_id, feedback)
+        return jsonify(gen_json_response(code=200, msg='反馈已提交'))
+    except Exception as e:
+        logger.error(f'提交反馈失败: {str(e)}')
+        return jsonify(gen_json_response(code=500, msg=f'提交反馈失败: {str(e)}'))

@@ -32,6 +32,8 @@ class DataChatTool(BaseTool):
     reader: Optional[object] = None
     args_schema: Type[BaseModel] = DataChatInput
     history_context: str = ""  # 简单的历史上下文字符串
+    conversation_id: str = ""  # 会话ID，用于 Human-in-the-Loop
+    enable_review: bool = False  # 代码审查开关
     _agent: Optional[object] = None
 
     def bind_model(self):
@@ -54,14 +56,39 @@ class DataChatTool(BaseTool):
         question: str,
         run_manager: Optional[CallbackManagerForToolRun] = None,
     ) -> object:
+        from utils.redis_feedback import get_feedback_manager
+
         _llm = get_llm()
         # 查询知识库中是否有已标记的正确答案
         answer = get_star_qa_answer(question, metadata={'datamodel_id': self.datamodel_id})
-        self._agent = DataChatLangGraph(llm=_llm, reader=self.reader, knowledge=self.knowledge, answer=answer, retry=1)
+
+        print(f"[DataChatTool] 创建 Agent, conversation_id={self.conversation_id}, enable_review={self.enable_review}, web_mode=True")
+
+        # 创建 Agent，根据前端开关决定是否启用代码审查
+        # - enable_review=True: 每次都进行人工审查
+        # - enable_review=False: 自动执行，只在多次错误后才人工介入
+        self._agent = DataChatLangGraph(
+            llm=_llm,
+            reader=self.reader,
+            knowledge=self.knowledge,
+            answer=answer,
+            retry=3,  # 允许LLM自我修复3次
+            enable_review=self.enable_review,  # 使用前端传来的开关状态
+            web_mode=True,  # 启用 Web 模式
+            redis_manager=get_feedback_manager(),  # 传入 Redis 管理器
+            feedback_timeout=300,  # 5 分钟超时
+            feedback_interval=3  # 3 秒轮询间隔
+        )
+
+        # 设置 thread_id 为当前会话ID
+        self._agent.current_thread_id = self.conversation_id
+        print(f"[DataChatTool] 设置 current_thread_id={self._agent.current_thread_id}")
 
         if self.is_chat:
+            print(f"[DataChatTool] 调用 chat 模式")
             return self._agent.chat(question, history_context=self.history_context)
         else:
+            print(f"[DataChatTool] 调用 run 模式")
             return self._agent.run(question, history_context=self.history_context)
 
     def set_history_context(self, context: str):

@@ -78,7 +78,7 @@ def api_chat():
             }
             return Response(f"data:{json.dumps(msg, ensure_ascii=False)}\n\n", mimetype='text/event-stream')
         return gen_json_response(code=500, msg=err)
-    req_dict['chat_config'] = json.loads(chat_app.chat_config)
+    req_dict['chatConfig'] = json.loads(chat_app.chat_config)
     user = db.session.query(User).filter(User.username == chat_token.create_by).first()
     if user:
         user_info = {'id': chat_token.create_by, 'user_name': chat_token.create_by}

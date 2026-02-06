@@ -227,14 +227,14 @@
       )
       .then((res) => {
         if (res.data) {
-          const chat_config = res.data.chatg_config;
+          const chat_config = res.data.chat_config;
           appData.value = res.data;
           if (chat_config && chat_config.prologue) {
             prologue.value = chat_config.prologue;
-          }  
+          }
           if (chat_config && chat_config.quickCommand) {
             quickCommandData.value = JSON.parse(chat_config.quickCommand);
-          } 
+          }
           if (chat_config && chat_config.presetQuestion) {
             presetQuestion.value = chat_config.presetQuestion;
           }

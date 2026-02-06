@@ -51,7 +51,7 @@ def get_tools(names: Union[str, List[str]], include_mcp: bool = True):
 
             if not mcp_tools_from_db:
                 logger.warning(f"未找到 MCP 工具: {mcp_tool_ids}")
-                return builtin_tools
+                return builtin_tools, {}
             # 构建 MCP 工具配置
             for tool_db in mcp_tools_from_db:
                 tool_config = json.loads(tool_db.args) if isinstance(tool_db.args, str) else tool_db.args

@@ -23,7 +23,8 @@ EVENT_TYPE_MAP = {
     'html': "HTML",
     'data': "DATATABLE",
     'step': "STEP",
-    'flow': "STEP"
+    'flow': "STEP",
+    'waiting_feedback': "WAITING_FEEDBACK"  # Human-in-the-Loop 等待反馈
 }
 
 
@@ -262,7 +263,13 @@ class ChatHandler:
         # 数据对话工具
         if datamodelIds:
             datamodel_ids = datamodelIds.split(',') if isinstance(datamodelIds, str) else datamodelIds
-            tools += get_chat_data_tools(datamodel_ids)
+            data_tools = get_chat_data_tools(datamodel_ids)
+            # 设置数据工具的 enable_review 和 conversation_id
+            enable_review = self.metadata.get('dataReview', '0') == '1'
+            for data_tool in data_tools:
+                data_tool.conversation_id = self.conversation_id
+                data_tool.enable_review = enable_review
+            tools += data_tools
             agent_enable = True
         # 记忆工具
         if memory_enable:
@@ -314,6 +321,7 @@ def chat_generate(req_dict, user_info=None):
        - 否则 → 直接 LLM 流式回答
     3. 统一格式化输出
     '''
+    print(1111, req_dict)
     with app.app_context():
         chat_handler = ChatHandler(req_dict)
         conversation_id = chat_handler.conversation_id
@@ -426,6 +434,13 @@ def data_chat_generate(req_dict):
         message = req_dict['message']
         model_id = req_dict.get('model_id', '')
         conversation_id = req_dict.get('conversationId')
+        # 获取代码审查开关：优先从请求参数获取，否则从chatConfig的metadata中获取
+        enable_review = req_dict.get('enable_review', False)
+        chat_config = parse_json(req_dict.get('chatConfig'), {})
+        if not enable_review and chat_config:
+            metadata = parse_json(chat_config.get('metadata', '{}'), {})
+            enable_review = metadata.get('dataReview', '0') == '1'
+
         if not conversation_id:
             conversation_id = gen_uuid()
         try:
@@ -437,6 +452,11 @@ def data_chat_generate(req_dict):
 
             # 2. 准备数据工具
             data_tool = get_chat_data_tool(model_id, is_chat=True)
+
+            # 设置 conversation_id 和 enable_review 用于 Human-in-the-Loop
+            if data_tool:
+                data_tool.conversation_id = conversation_id
+                data_tool.enable_review = enable_review  # 传递代码审查开关
 
             if data_tool is None:
                 # 无数据工具：直接 LLM 回答

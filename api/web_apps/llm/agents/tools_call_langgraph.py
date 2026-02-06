@@ -435,6 +435,7 @@ class ToolsCallAgent:
 
                 # 处理工具执行节点的输出
                 if 'tools' in chunk:
+                    print(f"[ToolsCallAgent] 工具节点输出")
                     tools_state = chunk['tools']
                     flow_data = tools_state.get('flow_data', [])
 
@@ -446,19 +447,27 @@ class ToolsCallAgent:
                     # 检查工具节点是否产生了 AgentFinish（return_direct 的情况）
                     agent_outcome = tools_state.get('agent_outcome')
                     if isinstance(agent_outcome, AgentFinish):
+                        print(f"[ToolsCallAgent] 工具返回 AgentFinish (return_direct=True)")
                         output = agent_outcome.return_values.get("output", "")
                         output = self.serializer.de_serialize_value(output)
 
                         # 处理不同类型的输出
                         # 1. 迭代器输出（如 DataChatAgent.chat 返回）
                         if is_iterator(output):
+                            print(f"[ToolsCallAgent] 输出是迭代器，开始遍历")
+                            item_count = 0
                             for item in output:
+                                item_count += 1
+                                print(f"[ToolsCallAgent] yield item {item_count}: {item.get('type', 'unknown') if isinstance(item, dict) else type(item)}")
                                 yield item
+                            print(f"[ToolsCallAgent] 迭代器遍历完成，共 {item_count} 项")
                         # 2. 已格式化的输出
                         elif isinstance(output, dict) and 'content' in output and 'type' in output:
+                            print(f"[ToolsCallAgent] yield 格式化输出: {output.get('type')}")
                             yield output
                         # 3. 普通文本输出
                         else:
+                            print(f"[ToolsCallAgent] yield 文本输出")
                             yield {'content': output, 'type': 'text'}
 
                 # 处理最终结果（从 __end__ 节点，多轮工具调用后的最终输出）

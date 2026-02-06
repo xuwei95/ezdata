@@ -10,24 +10,31 @@
         <div id="scrollRef" ref="scrollRef" class="scrollArea">
           <template v-if="chatData.length>0">
             <div class="chatContentArea">
-              <chatMessage
-                v-for="(item, index) of chatData"
-                :key="index"
-                :date-time="item.dateTime || item.datetime"
-                :text="item.content"
-                :inversion="item.inversion || item.role"
-                :error="item.error"
-                :loading="item.loading"
-                :appData="appData"
-                :presetQuestion="item.presetQuestion"
-                :images="item.images"
-                :retrievalText="item.retrievalText"
-                :referenceKnowledge="item.referenceKnowledge"
-                :html="item.html"
-                :tableData="item.tableData"
-                :steps="item.steps"
-                @send="handleOutQuestion"
-              ></chatMessage>
+              <div v-for="(item, index) of chatData" :key="index">
+                <chatMessage
+                  :date-time="item.dateTime || item.datetime"
+                  :text="item.content"
+                  :inversion="item.inversion || item.role"
+                  :error="item.error"
+                  :loading="item.loading"
+                  :appData="appData"
+                  :presetQuestion="item.presetQuestion"
+                  :images="item.images"
+                  :retrievalText="item.retrievalText"
+                  :referenceKnowledge="item.referenceKnowledge"
+                  :html="item.html"
+                  :tableData="item.tableData"
+                  :steps="item.steps"
+                  @send="handleOutQuestion"
+                ></chatMessage>
+                <!-- Human-in-the-Loop 反馈表单 -->
+                <HumanFeedback
+                  v-if="item.waitingFeedback"
+                  :feedbackData="item.feedbackData"
+                  :submitting="item.submittingFeedback"
+                  @submit="(feedback) => submitFeedback(index, feedback)"
+                />
+              </div>
             </div>
           </template>
         </div>
@@ -177,6 +184,7 @@
   import { useScroll } from './js/useScroll';
   import chatMessage from './chatMessage.vue';
   import presetQuestion from './presetQuestion.vue';
+  import HumanFeedback from '@/views/llm/components/HumanFeedback.vue';
   import { DeleteOutlined, ExclamationCircleOutlined } from '@ant-design/icons-vue';
   import { message, Modal, Tabs } from 'ant-design-vue';
   import './style/github-markdown.less';
@@ -653,6 +661,24 @@
       });
       console.log(33333, chatData.value[chatData.value.length - 1], item.data.message);
     }
+    // Human-in-the-Loop 等待反馈
+    if (item.event === 'WAITING_FEEDBACK') {
+      // 更新 uuid 和 conversationId
+      if (item.conversationId && !uuid.value) {
+        uuid.value = item.conversationId;
+        conversationId = item.conversationId;
+      }
+      updateChat(uuid.value, chatData.value.length - 1, {
+        ...chatData.value[chatData.value.length - 1],
+        waitingFeedback: true,
+        feedbackData: item.data.message,
+        feedbackInput: '',
+        submittingFeedback: false,
+        feedbackConversationId: item.conversationId,  // 保存 conversationId
+        loading: false
+      });
+      console.log('等待反馈:', item.data.message, 'conversationId:', item.conversationId);
+    }
     //update-begin---author:wangshuai---date:2025-03-21---for:【QQYUN-11495】【AI】实时展示当前思考进度---
     if(item.event === "NODE_STARTED"){
       if(!item.data || item.data.type !== 'end'){
@@ -710,6 +736,67 @@
       returnText = text;
     }
     return { returnText, conversationId };
+  }
+
+  /**
+   * 提交人工审查反馈
+   */
+  async function submitFeedback(index: number, feedback: string) {
+    const chatItem = chatData.value[index];
+    if (!chatItem || !chatItem.waitingFeedback) {
+      return;
+    }
+
+    // 使用保存的 feedbackConversationId，确保与后端的 thread_id 一致
+    const threadId = chatItem.feedbackConversationId || uuid.value;
+
+    if (!feedback.trim()) {
+      message.warning('请输入反馈内容');
+      return;
+    }
+
+    if (!threadId) {
+      console.error('thread_id 为空:', {
+        feedbackConversationId: chatItem.feedbackConversationId,
+        uuid: uuid.value
+      });
+      message.error('会话ID丢失，请刷新页面重试');
+      return;
+    }
+
+    console.log('提交反馈:', { thread_id: threadId, feedback: feedback });
+
+    try {
+      // 设置提交中状态
+      updateChatSome(uuid.value, index, { submittingFeedback: true });
+
+      // 调用反馈接口
+      await defHttp.post({
+        url: '/llm/data/chat/feedback',
+        params: {
+          thread_id: threadId,
+          feedback: feedback
+        }
+      });
+
+      message.success('反馈已提交，正在继续执行...');
+
+      // 隐藏反馈表单，继续显示加载状态
+      updateChat(uuid.value, index, {
+        ...chatData.value[index],
+        waitingFeedback: false,
+        feedbackData: null,
+        feedbackInput: '',
+        submittingFeedback: false,
+        feedbackConversationId: null,
+        loading: true
+      });
+
+    } catch (error) {
+      console.error('提交反馈失败:', error);
+      message.error('提交反馈失败，请重试');
+      updateChatSome(uuid.value, index, { submittingFeedback: false });
+    }
   }
 
   //上传文件列表集合

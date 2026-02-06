@@ -59,9 +59,9 @@
 
       //app类型
       const appTypeOption = ref<any>([{
-        "title": "ai对话",
-        "value": "chat",
-        "desc": "对话ai助手"
+        "title": "agent",
+        "value": "agent",
+        "desc": "agent助手"
       }]);
 
       //表单配置
@@ -84,7 +84,7 @@
           });
         } else {
           await setFieldsValue({
-            type: 'chat',
+            type: 'agent',
           })
         }
         //update-end---author:wangshuai---date:2025-03-11---for:【QQYUN-11324】8.修改弹窗head---

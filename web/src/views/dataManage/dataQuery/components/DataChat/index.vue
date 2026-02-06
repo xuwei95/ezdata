@@ -26,6 +26,13 @@
                   :steps="item.steps"
                   @send="handleOutQuestion"
                 ></chatMessage>
+                <!-- Human-in-the-Loop 反馈表单 -->
+                <HumanFeedback
+                  v-if="item.waitingFeedback"
+                  :feedbackData="item.feedbackData"
+                  :submitting="item.submittingFeedback"
+                  @submit="(feedback) => submitFeedback(index, feedback)"
+                />
                 <div v-if="item.inversion == 'ai' && !item.error && !item.loading && item.answer">
                   <a-rate :value="item.star_flag == '1' ? 1 : 0" :count="1" @click="starQa(index)" style="cursor: pointer" disabled />
                 </div>
@@ -36,6 +43,23 @@
       </div>
       <div class="footer">
         <div class="topArea">
+          <div class="review-switch">
+            <a-switch
+              v-model:checked="enableCodeReview"
+              size="small"
+              @change="handleReviewSwitchChange"
+            />
+            <span>人工审查</span>
+            <a-tooltip placement="top">
+              <template #title>
+                <div style="max-width: 300px;">
+                  开启后，AI生成的代码等信息将等待您审查后执行；<br/>
+                  关闭后，代码等信息将自动执行，仅在多次错误后需要人工介入
+                </div>
+              </template>
+              <Icon icon="ant-design:question-circle-outlined" style="color: #999; cursor: help;" />
+            </a-tooltip>
+          </div>
         </div>
         <div class="bottomArea">
           <a-button type="text" class="delBtn" @click="handleDelSession()">
@@ -178,6 +202,7 @@
   import { useScroll } from '@/views/llm/aiapp/chat/js/useScroll';
   import chatMessage from '@/views/llm/aiapp/chat/chatMessage.vue';
   import presetQuestion from '@/views/llm/aiapp/chat/presetQuestion.vue';
+  import HumanFeedback from '@/views/llm/components/HumanFeedback.vue';
   import { DeleteOutlined, ExclamationCircleOutlined } from '@ant-design/icons-vue';
   import { message, Modal, Tabs } from 'ant-design-vue';
   import '@/views/llm/aiapp/chat/style/github-markdown.less';
@@ -191,6 +216,7 @@
   import { useAppInject } from "@/hooks/web/useAppInject";
   import { useGlobSetting } from "@/hooks/setting";
   import { starQaData } from '@/views/dataManage/dataQuery/dataquery.api';
+  import { Icon } from '@/components/Icon';
   const abortController = ref<AbortController | null>(null);
   message.config({
     prefixCls: 'ai-chat-message',
@@ -237,6 +263,35 @@
   const pendingModelId = ref<string | null>(null);
   // 上一次确认的model_id，用于恢复父组件选中状态
   const lastConfirmedModelId = ref(props.model_id);
+
+  // 代码审查开关
+  const REVIEW_SWITCH_KEY = 'datachat_enable_code_review';
+  const enableCodeReview = ref<boolean>(false);
+
+  // 从 localStorage 读取设置
+  const loadReviewSetting = () => {
+    try {
+      const saved = localStorage.getItem(REVIEW_SWITCH_KEY);
+      if (saved !== null) {
+        enableCodeReview.value = saved === 'true';
+      }
+    } catch (e) {
+      console.error('读取代码审查设置失败:', e);
+    }
+  };
+
+  // 保存设置
+  const handleReviewSwitchChange = (checked: boolean) => {
+    try {
+      localStorage.setItem(REVIEW_SWITCH_KEY, String(checked));
+      const tipText = checked
+        ? '代码将等待您审查后执行'
+        : '代码将自动执行，仅在3次错误后需要人工介入';
+      message.success(tipText);
+    } catch (e) {
+      console.error('保存代码审查设置失败:', e);
+    }
+  };
   async function starQa(index) {
     console.log('star66666', chatData.value[index - 1], chatData.value[index]);
     if (chatData.value[index].star_flag != '1'){
@@ -419,13 +474,22 @@
   async function sendMessage(message, options) {
     // 创建新的 AbortController
     abortController.value = new AbortController();
+
+    // 确保 uuid 有值（如果是新对话，生成一个临时 ID）
+    if (!uuid.value || uuid.value === "1002") {
+      // 生成简单的 UUID
+      uuid.value = 'chat_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+      console.log('生成新的会话ID:', uuid.value);
+    }
+
     let param = {};
     param = {
       message: message,
       images: uploadUrlList.value?uploadUrlList.value:[],
       model_id: currentModelId.value,
       responseMode: 'streaming',
-      conversationId: uuid.value === "1002"?'':uuid.value
+      conversationId: uuid.value,
+      enable_review: enableCodeReview.value  // 传递代码审查开关状态
     };
 
     if(headerTitle.value == '新建聊天'){
@@ -617,38 +681,79 @@
     }
     // 自定义event处理
     if (item.event === 'HTML') {
-      updateChat(uuid.value, chatData.value.length - 1, {
-        ...chatData.value[chatData.value.length - 1],
-        html: item.data.message,
-        content: "",
-      });
-      console.log(11111, chatData.value[chatData.value.length - 1], item.data.message);
+      const htmlContent = item.data.message;
+      console.log('[HTML事件] 接收到HTML内容，长度:', htmlContent?.length, '内容预览:', htmlContent?.substring(0, 100));
+
+      if (htmlContent && htmlContent.trim() !== '') {
+        updateChat(uuid.value, chatData.value.length - 1, {
+          ...chatData.value[chatData.value.length - 1],
+          html: htmlContent,
+          content: "",
+          loading: false
+        });
+        console.log('[HTML事件] 更新成功，当前chat对象:', chatData.value[chatData.value.length - 1]);
+      } else {
+        console.warn('[HTML事件] HTML内容为空，跳过更新');
+      }
     }
     if (item.event === 'DATATABLE') {
+      const tableData = item.data.message;
+      console.log('[DATATABLE事件] 接收到表格数据，行数:', tableData?.length);
+
+      if (tableData && Array.isArray(tableData) && tableData.length > 0) {
+        updateChat(uuid.value, chatData.value.length - 1, {
+          ...chatData.value[chatData.value.length - 1],
+          tableData: tableData,
+          content: "",
+          loading: false
+        });
+        console.log('[DATATABLE事件] 更新成功，当前chat对象:', chatData.value[chatData.value.length - 1]);
+      } else {
+        console.warn('[DATATABLE事件] 表格数据为空或格式错误，跳过更新');
+      }
+    }
+    if (item.event === 'WAITING_FEEDBACK') {
+      // Human-in-the-Loop 等待反馈事件
+      const feedbackData = item.data.message;
+      // 使用 uuid.value 作为 thread_id（此时应该已经生成）
+      const currentConversationId = uuid.value || conversationId || item.conversationId;
+      console.log('收到 WAITING_FEEDBACK 事件:', {
+        uuid: uuid.value,
+        conversationId: conversationId,
+        itemConversationId: item.conversationId,
+        using: currentConversationId,
+        feedbackData
+      });
       updateChat(uuid.value, chatData.value.length - 1, {
         ...chatData.value[chatData.value.length - 1],
-        tableData: item.data.message,
-        content: "",
+        waitingFeedback: true,
+        feedbackData: feedbackData,
+        feedbackInput: '',
+        submittingFeedback: false,
+        feedbackConversationId: currentConversationId,  // 保存当前会话ID
+        content: ""
       });
-      console.log(22222, chatData.value[chatData.value.length - 1], item.data.message);
     }
     if (item.event === 'STEP') {
       // steps 追加
       const oldSteps = chatData.value[chatData.value.length - 1]?.steps || [];
+      const stepData = item.data.message;
+
       updateChat(uuid.value, chatData.value.length - 1, {
         ...chatData.value[chatData.value.length - 1],
-        steps: [...oldSteps, item.data.message],
+        steps: [...oldSteps, stepData],
         content: ""
       });
-      console.log(33333, chatData.value[chatData.value.length - 1], item.data.message);
-      let title = item.data.message.title;
+
+      let title = stepData.title;
       if (title == '处理代码生成成功' || title == '修复处理代码成功') {
         updateChat(uuid.value, chatData.value.length - 1, {
           ...chatData.value[chatData.value.length - 1],
-          answer: item.data.message.content,
+          answer: stepData.content,
           star_flag: '0',
         });
       }
+      console.log(33333, chatData.value[chatData.value.length - 1], stepData);
     }
     //update-begin---author:wangshuai---date:2025-03-21---for:【QQYUN-11495】【AI】实时展示当前思考进度---
     if(item.event === "NODE_STARTED"){
@@ -909,10 +1014,66 @@
     fileInfoList.value = [];
   }
 
+  // 提交反馈
+  async function submitFeedback(index, feedback) {
+    const chatItem = chatData.value[index];
+
+    if (!feedback || !feedback.trim()) {
+      message.warning('请输入反馈内容');
+      return;
+    }
+
+    // 使用保存的 feedbackConversationId，确保与后端的 thread_id 一致
+    const threadId = chatItem.feedbackConversationId || uuid.value || conversationId;
+
+    if (!threadId) {
+      console.error('thread_id 为空:', {
+        feedbackConversationId: chatItem.feedbackConversationId,
+        uuid: uuid.value,
+        conversationId
+      });
+      message.error('会话ID丢失，请刷新页面重试');
+      return;
+    }
+
+    console.log('提交反馈:', { thread_id: threadId, feedback: feedback });
+
+    try {
+      // 设置提交中状态
+      updateChatSome(uuid.value, index, { submittingFeedback: true });
+
+      // 调用反馈接口
+      await defHttp.post({
+        url: '/llm/data/chat/feedback',
+        params: {
+          thread_id: threadId,
+          feedback: feedback
+        }
+      });
+
+      message.success('反馈已提交，正在继续执行...');
+
+      // 隐藏反馈表单，继续显示加载状态
+      updateChat(uuid.value, index, {
+        ...chatData.value[index],
+        waitingFeedback: false,
+        loading: true,
+        content: '处理中...',
+        submittingFeedback: false
+      });
+
+    } catch (error) {
+      console.error('提交反馈失败:', error);
+      message.error('提交反馈失败，请重试');
+      updateChatSome(uuid.value, index, { submittingFeedback: false });
+    }
+  }
+
   onMounted(() => {
     scrollToBottom();
     uploadUrlList.value = [];
     fileInfoList.value = [];
+    loadReviewSetting();  // 加载代码审查设置
   });
   onUnmounted(() => {
     if (abortController.value) {
@@ -964,6 +1125,21 @@
     .topArea {
       padding-left: 6%;
       margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+
+      .review-switch {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 13px;
+        color: #666;
+
+        .ant-switch {
+          min-width: 36px;
+        }
+      }
     }
     .bottomArea {
       display: flex;
@@ -1107,6 +1283,85 @@
     }
   }
 
+  // Human-in-the-Loop 反馈表单样式
+  .feedback-container {
+    margin: 16px 0;
+    padding: 16px;
+    background: #f8f9fa;
+    border-left: 4px solid #1890ff;
+    border-radius: 4px;
+  }
+
+  .feedback-content {
+    .feedback-header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 12px;
+      font-size: 14px;
+      color: #1890ff;
+
+      .feedback-icon {
+        margin-right: 8px;
+        font-size: 18px;
+      }
+
+      .feedback-title {
+        font-weight: 500;
+      }
+    }
+
+    .code-review-box, .error-box {
+      margin-bottom: 12px;
+      padding: 12px;
+      background: white;
+      border-radius: 4px;
+      border: 1px solid #d9d9d9;
+
+      .code-header, .error-header {
+        font-weight: 500;
+        margin-bottom: 8px;
+        color: #262626;
+      }
+
+      .code-content {
+        background: #f5f5f5;
+        padding: 12px;
+        border-radius: 4px;
+        overflow-x: auto;
+        font-family: 'Courier New', monospace;
+        font-size: 13px;
+        margin: 0;
+        color: #262626;
+      }
+
+      .llm-explanation, .error-message {
+        margin-top: 8px;
+        padding: 8px;
+        background: #f0f7ff;
+        border-radius: 4px;
+        font-size: 13px;
+        color: #595959;
+      }
+
+      .error-message {
+        background: #fff1f0;
+        color: #cf1322;
+      }
+    }
+
+    .feedback-form {
+      .feedback-textarea {
+        width: 100%;
+        margin-bottom: 8px;
+      }
+
+      .feedback-actions {
+        display: flex;
+        justify-content: flex-end;
+      }
+    }
+  }
+
   @media (max-width: 600px) {
     //手机下的样式 平板不需要调整
     .footer{
@@ -1122,6 +1377,10 @@
     }
     .main .chatContentArea{
       padding: 10px 0 0 10px;
+    }
+    .feedback-container {
+      margin: 12px 0;
+      padding: 12px;
     }
   }
 </style>

@@ -34,9 +34,9 @@
         </JVxeTable>
       </div>
 
-      <div class="html-body" v-if="props.html && props.html !== ''" style="width: 800px">
-        <a-button @click="outputChart" style="float: right" preIcon="ant-design:export-outlined">导出图表</a-button>
-        <iframe :srcdoc="props.html" width="100%" height="100%"></iframe>
+      <div class="html-body" v-if="props.html && props.html !== ''">
+        <a-button @click="outputChart" style="float: right; margin-bottom: 8px;" preIcon="ant-design:export-outlined">导出图表</a-button>
+        <iframe :key="props.html" :srcdoc="props.html" width="100%" height="100%" frameborder="0"></iframe>
       </div>
       <div v-if="inversion === 'user' && images && images.length>0" class="images">
           <div v-for="(item,index) in images" :key="index" class="image" @click="handlePreview(item)">
@@ -233,6 +233,17 @@
     },
     { deep: true }
   );
+
+  // 监听 html 属性变化
+  watch(
+    () => props.html,
+    (newHtml) => {
+      if (newHtml) {
+        console.log('[chatMessage] HTML内容更新，长度:', newHtml.length, '预览:', newHtml.substring(0, 100));
+      }
+    },
+    { immediate: true }
+  );
 </script>
 
 <style lang="less" scoped>
@@ -384,7 +395,20 @@
     }
   }
   .html-body {
-    height: 500px;
-    overflow: scroll;
+    width: 100%;
+    max-width: 900px;
+    min-height: 400px;
+    height: auto;
+    overflow: visible;
+    margin-top: 10px;
+
+    iframe {
+      min-height: 400px;
+      height: 600px;
+      display: block;
+      border: 1px solid #e8e8e8;
+      border-radius: 4px;
+      background: #fff;
+    }
   }
 </style>

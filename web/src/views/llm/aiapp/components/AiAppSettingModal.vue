@@ -72,7 +72,7 @@
                     </a-form-item>
                   </div>
                 </a-col>
-                <a-col :span="24" v-if="formState.type==='chat'">
+                <a-col :span="24" v-if="formState.type==='agent'">
                   <div class="prompt-back ">
                     <a-form-item :labelCol="labelCol" :wrapperCol="wrapperCol" v-bind="validateInfos.prompt" style="margin-bottom:0;">
                       <template #label>
@@ -168,7 +168,7 @@
                     </a-form-item>
                   </div>
                 </a-col>
-                <a-col :span="24" v-if="formState.type==='chat'" class="mt-10">
+                <a-col :span="24" v-if="formState.type==='agent'" class="mt-10">
                   <div class="prologue-chunk">
                     <a-form-item :labelCol="labelCol" :wrapperCol="wrapperCol" v-bind="validateInfos.modelId">
                       <template #label>
@@ -189,7 +189,7 @@
                     </a-form-item>
                   </div>
                 </a-col>
-                <a-col :span="24" v-if="formState.type==='chat'" class="mt-10">
+                <a-col :span="24" v-if="formState.type==='agent'" class="mt-10">
                   <div class="prologue-chunk">
                     <a-form-item
                         class="knowledgeId"
@@ -232,7 +232,7 @@
                   </div>
                 </a-col>
                 <!-- Add this after the "AI模型" form item -->
-                <a-col :span="24" v-if="formState.type==='chat'" class="mt-10">
+                <a-col :span="24" v-if="formState.type==='agent'" class="mt-10">
                   <div class="prologue-chunk">
                     <a-form-item :labelCol="labelCol" :wrapperCol="wrapperCol" v-bind="validateInfos.datamodelIds">
                       <template #label>
@@ -267,7 +267,7 @@
                 </a-col>
 
                 <!-- Add this after the "数据模型" form item -->
-                <a-col :span="24" v-if="formState.type==='chat'" class="mt-10">
+                <a-col :span="24" v-if="formState.type==='agent'" class="mt-10">
                   <div class="prologue-chunk">
                     <a-form-item :labelCol="labelCol" :wrapperCol="wrapperCol" v-bind="validateInfos.toolIds">
                       <template #label>
@@ -314,12 +314,40 @@
                   <div class="prologue-chunk">
                     <div style="margin-left: 2px">个性化设置</div>
                     <a-row>
-                      <a-form-item :labelCol="labelCol" :wrapperCol="wrapperCol" v-bind="validateInfos.multiSession">
-                        <div style="display: flex;margin-top: 10px">
-                          <div style="margin-left: 2px">长期记忆：</div>
-                          <a-switch :disabled="isRelease" v-model:checked="multiSessionChecked" checked-children="开" un-checked-children="关" @change="handleMultiSessionChange"></a-switch>
-                        </div>
-                      </a-form-item>
+                      <a-col :span="24">
+                        <a-form-item :labelCol="labelCol" :wrapperCol="wrapperCol" v-bind="validateInfos.multiSession">
+                          <div style="display: flex;align-items: center;margin-top: 10px;gap: 8px">
+                            <div style="margin-left: 2px">长期记忆：</div>
+                            <a-switch :disabled="isRelease" v-model:checked="multiSessionChecked" checked-children="开" un-checked-children="关" @change="handleMultiSessionChange"></a-switch>
+                            <a-tooltip placement="top">
+                              <template #title>
+                                <div style="max-width: 300px;">
+                                  开启后，系统将记忆用户的重要信息和偏好，提供更个性化的对话体验；<br/>
+                                  关闭后，每次对话相互独立，不会记录记忆信息
+                                </div>
+                              </template>
+                              <Icon icon="ant-design:question-circle-outlined" style="color: #999; cursor: help;" />
+                            </a-tooltip>
+                          </div>
+                        </a-form-item>
+                      </a-col>
+                      <a-col :span="24">
+                        <a-form-item :labelCol="labelCol" :wrapperCol="wrapperCol" v-bind="validateInfos.dataReview">
+                          <div style="display: flex;align-items: center;margin-top: 10px;gap: 8px">
+                            <div style="margin-left: 2px">人工审查：</div>
+                            <a-switch :disabled="isRelease" v-model:checked="dataReviewChecked" checked-children="开" un-checked-children="关" @change="handleDataReviewChange"></a-switch>
+                            <a-tooltip placement="top">
+                              <template #title>
+                                <div style="max-width: 300px;">
+                                  开启后，AI生成的数据分析代码将等待人工审查后执行，包括自动修复的代码；<br/>
+                                  关闭后，代码将自动执行，仅在多次错误后需要人工介入
+                                </div>
+                              </template>
+                              <Icon icon="ant-design:question-circle-outlined" style="color: #999; cursor: help;" />
+                            </a-tooltip>
+                          </div>
+                        </a-form-item>
+                      </a-col>
                     </a-row>
                   </div>
                 </a-col>
@@ -386,9 +414,11 @@
   import draggable from 'vuedraggable';
   import { useMessage } from "@/hooks/web/useMessage";
   import defaultFlowImg from "@/assets/images/ai/aiflow.png";
+  import { Icon } from '@/components/Icon';
   export default {
     name: 'AiAppSettingModal',
     components: {
+      Icon,
       draggable,
       JMarkdownEditor,
       JSearchSelect,
@@ -471,6 +501,8 @@
       const { createMessage } = useMessage();
       //多会话模式选中状态
       const multiSessionChecked = ref<boolean>(true);
+      //人工审查开关
+      const dataReviewChecked = ref<boolean>(false);
       // 是否已发布
       const isRelease = ref<boolean>(false);
       //注册modal
@@ -524,6 +556,10 @@
           let values = await validate();
           setModalProps({ confirmLoading: true });
           formState.knowledgeIds = knowledgeIds.value;
+
+          // 确保 metadata 是最新的
+          formState.metadata = JSON.stringify(metadata.value);
+
           // 组装 chat_config
           const chatConfigFields = [
             'msgNum',
@@ -548,8 +584,13 @@
             chat_config: chat_config
           };
 
-          await saveApp(payload);
+          console.log('保存应用配置:', payload);
+          const result = await saveApp(payload);
+          console.log('保存结果:', result);
           emit('success')
+        } catch (error) {
+          console.error('保存失败:', error);
+          throw error;
         } finally {
           setModalProps({ confirmLoading: false });
         }
@@ -817,7 +858,7 @@
        * @param type
        */
       function addRules(type){
-        if(type === 'chat') {
+        if(type === 'agent') {
           validatorRules.value = {
             modelId: [{ required: true, message: '请选择AI模型!' }],
           }
@@ -1028,6 +1069,7 @@
         quickCommandList.value = [];
         quickCommand.value = '';
         multiSessionChecked.value = true;
+        dataReviewChecked.value = false;
       }
 
       /**
@@ -1056,6 +1098,11 @@
           }else{
             multiSessionChecked.value = true;
           }
+          if(metadata.value?.dataReview){
+            dataReviewChecked.value = metadata.value.dataReview === '1';
+          }else{
+            dataReviewChecked.value = false;
+          }
         }
         if(data.presetQuestion){
           presetQuestion.value = data.presetQuestion;
@@ -1073,15 +1120,15 @@
         //赋值
         Object.assign(formState, data);
         //根据知识库id查询知识库内容
-        if (app_type === 'chat' && data.knowledgeIds) {
+        if (app_type === 'agent' && data.knowledgeIds) {
           getKnowledgeDataList(data.knowledgeIds);
         }
         //根据数据模型id查询数据模型内容
-        if (app_type === 'chat' && data.datamodelIds) {
+        if (app_type === 'agent' && data.datamodelIds) {
           getDataModelDataList(data.datamodelIds);
         }
         //根据工具id查询工具内容
-        if (app_type === 'chat' && data.toolIds) {
+        if (app_type === 'agent' && data.toolIds) {
           getToolDataList(data.toolIds);
         }
         //根据知识库id查询流程信息
@@ -1188,6 +1235,18 @@
         formState.metadata = JSON.stringify(metadata.value);
       }
 
+      /**
+       * 数据分析代码审查开关回调
+       */
+      function handleDataReviewChange(checked){
+        if(checked){
+          metadata.value.dataReview = "1";
+        }else{
+          metadata.value.dataReview = "0";
+        }
+        formState.metadata = JSON.stringify(metadata.value);
+      }
+
       return {
         registerModal,
         title,
@@ -1262,6 +1321,8 @@
         metadata,
         multiSessionChecked,
         handleMultiSessionChange,
+        dataReviewChecked,
+        handleDataReviewChange,
       };
     },
   };

@@ -11,7 +11,7 @@
  Target Server Version : 80022 (8.0.22)
  File Encoding         : 65001
 
- Date: 31/12/2025 14:33:26
+ Date: 06/02/2026 15:42:59
 */
 
 SET NAMES utf8mb4;
@@ -374,7 +374,7 @@ CREATE TABLE `llm_chat_app`  (
 -- ----------------------------
 -- Records of llm_chat_app
 -- ----------------------------
-INSERT INTO `llm_chat_app` VALUES ('6626ab87793845bf942c8fec89deecbe', 'test', '', 'chat', 0, '[\"org_5\", \"org_1\"]', '{\n  \"msgNum\": 1,\n  \"prompt\": \"\",\n  \"prologue\": null,\n  \"knowledgeIds\": \"1\",\n  \"modelId\": \"default\",\n  \"presetQuestion\": \"\",\n  \"quickCommand\": \"[{\\\"key\\\":\\\"2\\\",\\\"name\\\":\\\"现在几点了\\\",\\\"descr\\\":\\\"现在几点了\\\"},{\\\"key\\\":\\\"1\\\",\\\"name\\\":\\\"excel前10条\\\",\\\"descr\\\":\\\"获取excel前10条数据\\\"}]\",\n  \"datamodelIds\": \"e222b61c62be4d09908a5bc94aebf22d\",\n  \"toolIds\": \"now_time,network_search\"\n}', '', 1, 0, 'admin', '2024-10-20 11:57:25', 'admin', '2025-07-31 07:53:05', 1);
+INSERT INTO `llm_chat_app` VALUES ('6626ab87793845bf942c8fec89deecbe', 'test', '', 'agent', 0, '[\"org_5\", \"org_1\"]', '{\n  \"msgNum\": 1,\n  \"prompt\": \"\",\n  \"prologue\": null,\n  \"knowledgeIds\": \"1\",\n  \"modelId\": \"default\",\n  \"presetQuestion\": \"\",\n  \"quickCommand\": \"[{\\\"key\\\":\\\"2\\\",\\\"name\\\":\\\"现在几点了\\\",\\\"descr\\\":\\\"现在几点了\\\"},{\\\"key\\\":\\\"1\\\",\\\"name\\\":\\\"excel前10条\\\",\\\"descr\\\":\\\"获取excel前10条数据\\\"}]\",\n  \"datamodelIds\": \"e222b61c62be4d09908a5bc94aebf22d\",\n  \"toolIds\": \"now_time,network_search\"\n}', '', 1, 0, 'admin', '2024-10-20 11:57:25', 'admin', '2026-02-06 07:42:41', 1);
 
 -- ----------------------------
 -- Table structure for llm_chat_app_token
@@ -460,7 +460,7 @@ CREATE TABLE `llm_tools`  (
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `code`(`code` ASC) USING BTREE,
   INDEX `ix_llm_tools_tenant_id`(`tenant_id` ASC) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of llm_tools
