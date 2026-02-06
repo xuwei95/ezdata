@@ -56,8 +56,8 @@
             </div>
           </div>
           <div class="header-tag">
-            <a-tag color="#EBF1FF" style="margin-right: 0" v-if="item.type === 'chat'">
-              <span style="color: #3370ff">对话应用</span>
+            <a-tag color="#EBF1FF" style="margin-right: 0" v-if="item.type === 'agent'">
+              <span style="color: #3370ff">agent</span>
             </a-tag>
             <a-tag color="#FDF6EC" style="margin-right: 0" v-if="item.type === 'chatFLow'">
               <span style="color: #e6a343">高级编排</span>
