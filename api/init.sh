@@ -1,6 +1,6 @@
 unlink /var/run/supervisor.sock
 supervisord -c supervisord.ini
-if [ $run_upgrade == 1 ]; then
+if [ "${run_upgrade:-0}" == 1 ]; then
   echo "检查升级版本"
   # 执行命令，检查升级版本
   # 按逗号切分字符串，遍历每个包名执行 pip install --upgrade 命令
@@ -13,29 +13,29 @@ if [ $run_upgrade == 1 ]; then
   done
 fi
 python init_system.py
-if [ $run_web == 1 ]; then
+if [ "${run_web:-0}" == 1 ]; then
   echo "开启web服务"
   # 执行命令，开启web服务
   supervisorctl start web_api
 fi
 
-if [ $run_scheduler == 1 ]; then
+if [ "${run_scheduler:-0}" == 1 ]; then
   echo "开启任务调度"
     supervisorctl start scheduler
 fi
 
-if [ $run_sandbox == 1 ]; then
+if [ "${run_sandbox:-0}" == 1 ]; then
   echo "开启sandbox"
     supervisorctl start sandbox
 fi
 
-if [ $run_flower == 1 ]; then
+if [ "${run_flower:-0}" == 1 ]; then
   echo "开启flower"
   # 以守护进程启动
   supervisorctl start celery_flower
 fi
 
-if [ $run_worker == 1 ]; then
+if [ "${run_worker:-0}" == 1 ]; then
   echo "开启celery worker"
   supervisorctl start celery_worker
 fi
