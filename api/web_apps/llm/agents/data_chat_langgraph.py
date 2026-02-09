@@ -289,19 +289,26 @@ Fix the python code above and return the new python code
             'prompt': '请审查以下生成的代码，输入 yes/y/ok 执行，或输入修改建议重新生成'
         }
 
+        print(f"[_request_code_review] 设置 waiting_feedback: {waiting_feedback_data['review_type']}")
+
         # 更新状态到 Redis
         if self.redis_manager and self.current_thread_id:
+            print(f"[_request_code_review] 更新 Redis 状态, thread_id={self.current_thread_id}")
             self.redis_manager.set_status(self.current_thread_id, {
                 'status': 'pending_review',
                 'review_type': 'code_review',
                 'generated_code': state.get('generated_code', ''),
                 'llm_result': state.get('llm_result', '')
             })
+        else:
+            print(f"[_request_code_review] 警告: Redis 状态未更新 (redis_manager={self.redis_manager}, thread_id={self.current_thread_id})")
 
-        return {
+        result_state = {
             **state,
             "waiting_feedback": waiting_feedback_data  # 特殊字段，会被 yield 出去
         }
+        print(f"[_request_code_review] 返回状态, waiting_feedback 存在: {'waiting_feedback' in result_state}")
+        return result_state
 
     def _human_review(self, state: DataChatState) -> DataChatState:
         """人工代码审查节点（阻塞等待反馈）"""
@@ -336,10 +343,11 @@ Fix the python code above and return the new python code
             else:
                 print(f"[Web模式] 收到用户反馈: '{user_input}'")
 
+            # 不要清空 waiting_feedback，让它自然保持在 state 中
+            # 因为一旦被 yield 出去后，清空它没有实际意义，反而可能导致状态混乱
             return {
                 **state,
-                "human_feedback": user_input,
-                "waiting_feedback": None  # 清空 waiting_feedback
+                "human_feedback": user_input
             }
 
     def _execute_code(self, state: DataChatState) -> DataChatState:
@@ -466,8 +474,11 @@ Fix the python code above and return the new python code
             'prompt': f'代码执行失败（已重试 {state.get("retry_count", 0)} 次），输入 ok 结束流程，或输入修改建议重新生成代码'
         }
 
+        print(f"[_request_error_feedback] 设置 waiting_feedback: {waiting_feedback_data['review_type']}")
+
         # 更新状态到 Redis
         if self.redis_manager and self.current_thread_id:
+            print(f"[_request_error_feedback] 更新 Redis 状态, thread_id={self.current_thread_id}")
             self.redis_manager.set_status(self.current_thread_id, {
                 'status': 'error_feedback',
                 'review_type': 'error_feedback',
@@ -475,11 +486,15 @@ Fix the python code above and return the new python code
                 'code_exception': state.get('code_exception', ''),
                 'retry_count': state.get('retry_count', 0)
             })
+        else:
+            print(f"[_request_error_feedback] 警告: Redis 状态未更新 (redis_manager={self.redis_manager}, thread_id={self.current_thread_id})")
 
-        return {
+        result_state = {
             **state,
             "waiting_feedback": waiting_feedback_data  # 特殊字段，会被 yield 出去
         }
+        print(f"[_request_error_feedback] 返回状态, waiting_feedback 存在: {'waiting_feedback' in result_state}")
+        return result_state
 
     def _human_error_feedback(self, state: DataChatState) -> DataChatState:
         """人工错误反馈节点（阻塞等待反馈）"""
@@ -512,11 +527,11 @@ Fix the python code above and return the new python code
                 # 超时，默认结束流程
                 user_input = "ok"
 
+            # 不要清空 waiting_feedback，让它自然保持在 state 中
             return {
                 **state,
                 "human_feedback": user_input,
-                "retry_count": 0,
-                "waiting_feedback": None  # 清空 waiting_feedback
+                "retry_count": 0
             }
 
     def _parse_result(self, state: DataChatState) -> DataChatState:
@@ -801,18 +816,31 @@ Fix the python code above and return the new python code
         }
 
         yielded_flow_count = 0  # 使用计数器追踪已 yield 的 flow_data 数量
+        last_waiting_feedback = None  # 追踪最后一个 waiting_feedback，避免重复 yield
 
-        for chunk in app.stream(initial_state):
+        # 使用 stream_mode="updates" 确保每个节点的状态更新都被独立 yield
+        # 这样可以避免在 Linux 下节点状态被合并的问题
+        import sys
+        for chunk in app.stream(initial_state, stream_mode="updates"):
+            sys.stdout.flush()  # 确保日志立即输出，特别是在 Linux 下
             for node_name, node_state in chunk.items():
-                print(f"[Stream] 节点: {node_name}")
+                print(f"[Stream] 节点: {node_name}, 状态键: {list(node_state.keys())}")
 
                 # 检查是否有 waiting_feedback 事件
-                if 'waiting_feedback' in node_state and node_state['waiting_feedback']:
-                    print(f"[Stream] yield waiting_feedback")
-                    yield {
-                        'content': node_state['waiting_feedback'],
-                        'type': 'waiting_feedback'
-                    }
+                if 'waiting_feedback' in node_state:
+                    current_waiting_feedback = node_state['waiting_feedback']
+                    print(f"[Stream] 发现 waiting_feedback: {current_waiting_feedback}")
+
+                    # 只有当 waiting_feedback 不为 None 且与上次不同时才 yield
+                    if current_waiting_feedback and current_waiting_feedback != last_waiting_feedback:
+                        print(f"[Stream] yield waiting_feedback: {current_waiting_feedback}")
+                        last_waiting_feedback = current_waiting_feedback
+                        yield {
+                            'content': current_waiting_feedback,
+                            'type': 'waiting_feedback'
+                        }
+                    elif not current_waiting_feedback:
+                        print(f"[Stream] waiting_feedback 为空或 None，跳过")
 
                 # 处理 flow_data - 只 yield 新增的部分（对所有节点都处理）
                 if 'flow_data' in node_state:
