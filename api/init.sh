@@ -1,4 +1,15 @@
-unlink /var/run/supervisor.sock
+# 设置默认环境变量
+export web_worker=${web_worker:-4}
+export sandbox_worker=${sandbox_worker:-4}
+export worker_concurrency=${worker_concurrency:-4}
+export worker_queue=${worker_queue:-default}
+export worker_process=${worker_process:-prefork}
+
+# 删除旧的 socket 文件（如果存在）
+if [ -e /var/run/supervisor.sock ]; then
+  unlink /var/run/supervisor.sock
+fi
+
 supervisord -c supervisord.ini
 if [ "${run_upgrade:-0}" == 1 ]; then
   echo "检查升级版本"
