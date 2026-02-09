@@ -31,6 +31,7 @@ services:
       - run_flower=0 # 是否运行celery flower监控
       - run_worker=1 # 是否运行celery worker
       - run_sandbox=0 # 是否运行sandbox
+      - sandbox_worker=4 # sandbox 并发数
       - worker_concurrency=4 # celery worker 并发数
       - worker_queue=default # celery worker 订阅队列
       - worker_process=prefork # celery worker 运行模式
@@ -67,6 +68,7 @@ services:
       - run_flower=1 # 是否运行celery flower监控
       - run_worker=0 # 是否运行celery worker
       - run_sandbox=0 # 是否运行sandbox
+      - sandbox_worker=4 # sandbox 并发数
       - worker_concurrency=4 # celery worker 并发数
       - worker_queue=default # celery worker 订阅队列
       - worker_process=prefork # celery worker 运行模式
