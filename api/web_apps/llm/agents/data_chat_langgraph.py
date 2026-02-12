@@ -251,14 +251,30 @@ Fix the python code above and return the new python code
 
         # 如果有预设答案且不是重新生成，使用预设答案
         if state.get('answer') and not is_regeneration:
-            llm_result = state['answer']
-            code = extract_code(llm_result)
-            self._add_flow_data(flow_data, '生成处理代码', '发现知识库中答案，直接使用')
+            try:
+                llm_result = state['answer']
+                code = extract_code(llm_result)
+                self._add_flow_data(flow_data, '生成处理代码', '发现知识库中答案，直接使用')
+            except (ValueError, Exception) as e:
+                # 知识库答案格式有问题，回退到正常LLM生成
+                print(f"[警告] 知识库答案格式错误: {str(e)}, 回退到LLM生成")
+                self._add_flow_data(flow_data, '知识库答案格式错误', f'错误: {str(e)}, 使用LLM重新生成')
+                prompt = self._build_code_prompt(state)
+                llm_result = self.llm.invoke(prompt).content
+                code = extract_code(llm_result)
+                self._add_flow_data(flow_data, '生成处理代码', '使用LLM生成代码')
         else:
             # 构建提示词并调用 LLM
             prompt = self._build_code_prompt(state)
             llm_result = self.llm.invoke(prompt).content
-            code = extract_code(llm_result)
+            try:
+                code = extract_code(llm_result)
+            except (ValueError, Exception) as e:
+                # LLM返回格式有问题，记录错误信息
+                print(f"[警告] LLM返回的代码格式错误: {str(e)}")
+                self._add_flow_data(flow_data, 'LLM代码格式错误', f'错误: {str(e)}\n\nLLM返回内容:\n{llm_result}')
+                # 将整个返回内容作为代码尝试执行
+                code = llm_result
 
             # 添加流程数据
             if is_regeneration:
@@ -302,7 +318,7 @@ Fix the python code above and return the new python code
             })
         else:
             print(f"[_request_code_review] 警告: Redis 状态未更新 (redis_manager={self.redis_manager}, thread_id={self.current_thread_id})")
-
+        time.sleep(0.5)
         result_state = {
             **state,
             "waiting_feedback": waiting_feedback_data  # 特殊字段，会被 yield 出去
@@ -449,7 +465,14 @@ Fix the python code above and return the new python code
 
         prompt = self._build_fix_prompt(state)
         llm_result = self.llm.invoke(prompt).content
-        new_code = extract_code(llm_result)
+        try:
+            new_code = extract_code(llm_result)
+        except (ValueError, Exception) as e:
+            # LLM返回的修复代码格式有问题
+            print(f"[警告] LLM修复代码格式错误: {str(e)}")
+            self._add_flow_data(flow_data, f'LLM修复代码格式错误（第{retry_count}次）', f'错误: {str(e)}\n\nLLM返回内容:\n{llm_result}')
+            # 将整个返回内容作为代码尝试执行
+            new_code = llm_result
 
         # 添加修复成功的详细信息
         review_hint = "\n\n⚠️ 开启了代码审查，修复后的代码将提交审查" if self.enable_review else ""
@@ -839,6 +862,7 @@ Fix the python code above and return the new python code
                             'content': current_waiting_feedback,
                             'type': 'waiting_feedback'
                         }
+                        print(f"success yield waiting_feedback: {current_waiting_feedback}")
                     elif not current_waiting_feedback:
                         print(f"[Stream] waiting_feedback 为空或 None，跳过")
 
