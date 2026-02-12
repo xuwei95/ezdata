@@ -286,45 +286,35 @@ Fix the python code above and return the new python code
 
         self._add_flow_data(flow_data, '处理代码生成成功', llm_result)
 
+        # 如果启用了代码审查，设置 waiting_feedback 标记
+        waiting_feedback = None
+        if self.enable_review and self.web_mode:
+            waiting_feedback = {
+                'review_type': 'code_review',
+                'generated_code': code,
+                'llm_result': llm_result,
+                'prompt': '请审查以下生成的代码，输入 yes/y/ok 执行，或输入修改建议重新生成'
+            }
+            # 更新 Redis 状态
+            if self.redis_manager and self.current_thread_id:
+                print(f"[_generate_code] 更新 Redis 状态: code_review")
+                self.redis_manager.set_status(self.current_thread_id, {
+                    'status': 'pending_review',
+                    'review_type': 'code_review',
+                    'generated_code': code,
+                    'llm_result': llm_result
+                })
+
         return {
             **state,
             "generated_code": code,
             "llm_result": llm_result,
             "flow_data": flow_data,
             "human_feedback": None,
-            "code_exception": "" if is_regeneration else state.get("code_exception", "")
+            "code_exception": "" if is_regeneration else state.get("code_exception", ""),
+            "waiting_feedback": waiting_feedback
         }
 
-    def _request_code_review(self, state: DataChatState) -> DataChatState:
-        """请求代码审查（添加等待事件，不阻塞）"""
-        # 准备等待反馈的数据
-        waiting_feedback_data = {
-            'review_type': 'code_review',
-            'generated_code': state.get('generated_code', ''),
-            'llm_result': state.get('llm_result', ''),
-            'prompt': '请审查以下生成的代码，输入 yes/y/ok 执行，或输入修改建议重新生成'
-        }
-
-        print(f"[_request_code_review] 设置 waiting_feedback: {waiting_feedback_data['review_type']}")
-
-        # 更新状态到 Redis
-        if self.redis_manager and self.current_thread_id:
-            print(f"[_request_code_review] 更新 Redis 状态, thread_id={self.current_thread_id}")
-            self.redis_manager.set_status(self.current_thread_id, {
-                'status': 'pending_review',
-                'review_type': 'code_review',
-                'generated_code': state.get('generated_code', ''),
-                'llm_result': state.get('llm_result', '')
-            })
-        else:
-            print(f"[_request_code_review] 警告: Redis 状态未更新 (redis_manager={self.redis_manager}, thread_id={self.current_thread_id})")
-        time.sleep(0.5)
-        result_state = {
-            **state,
-            "waiting_feedback": waiting_feedback_data  # 特殊字段，会被 yield 出去
-        }
-        print(f"[_request_code_review] 返回状态, waiting_feedback 存在: {'waiting_feedback' in result_state}")
-        return result_state
 
     def _human_review(self, state: DataChatState) -> DataChatState:
         """人工代码审查节点（阻塞等待反馈）"""
@@ -339,7 +329,8 @@ Fix the python code above and return the new python code
             return {
                 **state,
                 "flow_data": flow_data,
-                "human_feedback": user_input
+                "human_feedback": user_input,
+                "waiting_feedback": None  # 清空
             }
         else:
             # Web 模式：轮询等待反馈（阻塞）
@@ -359,11 +350,10 @@ Fix the python code above and return the new python code
             else:
                 print(f"[Web模式] 收到用户反馈: '{user_input}'")
 
-            # 不要清空 waiting_feedback，让它自然保持在 state 中
-            # 因为一旦被 yield 出去后，清空它没有实际意义，反而可能导致状态混乱
             return {
                 **state,
-                "human_feedback": user_input
+                "human_feedback": user_input,
+                "waiting_feedback": None  # 清空，避免重复 yield
             }
 
     def _execute_code(self, state: DataChatState) -> DataChatState:
@@ -404,18 +394,44 @@ Fix the python code above and return the new python code
                         **state,
                         "executed_code": code,
                         "execution_result": result.get('result'),
-                        "flow_data": flow_data
+                        "flow_data": flow_data,
+                        "waiting_feedback": None  # 清空
                     }
                 else:
                     error_msg = result.get("error", "Unknown error")
                     error_detail = f"执行失败 (尝试 {retry_count + 1}/{state['max_retry']})\n\n错误信息:\n{error_msg}\n\n错误代码:\n```python\n{code}\n```"
                     self._add_flow_data(flow_data, '代码执行失败', error_detail, 'flow')
+
+                    new_retry_count = state["retry_count"] + 1
+
+                    # 如果达到最大重试次数，设置 waiting_feedback 标记
+                    waiting_feedback = None
+                    if new_retry_count >= state["max_retry"] and self.web_mode:
+                        waiting_feedback = {
+                            'review_type': 'error_feedback',
+                            'executed_code': code,
+                            'code_exception': error_msg,
+                            'retry_count': new_retry_count,
+                            'prompt': f'代码执行失败（已重试 {new_retry_count} 次），输入 ok 结束流程，或输入修改建议重新生成代码'
+                        }
+                        # 更新 Redis 状态
+                        if self.redis_manager and self.current_thread_id:
+                            print(f"[_execute_code] 沙箱模式更新 Redis 状态: error_feedback")
+                            self.redis_manager.set_status(self.current_thread_id, {
+                                'status': 'error_feedback',
+                                'review_type': 'error_feedback',
+                                'executed_code': code,
+                                'code_exception': error_msg,
+                                'retry_count': new_retry_count
+                            })
+
                     return {
                         **state,
                         "executed_code": code,
-                        "code_exception": result.get('error', 'Unknown error'),
-                        "retry_count": state["retry_count"] + 1,
-                        "flow_data": flow_data
+                        "code_exception": error_msg,
+                        "retry_count": new_retry_count,
+                        "flow_data": flow_data,
+                        "waiting_feedback": waiting_feedback
                     }
             else:
                 # 本地执行
@@ -438,7 +454,8 @@ Fix the python code above and return the new python code
                     **state,
                     "executed_code": code,
                     "execution_result": result,
-                    "flow_data": flow_data
+                    "flow_data": flow_data,
+                    "waiting_feedback": None  # 清空
                 }
 
         except Exception as e:
@@ -446,12 +463,37 @@ Fix the python code above and return the new python code
             error_traceback = traceback.format_exc()
             error_detail = f"执行失败 (尝试 {retry_count + 1}/{state['max_retry']})\n\n错误类型: {type(e).__name__}\n错误信息: {str(e)}\n\n错误代码:\n```python\n{code}\n```\n\n堆栈追踪:\n{error_traceback}"
             self._add_flow_data(flow_data, '代码执行失败', error_detail, 'flow')
+
+            new_retry_count = state["retry_count"] + 1
+
+            # 如果达到最大重试次数，设置 waiting_feedback 标记
+            waiting_feedback = None
+            if new_retry_count >= state["max_retry"] and self.web_mode:
+                waiting_feedback = {
+                    'review_type': 'error_feedback',
+                    'executed_code': code,
+                    'code_exception': error_traceback,
+                    'retry_count': new_retry_count,
+                    'prompt': f'代码执行失败（已重试 {new_retry_count} 次），输入 ok 结束流程，或输入修改建议重新生成代码'
+                }
+                # 更新 Redis 状态
+                if self.redis_manager and self.current_thread_id:
+                    print(f"[_execute_code] 更新 Redis 状态: error_feedback")
+                    self.redis_manager.set_status(self.current_thread_id, {
+                        'status': 'error_feedback',
+                        'review_type': 'error_feedback',
+                        'executed_code': code,
+                        'code_exception': error_traceback,
+                        'retry_count': new_retry_count
+                    })
+
             return {
                 **state,
                 "executed_code": code,
                 "code_exception": error_traceback,
-                "retry_count": state["retry_count"] + 1,
-                "flow_data": flow_data
+                "retry_count": new_retry_count,
+                "flow_data": flow_data,
+                "waiting_feedback": waiting_feedback
             }
 
     def _fix_code(self, state: DataChatState) -> DataChatState:
@@ -479,45 +521,33 @@ Fix the python code above and return the new python code
         fix_success_info = f"LLM修复完成 (第{retry_count}次修复)\n\n修复后的代码:\n```python\n{new_code}\n```\n\nLLM说明:\n{llm_result}{review_hint}"
         self._add_flow_data(flow_data, f'代码修复完成（第{retry_count}次）', fix_success_info, 'flow')
 
+        # 如果启用了代码审查，修复后也需要审查，设置 waiting_feedback
+        waiting_feedback = None
+        if self.enable_review and self.web_mode:
+            waiting_feedback = {
+                'review_type': 'code_review',
+                'generated_code': new_code,
+                'llm_result': llm_result,
+                'prompt': '请审查以下修复后的代码，输入 yes/y/ok 执行，或输入修改建议重新生成'
+            }
+            # 更新 Redis 状态
+            if self.redis_manager and self.current_thread_id:
+                print(f"[_fix_code] 更新 Redis 状态: code_review")
+                self.redis_manager.set_status(self.current_thread_id, {
+                    'status': 'pending_review',
+                    'review_type': 'code_review',
+                    'generated_code': new_code,
+                    'llm_result': llm_result
+                })
+
         return {
             **state,
             "generated_code": new_code,
             "llm_result": llm_result,
-            "flow_data": flow_data
+            "flow_data": flow_data,
+            "waiting_feedback": waiting_feedback
         }
 
-    def _request_error_feedback(self, state: DataChatState) -> DataChatState:
-        """请求错误反馈（添加等待事件，不阻塞）"""
-        # 准备等待反馈的数据
-        waiting_feedback_data = {
-            'review_type': 'error_feedback',
-            'executed_code': state.get('executed_code', ''),
-            'code_exception': state.get('code_exception', ''),
-            'retry_count': state.get('retry_count', 0),
-            'prompt': f'代码执行失败（已重试 {state.get("retry_count", 0)} 次），输入 ok 结束流程，或输入修改建议重新生成代码'
-        }
-
-        print(f"[_request_error_feedback] 设置 waiting_feedback: {waiting_feedback_data['review_type']}")
-
-        # 更新状态到 Redis
-        if self.redis_manager and self.current_thread_id:
-            print(f"[_request_error_feedback] 更新 Redis 状态, thread_id={self.current_thread_id}")
-            self.redis_manager.set_status(self.current_thread_id, {
-                'status': 'error_feedback',
-                'review_type': 'error_feedback',
-                'executed_code': state.get('executed_code', ''),
-                'code_exception': state.get('code_exception', ''),
-                'retry_count': state.get('retry_count', 0)
-            })
-        else:
-            print(f"[_request_error_feedback] 警告: Redis 状态未更新 (redis_manager={self.redis_manager}, thread_id={self.current_thread_id})")
-
-        result_state = {
-            **state,
-            "waiting_feedback": waiting_feedback_data  # 特殊字段，会被 yield 出去
-        }
-        print(f"[_request_error_feedback] 返回状态, waiting_feedback 存在: {'waiting_feedback' in result_state}")
-        return result_state
 
     def _human_error_feedback(self, state: DataChatState) -> DataChatState:
         """人工错误反馈节点（阻塞等待反馈）"""
@@ -533,7 +563,8 @@ Fix the python code above and return the new python code
                 **state,
                 "flow_data": flow_data,
                 "human_feedback": user_input,
-                "retry_count": 0
+                "retry_count": 0,
+                "waiting_feedback": None  # 清空
             }
         else:
             # Web 模式：轮询等待反馈（阻塞）
@@ -549,12 +580,15 @@ Fix the python code above and return the new python code
             if user_input is None:
                 # 超时，默认结束流程
                 user_input = "ok"
+                print(f"[Web模式] 等待错误反馈超时")
+            else:
+                print(f"[Web模式] 收到错误反馈: '{user_input}'")
 
-            # 不要清空 waiting_feedback，让它自然保持在 state 中
             return {
                 **state,
                 "human_feedback": user_input,
-                "retry_count": 0
+                "retry_count": 0,
+                "waiting_feedback": None  # 清空，避免重复 yield
             }
 
     def _parse_result(self, state: DataChatState) -> DataChatState:
@@ -648,10 +682,7 @@ Fix the python code above and return the new python code
         if self.enable_review:
             # 如果开启审查，修复后的代码也需要审查
             print(f"[路由] 代码已修复，需要人工审查")
-            if self.web_mode:
-                return "request_review"
-            else:
-                return "human_review"
+            return "human_review"
         else:
             # 不开启审查，直接执行
             print(f"[路由] 代码已修复，直接执行")
@@ -673,20 +704,10 @@ Fix the python code above and return the new python code
 
         # 添加人工审查节点（仅当启用代码审查时）
         if self.enable_review:
-            if self.web_mode:
-                # Web 模式：分成请求和等待两个节点
-                workflow.add_node("request_code_review", self._request_code_review)
-                workflow.add_node("human_review", self._human_review)
-            else:
-                # CLI 模式：只需要一个节点
-                workflow.add_node("human_review", self._human_review)
+            workflow.add_node("human_review", self._human_review)
 
         # 添加错误反馈节点（总是添加，因为错误3次后需要人工介入）
-        if self.web_mode:
-            workflow.add_node("request_error_feedback", self._request_error_feedback)
-            workflow.add_node("human_error_feedback", self._human_error_feedback)
-        else:
-            workflow.add_node("human_error_feedback", self._human_error_feedback)
+        workflow.add_node("human_error_feedback", self._human_error_feedback)
 
         # 设置入口
         workflow.set_entry_point("generate_info_prompt")
@@ -696,14 +717,8 @@ Fix the python code above and return the new python code
 
         # 代码生成后的流程
         if self.enable_review:
-            if self.web_mode:
-                # Web 模式：先请求审查（会被 yield 出去），再等待反馈（阻塞）
-                workflow.add_edge("generate_code", "request_code_review")
-                workflow.add_edge("request_code_review", "human_review")
-            else:
-                # CLI 模式：直接进入审查节点
-                workflow.add_edge("generate_code", "human_review")
-
+            # 直接进入审查节点（在 stream 中会先 yield waiting_feedback）
+            workflow.add_edge("generate_code", "human_review")
             workflow.add_conditional_edges(
                 "human_review",
                 self._route_after_review,
@@ -717,29 +732,16 @@ Fix the python code above and return the new python code
 
         # 执行和重试流程
         # 无论 enable_review 如何，错误3次后都要人工介入
-        if self.web_mode:
-            # Web 模式：先请求反馈（会被 yield 出去），再等待反馈（阻塞）
-            workflow.add_conditional_edges(
-                "execute_code",
-                self._route_after_execution,
-                {
-                    "parse_result": "parse_result",
-                    "fix_code": "fix_code",
-                    "human_error_feedback": "request_error_feedback"
-                }
-            )
-            workflow.add_edge("request_error_feedback", "human_error_feedback")
-        else:
-            # CLI 模式：直接进入错误反馈节点
-            workflow.add_conditional_edges(
-                "execute_code",
-                self._route_after_execution,
-                {
-                    "parse_result": "parse_result",
-                    "fix_code": "fix_code",
-                    "human_error_feedback": "human_error_feedback"
-                }
-            )
+        # 直接进入错误反馈节点（在 stream 中会先 yield waiting_feedback）
+        workflow.add_conditional_edges(
+            "execute_code",
+            self._route_after_execution,
+            {
+                "parse_result": "parse_result",
+                "fix_code": "fix_code",
+                "human_error_feedback": "human_error_feedback"
+            }
+        )
 
         # 错误反馈后的路由
         workflow.add_conditional_edges(
@@ -754,24 +756,14 @@ Fix the python code above and return the new python code
         # 代码修复后的路由
         if self.enable_review:
             # 如果开启审查，修复后需要审查
-            if self.web_mode:
-                workflow.add_conditional_edges(
-                    "fix_code",
-                    self._route_after_fix,
-                    {
-                        "request_review": "request_code_review",
-                        "execute_code": "execute_code"
-                    }
-                )
-            else:
-                workflow.add_conditional_edges(
-                    "fix_code",
-                    self._route_after_fix,
-                    {
-                        "human_review": "human_review",
-                        "execute_code": "execute_code"
-                    }
-                )
+            workflow.add_conditional_edges(
+                "fix_code",
+                self._route_after_fix,
+                {
+                    "human_review": "human_review",
+                    "execute_code": "execute_code"
+                }
+            )
         else:
             # 不开启审查，直接执行
             workflow.add_edge("fix_code", "execute_code")
@@ -839,32 +831,27 @@ Fix the python code above and return the new python code
         }
 
         yielded_flow_count = 0  # 使用计数器追踪已 yield 的 flow_data 数量
-        last_waiting_feedback = None  # 追踪最后一个 waiting_feedback，避免重复 yield
+        last_waiting_feedback_type = None  # 追踪最后一个 waiting_feedback 类型，避免重复
 
         # 使用 stream_mode="updates" 确保每个节点的状态更新都被独立 yield
-        # 这样可以避免在 Linux 下节点状态被合并的问题
-        import sys
         for chunk in app.stream(initial_state, stream_mode="updates"):
-            sys.stdout.flush()  # 确保日志立即输出，特别是在 Linux 下
             for node_name, node_state in chunk.items():
                 print(f"[Stream] 节点: {node_name}, 状态键: {list(node_state.keys())}")
 
-                # 检查是否有 waiting_feedback 事件
-                if 'waiting_feedback' in node_state:
-                    current_waiting_feedback = node_state['waiting_feedback']
-                    print(f"[Stream] 发现 waiting_feedback: {current_waiting_feedback}")
+                # 检测状态中是否有 waiting_feedback 字段
+                if 'waiting_feedback' in node_state and node_state['waiting_feedback']:
+                    waiting_feedback_data = node_state['waiting_feedback']
+                    feedback_type = waiting_feedback_data.get('review_type', '')
 
-                    # 只有当 waiting_feedback 不为 None 且与上次不同时才 yield
-                    if current_waiting_feedback and current_waiting_feedback != last_waiting_feedback:
-                        print(f"[Stream] yield waiting_feedback: {current_waiting_feedback}")
-                        last_waiting_feedback = current_waiting_feedback
+                    # 避免重复 yield（同一类型的反馈）
+                    if feedback_type != last_waiting_feedback_type:
+                        last_waiting_feedback_type = feedback_type
+                        print(f"[Stream] yield waiting_feedback: {feedback_type}")
                         yield {
-                            'content': current_waiting_feedback,
+                            'content': waiting_feedback_data,
                             'type': 'waiting_feedback'
                         }
-                        print(f"success yield waiting_feedback: {current_waiting_feedback}")
-                    elif not current_waiting_feedback:
-                        print(f"[Stream] waiting_feedback 为空或 None，跳过")
+                        print(f"[Stream] waiting_feedback yielded successfully")
 
                 # 处理 flow_data - 只 yield 新增的部分（对所有节点都处理）
                 if 'flow_data' in node_state:
