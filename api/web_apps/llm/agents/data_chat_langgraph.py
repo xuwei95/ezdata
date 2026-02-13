@@ -831,27 +831,22 @@ Fix the python code above and return the new python code
         }
 
         yielded_flow_count = 0  # 使用计数器追踪已 yield 的 flow_data 数量
-        last_waiting_feedback_type = None  # 追踪最后一个 waiting_feedback 类型，避免重复
 
         # 使用 stream_mode="updates" 确保每个节点的状态更新都被独立 yield
         for chunk in app.stream(initial_state, stream_mode="updates"):
             for node_name, node_state in chunk.items():
                 print(f"[Stream] 节点: {node_name}, 状态键: {list(node_state.keys())}")
 
-                # 检测状态中是否有 waiting_feedback 字段
+                # 检测状态中是否有 waiting_feedback 字段（不需要去重，每次获取 feedback 后都会清空）
                 if 'waiting_feedback' in node_state and node_state['waiting_feedback']:
                     waiting_feedback_data = node_state['waiting_feedback']
                     feedback_type = waiting_feedback_data.get('review_type', '')
-
-                    # 避免重复 yield（同一类型的反馈）
-                    if feedback_type != last_waiting_feedback_type:
-                        last_waiting_feedback_type = feedback_type
-                        print(f"[Stream] yield waiting_feedback: {feedback_type}")
-                        yield {
-                            'content': waiting_feedback_data,
-                            'type': 'waiting_feedback'
-                        }
-                        print(f"[Stream] waiting_feedback yielded successfully")
+                    print(f"[Stream] yield waiting_feedback: {feedback_type}")
+                    yield {
+                        'content': waiting_feedback_data,
+                        'type': 'waiting_feedback'
+                    }
+                    print(f"[Stream] waiting_feedback yielded successfully")
 
                 # 处理 flow_data - 只 yield 新增的部分（对所有节点都处理）
                 if 'flow_data' in node_state:
