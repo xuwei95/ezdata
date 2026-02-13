@@ -77,7 +77,11 @@ def llm_data_chat_stream():
     数据对话流式接口
     '''
     req_dict = get_req_para(request)
-    return Response(data_chat_generate(req_dict), mimetype='text/event-stream')
+    response = Response(data_chat_generate(req_dict), mimetype='text/event-stream')
+    # 关键：禁用缓冲，确保 SSE 事件立即发送（Linux 环境必需）
+    response.headers['Cache-Control'] = 'no-cache'
+    response.headers['X-Accel-Buffering'] = 'no'  # 禁用 Nginx 缓冲
+    return response
 
 
 

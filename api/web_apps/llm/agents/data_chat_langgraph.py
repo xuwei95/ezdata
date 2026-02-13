@@ -833,9 +833,26 @@ Fix the python code above and return the new python code
         yielded_flow_count = 0  # 使用计数器追踪已 yield 的 flow_data 数量
 
         # 使用 stream_mode="updates" 确保每个节点的状态更新都被独立 yield
+        import sys
         for chunk in app.stream(initial_state, stream_mode="updates"):
             for node_name, node_state in chunk.items():
                 print(f"[Stream] 节点: {node_name}, 状态键: {list(node_state.keys())}")
+                sys.stdout.flush()
+
+                # 优先处理 waiting_feedback（必须最先 yield，让前端立即接收）
+                if 'waiting_feedback' in node_state and node_state['waiting_feedback']:
+                    waiting_feedback_data = node_state['waiting_feedback']
+                    feedback_type = waiting_feedback_data.get('review_type', '')
+                    print(f"[Stream] !!! 优先 yield waiting_feedback: {feedback_type}")
+                    sys.stdout.flush()
+
+                    yield {
+                        'content': waiting_feedback_data,
+                        'type': 'waiting_feedback'
+                    }
+
+                    print(f"[Stream] !!! waiting_feedback yielded successfully: {feedback_type}")
+                    sys.stdout.flush()
 
                 # 处理 flow_data - 只 yield 新增的部分（对所有节点都处理）
                 if 'flow_data' in node_state:
@@ -848,23 +865,12 @@ Fix the python code above and return the new python code
                         print(f"[Stream] yield flow[{yielded_flow_count}]: {flow_item['content']['title']}")
                         yield flow_item
                         yielded_flow_count += 1
-                # 检测状态中是否有 waiting_feedback 字段（不需要去重，每次获取 feedback 后都会清空）
-                if 'waiting_feedback' in node_state and node_state['waiting_feedback']:
-                    waiting_feedback_data = node_state['waiting_feedback']
-                    feedback_type = waiting_feedback_data.get('review_type', '')
-                    print(f"[Stream] yield waiting_feedback: {feedback_type}")
-                    # 添加延迟，防止前端处理不过来跳过
-                    time.sleep(0.5)
-                    yield {
-                        'content': waiting_feedback_data,
-                        'type': 'waiting_feedback'
-                    }
-                    time.sleep(0.5)
-                    print(f"[Stream] waiting_feedback yielded successfully")
+
                 # 处理 parse_result 节点的最终结果
                 if node_name == 'parse_result':
                     if 'parsed_result' in node_state and node_state['parsed_result']:
                         print(f"[Stream] yield parsed_result")
+                        sys.stdout.flush()
                         yield node_state['parsed_result']
 
 
