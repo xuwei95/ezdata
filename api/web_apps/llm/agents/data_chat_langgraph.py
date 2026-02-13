@@ -409,7 +409,9 @@ Fix the python code above and return the new python code
                     if new_retry_count >= state["max_retry"] and self.web_mode:
                         waiting_feedback = {
                             'review_type': 'error_feedback',
-                            'executed_code': code,
+                            'generated_code': code,  # 统一使用 generated_code 字段名
+                            'executed_code': code,   # 保留兼容性
+                            'llm_result': f"代码执行失败（沙箱模式）\n\n错误信息:\n{error_msg}",  # 添加 llm_result 字段
                             'code_exception': error_msg,
                             'retry_count': new_retry_count,
                             'prompt': f'代码执行失败（已重试 {new_retry_count} 次），输入 ok 结束流程，或输入修改建议重新生成代码'
@@ -420,6 +422,7 @@ Fix the python code above and return the new python code
                             self.redis_manager.set_status(self.current_thread_id, {
                                 'status': 'error_feedback',
                                 'review_type': 'error_feedback',
+                                'generated_code': code,
                                 'executed_code': code,
                                 'code_exception': error_msg,
                                 'retry_count': new_retry_count
@@ -471,7 +474,9 @@ Fix the python code above and return the new python code
             if new_retry_count >= state["max_retry"] and self.web_mode:
                 waiting_feedback = {
                     'review_type': 'error_feedback',
-                    'executed_code': code,
+                    'generated_code': code,  # 统一使用 generated_code 字段名
+                    'executed_code': code,   # 保留兼容性
+                    'llm_result': f"代码执行失败\n\n错误信息:\n{error_traceback}",  # 添加 llm_result 字段
                     'code_exception': error_traceback,
                     'retry_count': new_retry_count,
                     'prompt': f'代码执行失败（已重试 {new_retry_count} 次），输入 ok 结束流程，或输入修改建议重新生成代码'
@@ -482,6 +487,7 @@ Fix the python code above and return the new python code
                     self.redis_manager.set_status(self.current_thread_id, {
                         'status': 'error_feedback',
                         'review_type': 'error_feedback',
+                        'generated_code': code,
                         'executed_code': code,
                         'code_exception': error_traceback,
                         'retry_count': new_retry_count
@@ -845,12 +851,12 @@ Fix the python code above and return the new python code
                     feedback_type = waiting_feedback_data.get('review_type', '')
                     print(f"[Stream] !!! 优先 yield waiting_feedback: {feedback_type}")
                     sys.stdout.flush()
-
+                    time.sleep(0.5)
                     yield {
                         'content': waiting_feedback_data,
                         'type': 'waiting_feedback'
                     }
-
+                    time.sleep(0.5)
                     print(f"[Stream] !!! waiting_feedback yielded successfully: {feedback_type}")
                     sys.stdout.flush()
 
