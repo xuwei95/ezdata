@@ -533,23 +533,40 @@
     while (true) {
       const { done, value } = await reader.read();
       if (done) {
+        // 流结束时处理buffer中的剩余内容（防止最后一条事件丢失）
+        if (buffer) {
+          const remaining = buffer;
+          buffer = '';
+          try {
+            let content = remaining.startsWith('data:') ? remaining.replace('data:', '').trim() : remaining;
+            if (content) {
+              if (content.indexOf(":::card:::") !== -1) {
+                content = content.replace(/\s+/g, '');
+              }
+              let item = JSON.parse(content);
+              await renderText(item, conversationId, text, options).then((res) => {
+                text = res.returnText;
+                conversationId = res.conversationId;
+              });
+            }
+          } catch (error) {
+            console.log('Error parsing remaining buffer:', error);
+          }
+        }
         break;
       }
       //update-begin---author:wangshuai---date:2025-03-12---for:【QQYUN-11555】聊天时要流式显示消息---
       let result = decoder.decode(value, { stream: true });
       result = buffer + result;
       const lines = result.split('\n\n');
+      // 末尾片段可能不完整，存入buffer等待下一个chunk拼接
+      buffer = lines.pop() || '';
       for (let line of lines) {
         if (line.startsWith('data:')) {
           let content = line.replace('data:', '').trim();
           if(!content){
             continue;
           }
-          if(!content.endsWith('}')){
-            buffer = buffer + line;
-            continue;
-          }
-          buffer = "";
           try {
             //update-begin---author:wangshuai---date:2025-03-13---for:【QQYUN-11572】发布到线上不能实时动态，内容不能加载出来，得刷新才能看到全部回答---
             if(content.indexOf(":::card:::") !== -1){
@@ -569,11 +586,6 @@
           if(!line){
             continue;
           }
-          if(!line.endsWith('}')){
-            buffer = buffer + line;
-            continue;
-          }
-          buffer = "";
           //update-begin---author:wangshuai---date:2025-03-13---for:【QQYUN-11572】发布到线上不能实时动态，内容不能加载出来，得刷新才能看到全部回答---
           try {
             if(line.indexOf(":::card:::") !== -1){
