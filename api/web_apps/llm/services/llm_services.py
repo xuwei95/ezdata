@@ -5,7 +5,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from web_apps import app
 from web_apps.llm.agents.data_extract_langgraph import DataExtractLangGraph as DataExtractAgent
-from web_apps.llm.llm_utils import get_llm
+from web_apps.llm.llm_utils import get_llm, resolve_model_config
 from utils.common_utils import gen_uuid, get_now_time, parse_json
 from web_apps.rag.services.rag_service import get_knowledge
 from web_apps.llm.services.tool_service import get_tools
@@ -205,7 +205,11 @@ class ChatHandler:
         self.chat_config = parse_json(req_dict.get('chatConfig'), {})
         self.message = req_dict.get('message', '')
         self.metadata = json.loads(self.chat_config.get('metadata', '{}'))
-        self.llm = get_llm({'conversation_id': self.conversation_id, **self.metadata})
+        model_id = self.chat_config.get('modelId', 'default')
+        llm_config = {'conversation_id': self.conversation_id, **self.metadata}
+        if model_id and model_id != 'default':
+            llm_config.update(resolve_model_config(model_id))
+        self.llm = get_llm(llm_config)
         self.system_prompt = self.chat_config.get('prompt', '')
         self.history_size = self.chat_config.get('msgNum', 3)
 
@@ -468,6 +472,7 @@ def data_chat_generate(req_dict):
 
                 # 2.2 检索知识库
                 knowledge = get_knowledge(message, metadata={'datamodel_id': model_id})
+                yield format_stream_event(conversation_id, '1111')
                 if knowledge:
                     # 2.1 输出检索步骤
                     search_step = {
@@ -480,7 +485,7 @@ def data_chat_generate(req_dict):
                     }
                     yield format_stream_event(conversation_id, search_step)
                     data_tool.knowledge = knowledge
-
+                yield format_stream_event(conversation_id, '2222')
                 # 2.3 获取历史对话作为上下文
                 history_messages, _ = get_messages(conversation_id, page=1, size=3)
                 history_context = ""

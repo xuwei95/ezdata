@@ -76,30 +76,29 @@ def hdel_dict(name, key):
         return json.loads(data)
 
 
-def get_lock(name, value, ex=3):
+def get_lock(name, value, ex=3, timeout=10):
     '''
-    获取锁
+    获取锁，超时未获取则返回 False
     # nx - 如果设置为True，则只有name不存在时，当前set操作才执行
-    # ex - 过期时间（秒）
+    # ex - 锁的过期时间（秒）
+    # timeout - 最大等待时间（秒），超时返回 False
     '''
-    while True:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
         result = redis_cli.set(name, value, nx=True, ex=ex)
-        # print(result)
         if result:
-            # 获取到result后就终止while循环
-            break
+            return True
         time.sleep(0.05)
+    return False
 
 
 def release_lock(name, value):
     '''
-    释放锁
+    释放锁，仅在锁的持有者与 value 匹配时才删除
     '''
-    # 获取原name key对应的value
+    # redis.get 返回 bytes，需统一编码后比较
     old_value = redis_cli.get(name)
-    # 判断原value 与 要释放的值是否相同
-    if old_value == str(value):
-        # 相同就从redis里面释放
+    if old_value is not None and old_value.decode('utf-8') == str(value):
         redis_cli.delete(name)
 
 

@@ -220,7 +220,7 @@ class MindsDBSqlModel(DataModel):
             tables_metadata = '\n\n'.join(tables_info)
 
             info_prompt = f"""
-一个基于 MindsDB 的 SQL 模型类，提供了数据库操作的方法
+一个SQL数据模型类，提供了数据库操作的方法
 # 使用示例：
 实例化此类的 reader 对象，查询 SQL 转为 dataframe：
 df = reader.query(sql)

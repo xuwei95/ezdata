@@ -112,4 +112,8 @@ BLUEPRINT_DICT = {
         'blueprint': 'web_apps.llm.tool_views.tool_bp',
         'url_prefix': '/api/llm/tool'
     },
+    'llm_model': {
+        'blueprint': 'web_apps.llm.model_views.model_bp',
+        'url_prefix': '/api/llm/model'
+    },
 }

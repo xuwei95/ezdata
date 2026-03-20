@@ -96,6 +96,42 @@ class LLMTool(BaseModel):
                 value[column.name] = attribute
         return value
 
+class LLMModel(BaseModel):
+    """LLM模型配置表"""
+    __tablename__ = 'llm_models'
+    id = db.Column(db.String(36), primary_key=True, nullable=False, default='', comment='主键')
+    provider = db.Column(db.String(100), nullable=False, default='', index=True, comment='提供商代码')
+    name = db.Column(db.String(255), nullable=False, comment='模型名称')
+    model_code = db.Column(db.String(200), nullable=False, comment='模型代码')
+    model_type = db.Column(db.String(50), default='chat', comment='模型类型: chat/embedding')
+    api_key = db.Column(db.String(500), default='', comment='API Key')
+    base_url = db.Column(db.String(500), default='', comment='API基础URL')
+    description = db.Column(db.TEXT, default='', comment='描述')
+    config = db.Column(db.TEXT, default='{}', comment='模型配置JSON: temperature/top_p/max_tokens')
+    status = db.Column(db.SmallInteger, default=1, comment='状态: 0禁用 1启用')
+    is_default = db.Column(db.SmallInteger, default=0, comment='是否默认: 0否 1是')
+
+    def to_dict(self):
+        '''转为字典'''
+        value = {}
+        for column in self.__table__.columns:
+            attribute = getattr(self, column.name)
+            if isinstance(attribute, datetime.datetime):
+                attribute = str(attribute)
+            # 解析config JSON字段
+            if column.name == 'config':
+                try:
+                    if isinstance(attribute, str):
+                        value[column.name] = json.loads(attribute)
+                    else:
+                        value[column.name] = attribute
+                except:
+                    value[column.name] = attribute if attribute else {}
+            else:
+                value[column.name] = attribute
+        return value
+
+
 if __name__ == '__main__':
     from web_apps import app
     with app.app_context():

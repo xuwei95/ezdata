@@ -5,7 +5,7 @@ from utils.common_utils import import_class
 from blueprints import BLUEPRINT_DICT
 from utils.log_utils import get_sys_logger
 from utils.auth import get_access_info
-from flask import request
+from flask import request, g
 import time
 # 注册应用
 for app_name, dic in BLUEPRINT_DICT.items():
@@ -16,8 +16,8 @@ sys_logger = get_sys_logger()
 
 @app.before_request
 def set_g():
-    # 将当前时间戳赋值给app全局变量
-    app.g = int(round(time.time() * 1000))
+    # 将当前时间戳写入请求上下文，避免并发时 app.g 被覆盖
+    g.start_time = int(round(time.time() * 1000))
 
 
 @app.after_request
@@ -31,7 +31,7 @@ def write_access_log(response):
     white_list = ['/api/data_interface/query']
     if request.path not in white_list:
         access_info = get_access_info()
-        duration = round((time.time() * 1000 - app.g) / 1000, 3)  # 计算接口耗时
+        duration = round((time.time() * 1000 - g.start_time) / 1000, 3)  # 计算接口耗时
         access_info['duration'] = duration
         sys_logger.info(access_info)
     return response

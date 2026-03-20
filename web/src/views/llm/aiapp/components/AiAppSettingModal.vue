@@ -179,13 +179,19 @@
                          </div>
                        </div>
                       </template>
-                      <JDictSelectTag
+                      <a-select
                           v-model:value="formState.modelId"
                           :disabled="isRelease"
                           placeholder="请选择AI模型"
-                          dict-code="airag_model"
                           style="width: 100%;"
-                      ></JDictSelectTag>
+                      >
+                        <a-select-option value="default">默认模型</a-select-option>
+                        <a-select-opt-group v-for="group in chatModelGroups" :key="group.provider" :label="group.providerName">
+                          <a-select-option v-for="m in group.models" :key="m.id" :value="m.id">
+                            {{ m.name }}
+                          </a-select-option>
+                        </a-select-opt-group>
+                      </a-select>
                     </a-form-item>
                   </div>
                 </a-col>
@@ -387,6 +393,7 @@
   import { Form, TimePicker } from 'ant-design-vue';
   import { initDictOptions } from '@/utils/dict';
   import {queryKnowledgeBathById, saveApp, queryById, queryFlowById, queryDataModelBatchById, queryToolBatchById} from '../AiApp.api';
+  import { modelAllList, providerList } from '/@/views/llm/models/models.api';
   import JDictSelectTag from '@/components/Form/src/jeecg/components/JDictSelectTag.vue';
   import AiAppAddKnowledgeModal from './AiAppAddKnowledgeModal.vue';
   import AiAppAddDataModelModal from './AiAppAddDataModelModal.vue';
@@ -485,6 +492,28 @@
       const toolIds = ref<any>('');
       //工具集合
       const toolDataList = ref<any>([]);
+      //模型分组列表（按提供商）
+      const chatModelGroups = ref<any[]>([]);
+      async function loadChatModels() {
+        try {
+          const [models, providers] = await Promise.all([
+            modelAllList({ model_type: 'chat' }),
+            providerList(),
+          ]);
+          const providerNameMap: Record<string, string> = {};
+          (Array.isArray(providers) ? providers : []).forEach((p: any) => {
+            providerNameMap[p.code] = p.name;
+          });
+          const groupMap: Record<string, any> = {};
+          (Array.isArray(models) ? models : []).forEach((m: any) => {
+            if (!groupMap[m.provider]) {
+              groupMap[m.provider] = { provider: m.provider, providerName: providerNameMap[m.provider] || m.provider, models: [] };
+            }
+            groupMap[m.provider].models.push(m);
+          });
+          chatModelGroups.value = Object.values(groupMap);
+        } catch (e) {}
+      }
       //开场白的数据
       const prologue = ref<any>('');
       //应用id
@@ -510,6 +539,7 @@
         appId.value = data.id;
         isUpdate.value = !!data?.isUpdate;
         isRelease.value = data?.status === 'release';
+        loadChatModels();
         clearParam();
         if (isUpdate.value) {
           setTimeout(() => {
@@ -1271,6 +1301,7 @@
         datamodel,
         toolDataList,
         tool,
+        chatModelGroups,
         handleSuccess,
         handleDeleteKnowledge,
         handleDeleteDataModel,

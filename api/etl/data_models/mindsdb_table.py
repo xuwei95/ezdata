@@ -85,7 +85,7 @@ class MindsDBTableModel(DataModel):
             self.connect()
         try:
             info_prompt = f"""
-一个基于 MindsDB 的 数据表模型类，提供了数据表操作的方法
+一个数据表模型类，提供了数据表操作的方法
 # 使用示例：
 实例化此类的 reader 对象，查询 SQL 转为 dataframe：
 df = reader.query(sql)

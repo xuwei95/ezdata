@@ -118,26 +118,25 @@ class HandlerRegistry:
 
         Args:
             model_info: 模型配置信息
-            extend_model_dict: 额外的模型映射字典
+            extend_model_dict: 额外的模型映射字典（仅本次查找生效，不修改全局注册表）
 
         Returns:
             (success, reader_instance) 或 (False, error_message)
         """
-        if extend_model_dict:
-            self.custom_handlers.update(extend_model_dict)
+        handlers = {**self.custom_handlers, **extend_model_dict} if extend_model_dict else self.custom_handlers
 
         source_type = model_info['source'].get('type')
         model_type = model_info.get('model', {}).get('type', 'None')
         key = f"{source_type}:{model_type}"
 
         # 1. 优先使用自定义 handler
-        if key in self.custom_handlers:
-            return self._create_custom_handler(key, model_info)
+        if key in handlers:
+            return self._create_custom_handler(key, model_info, handlers)
 
         # 2. 尝试使用 source_type:None 的自定义 handler
         default_key = f"{source_type}:None"
-        if default_key in self.custom_handlers:
-            return self._create_custom_handler(default_key, model_info)
+        if default_key in handlers:
+            return self._create_custom_handler(default_key, model_info, handlers)
 
         # 3. 使用 MindsDB handler (适配器)
         if self._is_mindsdb_supported(source_type):
@@ -153,21 +152,20 @@ class HandlerRegistry:
 
         Args:
             model_info: 模型配置信息
-            extend_model_dict: 额外的模型映射字典
+            extend_model_dict: 额外的模型映射字典（仅本次查找生效，不修改全局注册表）
 
         Returns:
             (success, writer_instance) 或 (False, error_message)
         """
-        if extend_model_dict:
-            self.custom_handlers.update(extend_model_dict)
+        handlers = {**self.custom_handlers, **extend_model_dict} if extend_model_dict else self.custom_handlers
 
         source_type = model_info['source'].get('type')
         model_type = model_info['model'].get('type')
         key = f"{source_type}:{model_type}"
 
         # 1. 优先使用自定义 handler（写入通常需要特殊处理）
-        if key in self.custom_handlers:
-            return self._create_custom_handler(key, model_info)
+        if key in handlers:
+            return self._create_custom_handler(key, model_info, handlers)
 
         # 2. 尝试使用 MindsDB handler (适配器，支持基本的 INSERT/UPDATE)
         if self._is_mindsdb_supported(source_type):
@@ -176,10 +174,12 @@ class HandlerRegistry:
         # 3. 未找到对应的 handler
         return False, f'未找到对应的 writer: {key}'
 
-    def _create_custom_handler(self, key, model_info):
+    def _create_custom_handler(self, key, model_info, handlers=None):
         """创建自定义 handler 实例"""
+        if handlers is None:
+            handlers = self.custom_handlers
         try:
-            model_class = self.custom_handlers[key]
+            model_class = handlers[key]
             DataModel = import_class(model_class)
             data_model = DataModel(model_info)
             logger.info(f"使用自定义 handler: {key}")
