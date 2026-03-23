@@ -268,11 +268,12 @@ class ChatHandler:
         if datamodelIds:
             datamodel_ids = datamodelIds.split(',') if isinstance(datamodelIds, str) else datamodelIds
             data_tools = get_chat_data_tools(datamodel_ids)
-            # 设置数据工具的 enable_review 和 conversation_id
+            # 设置数据工具的 enable_review、conversation_id 和 llm
             enable_review = self.metadata.get('dataReview', '0') == '1'
             for data_tool in data_tools:
                 data_tool.conversation_id = self.conversation_id
                 data_tool.enable_review = enable_review
+                data_tool.llm = self.llm
             tools += data_tools
             agent_enable = True
         # 记忆工具
@@ -472,7 +473,6 @@ def data_chat_generate(req_dict):
 
                 # 2.2 检索知识库
                 knowledge = get_knowledge(message, metadata={'datamodel_id': model_id})
-                yield format_stream_event(conversation_id, '1111')
                 if knowledge:
                     # 2.1 输出检索步骤
                     search_step = {
@@ -485,7 +485,6 @@ def data_chat_generate(req_dict):
                     }
                     yield format_stream_event(conversation_id, search_step)
                     data_tool.knowledge = knowledge
-                yield format_stream_event(conversation_id, '2222')
                 # 2.3 获取历史对话作为上下文
                 history_messages, _ = get_messages(conversation_id, page=1, size=3)
                 history_context = ""

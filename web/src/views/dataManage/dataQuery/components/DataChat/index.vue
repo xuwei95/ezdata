@@ -23,7 +23,7 @@
                   :referenceKnowledge="item.referenceKnowledge"
                   :html="item.html"
                   :tableData="item.tableData"
-                  :steps="item.steps"
+                  :events="item.events"
                   @send="handleOutQuestion"
                 ></chatMessage>
                 <!-- Human-in-the-Loop 反馈表单 -->
@@ -357,6 +357,7 @@
       content: '思考中...',
       loading: true,
       inversion: 'ai',
+      events: [],
       error: false,
       conversationOptions: null,
       requestOptions: { prompt: message, options: { ...options } },
@@ -647,18 +648,27 @@
       if (item.requestId) {
         requestId.value = item.requestId;
       }
-      const oldSteps = chatData.value[chatData.value.length - 1]?.steps || [];
+      const lastIdx = chatData.value.length - 1;
+      const currentEvents = chatData.value[lastIdx]?.events || [];
+      const lastEv = currentEvents[currentEvents.length - 1];
+      let newEvents;
+      if (lastEv && lastEv.type === 'text') {
+        newEvents = [...currentEvents.slice(0, -1), { ...lastEv, content: messageText }];
+      } else {
+        newEvents = [...currentEvents, { type: 'text', content: messageText }];
+      }
       //更新聊天信息
-      updateChat(uuid.value, chatData.value.length - 1, {
+      updateChat(uuid.value, lastIdx, {
+        ...chatData.value[lastIdx],
         dateTime: new Date().toLocaleString(),
-        content: messageText,
+        content: '',
         inversion: 'ai',
         error: false,
         loading: true,
+        events: newEvents,
         conversationOptions: { conversationId: conversationId, parentMessageId: topicId.value },
         requestOptions: { prompt: message, options: { ...options } },
         referenceKnowledge: knowList.value,
-        steps: oldSteps
       });
     }
     if(item.event == 'INIT_REQUEST_ID'){
@@ -747,15 +757,18 @@
       });
     }
     if (item.event === 'STEP') {
-      // steps 追加
-      const oldSteps = chatData.value[chatData.value.length - 1]?.steps || [];
+      const lastIdx = chatData.value.length - 1;
+      const oldEvents = chatData.value[lastIdx]?.events || [];
       const stepData = item.data.message;
 
-      updateChat(uuid.value, chatData.value.length - 1, {
-        ...chatData.value[chatData.value.length - 1],
-        steps: [...oldSteps, stepData],
+      updateChat(uuid.value, lastIdx, {
+        ...chatData.value[lastIdx],
+        events: [...oldEvents, { type: 'step', step: stepData }],
         content: ""
       });
+      // 重置文本累积器，避免跨 step 的文本叠加
+      text = '';
+      returnText = '';
 
       let title = stepData.title;
       if (title == '处理代码生成成功' || title == '修复处理代码成功') {

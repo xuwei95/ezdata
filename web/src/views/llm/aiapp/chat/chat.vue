@@ -24,7 +24,7 @@
                   :referenceKnowledge="item.referenceKnowledge"
                   :html="item.html"
                   :tableData="item.tableData"
-                  :steps="item.steps"
+                  :events="item.events"
                   @send="handleOutQuestion"
                 ></chatMessage>
                 <!-- Human-in-the-Loop 反馈表单 -->
@@ -292,6 +292,7 @@
       content: '思考中...',
       loading: true,
       inversion: 'ai',
+      events: [],
       error: false,
       conversationOptions: null,
       requestOptions: { prompt: message, options: { ...options } },
@@ -338,15 +339,23 @@
     chatData.value.unshift({ ...data });
   };
   const updateChatSome = (uuid, index, data) => {
-    chatData.value[index] = { ...chatData.value[index], ...data };
+    // 直接操作响应式对象，保留所有响应式引用
+    const item = chatData.value[index];
+    if (!item) return;
+    for (const key in data) {
+      item[key] = data[key];
+    }
   };
   const updateChatFail = (uuid, index, data) => {
-    updateChat(uuid.value, chatData.value.length - 1, {
+    const lastIdx = chatData.value.length - 1;
+    const oldItem = chatData.value[lastIdx];
+    updateChat(uuid.value, lastIdx, {
       dateTime: new Date().toLocaleString(),
       content: data,
       inversion: 'ai',
       error: true,
       loading: true,
+      events: oldItem.events || [],  // 保留已有的 events
       conversationOptions: null,
       requestOptions: null,
     });
@@ -397,10 +406,10 @@
     if (loading.value) {
       loading.value = false;
     }
-    updateChatSome(uuid, chatData.value.length - 1, { loading: false });
+    if (chatData.value.length > 0) {
+      updateChatSome(uuid, chatData.value.length - 1, { loading: false });
+    }
   };
-
-  handleStop();
 
   const knowList = ref<Recordable[]>([])
 
@@ -602,19 +611,24 @@
       if (item.requestId) {
         requestId.value = item.requestId;
       }
-      const oldSteps = chatData.value[chatData.value.length - 1]?.steps || [];
-      //更新聊天信息
-      updateChat(uuid.value, chatData.value.length - 1, {
-        dateTime: new Date().toLocaleString(),
-        content: messageText,
-        inversion: 'ai',
-        error: false,
+      const lastIdx = chatData.value.length - 1;
+      const currentEvents = chatData.value[lastIdx].events || [];
+      let newEvents;
+      const lastEv = currentEvents[currentEvents.length - 1];
+      if (lastEv && lastEv.type === 'text') {
+        newEvents = [...currentEvents.slice(0, -1), { ...lastEv, content: messageText }];
+      } else {
+        newEvents = [...currentEvents, { type: 'text', content: messageText }];
+      }
+      // 使用 Object.assign 确保响应式更新
+      Object.assign(chatData.value[lastIdx], {
+        events: newEvents,
+        content: '',
         loading: true,
         conversationOptions: { conversationId: conversationId, parentMessageId: topicId.value },
-        requestOptions: { prompt: message, options: { ...options } },
         referenceKnowledge: knowList.value,
-        steps: oldSteps
       });
+      await scrollToBottom();
     }
     if(item.event == 'INIT_REQUEST_ID'){
       if (item.requestId) {
@@ -648,47 +662,41 @@
     }
     // 自定义event处理
     if (item.event === 'HTML') {
-      updateChat(uuid.value, chatData.value.length - 1, {
-        ...chatData.value[chatData.value.length - 1],
-        html: item.data.message,
-        content: "",
-      });
-      console.log(11111, chatData.value[chatData.value.length - 1], item.data.message);
+      const lastItem = chatData.value[chatData.value.length - 1];
+      lastItem.html = item.data.message;
+      lastItem.content = "";
     }
     if (item.event === 'DATATABLE') {
-      updateChat(uuid.value, chatData.value.length - 1, {
-        ...chatData.value[chatData.value.length - 1],
-        tableData: item.data.message,
-        content: "",
-      });
-      console.log(22222, chatData.value[chatData.value.length - 1], item.data.message);
+      const lastItem = chatData.value[chatData.value.length - 1];
+      lastItem.tableData = item.data.message;
+      lastItem.content = "";
     }
     if (item.event === 'STEP') {
-      // steps 追加
-      const oldSteps = chatData.value[chatData.value.length - 1]?.steps || [];
-      updateChat(uuid.value, chatData.value.length - 1, {
-        ...chatData.value[chatData.value.length - 1],
-        steps: [...oldSteps, item.data.message],
-        content: "",
-      });
-      console.log(33333, chatData.value[chatData.value.length - 1], item.data.message);
+      const lastIdx = chatData.value.length - 1;
+      const currentEvents = chatData.value[lastIdx].events || [];
+      const newEvents = [...currentEvents, { type: 'step', step: item.data.message }];
+      console.log('STEP 事件处理前:', currentEvents);
+      console.log('STEP 数据结构:', JSON.stringify(item.data.message, null, 2));
+      // 使用 Object.assign 确保响应式更新
+      Object.assign(chatData.value[lastIdx], { events: newEvents });
+      console.log('STEP 事件处理后:', chatData.value[lastIdx].events);
+      text = '';
+      returnText = '';
+      await scrollToBottom();
     }
     // Human-in-the-Loop 等待反馈
     if (item.event === 'WAITING_FEEDBACK') {
-      // 更新 uuid 和 conversationId
       if (item.conversationId && !uuid.value) {
         uuid.value = item.conversationId;
         conversationId = item.conversationId;
       }
-      updateChat(uuid.value, chatData.value.length - 1, {
-        ...chatData.value[chatData.value.length - 1],
-        waitingFeedback: true,
-        feedbackData: item.data.message,
-        feedbackInput: '',
-        submittingFeedback: false,
-        feedbackConversationId: item.conversationId,  // 保存 conversationId
-        loading: false
-      });
+      const lastItem = chatData.value[chatData.value.length - 1];
+      lastItem.waitingFeedback = true;
+      lastItem.feedbackData = item.data.message;
+      lastItem.feedbackInput = '';
+      lastItem.submittingFeedback = false;
+      lastItem.feedbackConversationId = item.conversationId;
+      lastItem.loading = false;
       console.log('等待反馈:', item.data.message, 'conversationId:', item.conversationId);
     }
     //update-begin---author:wangshuai---date:2025-03-21---for:【QQYUN-11495】【AI】实时展示当前思考进度---
@@ -717,18 +725,13 @@
           aiText = "正在发送http请求";
         }
         if(!text){
-          //更新聊天信息
-          updateChat(uuid.value, chatData.value.length - 1, {
-            dateTime: new Date().toLocaleString(),
-            retrievalText: aiText,
-            text: "",
-            inversion: 'ai',
-            error: false,
-            loading: true,
-            conversationOptions: null,
-            requestOptions: { prompt: message, options: { ...options } },
-            referenceKnowledge: knowList.value,
-          });
+          //更新聊天信息（只在无 events 时设置 retrievalText）
+          const lastItem = chatData.value[chatData.value.length - 1];
+          if (!lastItem.events || lastItem.events.length === 0) {
+            lastItem.retrievalText = aiText;
+          }
+          lastItem.loading = true;
+          lastItem.referenceKnowledge = knowList.value;
         }
       }
     }
@@ -739,8 +742,8 @@
           const id = item.data.id;
           const data = item.data.outputs[id + ".data"]
           knowList.value.push(data)
-          //更新聊天信息
-          updateChatSome(uuid.value, chatData.value.length - 1, {referenceKnowledge: knowList.value})
+          const lastItem = chatData.value[chatData.value.length - 1];
+          lastItem.referenceKnowledge = knowList.value;
         }
       }
     }

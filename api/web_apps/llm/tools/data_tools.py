@@ -34,6 +34,7 @@ class DataChatTool(BaseTool):
     history_context: str = ""  # 简单的历史上下文字符串
     conversation_id: str = ""  # 会话ID，用于 Human-in-the-Loop
     enable_review: bool = False  # 代码审查开关
+    llm: Optional[object] = None  # 外部传入的 LLM 实例，优先于默认配置
     _agent: Optional[object] = None
 
     def bind_model(self):
@@ -58,7 +59,7 @@ class DataChatTool(BaseTool):
     ) -> object:
         from utils.redis_feedback import get_feedback_manager
 
-        _llm = get_llm()
+        _llm = self.llm if self.llm is not None else get_llm()
         # 查询知识库中是否有已标记的正确答案
         answer = get_star_qa_answer(question, metadata={'datamodel_id': self.datamodel_id})
 
