@@ -756,6 +756,25 @@
         content: ""
       });
     }
+    if (item.event === 'THINKING') {
+      const lastIdx = chatData.value.length - 1;
+      const oldEvents = chatData.value[lastIdx]?.events || [];
+      const chunk = item.data.message || '';
+      const lastEv = oldEvents[oldEvents.length - 1];
+      let newEvents;
+      if (lastEv && lastEv.type === 'thinking') {
+        // 追加到已有 thinking block
+        newEvents = [...oldEvents.slice(0, -1), { ...lastEv, content: lastEv.content + chunk }];
+      } else {
+        // 新建 thinking block
+        newEvents = [...oldEvents, { type: 'thinking', content: chunk }];
+      }
+      updateChat(uuid.value, lastIdx, {
+        ...chatData.value[lastIdx],
+        events: newEvents,
+        content: ""
+      });
+    }
     if (item.event === 'STEP') {
       const lastIdx = chatData.value.length - 1;
       const oldEvents = chatData.value[lastIdx]?.events || [];

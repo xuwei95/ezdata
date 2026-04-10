@@ -684,6 +684,19 @@
       returnText = '';
       await scrollToBottom();
     }
+    if (item.event === 'THINKING') {
+      const lastIdx = chatData.value.length - 1;
+      const oldEvents = chatData.value[lastIdx]?.events || [];
+      const chunk = item.data.message || '';
+      const lastEv = oldEvents[oldEvents.length - 1];
+      let newEvents;
+      if (lastEv && lastEv.type === 'thinking') {
+        newEvents = [...oldEvents.slice(0, -1), { ...lastEv, content: lastEv.content + chunk }];
+      } else {
+        newEvents = [...oldEvents, { type: 'thinking', content: chunk }];
+      }
+      Object.assign(chatData.value[lastIdx], { events: newEvents, content: '' });
+    }
     // Human-in-the-Loop 等待反馈
     if (item.event === 'WAITING_FEEDBACK') {
       if (item.conversationId && !uuid.value) {

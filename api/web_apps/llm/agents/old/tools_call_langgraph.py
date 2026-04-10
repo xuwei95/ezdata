@@ -591,15 +591,3 @@ if __name__ == '__main__':
     print("=" * 50)
     for chunk in agent.chat('计算 10 的 2 次方乘以 5'):
         print(chunk)
-
-    # 测试对象序列化
-    print("\n" + "=" * 50)
-    print("测试3: 对象序列化（LLM 对象传递）")
-    print("=" * 50)
-    tools = [get_llm_tool, parse_content_with_llm]
-    agent = ToolsCallAgent(tools=tools)
-    res = agent.chat('获取一个大语言模型对象，然后用它总结这段话：')
-    for chunk in res:
-        print(chunk)
-
-    print("\n测试完成！")

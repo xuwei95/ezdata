@@ -18,6 +18,24 @@
           <div class="ev-wrap">
             <template v-for="(ev, idx) in events" :key="idx">
 
+              <!-- Thinking 折叠卡片 -->
+              <div v-if="ev.type === 'thinking'" class="ev-thinking">
+                <div class="ev-thinking-hd" @click="toggleStep(idx)">
+                  <svg class="ev-thinking-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/>
+                  </svg>
+                  <span class="ev-thinking-title">{{ expandedSteps[idx] ? '思考过程' : '思考过程' }}</span>
+                  <span v-if="loading && idx === events.length - 1" class="ev-thinking-dot"></span>
+                  <svg viewBox="0 0 1024 1024" width="11" height="11" fill="currentColor"
+                    :class="['ev-step-arrow', expandedSteps[idx] ? 'ev-step-arrow-up' : '']">
+                    <path d="M884 256h-75c-5.1 0-9.9 2.5-12.9 6.6L512 654.2 227.9 262.6c-3-4.1-7.8-6.6-12.9-6.6h-75c-6.5 0-10.3 7.4-6.5 12.7l352.6 486.1c12.8 17.6 39 17.6 51.7 0l352.6-486.1c3.9-5.3.1-12.7-6.4-12.7z"/>
+                  </svg>
+                </div>
+                <div v-show="expandedSteps[idx]" class="ev-thinking-body">
+                  <chatText v-if="ev.content" :text="ev.content"></chatText>
+                </div>
+              </div>
+
               <!-- Step 折叠卡片 -->
               <div v-if="ev.type === 'step'" class="ev-step">
                 <div class="ev-step-hd" @click="toggleStep(idx)">
@@ -197,6 +215,15 @@
     expandedSteps.value = { ...expandedSteps.value, [idx]: !expandedSteps.value[idx] };
   };
 
+  // loading 时自动展开最后一个 thinking block
+  watch(() => props.events, (evs) => {
+    if (!evs || !props.loading) return;
+    const lastIdx = evs.length - 1;
+    if (lastIdx >= 0 && evs[lastIdx].type === 'thinking') {
+      expandedSteps.value = { ...expandedSteps.value, [lastIdx]: true };
+    }
+  }, { deep: true });
+
   const isCardText = (content: string) => Boolean(content && String(content).indexOf('::card::') !== -1);
   const parseCardText = (content: string) => {
     try { return JSON.parse(String(content).replace('::card::', '').replace(/\s+/g, '')); }
@@ -338,6 +365,53 @@
   .ev-wrap {
     display: block;
     width: 100%;
+  }
+
+  /* ===== thinking 折叠卡片 ===== */
+  .ev-thinking {
+    display: block;
+    margin-bottom: 3px;
+    border: 1px solid #e0d9f5;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #f5f3ff;
+  }
+  .ev-thinking-hd {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 12px;
+    cursor: pointer;
+    user-select: none;
+    &:hover { background: #ede9fc; }
+  }
+  .ev-thinking-icon { color: #7c3aed; flex-shrink: 0; }
+  .ev-thinking-title {
+    flex: 1;
+    font-size: 12px;
+    font-weight: 400;
+    color: #6d28d9;
+  }
+  .ev-thinking-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #7c3aed;
+    animation: blink 1s steps(2, start) infinite;
+    flex-shrink: 0;
+  }
+  .ev-thinking-body {
+    padding: 8px 14px;
+    border-top: 1px solid #ede9fc;
+    font-size: 12px;
+    color: #5b21b6;
+    background: #faf9ff;
+    max-height: 300px;
+    overflow-y: auto;
+    :deep(.markdown-body) {
+      background: transparent;
+      font-size: 12px;
+      padding: 0;
+      color: #5b21b6;
+    }
   }
 
   /* ===== 单个 step 折叠卡片 ===== */

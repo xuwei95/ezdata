@@ -6,7 +6,7 @@ from web_apps import app, db
 from web_apps.datamodel.db_models import DataModel
 from utils.etl_utils import get_reader_model
 from web_apps.llm.llm_utils import get_llm
-from web_apps.llm.agents.data_chat_langgraph import DataChatLangGraph
+from web_apps.llm.agents.data_chat_deepagents import DataChatDeepAgent
 from web_apps.rag.services.rag_service import get_star_qa_answer
 
 
@@ -68,7 +68,7 @@ class DataChatTool(BaseTool):
         # 创建 Agent，根据前端开关决定是否启用代码审查
         # - enable_review=True: 每次都进行人工审查
         # - enable_review=False: 自动执行，只在多次错误后才人工介入
-        self._agent = DataChatLangGraph(
+        self._agent = DataChatDeepAgent(
             llm=_llm,
             reader=self.reader,
             knowledge=self.knowledge,
@@ -81,9 +81,8 @@ class DataChatTool(BaseTool):
             feedback_interval=3  # 3 秒轮询间隔
         )
 
-        # 设置 thread_id 为当前会话ID
-        self._agent.current_thread_id = self.conversation_id
-        print(f"[DataChatTool] 设置 current_thread_id={self._agent.current_thread_id}")
+        # 设置会话ID
+        self._agent.conversation_id = self.conversation_id
 
         if self.is_chat:
             print(f"[DataChatTool] 调用 chat 模式")
@@ -116,11 +115,11 @@ def get_chat_data_tools(datamodel_ids, is_chat: bool = True):
 
 
 if __name__ == '__main__':
-    from web_apps.llm.agents.tools_call_langgraph import ToolsCallAgent
+    from web_apps.llm.agents.tools_call_deepagents import ToolsCallDeepAgent
     with app.app_context():
         datamodel_ids = ['8a862fdf980245459ac9ef89734c166f']
         tools = get_chat_data_tools(datamodel_ids)
-        agent = ToolsCallAgent(tools=tools)
+        agent = ToolsCallDeepAgent(tools=tools)
         res = agent.chat('查出sys_dict 表前10条数据')
         for chunk in res:
             print(chunk)

@@ -103,10 +103,10 @@ def get_memory_tools(conversation_id):
 
 
 if __name__ == '__main__':
-    from web_apps.llm.agents.tools_call_langgraph import ToolsCallAgent
+    from web_apps.llm.agents.tools_call_deepagents import ToolsCallDeepAgent
     conversation_id = '8a862fdf980245459ac9ef89734c1668'
     tools = get_memory_tools(conversation_id)
-    agent = ToolsCallAgent(tools=tools)
+    agent = ToolsCallDeepAgent(tools=tools)
     with app.app_context():
         prompt = '我的爱好是弹钢琴'
         prompt += f"\n当前核心记忆：{get_core_memory(conversation_id)}"

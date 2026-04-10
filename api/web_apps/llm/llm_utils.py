@@ -1,10 +1,28 @@
 import re
 import ast
 from langchain_openai import ChatOpenAI
+from langchain_core.messages import AIMessageChunk
 from langchain_community.chat_models.tongyi import ChatTongyi
 from web_apps.llm.llms.dify_llm import DifyChatModel
 from web_apps.llm.llms.gradio_llm import GradioChatModel
 from config import SYS_CONF
+
+
+class ReasoningChatOpenAI(ChatOpenAI):
+    """ChatOpenAI subclass that captures reasoning_content (DeepSeek R1, QwQ, etc.)
+    into additional_kwargs so downstream code can display thinking steps."""
+
+    def _convert_chunk_to_generation_chunk(self, chunk, default_chunk_class, base_generation_info):
+        gen_chunk = super()._convert_chunk_to_generation_chunk(chunk, default_chunk_class, base_generation_info)
+        if gen_chunk is None:
+            return gen_chunk
+        choices = chunk.get('choices', [])
+        if choices:
+            delta = choices[0].get('delta', {})
+            reasoning = delta.get('reasoning_content')
+            if reasoning and isinstance(gen_chunk.message, AIMessageChunk):
+                gen_chunk.message.additional_kwargs['reasoning_content'] = reasoning
+        return gen_chunk
 
 # llm相关配置
 LLM_TYPE = SYS_CONF.get('LLM_TYPE', 'openai')
@@ -31,7 +49,7 @@ def get_llm(llm_config=None):
     _top_p = llm_config.get('top_p', llm_config.get('topP', 0.8))
     _max_tokens = llm_config.get('max_tokens', llm_config.get('maxTokens', 4000))
     if _type == 'openai':
-        return ChatOpenAI(
+        return ReasoningChatOpenAI(
             model=_model,
             api_key=_key,
             base_url=_url or 'https://api.openai.com/v1',

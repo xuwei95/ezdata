@@ -10,7 +10,7 @@ from utils.common_utils import gen_uuid, get_now_time, parse_json
 from web_apps.rag.services.rag_service import get_knowledge
 from web_apps.llm.services.tool_service import get_tools
 from web_apps.llm.tools.data_tools import get_chat_data_tools, get_chat_data_tool
-from web_apps.llm.agents.tools_call_langgraph import ToolsCallAgent
+from web_apps.llm.agents.tools_call_deepagents import ToolsCallDeepAgent
 from web_apps.llm.services.conversation_service import get_or_create_conversation, get_messages, add_message
 from web_apps.llm.tools.memory_tools import get_memory_tools
 from web_apps.llm.services.conversation_service import add_archival_memory
@@ -24,6 +24,7 @@ EVENT_TYPE_MAP = {
     'data': "DATATABLE",
     'step': "STEP",
     'flow': "STEP",
+    'thinking': "THINKING",
     'waiting_feedback': "WAITING_FEEDBACK"  # Human-in-the-Loop 等待反馈
 }
 
@@ -322,11 +323,10 @@ def chat_generate(req_dict, user_info=None):
     工作流程：
     1. 准备上下文（知识库、记忆、历史）
     2. 路由执行：
-       - 如果有工具 → ToolsCallAgent (LangGraph)
+       - 如果有工具 → ToolsCallDeepAgent
        - 否则 → 直接 LLM 流式回答
     3. 统一格式化输出
     '''
-    print(1111, req_dict)
     with app.app_context():
         chat_handler = ChatHandler(req_dict)
         conversation_id = chat_handler.conversation_id
@@ -338,8 +338,8 @@ def chat_generate(req_dict, user_info=None):
 
             # 2. 路由执行
             if agent_enable and tools:
-                # Agent 模式：使用 LangGraph ToolsCallAgent
-                agent = ToolsCallAgent(
+                # Agent 模式：使用 ToolsCallDeepAgent
+                agent = ToolsCallDeepAgent(
                     tools=tools,
                     llm=llm,
                     system_prompt=chat_handler.system_prompt
@@ -377,7 +377,7 @@ def chat_run(req_dict, user_info=None):
     工作流程：
     1. 准备上下文（知识库、记忆、历史）
     2. 路由执行：
-       - 如果有工具 → ToolsCallAgent (LangGraph)
+       - 如果有工具 → ToolsCallDeepAgent
        - 否则 → 直接 LLM 回答
     3. 返回统一格式结果
     '''
@@ -391,8 +391,8 @@ def chat_run(req_dict, user_info=None):
 
             # 2. 路由执行
             if agent_enable and tools:
-                # Agent 模式：使用 LangGraph ToolsCallAgent
-                agent = ToolsCallAgent(
+                # Agent 模式：使用 ToolsCallDeepAgent
+                agent = ToolsCallDeepAgent(
                     tools=tools,
                     llm=llm,
                     system_prompt=chat_handler.system_prompt
@@ -431,7 +431,7 @@ def data_chat_generate(req_dict):
     2. 准备数据工具和知识库
     3. 获取历史对话作为上下文
     4. 路由执行：
-       - 如果有数据工具 → ToolsCallAgent (LangGraph) + DataChatTool
+       - 如果有数据工具 → ToolsCallDeepAgent + DataChatTool
        - 否则 → 直接 LLM 回答
     5. 统一格式化输出
     '''
@@ -497,7 +497,7 @@ def data_chat_generate(req_dict):
                 data_tool.set_history_context(history_context)
 
                 # 2.4 创建 Agent 并执行
-                agent = ToolsCallAgent(
+                agent = ToolsCallDeepAgent(
                     tools=[data_tool],
                     llm=_llm,
                     system_prompt=f"{history_context}\n你是一个数据分析助手，能够帮助用户分析数据。"
@@ -529,17 +529,17 @@ def data_chat_generate(req_dict):
 if __name__ == '__main__':
     req_dict = {
         "conversationId": "test1111111",
-        "message": '3的5次放乘6减一等于多少，使用工具计算', #"字典表中字典项最多的10个字典， 返回表格统计结果",
+        "message": "字典表中字典项最多的10个字典， 画出统计图",
         'chatConfig': {
             "msgNum": 1,
             "prologue": None,
             # "knowledgeIds": "1",
             "modelId": "default",
             "presetQuestion": "",
-            # "datamodelIds": "c20ae41fcaa74597ab83293add482ff0",
+            "datamodelIds": "c20ae41fcaa74597ab83293add482ff0",
             "toolIds": "now_time,a7128b38-b866-41ea-a912-2f25a65f10ec,fe504d80-41ad-4e5e-90c9-aca37d74f3c3",
-            "metadata": '{"multiSession": true}'
-        }
+            "metadata": '{"multiSession": true, "dataReview": "1"}'
+        },
     }
 
     with app.app_context():
