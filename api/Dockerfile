@@ -3,9 +3,6 @@ ENV LANG C.UTF-8
 ENV TZ=Asia/Shanghai
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PATH=/opt/conda/bin:$PATH
-RUN sed -i s@/archive.ubuntu.com/@/mirrors.aliyun.com/@g /etc/apt/sources.list
-RUN sed -i s@/security.ubuntu.com/@/mirrors.aliyun.com/@g /etc/apt/sources.list
-RUN apt-get clean
 RUN apt-get update
 RUN apt-get install wget tmux htop vim net-tools git -y
 RUN apt install -y tzdata \
