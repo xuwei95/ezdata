@@ -46,7 +46,8 @@ export default defineConfig(({ mode, command }) => {
       proxy: {
         // https://cn.vitejs.dev/config/#server-proxy
         '/dev-api': {
-          target: 'http://127.0.0.1:9099',
+          // 代理目标可由环境变量覆盖（docker dev 下指向后端服务名），默认回退本地地址
+          target: process.env.VITE_DEV_PROXY_TARGET || 'http://127.0.0.1:9099',
           changeOrigin: true,
           rewrite: (p) => p.replace(/^\/dev-api/, '')
         }

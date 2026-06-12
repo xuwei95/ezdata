@@ -164,6 +164,12 @@ class AiUtil:
             params['host'] = base_url
         if provider == 'DashScope' and not base_url:
             params['base_url'] = 'https://dashscope.aliyuncs.com/compatible-mode/v1'
+        if provider == 'Anthropic' and base_url:
+            # Anthropic 的 Claude 不接受 base_url 顶层参数，自定义网关需通过 client_params 传入
+            params.pop('base_url', None)
+            client_params = dict(params.get('client_params') or {})
+            client_params.setdefault('base_url', base_url)
+            params['client_params'] = client_params
         model_class = cls._resolve_provider_class(provider)
         if model_class is None:
             # 未知提供商，回退到OpenAI

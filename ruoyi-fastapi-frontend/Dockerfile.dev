@@ -1,0 +1,14 @@
+# 前端开发镜像：仅安装依赖（node_modules 打进镜像），源码通过 compose 挂载，运行 Vite dev server 热更新
+FROM node:18
+
+WORKDIR /app
+
+# 仅复制依赖清单先装依赖，利用层缓存；源码不 COPY，由 compose 挂载
+COPY package.json ./
+
+RUN npm install --registry=https://registry.npmmirror.com
+
+EXPOSE 12580
+
+# 以 dev 模式启动 Vite，监听容器内 12580，对外暴露
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "12580"]
