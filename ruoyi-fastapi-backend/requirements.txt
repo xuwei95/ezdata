@@ -6,11 +6,13 @@ APScheduler==3.11.2
 async-lru==2.1.0
 asyncmy==0.2.11
 bcrypt==5.0.0
+celery==5.4.0
 cerebras-cloud-sdk==1.67.0
 cohere==5.20.4
 fastapi[all]==0.128.2
 google-genai==1.62.0
 groq==1.0.0
+kafka-python==2.0.2
 litellm==1.81.8
 llama-api-client==0.6.0
 loguru==0.7.3

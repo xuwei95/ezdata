@@ -61,6 +61,39 @@ services:
     tty: true
     restart: "no"
 
+  # ---------------- Celery Worker（任务调度执行层） ----------------
+  ruoyi-worker-dev:
+    build:
+      context: ./ruoyi-fastapi-backend
+      dockerfile: Dockerfile.dev          # 复用后端镜像（含 celery 依赖）
+    image: ruoyi-backend-dev:latest
+    container_name: ruoyi-worker-dev
+    working_dir: /app
+    # prefork 池：容器为 Linux。--autoscale=MAX,MIN 启用弹性并发(同时支持 pool grow/shrink 与运行时 autoscale 控制命令)
+    command: >
+      python -m celery -A config.celery_app worker
+      -Q default
+      --autoscale=4,1
+      --loglevel=INFO
+    volumes:
+      - ./ruoyi-fastapi-backend:/app      # 与后端共享源码：改 runner/任务代码即时生效（重启 worker 后）
+      - /app/__pycache__
+    environment:
+      - APP_ENV=dev
+      - DB_HOST=ruoyi-mysql-dev
+      - DB_PORT=3306
+      - DB_PASSWORD=root
+      - REDIS_HOST=ruoyi-redis-dev
+      - REDIS_PORT=6379
+    depends_on:
+      ruoyi-mysql-dev:
+        condition: service_healthy
+      ruoyi-redis-dev:
+        condition: service_healthy
+    networks:
+      - ruoyi-dev-network
+    restart: "no"
+
   # ---------------- 前端（Vite dev server / HMR） ----------------
   ruoyi-frontend-dev:
     build:

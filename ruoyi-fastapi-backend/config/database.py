@@ -78,6 +78,7 @@ def create_sync_db_engine(echo: bool | None = None) -> Engine:
         pool_size=DataBaseConfig.db_pool_size,
         pool_recycle=DataBaseConfig.db_pool_recycle,
         pool_timeout=DataBaseConfig.db_pool_timeout,
+        pool_pre_ping=True,  # 连接前探活，避免 Celery worker(solo)空闲后命中失效连接而卡住
     )
 
 

@@ -159,11 +159,10 @@ create table sys_menu (
 -- 初始化-菜单信息表数据
 -- ----------------------------
 -- 一级菜单
-insert into sys_menu values('1',  '系统管理', '0', '1',  'system',           null, '', '', 1, 0, 'M', '0', '0', '', 'system',   'admin', sysdate(), '', null, '系统管理目录');
-insert into sys_menu values('2',  '系统监控', '0', '2',  'monitor',          null, '', '', 1, 0, 'M', '0', '0', '', 'monitor',  'admin', sysdate(), '', null, '系统监控目录');
-insert into sys_menu values('3',  '系统工具', '0', '3',  'tool',             null, '', '', 1, 0, 'M', '0', '0', '', 'tool',     'admin', sysdate(), '', null, '系统工具目录');
-insert into sys_menu values('4',  'AI 管理', '0', '4',  'ai',               null, '', '', 1, 0, 'M', '0', '0', '', 'ai-manage', 'admin', sysdate(), '', null, 'AI 管理目录');
-insert into sys_menu values('99', '若依官网', '0', '99', 'http://ruoyi.vip', null, '', '', 0, 0, 'M', '0', '0', '', 'guide',    'admin', sysdate(), '', null, '若依官网地址');
+insert into sys_menu values('1',  '系统管理', '0', '4',  'system',           null, '', '', 1, 0, 'M', '0', '0', '', 'system',   'admin', sysdate(), '', null, '系统管理目录');
+insert into sys_menu values('2',  '系统监控', '0', '5',  'monitor',          null, '', '', 1, 0, 'M', '0', '0', '', 'monitor',  'admin', sysdate(), '', null, '系统监控目录');
+insert into sys_menu values('3',  '系统工具', '0', '6',  'tool',             null, '', '', 1, 0, 'M', '0', '0', '', 'tool',     'admin', sysdate(), '', null, '系统工具目录');
+insert into sys_menu values('4',  'AI 管理', '0', '1',  'ai',               null, '', '', 1, 0, 'M', '0', '0', '', 'ai-manage', 'admin', sysdate(), '', null, 'AI 管理目录');
 -- 二级菜单
 insert into sys_menu values('100',  '用户管理', '1',   '1', 'user',                'system/user/index',                 '', '', 1, 0, 'C', '0', '0', 'system:user:list',                 'user',          'admin', sysdate(), '', null, '用户管理菜单');
 insert into sys_menu values('101',  '角色管理', '1',   '2', 'role',                'system/role/index',                 '', '', 1, 0, 'C', '0', '0', 'system:role:list',                 'peoples',       'admin', sysdate(), '', null, '角色管理菜单');
@@ -483,6 +482,7 @@ insert into sys_dict_type values(9,  '通知状态', 	   'sys_notice_status',   
 insert into sys_dict_type values(10, '操作类型', 	   'sys_oper_type',       '0', 'admin', sysdate(), '', null, '操作类型列表');
 insert into sys_dict_type values(11, '系统状态',     'sys_common_status',   '0', 'admin', sysdate(), '', null, '登录状态列表');
 insert into sys_dict_type values(12, 'AI模型提供商', 'ai_provider_type',    '0', 'admin', sysdate(), '', null, 'AI模型提供商列表');
+insert into sys_dict_type values(13, '任务运行队列', 'task_run_queue',      '0', 'admin', sysdate(), '', null, '任务调度运行队列列表');
 
 
 -- ----------------------------
@@ -577,6 +577,7 @@ insert into sys_dict_data values(66, 34,  'Together',        'Together',        
 insert into sys_dict_data values(67, 35,  'Vercel',          'Vercel',           'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'Vercel');
 insert into sys_dict_data values(68, 36,  'VLLM',            'VLLM',             'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'VLLM');
 insert into sys_dict_data values(69, 37,  'xAI',             'xAI',              'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'xAI');
+insert into sys_dict_data values(70, 1,   'default',         'default',          'task_run_queue',      '',   'primary', 'Y', '0', 'admin', sysdate(), '', null, '默认队列');
 
 
 -- ----------------------------
@@ -811,3 +812,189 @@ create table ai_chat_config (
   update_time             datetime                                   comment '更新时间',
   primary key (chat_config_id)
 ) engine=innodb auto_increment=1 comment = 'AI对话配置表';
+
+-- ----------------------------
+-- 任务调度模块（module_task_schedule）
+-- ----------------------------
+
+-- 任务模板表
+drop table if exists task_template;
+create table task_template (
+  id                  varchar(36)     not null                   comment '主键',
+  name                varchar(200)    default ''                 comment '模板名称',
+  code                varchar(200)    default ''                 comment '模板编码',
+  icon                varchar(500)    default ''                 comment '模板图标',
+  type                smallint        default 1                  comment '表单类型,1内置组件2动态配置',
+  runner_type         smallint        default 1                  comment '执行器类型，1内置执行器2动态代码',
+  runner_code         text                                       comment '动态执行器代码',
+  component           varchar(500)    default ''                 comment '前端组件',
+  params              text                                       comment '模板参数schema',
+  built_in            smallint        default 0                  comment '是否内置 1是 0不是',
+  status              smallint        default 1                  comment '状态 1启用 0禁用',
+  create_by           varchar(64)     default ''                 comment '创建者',
+  create_time         datetime                                   comment '创建时间',
+  update_by           varchar(64)     default ''                 comment '更新者',
+  update_time         datetime                                   comment '更新时间',
+  remark              varchar(500)    default ''                 comment '备注',
+  primary key (id),
+  unique key uk_task_template_code (code)
+) engine=innodb comment = '任务模板表';
+
+-- 任务表
+drop table if exists task;
+create table task (
+  id                  varchar(36)     not null                   comment '主键',
+  template_code       varchar(200)    default ''                 comment '任务模板编码',
+  task_type           smallint        default 1                  comment '任务类型，1普通任务2dag工作流任务',
+  name                varchar(100)    default ''                 comment '名称',
+  params              text                                       comment '参数',
+  status              smallint        default 0                  comment '状态 0停用 1启用',
+  built_in            smallint        default 0                  comment '是否内置 1是 0不是',
+  trigger_type        smallint        default 1                  comment '触发方式，1单次2定时',
+  crontab             varchar(500)    default ''                 comment '定时设置',
+  priority            int             default 1                  comment '优先级',
+  retry               int             default 0                  comment '失败重试次数',
+  countdown           int             default 0                  comment '失败重试间隔(秒)',
+  run_queue           varchar(200)    default 'default'          comment '运行队列',
+  running_id          varchar(36)     default null               comment '正在运行任务实例ID',
+  job_id              int             default null               comment '关联的调度任务ID(sys_job)',
+  create_by           varchar(64)     default ''                 comment '创建者',
+  create_time         datetime                                   comment '创建时间',
+  update_by           varchar(64)     default ''                 comment '更新者',
+  update_time         datetime                                   comment '更新时间',
+  remark              varchar(500)    default ''                 comment '备注',
+  primary key (id)
+) engine=innodb comment = '任务表';
+
+-- 任务实例(执行记录)表
+drop table if exists task_instance;
+create table task_instance (
+  id                  varchar(36)     not null                   comment '主键(celery task uuid)',
+  parent_id           varchar(36)     default ''                 comment '父任务id',
+  task_id             varchar(36)     default ''                 comment '任务id',
+  node_id             varchar(36)     default ''                 comment 'dag节点id',
+  name                varchar(100)    default ''                 comment '任务名称',
+  status              varchar(50)     default 'STARTED'          comment '状态',
+  worker              varchar(200)    default ''                 comment 'worker',
+  retry_num           int             default 0                  comment '重试次数',
+  progress            float           default 0                  comment '任务进度',
+  start_time          datetime                                   comment '开始时间',
+  end_time            datetime                                   comment '结束时间',
+  closed              smallint        default 0                  comment '是否已关闭',
+  result              text                                       comment '执行结果',
+  primary key (id),
+  key idx_task_instance_task (task_id),
+  key idx_task_instance_status (status)
+) engine=innodb comment = '任务实例表';
+
+-- 任务执行明细日志表(仅 TASK_LOG_TYPE=db 时写入)
+drop table if exists task_log;
+create table task_log (
+  id                  bigint(20)      not null auto_increment    comment '日志ID',
+  task_uuid           varchar(36)     default ''                 comment '任务实例ID',
+  level               varchar(20)     default 'INFO'             comment '日志级别',
+  content             text                                       comment '日志内容',
+  create_time         datetime                                   comment '创建时间',
+  primary key (id),
+  key idx_task_log_uuid (task_uuid)
+) engine=innodb comment = '任务执行明细日志表';
+
+-- 内置任务模板
+insert into task_template values ('1', 'Python脚本任务', 'PythonTask', '', 1, 1, null, 'PythonTask', '', 1, 1, 'admin', sysdate(), '', null, '内置组件: Python 任务(代码/文件模式)');
+insert into task_template values ('2', 'Shell脚本任务', 'ShellTask', '', 1, 1, null, 'ShellTask', '', 1, 1, 'admin', sysdate(), '', null, '内置组件: Shell 任务(代码/文件模式)');
+insert into task_template values ('3', '动态代码任务', 'DynamicTask', '', 2, 2, 'def run(params, logger):
+    logger.info("动态任务参数: " + str(params))
+    return "执行成功"', '', '[{"field":"message","label":"消息内容","component":"text","required":false,"default":"hello dynamic"}]', 1, 1, 'admin', sysdate(), '', null, '动态代码模板：run(params, logger) 在模板上维护，任务只填参数');
+
+-- ----------------------------
+-- 任务调度模块菜单/权限
+-- ----------------------------
+insert into sys_menu values('2100', '任务调度', '0',    '2', 'task',     null,                  '', '', 1, 0, 'M', '0', '0', '',                       'job',  'admin', sysdate(), '', null, '任务调度目录');
+insert into sys_menu values('2101', '任务管理', '2100', '1', 'info',     'task/info/index',     '', '', 1, 0, 'C', '0', '0', 'task:info:list',         'list', 'admin', sysdate(), '', null, '任务管理菜单');
+insert into sys_menu values('2102', '任务模板', '2100', '2', 'template', 'task/template/index', '', '', 1, 0, 'C', '0', '0', 'task:template:list',     'form', 'admin', sysdate(), '', null, '任务模板菜单');
+-- 任务管理 按钮
+insert into sys_menu values('2110', '任务查询', '2101', '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:info:query',        '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('2111', '任务新增', '2101', '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:info:add',          '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('2112', '任务修改', '2101', '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:info:edit',         '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('2113', '任务删除', '2101', '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:info:remove',       '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('2114', '状态修改', '2101', '5', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:info:changeStatus', '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('2115', '手动执行', '2101', '6', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:info:run',          '#', 'admin', sysdate(), '', null, '');
+-- 任务模板 按钮
+insert into sys_menu values('2120', '模板查询', '2102', '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:template:query',  '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('2121', '模板新增', '2102', '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:template:add',    '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('2122', '模板修改', '2102', '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:template:edit',   '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('2123', '模板删除', '2102', '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:template:remove', '#', 'admin', sysdate(), '', null, '');
+-- 执行记录 按钮
+insert into sys_menu values('2130', '记录查询', '2101', '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:instance:query',  '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('2131', '记录删除', '2101', '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:instance:remove', '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('2132', '终止任务', '2101', '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:instance:stop',   '#', 'admin', sysdate(), '', null, '');
+-- Worker 管理
+insert into sys_menu values('2103', 'Worker管理', '2100', '3', 'worker', 'task/worker/index', '', '', 1, 0, 'C', '0', '0', 'task:worker:list', 'server', 'admin', sysdate(), '', null, 'Worker 管理菜单');
+insert into sys_menu values('2150', 'Worker查询', '2103', '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:worker:list',     '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('2151', '队列管理',   '2103', '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:worker:consumer', '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('2152', '并发伸缩',   '2103', '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:worker:scale',    '#', 'admin', sysdate(), '', null, '');
+
+-- ----------------------------
+-- 告警中心模块（module_alert）
+-- ----------------------------
+
+-- 告警策略表
+drop table if exists alert_strategy;
+create table alert_strategy (
+  strategy_id         bigint(20)      not null auto_increment    comment '策略主键',
+  strategy_name       varchar(200)    not null                   comment '策略名称',
+  biz                 varchar(50)     default 'scheduler'        comment '业务类型(scheduler等)',
+  trigger_conf        text                                       comment '触发条件(JSON,含告警等级level等)',
+  forward_conf        text                                       comment '转发渠道配置(JSON数组)',
+  status              smallint        default 1                  comment '状态(1启用 0停用)',
+  create_by           varchar(64)     default ''                 comment '创建者',
+  create_time         datetime                                   comment '创建时间',
+  update_by           varchar(64)     default ''                 comment '更新者',
+  update_time         datetime                                   comment '更新时间',
+  remark              varchar(500)    default ''                 comment '备注信息',
+  primary key (strategy_id)
+) engine=innodb auto_increment=100 comment = '告警策略表';
+
+-- 告警记录表
+drop table if exists alert_record;
+create table alert_record (
+  alert_id            bigint(20)      not null auto_increment    comment '告警主键',
+  strategy_id         bigint(20)                                 comment '告警策略id',
+  title               varchar(500)                               comment '告警标题',
+  content             text                                       comment '告警内容',
+  level               int             default 0                  comment '告警等级',
+  status              smallint        default 0                  comment '告警状态(0未处理 1已处理)',
+  biz                 varchar(50)                                comment '告警业务(scheduler等)',
+  source              varchar(200)                               comment '告警对象(任务名/实例等)',
+  metric              varchar(100)                               comment '告警指标(task_fail/task_timeout等)',
+  tags                text                                       comment '告警标签(JSON)',
+  ext_params          text                                       comment '额外参数(JSON)',
+  recover_time        datetime                                   comment '恢复时间',
+  create_time         datetime                                   comment '创建时间',
+  primary key (alert_id),
+  key idx_alert_record_strategy (strategy_id),
+  key idx_alert_record_status (status)
+) engine=innodb comment = '告警记录表';
+
+-- 内置示例告警策略(webhook 到本地占位地址；level=2 错误)
+insert into alert_strategy (strategy_id, strategy_name, biz, trigger_conf, forward_conf, status, create_by, create_time, remark)
+values (1, '默认任务失败告警', 'scheduler', '{"level":2}', '[{"type":"webhook","webhook_url":"http://ruoyi-backend-dev:9099/dev-api/alert/test-sink"}]', 1, 'admin', sysdate(), '任务重试耗尽失败时通过 webhook 通知');
+
+-- 任务表增加告警策略绑定字段
+alter table task add column alert_strategy_ids varchar(500) default '' comment '绑定的告警策略ID(逗号分隔)';
+
+-- ----------------------------
+-- 告警中心菜单/权限
+-- ----------------------------
+insert into sys_menu values('2200', '告警中心', '0',    '3', 'alert',          null,                  '', '', 1, 0, 'M', '0', '0', '',                     'message', 'admin', sysdate(), '', null, '告警中心目录');
+insert into sys_menu values('2201', '告警策略', '2200', '1', 'strategy',       'alert/strategy/index', '', '', 1, 0, 'C', '0', '0', 'alert:strategy:list',  'tool',    'admin', sysdate(), '', null, '告警策略菜单');
+insert into sys_menu values('2202', '告警记录', '2200', '2', 'record',         'alert/record/index',   '', '', 1, 0, 'C', '0', '0', 'alert:record:list',    'log',     'admin', sysdate(), '', null, '告警记录菜单');
+-- 告警策略 按钮
+insert into sys_menu values('2210', '策略查询', '2201', '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'alert:strategy:query',  '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('2211', '策略新增', '2201', '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'alert:strategy:add',    '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('2212', '策略修改', '2201', '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'alert:strategy:edit',   '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('2213', '策略删除', '2201', '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'alert:strategy:remove', '#', 'admin', sysdate(), '', null, '');
+-- 告警记录 按钮
+insert into sys_menu values('2220', '记录查询', '2202', '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'alert:record:list',    '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('2221', '记录处理', '2202', '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'alert:record:edit',    '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('2222', '记录删除', '2202', '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'alert:record:remove',  '#', 'admin', sysdate(), '', null, '');

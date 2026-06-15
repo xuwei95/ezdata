@@ -310,6 +310,12 @@ class UserDao:
                 SysUser.phonenumber.like(f'%{query_object.phonenumber}%') if query_object.phonenumber else True,
                 SysUser.status == query_object.status if query_object.status else True,
                 SysUser.sex == query_object.sex if query_object.sex else True,
+                SysUser.user_id.in_(select(SysUserRole.user_id).where(SysUserRole.role_id == query_object.role_id))
+                if query_object.role_id
+                else True,
+                SysUser.user_id.in_(select(SysUserPost.user_id).where(SysUserPost.post_id == query_object.post_id))
+                if query_object.post_id
+                else True,
                 SysUser.create_time.between(
                     datetime.combine(datetime.strptime(query_object.begin_time, '%Y-%m-%d'), time(00, 00, 00)),
                     datetime.combine(datetime.strptime(query_object.end_time, '%Y-%m-%d'), time(23, 59, 59)),

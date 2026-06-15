@@ -39,7 +39,7 @@ class JwtSettings(BaseSettings):
     jwt_secret_key: str = 'b01c66dc2c58dc6a0aabfe2144256be36226de378bf87f72c0c795dda67f4d55'
     jwt_algorithm: str = 'HS256'
     jwt_expire_minutes: int = 1440
-    jwt_redis_expire_minutes: int = 30
+    jwt_redis_expire_minutes: int = 1440
 
 
 class DataBaseSettings(BaseSettings):
@@ -116,6 +116,46 @@ class LogSettings(BaseSettings):
     log_instance_id: str = 'prod'
     log_service_name: str = 'ruoyi-fastapi-backend'
     log_worker_id: str = 'auto'
+
+
+class CelerySettings(BaseSettings):
+    """
+    Celery执行器配置
+
+    celery_broker_url/celery_result_backend 为空时，自动根据 Redis 配置构建。
+    celery_queues 为逗号分隔的队列名列表，task.run_queue 必须在其中取值。
+    """
+
+    celery_broker_url: str = ''
+    celery_result_backend: str = ''
+    celery_redis_database: int = 3
+    celery_default_queue: str = 'default'
+    celery_queues: str = 'default'
+    celery_timezone: str = 'Asia/Shanghai'
+    celery_worker_max_tasks_per_child: int = 200
+    celery_result_expires: int = 3600
+
+    @property
+    def queue_list(self) -> list[str]:
+        return [item.strip() for item in self.celery_queues.split(',') if item.strip()]
+
+
+class TaskLogSettings(BaseSettings):
+    """
+    任务执行日志配置
+
+    task_log_type 控制日志输出位置：
+        file - 写入文件（前端隐藏任务日志功能）
+        db   - 写入数据库 task_log 表
+        es   - 写入 Elasticsearch
+    """
+
+    task_log_type: Literal['file', 'db', 'es'] = 'db'
+    task_log_file_dir: str = 'logs/task'
+    task_es_hosts: str = ''
+    task_es_index: str = 'task_logs'
+    task_es_username: str = ''
+    task_es_password: str = ''
 
 
 class TransportCryptoSettings(BaseSettings):
@@ -265,6 +305,18 @@ class GetConfig:
         """
         return TransportCryptoSettings()
 
+    def get_celery_config(self) -> CelerySettings:
+        """
+        获取Celery执行器配置
+        """
+        return CelerySettings()
+
+    def get_task_log_config(self) -> TaskLogSettings:
+        """
+        获取任务执行日志配置
+        """
+        return TaskLogSettings()
+
     def get_gen_config(self) -> GenSettings:
         """
         获取代码生成配置
@@ -328,6 +380,10 @@ RedisConfig = get_config.get_redis_config()
 LogConfig = get_config.get_log_config()
 # 传输层加解密配置
 TransportCryptoConfig = get_config.get_transport_crypto_config()
+# Celery执行器配置
+CeleryConfig = get_config.get_celery_config()
+# 任务执行日志配置
+TaskLogConfig = get_config.get_task_log_config()
 # 代码生成配置
 GenConfig = get_config.get_gen_config()
 # 上传配置

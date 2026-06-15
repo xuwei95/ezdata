@@ -179,6 +179,8 @@ class UserQueryModel(UserModel):
     用户管理不分页查询模型
     """
 
+    role_id: int | None = Field(default=None, description='角色ID(按角色筛选用户)')
+    post_id: int | None = Field(default=None, description='岗位ID(按岗位筛选用户)')
     begin_time: str | None = Field(default=None, description='开始时间')
     end_time: str | None = Field(default=None, description='结束时间')
 

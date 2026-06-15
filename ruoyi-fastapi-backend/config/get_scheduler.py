@@ -6,7 +6,7 @@ from collections.abc import Callable
 from datetime import datetime, timedelta
 from typing import Any
 
-from apscheduler.events import EVENT_ALL, SchedulerEvent
+from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED, SchedulerEvent
 from apscheduler.executors.asyncio import AsyncIOExecutor
 from apscheduler.executors.pool import ProcessPoolExecutor
 from apscheduler.job import Job
@@ -243,8 +243,11 @@ class SchedulerUtil:
             for item in job_list:
                 cls._add_job_to_scheduler(item)
 
-        # 添加事件监听器
-        scheduler.add_listener(cls.scheduler_event_listener, EVENT_ALL)
+        # 添加事件监听器：仅监听"执行完成"事件(成功 EVENT_JOB_EXECUTED / 失败 EVENT_JOB_ERROR，
+        # 二者均产生 JobExecutionEvent)，每次执行恰好记一条调度日志。
+        # 切勿用 EVENT_ALL——它还会派发提交(JobSubmissionEvent)及增/删/改(JobEvent)等事件，
+        # 而监听器对任何带 job_id 的事件都会写 sys_job_log，导致一次执行写入多条日志。
+        scheduler.add_listener(cls.scheduler_event_listener, EVENT_JOB_EXECUTED | EVENT_JOB_ERROR)
 
         if cls._should_enable_scheduler_sync():
             # 添加任务状态同步任务（每30秒从数据库同步一次任务状态）
