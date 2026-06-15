@@ -2,10 +2,10 @@ from datetime import datetime
 
 from sqlalchemy import BigInteger, Column, DateTime, Integer, SmallInteger, String, Text
 
-from config.database import Base
+from config.database import Base, TenantMixin
 
 
-class AlertStrategy(Base):
+class AlertStrategy(Base, TenantMixin):
     """
     告警策略表
     """
@@ -26,7 +26,7 @@ class AlertStrategy(Base):
     remark = Column(String(500), nullable=True, server_default="''", comment='备注信息')
 
 
-class AlertRecord(Base):
+class AlertRecord(Base, TenantMixin):
     """
     告警记录表
     """

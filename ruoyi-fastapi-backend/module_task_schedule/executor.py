@@ -14,6 +14,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from common.context import RequestContext
 from module_task_schedule.entity.do.task_do import Task, TaskInstance, TaskTemplate
 from module_task_schedule.runners.base import get_runner
 from module_task_schedule.runners.dynamic_runner import DynamicRunner
@@ -56,11 +57,15 @@ def execute_task(task_id: str, instance_id: str, worker: str | None = None, retr
     """
     session_local = get_sync_session_local()
     db = session_local()
+    # 多租户：Worker 无请求上下文。先(无租户上下文=不过滤)按主键加载任务，
+    # 读出其 tenant_id 后设置上下文，使后续 task_instance/task_log 写入自动盖章、按租户查询。
+    tenant_token = None
     try:
         task = _load_task(db, task_id)
         if task is None:
             raise ValueError(f'任务不存在: task_id={task_id}')
 
+        tenant_token = RequestContext.set_current_tenant_id(task.tenant_id)
         template_code = task.template_code
         params: dict[str, Any] = json.loads(task.params) if task.params else {}
 
@@ -80,6 +85,8 @@ def execute_task(task_id: str, instance_id: str, worker: str | None = None, retr
             },
         )
     except Exception:
+        if tenant_token is not None:
+            RequestContext.reset_current_tenant_id(tenant_token)
         db.close()
         raise
 
@@ -133,4 +140,6 @@ def execute_task(task_id: str, instance_id: str, worker: str | None = None, retr
             logger.close()
         except Exception:
             pass
+        if tenant_token is not None:
+            RequestContext.reset_current_tenant_id(tenant_token)
         db.close()

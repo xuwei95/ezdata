@@ -160,12 +160,17 @@ class AlertService:
         # 任务类型映射(对齐 ezdata)
         task_type_map = {'normal_task': '普通任务', 'dag_task': '任务工作流', 'dag_node_task': '任务工作流节点任务'}
 
+        from common.context import RequestContext
+
         session_local = get_sync_session_local()
         db = session_local()
+        tenant_token = None
         try:
             task = db.execute(select(Task).where(Task.id == task_id)).scalars().first()
             if task is None or not task.alert_strategy_ids:
                 return
+            # 多租户：按任务所属租户盖章告警记录(Worker 无请求上下文)
+            tenant_token = RequestContext.set_current_tenant_id(task.tenant_id)
             strategy_ids = [int(i) for i in str(task.alert_strategy_ids).split(',') if i.strip().isdigit()]
             strategies = AlertStrategyDao.sync_get_enabled_strategies(db, strategy_ids)
             if not strategies:
@@ -207,4 +212,6 @@ class AlertService:
         except Exception as e:  # noqa: BLE001
             loguru_logger.error(f'处理任务失败告警异常: {e}')
         finally:
+            if tenant_token is not None:
+                RequestContext.reset_current_tenant_id(tenant_token)
             db.close()

@@ -4,7 +4,7 @@ from typing import Any
 
 import pandas as pd
 from fastapi import Request, UploadFile
-from sqlalchemy import ColumnElement
+from sqlalchemy import ColumnElement, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.constant import CommonConstant
@@ -171,6 +171,17 @@ class UserService:
         try:
             add_result = await UserDao.add_user_dao(query_db, add_user)
             user_id = add_result.user_id
+            # 多租户：用户租户 = 其所属部门的租户(顶级部门)
+            if add_user.dept_id:
+                from common.context import tenant_bypass
+                from module_admin.entity.do.dept_do import SysDept
+
+                with tenant_bypass():
+                    dept_row = (
+                        await query_db.execute(select(SysDept).where(SysDept.dept_id == add_user.dept_id))
+                    ).scalars().first()
+                add_result.tenant_id = dept_row.tenant_id if dept_row else None
+                await query_db.flush()
             if page_object.role_ids:
                 for role in page_object.role_ids:
                     await UserDao.add_user_role_dao(query_db, UserRoleModel(userId=user_id, roleId=role))

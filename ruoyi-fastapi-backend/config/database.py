@@ -1,8 +1,8 @@
 from urllib.parse import quote_plus
 
-from sqlalchemy import Engine, create_engine
+from sqlalchemy import BigInteger, Engine, create_engine, event
 from sqlalchemy.ext.asyncio import AsyncAttrs, AsyncEngine, async_sessionmaker, create_async_engine
-from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker, with_loader_criteria
 
 from config.env import DataBaseConfig
 
@@ -108,3 +108,60 @@ AsyncSessionLocal = create_async_session_local(async_engine)
 
 class Base(AsyncAttrs, DeclarativeBase):
     pass
+
+
+class TenantMixin:
+    """
+    多租户隔离 Mixin。
+
+    继承此类的 ORM 模型会：
+    - 拥有 tenant_id 列(值 = 顶级部门ID)
+    - 查询时被全局事件自动注入 `tenant_id == 当前租户` 过滤(见下方 do_orm_execute)
+    - 新增时被自动盖上当前租户的 tenant_id(见下方 before_flush)
+    """
+
+    tenant_id: Mapped[int | None] = mapped_column(BigInteger, index=True, nullable=True, comment='租户ID(顶级部门)')
+
+
+# ---------------------------------------------------------------------------
+# 多租户全局过滤 / 写入盖章
+#
+# 监听 SQLAlchemy 基类 Session 的事件，异步(AsyncSession 底层复用同步 Session)与
+# 同步(Celery)会话都会生效。上下文中存在租户ID且未 bypass 时：
+#   - 所有针对 TenantMixin 子类的 ORM SELECT 自动追加 tenant_id 过滤
+#   - flush 前给新增的 TenantMixin 实例自动填充 tenant_id
+# 上下文未设置租户(系统/匿名/启动加载)或显式 bypass(超管/Worker引导)时不过滤。
+# ---------------------------------------------------------------------------
+@event.listens_for(Session, 'do_orm_execute')
+def _tenant_filter_orm_execute(orm_execute_state) -> None:  # noqa: ANN001
+    # 仅处理顶层 ORM SELECT；跳过列刷新与关系懒加载(由 include_aliases 覆盖关联)
+    if not (
+        orm_execute_state.is_select
+        and not orm_execute_state.is_column_load
+        and not orm_execute_state.is_relationship_load
+    ):
+        return
+    from common.context import RequestContext
+
+    tenant_id = RequestContext.get_effective_tenant_id()
+    if tenant_id is None:
+        return
+    orm_execute_state.statement = orm_execute_state.statement.options(
+        with_loader_criteria(
+            TenantMixin,
+            lambda cls: cls.tenant_id == tenant_id,
+            include_aliases=True,
+        )
+    )
+
+
+@event.listens_for(Session, 'before_flush')
+def _tenant_stamp_before_flush(session: Session, flush_context, instances) -> None:  # noqa: ANN001
+    from common.context import RequestContext
+
+    tenant_id = RequestContext.get_effective_tenant_id()
+    if tenant_id is None:
+        return
+    for obj in session.new:
+        if isinstance(obj, TenantMixin) and getattr(obj, 'tenant_id', None) is None:
+            obj.tenant_id = tenant_id

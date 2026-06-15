@@ -113,12 +113,24 @@ class DeptService:
         """
         if not await cls.check_dept_name_unique_services(query_db, page_object):
             raise ServiceException(message=f'新增部门{page_object.dept_name}失败，部门名称已存在')
-        parent_info = await DeptDao.get_dept_by_id(query_db, page_object.parent_id)
-        if parent_info.status != CommonConstant.DEPT_NORMAL:
-            raise ServiceException(message=f'部门{parent_info.dept_name}停用，不允许新增')
-        page_object.ancestors = f'{parent_info.ancestors},{page_object.parent_id}'
+        # 多租户：parent_id=0 视为新建顶级部门(=新租户)；其余继承父部门的租户
+        parent_tenant_id = None
+        if page_object.parent_id and page_object.parent_id != 0:
+            parent_info = await DeptDao.get_dept_by_id(query_db, page_object.parent_id)
+            if parent_info is None:
+                raise ServiceException(message='上级部门不存在')
+            if parent_info.status != CommonConstant.DEPT_NORMAL:
+                raise ServiceException(message=f'部门{parent_info.dept_name}停用，不允许新增')
+            page_object.ancestors = f'{parent_info.ancestors},{page_object.parent_id}'
+            parent_tenant_id = parent_info.tenant_id
+        else:
+            page_object.parent_id = 0
+            page_object.ancestors = '0'
         try:
-            await DeptDao.add_dept_dao(query_db, page_object)
+            db_dept = await DeptDao.add_dept_dao(query_db, page_object)
+            # 顶级部门租户=自身ID(=新租户)，子部门继承父部门租户
+            db_dept.tenant_id = db_dept.dept_id if page_object.parent_id == 0 else parent_tenant_id
+            await query_db.flush()
             await query_db.commit()
             return CrudResponseModel(is_success=True, message='新增成功')
         except Exception as e:

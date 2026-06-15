@@ -3,7 +3,7 @@ from datetime import datetime
 from sqlalchemy import Float, Integer, SmallInteger, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from config.database import Base
+from config.database import Base, TenantMixin
 
 
 class TaskTemplate(Base):
@@ -40,7 +40,7 @@ class TaskTemplate(Base):
     remark: Mapped[str | None] = mapped_column(String(500), nullable=True, server_default="''", comment='备注')
 
 
-class Task(Base):
+class Task(Base, TenantMixin):
     """
     任务表
     """
@@ -85,7 +85,7 @@ class Task(Base):
     remark: Mapped[str | None] = mapped_column(String(500), nullable=True, server_default="''", comment='备注')
 
 
-class TaskInstance(Base):
+class TaskInstance(Base, TenantMixin):
     """
     任务实例表
     """
@@ -108,7 +108,7 @@ class TaskInstance(Base):
     result: Mapped[str | None] = mapped_column(Text, nullable=True, comment='执行结果')
 
 
-class TaskLog(Base):
+class TaskLog(Base, TenantMixin):
     """
     任务执行日志表（task_log_type=db 时使用）
     """

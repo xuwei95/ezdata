@@ -2,10 +2,10 @@ from datetime import datetime
 
 from sqlalchemy import CHAR, BigInteger, Column, DateTime, String
 
-from config.database import Base
+from config.database import Base, TenantMixin
 
 
-class SysJob(Base):
+class SysJob(Base, TenantMixin):
     """
     定时任务调度表
     """

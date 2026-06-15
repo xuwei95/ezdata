@@ -2,12 +2,12 @@ from datetime import datetime
 
 from sqlalchemy import CHAR, BigInteger, Column, DateTime, String
 
-from config.database import Base
+from config.database import Base, TenantMixin
 from config.env import DataBaseConfig
 from utils.common_util import SqlalchemyUtil
 
 
-class SysUser(Base):
+class SysUser(Base, TenantMixin):
     """
     用户信息表
     """

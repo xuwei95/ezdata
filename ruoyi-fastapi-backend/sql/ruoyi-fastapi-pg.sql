@@ -1360,3 +1360,35 @@ insert into sys_menu values(2213, '策略删除', 2201, '4', '#', '', '', '', 1,
 insert into sys_menu values(2220, '记录查询', 2202, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'alert:record:list',    '#', 'admin', current_timestamp, '', null, '');
 insert into sys_menu values(2221, '记录处理', 2202, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'alert:record:edit',    '#', 'admin', current_timestamp, '', null, '');
 insert into sys_menu values(2222, '记录删除', 2202, '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'alert:record:remove',  '#', 'admin', current_timestamp, '', null, '');
+
+-- ============================================================================
+-- 多租户(行级)：业务/组织表增加 tenant_id 列(值=顶级部门ID)，回填已有种子到默认租户(集团总公司=100)
+-- 租户=顶级部门(sys_dept parent_id=0)。平台超管(admin)绕过过滤可见全部。
+-- 全局共享(不加 tenant_id)：sys_menu/sys_dict_*/sys_config/sys_role/sys_post/task_template/sys_job_log。
+-- ============================================================================
+alter table task           add column tenant_id bigint;
+alter table task_instance  add column tenant_id bigint;
+alter table task_log       add column tenant_id bigint;
+alter table alert_strategy add column tenant_id bigint;
+alter table alert_record   add column tenant_id bigint;
+alter table ai_models      add column tenant_id bigint;
+alter table ai_chat_config add column tenant_id bigint;
+alter table sys_user       add column tenant_id bigint;
+alter table sys_dept       add column tenant_id bigint;
+alter table sys_notice     add column tenant_id bigint;
+alter table sys_job        add column tenant_id bigint;
+create index idx_task_tenant on task(tenant_id);
+create index idx_task_instance_tenant on task_instance(tenant_id);
+create index idx_task_log_tenant on task_log(tenant_id);
+create index idx_alert_strategy_tenant on alert_strategy(tenant_id);
+create index idx_alert_record_tenant on alert_record(tenant_id);
+create index idx_ai_models_tenant on ai_models(tenant_id);
+create index idx_ai_chat_config_tenant on ai_chat_config(tenant_id);
+create index idx_sys_user_tenant on sys_user(tenant_id);
+create index idx_sys_dept_tenant on sys_dept(tenant_id);
+create index idx_sys_notice_tenant on sys_notice(tenant_id);
+create index idx_sys_job_tenant on sys_job(tenant_id);
+update task set tenant_id=100;           update task_instance set tenant_id=100;  update task_log set tenant_id=100;
+update alert_strategy set tenant_id=100; update alert_record set tenant_id=100;
+update ai_models set tenant_id=100;      update ai_chat_config set tenant_id=100;
+update sys_user set tenant_id=100;       update sys_dept set tenant_id=100;       update sys_notice set tenant_id=100;  update sys_job set tenant_id=100;

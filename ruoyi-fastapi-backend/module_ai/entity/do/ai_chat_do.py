@@ -2,10 +2,10 @@ from datetime import datetime
 
 from sqlalchemy import CHAR, BigInteger, Column, DateTime, Float, Integer, Text
 
-from config.database import Base
+from config.database import Base, TenantMixin
 
 
-class AiChatConfig(Base):
+class AiChatConfig(Base, TenantMixin):
     """
     AI对话配置表
     """

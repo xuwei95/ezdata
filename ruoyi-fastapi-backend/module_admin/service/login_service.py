@@ -273,9 +273,31 @@ class LoginService:
             )
             # 设置当前用户信息到上下文
             RequestContext.set_current_user(current_user)
+            # 多租户：平台超管(user_id=1)绕过过滤可见全部；其余用户按其部门的顶级部门作为租户
+            if current_user.user and current_user.user.admin:
+                RequestContext.set_current_tenant_bypass(True)
+            else:
+                RequestContext.set_current_tenant_id(cls._resolve_tenant_id(current_user))
             return current_user
         logger.warning('用户token已失效，请重新登录')
         raise AuthException(data='', message='用户token已失效，请重新登录')
+
+    @staticmethod
+    def _resolve_tenant_id(current_user: CurrentUserModel) -> int | None:
+        """解析用户所属租户ID = 其部门向上追溯到的顶级部门(parent_id=0)。
+
+        dept.ancestors 形如 '0,100,101'，第一个非0祖先即顶级部门；
+        若部门本身即顶级(ancestors='0')则取部门自身ID。
+        """
+        user = current_user.user
+        if not user or not user.dept or not user.dept.dept_id:
+            return None
+        ancestors = str(user.dept.ancestors or '').split(',')
+        for a in ancestors:
+            a = a.strip()
+            if a and a != '0':
+                return int(a)
+        return user.dept.dept_id
 
     @classmethod
     async def __init_password_is_modify(cls, request: Request, pwd_update_date: datetime) -> bool:
