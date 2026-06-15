@@ -14,6 +14,7 @@
 
 import os
 import threading
+import time
 from datetime import datetime
 from typing import Any
 
@@ -24,6 +25,8 @@ from module_task_schedule.sync_db import get_sync_session_local
 
 # 批量后端(db/es)的默认批大小
 _BATCH_SIZE = 50
+# 批量后端的最大缓冲时长(秒)：即使未达批大小，超过该时长也刷盘，保证 UI 近实时可见
+_FLUSH_INTERVAL = 2.0
 
 
 def is_task_log_viewable() -> bool:
@@ -50,9 +53,11 @@ class BaseTaskLogWriter:
 class DbTaskLogWriter(BaseTaskLogWriter):
     """数据库后端：批量写入 task_log 表(兼容 MySQL/PostgreSQL)"""
 
-    def __init__(self, batch_size: int = _BATCH_SIZE) -> None:
+    def __init__(self, batch_size: int = _BATCH_SIZE, flush_interval: float = _FLUSH_INTERVAL) -> None:
         self._buffer: list[dict[str, Any]] = []
         self._batch_size = max(1, batch_size)
+        self._flush_interval = flush_interval
+        self._last_flush = time.monotonic()
         self._lock = threading.Lock()
 
     def write(self, task_uuid: str, level: str, message: str, log_time: datetime) -> None:
@@ -65,12 +70,16 @@ class DbTaskLogWriter(BaseTaskLogWriter):
                     'create_time': log_time,
                 }
             )
-            need_flush = len(self._buffer) >= self._batch_size
+            # 达到批大小，或距上次刷盘超过 flush_interval，则刷盘(保证近实时可见)
+            need_flush = len(self._buffer) >= self._batch_size or (
+                time.monotonic() - self._last_flush >= self._flush_interval
+            )
         if need_flush:
             self.flush()
 
     def flush(self) -> None:
         with self._lock:
+            self._last_flush = time.monotonic()
             if not self._buffer:
                 return
             rows = self._buffer
@@ -111,9 +120,14 @@ class FileTaskLogWriter(BaseTaskLogWriter):
 class EsTaskLogWriter(BaseTaskLogWriter):
     """Elasticsearch 后端：批量写入索引(按 task_uuid 查询)"""
 
-    def __init__(self, hosts: str, index: str, user: str = '', password: str = '', batch_size: int = _BATCH_SIZE) -> None:
+    def __init__(
+        self, hosts: str, index: str, user: str = '', password: str = '',
+        batch_size: int = _BATCH_SIZE, flush_interval: float = _FLUSH_INTERVAL,
+    ) -> None:
         self._index = index
         self._batch_size = max(1, batch_size)
+        self._flush_interval = flush_interval
+        self._last_flush = time.monotonic()
         self._buffer: list[dict[str, Any]] = []
         self._lock = threading.Lock()
         from elasticsearch import Elasticsearch  # 延迟导入，未启用 es 时无需安装依赖
@@ -133,12 +147,15 @@ class EsTaskLogWriter(BaseTaskLogWriter):
                     '@timestamp': log_time.isoformat(),
                 }
             )
-            need_flush = len(self._buffer) >= self._batch_size
+            need_flush = len(self._buffer) >= self._batch_size or (
+                time.monotonic() - self._last_flush >= self._flush_interval
+            )
         if need_flush:
             self.flush()
 
     def flush(self) -> None:
         with self._lock:
+            self._last_flush = time.monotonic()
             if not self._buffer:
                 return
             rows = self._buffer
