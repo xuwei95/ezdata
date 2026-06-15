@@ -553,9 +553,30 @@ function handleStatusChange(row) {
 function handleRun(row) {
   proxy.$modal.confirm('确认要立即执行一次"' + row.name + '"任务吗?').then(function () {
     return runTask(row.id)
-  }).then(() => {
+  }).then((res) => {
     proxy.$modal.msgSuccess('已触发执行')
+    // 立即弹出该执行实例的日志窗口并开启自动刷新, 实时查看执行输出
+    const iid = res && res.data && res.data.instanceId
+    if (iid) openInstanceLog(iid)
   }).catch(() => {})
+}
+
+// 打开指定执行实例的日志弹窗, 并默认开启自动刷新(实时滚动)
+function openInstanceLog(instanceId) {
+  logQuery.taskUuid = instanceId
+  logQuery.pageNum = 1
+  logLines.value = []
+  logOpen.value = true
+  getTaskLogViewable().then(response => {
+    logViewable.value = response.data
+    if (logViewable.value) {
+      getLogList()
+      if (!logAutoRefresh.value) {
+        logAutoRefresh.value = true
+        toggleLogAuto(true)
+      }
+    }
+  })
 }
 
 function handleDelete(row) {
