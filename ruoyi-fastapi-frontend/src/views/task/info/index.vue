@@ -193,7 +193,7 @@
           <el-switch v-model="logAutoRefresh" active-text="自动刷新(3s)" @change="toggleLogAuto" />
           <el-button size="small" icon="Refresh" :loading="logLoading" @click="getLogList">刷新</el-button>
         </div>
-        <div v-loading="logLoading" class="log-console">
+        <div ref="logConsoleRef" v-loading="logLoading" class="log-console">
         <div v-for="(line, idx) in logLines" :key="idx" :class="['log-line', 'lvl-' + (line.level || 'INFO')]">
           <span class="log-time">{{ line.createTime }}</span>
           <span class="log-level">{{ line.level }}</span>
@@ -201,8 +201,8 @@
         </div>
         <el-empty v-if="!logLoading && !logLines.length" description="暂无日志" :image-size="60" />
         </div>
+        <div class="log-tip">仅展示最近 {{ logQuery.pageSize }} 条日志</div>
       </template>
-      <pagination v-show="logViewable && logTotal > 0" :total="logTotal" v-model:page="logQuery.pageNum" v-model:limit="logQuery.pageSize" @pagination="getLogList" />
     </el-dialog>
   </div>
 </template>
@@ -266,7 +266,8 @@ const logLoading = ref(false)
 const logViewable = ref(true)
 const logLines = ref([])
 const logTotal = ref(0)
-const logQuery = reactive({ taskUuid: undefined, pageNum: 1, pageSize: 50 })
+const logQuery = reactive({ taskUuid: undefined, pageNum: 1, pageSize: 100 })
+const logConsoleRef = ref(null)
 // 日志自动刷新
 const logAutoRefresh = ref(false)
 let logTimer = null
@@ -347,6 +348,11 @@ function getLogList() {
     logLines.value = response.rows
     logTotal.value = response.total
     logLoading.value = false
+    // 滚动到底部展示最新日志(控制台式)
+    nextTick(() => {
+      const el = logConsoleRef.value
+      if (el) el.scrollTop = el.scrollHeight
+    })
   }).catch(() => {
     logLoading.value = false
   })
@@ -579,6 +585,18 @@ getList()
   font-size: 12px;
   color: #909399;
   line-height: 1.5;
+}
+.log-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.log-tip {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #909399;
+  text-align: right;
 }
 .log-console {
   max-height: 480px;
