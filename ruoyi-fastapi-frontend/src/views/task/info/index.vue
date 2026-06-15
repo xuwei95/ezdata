@@ -191,9 +191,9 @@
       <template v-else>
         <div class="log-toolbar">
           <el-switch v-model="logAutoRefresh" active-text="自动刷新(3s)" @change="toggleLogAuto" />
-          <el-button size="small" icon="Refresh" :loading="logLoading" @click="getLogList">刷新</el-button>
+          <el-button size="small" icon="Refresh" @click="getLogList">刷新</el-button>
         </div>
-        <div ref="logConsoleRef" v-loading="logLoading" class="log-console">
+        <div ref="logConsoleRef" class="log-console">
         <div v-for="(line, idx) in logLines" :key="idx" :class="['log-line', 'lvl-' + (line.level || 'INFO')]">
           <span class="log-time">{{ line.createTime }}</span>
           <span class="log-level">{{ line.level }}</span>
