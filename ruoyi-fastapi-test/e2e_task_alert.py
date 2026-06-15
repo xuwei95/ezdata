@@ -479,31 +479,32 @@ class Runner:
             'strategyName': sname, 'biz': 'scheduler', 'status': 1,
             'triggerConf': json.dumps({'level': 2}), 'forwardConf': json.dumps(forward),
         })
+        # 取刚建策略id
+        strat_rows = api(self.backend, self.token, 'GET', '/alert/strategy/list?pageNum=1&pageSize=100').get('rows', [])
+        sid = next((s.get('strategyId') for s in strat_rows if s.get('strategyName') == sname), None)
         try:
+            # 4.1 经 API 创建绑定告警策略的失败任务(PythonTask 已改为内置组件/Monaco，UI 录入代码脆弱，故走 API 确定性创建)
+            fail_params = json.dumps({'run_type': 'code', 'code': 'def run(params, logger):\n    raise RuntimeError("e2e boom")'})
+            api(self.backend, self.token, 'POST', '/task/info', {
+                'name': name, 'templateCode': 'PythonTask', 'taskType': 1, 'triggerType': 1,
+                'status': 0, 'params': fail_params, 'runQueue': 'default', 'retry': 0,
+                'alertStrategyIds': str(sid) if sid else '',
+            })
+            time.sleep(1)
+            lst = api(self.backend, self.token, 'GET', '/task/info/list?pageNum=1&pageSize=100')
+            tid = next((r['id'] for r in lst.get('rows', []) if r.get('name') == name), None)
+            self.record('4.1 创建失败任务并绑定告警策略', bool(tid and sid), f'tid={tid} sid={sid}')
+            # 列表可见并截图
             b.goto_ready(self.front + '/task/info', '任务名称')
-            b.click_text('新增')
-            assert b.wait_text('任务模板', 8)
-            b.fill_label('任务名称', name)
-            assert b.select_option('任务模板', 'PythonTask'), '选择模板失败'
-            time.sleep(1.5)
-            # 用失败代码覆盖默认代码
-            b.fill_placeholder('需定义 run(params, logger) 函数',
-                               'def run(params, logger):\n    raise RuntimeError("e2e boom")')
-            # 绑定告警策略(失败告警多选)
-            assert b.select_option('失败告警', sname), '绑定告警策略失败'
-            time.sleep(0.5)
-            b.click_dialog_button('确 定')
-            self.record('4.1 创建失败任务并绑定告警策略', b.wait_text('新增成功', 10))
-            self.shot('e2e-05-alert-task')
-
-            # 执行(会失败 -> 触发告警)
             b.fill_placeholder('请输入任务名称', name)
             b.click_text('搜索')
             time.sleep(1.5)
-            b.click_row('执行')
-            time.sleep(0.8)
-            b.click_text('确定')
-            b.wait_text('已触发执行', 10)
+            self.shot('e2e-05-alert-task')
+
+            # 执行(会失败 -> 触发告警)；UI 点“执行”，失败兜底走 API
+            if not (b.click_row('执行') and (time.sleep(0.8) or True) and b.click_text('确定') and b.wait_text('已触发执行', 8)):
+                if tid:
+                    api(self.backend, self.token, 'PUT', f'/task/info/run/{tid}')
             print('  等待告警生成(最多 40s)...')
 
             # 校验告警记录(UI: 告警记录页)
