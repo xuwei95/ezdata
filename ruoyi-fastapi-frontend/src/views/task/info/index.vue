@@ -188,14 +188,20 @@
     <!-- 执行明细日志 -->
     <el-dialog title="执行明细日志" v-model="logOpen" width="900px" append-to-body destroy-on-close>
       <el-alert v-if="!logViewable" title="当前任务执行日志后端不支持在线查看(file模式)，请查看日志文件" type="warning" :closable="false" show-icon />
-      <div v-else v-loading="logLoading" class="log-console">
+      <template v-else>
+        <div class="log-toolbar">
+          <el-switch v-model="logAutoRefresh" active-text="自动刷新(3s)" @change="toggleLogAuto" />
+          <el-button size="small" icon="Refresh" :loading="logLoading" @click="getLogList">刷新</el-button>
+        </div>
+        <div v-loading="logLoading" class="log-console">
         <div v-for="(line, idx) in logLines" :key="idx" :class="['log-line', 'lvl-' + (line.level || 'INFO')]">
           <span class="log-time">{{ line.createTime }}</span>
           <span class="log-level">{{ line.level }}</span>
           <span class="log-content">{{ line.content }}</span>
         </div>
         <el-empty v-if="!logLoading && !logLines.length" description="暂无日志" :image-size="60" />
-      </div>
+        </div>
+      </template>
       <pagination v-show="logViewable && logTotal > 0" :total="logTotal" v-model:page="logQuery.pageNum" v-model:limit="logQuery.pageSize" @pagination="getLogList" />
     </el-dialog>
   </div>
@@ -261,6 +267,29 @@ const logViewable = ref(true)
 const logLines = ref([])
 const logTotal = ref(0)
 const logQuery = reactive({ taskUuid: undefined, pageNum: 1, pageSize: 50 })
+// 日志自动刷新
+const logAutoRefresh = ref(false)
+let logTimer = null
+function toggleLogAuto(val) {
+  if (val) {
+    logTimer = setInterval(getLogList, 3000)
+  } else if (logTimer) {
+    clearInterval(logTimer)
+    logTimer = null
+  }
+}
+function stopLogAuto() {
+  logAutoRefresh.value = false
+  if (logTimer) {
+    clearInterval(logTimer)
+    logTimer = null
+  }
+}
+// 关闭日志对话框/卸载组件时停止自动刷新
+watch(logOpen, val => {
+  if (!val) stopLogAuto()
+})
+onBeforeUnmount(stopLogAuto)
 
 function statusTagType(status) {
   if (status === 'SUCCESS') return 'success'
