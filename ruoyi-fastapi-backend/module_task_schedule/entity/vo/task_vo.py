@@ -190,6 +190,9 @@ class TaskLogModel(BaseModel):
     level: str | None = Field(default=None, description='日志级别')
     content: str | None = Field(default=None, description='日志内容')
     create_time: datetime | None = Field(default=None, description='创建时间')
+    cursor: str | None = Field(
+        default=None, description='增量游标(随行返回):前端回传最后一行的cursor以拉取更新的日志。db后端=日志id,es后端=时间戳'
+    )
 
 
 class TaskLogQueryModel(BaseModel):
@@ -202,3 +205,8 @@ class TaskLogQueryModel(BaseModel):
     task_uuid: str = Field(description='任务实例ID')
     page_num: int = Field(default=1, description='当前页码')
     page_size: int = Field(default=20, description='每页记录数')
+    after: str | None = Field(
+        default=None,
+        description='增量游标:不为空时仅返回该游标之后的新日志(正序),用于控制台持续追加。'
+        'db后端为日志id,es后端为时间戳;由上一次返回行的cursor回传,后端无关',
+    )

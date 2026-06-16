@@ -33,5 +33,9 @@ class ShellRunner(BaseRunner):
             command = self.params.get('code') or self.params.get('command')
             if not command:
                 raise ValueError('ShellTask 缺少参数 code')
+            # 前端 Monaco 编辑器在 Windows 上保存的脚本带 CRLF；worker 的 /bin/sh 为 dash，
+            # 行尾的 \r 会粘到关键字上(如 do\r != do)导致「Syntax error: word unexpected」退出码2。
+            # 统一规整为 LF，保证多行 Shell 脚本可正确执行。
+            command = command.replace('\r\n', '\n').replace('\r', '\n')
 
         return stream_subprocess(command, self.logger, timeout)

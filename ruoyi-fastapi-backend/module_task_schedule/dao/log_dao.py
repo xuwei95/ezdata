@@ -25,6 +25,30 @@ class TaskLogDao:
         日志为持续追加，查看时只关心最新若干条：先按 id 倒序取最近 N 条，再反转为正序展示。
         """
         cond = TaskLog.task_uuid == query_object.task_uuid if query_object.task_uuid else True
+        # 增量模式:after 不为 None 时仅返回 id 大于游标的新日志(按 id 正序),供控制台持续追加。
+        # after='0'/'' 表示从头追加(首次实例尚无日志时);单次上限 2000,下一轮按新游标续拉,不会丢日志。
+        if query_object.after is not None:
+            after_id = int(query_object.after) if str(query_object.after).strip() else 0
+            new_rows = (
+                (
+                    await db.execute(
+                        select(TaskLog)
+                        .where(cond, TaskLog.id > after_id)
+                        .order_by(TaskLog.id.asc())
+                        .limit(2000)
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            return PageModel(
+                rows=cls._with_cursor(CamelCaseUtil.transform_result(new_rows)),
+                pageNum=1,
+                pageSize=len(new_rows),
+                total=len(new_rows),
+                hasNext=False,
+            )
+        # 首次/重置:取最近 N 条(按 id 倒序取后反转为正序),N 由 page_size 指定。
         limit = query_object.page_size or 100
         total = (await db.execute(select(func.count()).select_from(TaskLog).where(cond))).scalar() or 0
         latest = (
@@ -34,12 +58,19 @@ class TaskLogDao:
         )
         rows = list(reversed(latest))  # 反转为时间正序(老->新)，便于控制台式滚动到底部
         return PageModel(
-            rows=CamelCaseUtil.transform_result(rows),
+            rows=cls._with_cursor(CamelCaseUtil.transform_result(rows)),
             pageNum=1,
             pageSize=limit,
             total=total,
             hasNext=False,
         )
+
+    @staticmethod
+    def _with_cursor(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """为每行注入增量游标 cursor=str(id),前端回传最后一行的 cursor 即可拉取更新的日志"""
+        for row in rows:
+            row['cursor'] = str(row.get('id')) if row.get('id') is not None else None
+        return rows
 
     @classmethod
     async def delete_task_log_by_uuid(cls, db: AsyncSession, task_uuids: list[str]) -> None:

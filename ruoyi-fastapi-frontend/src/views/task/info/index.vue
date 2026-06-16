@@ -192,6 +192,10 @@
         <div class="log-toolbar">
           <el-switch v-model="logAutoRefresh" active-text="自动刷新(3s)" @change="toggleLogAuto" />
           <el-button size="small" icon="Refresh" @click="getLogList">刷新</el-button>
+          <span class="log-count-label">初始加载</span>
+          <el-input-number v-model="logLimit" :min="10" :max="2000" :step="50" size="small"
+            controls-position="right" style="width: 110px" @change="reloadLog" />
+          <span class="log-count-label">条 (新日志自动追加)</span>
         </div>
         <div ref="logConsoleRef" class="log-console">
         <div v-for="(line, idx) in logLines" :key="idx" :class="['log-line', 'lvl-' + (line.level || 'INFO')]">
@@ -201,7 +205,7 @@
         </div>
         <el-empty v-if="!logLoading && !logLines.length" description="暂无日志" :image-size="60" />
         </div>
-        <div class="log-tip">仅展示最近 {{ logQuery.pageSize }} 条日志</div>
+        <div class="log-tip">已展示 {{ logLines.length }} 条日志，新日志将持续追加在末尾</div>
       </template>
     </el-dialog>
   </div>
@@ -265,9 +269,12 @@ const logOpen = ref(false)
 const logLoading = ref(false)
 const logViewable = ref(true)
 const logLines = ref([])
-const logTotal = ref(0)
 const logQuery = reactive({ taskUuid: undefined, pageNum: 1, pageSize: 100 })
 const logConsoleRef = ref(null)
+// 初始加载/重置时拉取最近 N 条(可调,默认100)
+const logLimit = ref(100)
+// 增量游标(对前端透明的字符串,db后端=日志id/es后端=时间戳):刷新时只拉该游标之后的新日志并追加
+const logCursor = ref('')
 // 日志自动刷新
 const logAutoRefresh = ref(false)
 let logTimer = null
@@ -334,27 +341,53 @@ function delRecord(row) {
 
 function viewLog(row) {
   logQuery.taskUuid = row.id
-  logQuery.pageNum = 1
   logOpen.value = true
   getTaskLogViewable().then(response => {
     logViewable.value = response.data
-    if (logViewable.value) getLogList()
+    if (logViewable.value) reloadLog()
   })
 }
 
-function getLogList() {
+// 重新加载:取最近 logLimit 条替换(打开日志/修改条数时调用)
+function reloadLog() {
+  if (!logQuery.taskUuid) return
+  logLines.value = []
+  logCursor.value = ''
   logLoading.value = true
-  listTaskLog(logQuery).then(response => {
-    logLines.value = response.rows
-    logTotal.value = response.total
+  listTaskLog({ taskUuid: logQuery.taskUuid, pageSize: logLimit.value }).then(response => {
+    logLines.value = response.rows || []
+    updateLogCursor()
     logLoading.value = false
-    // 滚动到底部展示最新日志(控制台式)
-    nextTick(() => {
-      const el = logConsoleRef.value
-      if (el) el.scrollTop = el.scrollHeight
-    })
+    scrollLogToBottom()
   }).catch(() => {
     logLoading.value = false
+  })
+}
+
+// 增量刷新:只拉取 id 大于游标的新日志并追加,老日志保留(自动刷新/手动刷新调用)
+function getLogList() {
+  if (!logQuery.taskUuid) return
+  listTaskLog({ taskUuid: logQuery.taskUuid, after: logCursor.value }).then(response => {
+    const rows = response.rows || []
+    if (rows.length) {
+      logLines.value.push(...rows)
+      updateLogCursor()
+      scrollLogToBottom()
+    }
+  }).catch(() => {})
+}
+
+// 用当前日志末尾行的 cursor 更新增量游标(后端无关:db=id/es=时间戳)
+function updateLogCursor() {
+  const rows = logLines.value
+  const last = rows.length ? rows[rows.length - 1] : null
+  if (last && last.cursor != null) logCursor.value = last.cursor
+}
+
+function scrollLogToBottom() {
+  nextTick(() => {
+    const el = logConsoleRef.value
+    if (el) el.scrollTop = el.scrollHeight
   })
 }
 
@@ -564,13 +597,12 @@ function handleRun(row) {
 // 打开指定执行实例的日志弹窗, 并默认开启自动刷新(实时滚动)
 function openInstanceLog(instanceId) {
   logQuery.taskUuid = instanceId
-  logQuery.pageNum = 1
   logLines.value = []
   logOpen.value = true
   getTaskLogViewable().then(response => {
     logViewable.value = response.data
     if (logViewable.value) {
-      getLogList()
+      reloadLog()
       if (!logAutoRefresh.value) {
         logAutoRefresh.value = true
         toggleLogAuto(true)
@@ -613,6 +645,10 @@ getList()
   gap: 12px;
   margin-bottom: 8px;
 }
+.log-count-label {
+  font-size: 12px;
+  color: #909399;
+}
 .log-tip {
   margin-top: 6px;
   font-size: 12px;
@@ -620,7 +656,7 @@ getList()
   text-align: right;
 }
 .log-console {
-  max-height: 480px;
+  height: 480px;
   overflow-y: auto;
   background: #1e1e1e;
   color: #d4d4d4;

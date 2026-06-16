@@ -33,4 +33,12 @@ class TaskLogService:
             )
         if not query_object.task_uuid:
             raise ServiceException(message='缺少实例ID')
+        # 读取后端与写入后端(TaskLogConfig.task_log_type)对齐:es 走 ES 读取层,其余走 db。
+        # ES 客户端为同步阻塞,放入线程池执行避免阻塞事件循环(轮询每 3s 调用)。
+        if TaskLogConfig.task_log_type == 'es':
+            from fastapi.concurrency import run_in_threadpool
+
+            from module_task_schedule.dao.es_log_dao import EsTaskLogDao
+
+            return await run_in_threadpool(EsTaskLogDao.get_task_log_list, query_object)
         return await TaskLogDao.get_task_log_list(query_db, query_object, is_page)
