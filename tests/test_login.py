@@ -17,7 +17,7 @@ async def test_login_page_loads() -> None:
 
         # 检查页面标题或特定元素是否存在
         title = await page.title()
-        assert 'vfadmin' in title
+        assert 'ezdata' in title
 
         # 检查登录表单元素是否存在
         username_input = await page.query_selector('input[placeholder="账号"]')
@@ -41,7 +41,7 @@ async def test_captcha_generation() -> None:
 
         # 在测试环境中验证码已禁用，但仍应能访问登录页面
         title = await page.title()
-        assert 'vfadmin' in title
+        assert 'ezdata' in title
 
         await browser.close()
 
