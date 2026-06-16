@@ -1,0 +1,6 @@
+# 可选对象存储后端依赖：仅在使用对应 STORAGE_TYPE 时按需安装
+# s3 / oci-storage 使用 boto3（已在 requirements.txt 中，无需额外安装）
+oss2                  # aliyun-oss（阿里云 OSS）
+azure-storage-blob    # azure-blob（Azure Blob）
+google-cloud-storage  # google-storage（Google Cloud Storage）
+cos-python-sdk-v5     # tencent-cos（腾讯云 COS）

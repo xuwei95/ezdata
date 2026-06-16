@@ -259,16 +259,28 @@ class CachePathConfig:
 
 class StorageSettings(BaseSettings):
     """
-    存储配置（本地磁盘 / S3 兼容对象存储，如 MinIO）
+    存储配置（本地磁盘 / 各类对象存储）
 
     storage_type:
-        local - 本地磁盘（默认，与 /profile 静态服务、UPLOAD_PATH 对齐，行为同模板原状）
-        s3    - S3 兼容对象存储（AWS S3 / MinIO 等，MinIO 走 S3 协议，address_style 用 path）
+        local         - 本地磁盘（默认，与 /profile 静态服务、UPLOAD_PATH 对齐，行为同模板原状）
+        s3            - S3 兼容对象存储（AWS S3 / MinIO 等，MinIO 走 S3 协议，address_style 用 path）
+        oci-storage   - Oracle OCI（S3 兼容，依赖 boto3）
+        aliyun-oss    - 阿里云 OSS（依赖 oss2）
+        azure-blob    - Azure Blob（依赖 azure-storage-blob）
+        google-storage- Google Cloud Storage（依赖 google-cloud-storage）
+        tencent-cos   - 腾讯云 COS（依赖 cos-python-sdk-v5）
+
+    云后端 SDK 见 requirements-storage.txt，仅在选用对应 storage_type 时才需安装。
     """
 
-    storage_type: Literal['local', 's3'] = 'local'
+    storage_type: Literal['local', 's3', 'oci-storage', 'aliyun-oss', 'azure-blob', 'google-storage', 'tencent-cos'] = (
+        'local'
+    )
     storage_local_path: str = 'vf_admin/upload_path'
+    # 浏览器可达的下载地址前缀；设置后所有后端的下载 URL 均以它为基准
     storage_public_endpoint: str = ''
+
+    # ---- S3 / MinIO ----
     s3_endpoint: str = ''
     s3_bucket_name: str = 'ezdata'
     s3_access_key: str = ''
@@ -276,6 +288,38 @@ class StorageSettings(BaseSettings):
     s3_region: str = ''
     s3_address_style: str = 'path'
     s3_use_aws_managed_iam: bool = False
+
+    # ---- Oracle OCI（S3 兼容）----
+    oci_endpoint: str = ''
+    oci_bucket_name: str = ''
+    oci_access_key: str = ''
+    oci_secret_key: str = ''
+    oci_region: str = ''
+
+    # ---- 阿里云 OSS ----
+    aliyun_oss_endpoint: str = ''
+    aliyun_oss_bucket_name: str = ''
+    aliyun_oss_access_key: str = ''
+    aliyun_oss_secret_key: str = ''
+    aliyun_oss_region: str = ''
+    aliyun_oss_auth_version: str = 'v4'
+
+    # ---- Azure Blob ----
+    azure_blob_account_url: str = ''
+    azure_blob_container_name: str = ''
+    azure_blob_account_name: str = ''
+    azure_blob_account_key: str = ''
+
+    # ---- Google Cloud Storage ----
+    google_storage_bucket_name: str = ''
+    google_storage_service_account_json_base64: str = ''
+
+    # ---- 腾讯云 COS ----
+    tencent_cos_bucket_name: str = ''
+    tencent_cos_region: str = ''
+    tencent_cos_secret_id: str = ''
+    tencent_cos_secret_key: str = ''
+    tencent_cos_scheme: str = 'https'
 
 
 class GetConfig:
