@@ -155,4 +155,4 @@ cython_debug/
 docker-compose.override.yml
 # 测试截图(不纳入版本库)
 _shots/
-ruoyi-fastapi-test/_e2e_shots/
+tests/_e2e_shots/

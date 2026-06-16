@@ -24,10 +24,10 @@ jobs:
 
       - name: Run linting
         run: |
-          ruff check ruoyi-fastapi-backend
-          ruff check ruoyi-fastapi-test
+          ruff check api
+          ruff check tests
 
       - name: Run format check
         run: |
-          ruff format ruoyi-fastapi-backend --check
-          ruff format ruoyi-fastapi-test --check
+          ruff format api --check
+          ruff format tests --check

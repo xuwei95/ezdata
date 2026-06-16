@@ -55,25 +55,21 @@ echo "  模式         : $([ "$APPLY" = 1 ] && echo '写入 (--apply)' || echo '
 echo "================================================================"
 
 echo ""; echo "【1】后端 .env（APP_NAME / DB_DATABASE / LOG_SERVICE_NAME）"
-for f in ruoyi-fastapi-backend/.env.dev ruoyi-fastapi-backend/.env.prod \
-         ruoyi-fastapi-backend/.env.dockermy ruoyi-fastapi-backend/.env.dockerpg; do
+for f in api/.env.dev api/.env.prod \
+         api/.env.dockermy api/.env.dockerpg; do
   edit "$f" "s/^APP_NAME = [^\r\n]*/APP_NAME = '$TITLE'/; s/^DB_DATABASE = [^\r\n]*/DB_DATABASE = '$DB'/; s/^LOG_SERVICE_NAME = [^\r\n]*/LOG_SERVICE_NAME = '$PROJECT-backend'/"
 done
 
 echo ""; echo "【2】后端 config/env.py（app_name 默认值）"
-edit ruoyi-fastapi-backend/config/env.py "s/app_name: str = '[^']*'/app_name: str = '$TITLE'/"
+edit api/config/env.py "s/app_name: str = '[^']*'/app_name: str = '$TITLE'/"
 
 echo ""; echo "【3】前端 .env.*（VITE_APP_TITLE 浏览器/侧边栏标题）"
-for f in ruoyi-fastapi-frontend/.env.development ruoyi-fastapi-frontend/.env.docker \
-         ruoyi-fastapi-frontend/.env.production ruoyi-fastapi-frontend/.env.staging; do
+for f in web/.env.development web/.env.docker \
+         web/.env.production web/.env.staging; do
   edit "$f" "s/^VITE_APP_TITLE = [^\r\n]*/VITE_APP_TITLE = $TITLE/"
 done
 
-echo ""; echo "【4】App（manifest 应用名 / package.json 包名）"
-edit ruoyi-fastapi-app/src/manifest.json "s/\"name\": \"RuoYi-FastAPI移动端\"/\"name\": \"$TITLE\"/"
-edit ruoyi-fastapi-app/package.json       "s/\"name\": \"ruoyi-fastapi-app\"/\"name\": \"$PROJECT-app\"/"
-
-echo ""; echo "【5】docker-compose 库名（与 DB_DATABASE 对齐，保留行尾注释）"
+echo ""; echo "【4】docker-compose 库名（与 DB_DATABASE 对齐，保留行尾注释）"
 edit docker-compose.dev.yml "s/MYSQL_DATABASE: ruoyi-fastapi/MYSQL_DATABASE: $DB/"
 edit docker-compose.my.yml  "s/MYSQL_DATABASE: ruoyi-fastapi/MYSQL_DATABASE: $DB/"
 edit docker-compose.pg.yml  "s/POSTGRES_DB: ruoyi-fastapi/POSTGRES_DB: $DB/"
