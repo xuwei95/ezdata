@@ -1,3 +1,4 @@
+import os
 import re
 
 from playwright.async_api._context_manager import PlaywrightContextManager
@@ -18,8 +19,9 @@ class BasePageTest:
         self.token = helper.login(username='admin', password='admin123')
         assert self.token is not None, '登录应该成功'
 
-        # 启动浏览器
-        self.browser = await playwright.chromium.launch(headless=True)
+        # 启动浏览器（TEST_HEADLESS=0 时使用可见的真实浏览器）
+        headless = os.getenv('TEST_HEADLESS', '1') != '0'
+        self.browser = await playwright.chromium.launch(headless=headless)
         self.context = await self.browser.new_context()
         # 设置认证token
         await self.context.add_cookies(
