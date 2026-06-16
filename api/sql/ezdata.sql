@@ -978,7 +978,7 @@ create table alert_record (
 
 -- 内置示例告警策略(webhook 到本地占位地址；level=2 错误)
 insert into alert_strategy (strategy_id, strategy_name, biz, trigger_conf, forward_conf, status, create_by, create_time, remark)
-values (1, '默认任务失败告警', 'scheduler', '{"level":2}', '[{"type":"webhook","webhook_url":"http://ruoyi-backend-dev:9099/dev-api/alert/test-sink"}]', 1, 'admin', sysdate(), '任务重试耗尽失败时通过 webhook 通知');
+values (1, '默认任务失败告警', 'scheduler', '{"level":2}', '[{"type":"webhook","webhook_url":"http://ezdata-backend-dev:9099/dev-api/alert/test-sink"}]', 1, 'admin', sysdate(), '任务重试耗尽失败时通过 webhook 通知');
 
 -- 任务表增加告警策略绑定字段
 alter table task add column alert_strategy_ids varchar(500) default '' comment '绑定的告警策略ID(逗号分隔)';

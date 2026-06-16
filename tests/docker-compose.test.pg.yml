@@ -46,7 +46,7 @@ services:
     ports:
       - "15433:5432"
     volumes:
-      - ../api/sql/ruoyi-fastapi-pg.sql:/docker-entrypoint-initdb.d/01-ruoyi-fastapi-pg.sql
+      - ../api/sql/ezdata-pg.sql:/docker-entrypoint-initdb.d/01-ezdata-pg.sql
       - ./disable_captcha.sql:/docker-entrypoint-initdb.d/02-disable-captcha.sql
     networks:
       - ruoyi-network-test

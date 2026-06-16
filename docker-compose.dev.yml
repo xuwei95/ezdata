@@ -20,12 +20,12 @@
 # ============================================================================
 services:
   # ---------------- 后端（dev 热重载） ----------------
-  ruoyi-backend-dev:
+  ezdata-backend-dev:
     build:
       context: ./api
       dockerfile: Dockerfile.dev         # 开发镜像（阿里云源装 Python 依赖；清华源缺部分包）
-    image: ruoyi-backend-dev:latest
-    container_name: ruoyi-backend-dev
+    image: ezdata-backend-dev:latest
+    container_name: ezdata-backend-dev
     working_dir: /app
     # 直接用 uvicorn 以工厂模式 + 热重载启动（不经 ruoyi CLI，uvicorn 必定可用）
     command: >
@@ -41,33 +41,47 @@ services:
     environment:
       - APP_ENV=dev                       # 以 dev 配置运行（.env.dev：APP_RELOAD=true、Swagger 开启）
       # 覆盖 .env.dev 中指向 127.0.0.1 的连接，改为 compose 服务名（load_dotenv 不覆盖已存在的环境变量）
-      - DB_HOST=ruoyi-mysql-dev
+      - DB_HOST=ezdata-mysql-dev
       - DB_PORT=3306
       - DB_PASSWORD=root
-      - REDIS_HOST=ruoyi-redis-dev
+      - REDIS_HOST=ezdata-redis-dev
       - REDIS_PORT=6379
+      # 任务日志 → ES；对象存储 → MinIO（dev compose 内服务名）
+      - TASK_LOG_TYPE=es
+      - TASK_ES_HOSTS=http://ezdata-es-dev:9200
+      - STORAGE_TYPE=s3
+      - S3_ENDPOINT=http://ezdata-minio-dev:9000
+      - STORAGE_PUBLIC_ENDPOINT=http://localhost:9000
+      - S3_BUCKET_NAME=ezdata
+      - S3_ACCESS_KEY=minio
+      - S3_SECRET_KEY=minio123456
+      - S3_ADDRESS_STYLE=path
       # Windows 主机 bind mount 文件事件传不进容器，强制轮询以保证 --reload 生效
       - WATCHFILES_FORCE_POLLING=true
     ports:
       - "9099:9099"                       # 直连后端（Swagger / 调试）
     depends_on:
-      ruoyi-mysql-dev:
+      ezdata-mysql-dev:
         condition: service_healthy
-      ruoyi-redis-dev:
+      ezdata-redis-dev:
         condition: service_healthy
+      ezdata-es-dev:
+        condition: service_started
+      ezdata-minio-dev:
+        condition: service_started
     networks:
-      - ruoyi-dev-network
+      - ezdata-dev-network
     stdin_open: true                      # 支持容器内 breakpoint()/pdb 交互
     tty: true
     restart: "no"
 
   # ---------------- Celery Worker（任务调度执行层） ----------------
-  ruoyi-worker-dev:
+  ezdata-worker-dev:
     build:
       context: ./api
       dockerfile: Dockerfile.dev          # 复用后端镜像（含 celery 依赖）
-    image: ruoyi-backend-dev:latest
-    container_name: ruoyi-worker-dev
+    image: ezdata-backend-dev:latest
+    container_name: ezdata-worker-dev
     working_dir: /app
     # prefork 池：容器为 Linux。--autoscale=MAX,MIN 启用弹性并发(同时支持 pool grow/shrink 与运行时 autoscale 控制命令)
     command: >
@@ -80,46 +94,60 @@ services:
       - /app/__pycache__
     environment:
       - APP_ENV=dev
-      - DB_HOST=ruoyi-mysql-dev
+      - DB_HOST=ezdata-mysql-dev
       - DB_PORT=3306
       - DB_PASSWORD=root
-      - REDIS_HOST=ruoyi-redis-dev
+      - REDIS_HOST=ezdata-redis-dev
       - REDIS_PORT=6379
+      # 任务日志 → ES；对象存储 → MinIO（与后端一致）
+      - TASK_LOG_TYPE=es
+      - TASK_ES_HOSTS=http://ezdata-es-dev:9200
+      - STORAGE_TYPE=s3
+      - S3_ENDPOINT=http://ezdata-minio-dev:9000
+      - STORAGE_PUBLIC_ENDPOINT=http://localhost:9000
+      - S3_BUCKET_NAME=ezdata
+      - S3_ACCESS_KEY=minio
+      - S3_SECRET_KEY=minio123456
+      - S3_ADDRESS_STYLE=path
     depends_on:
-      ruoyi-mysql-dev:
+      ezdata-mysql-dev:
         condition: service_healthy
-      ruoyi-redis-dev:
+      ezdata-redis-dev:
         condition: service_healthy
+      ezdata-es-dev:
+        condition: service_started
+      ezdata-minio-dev:
+        condition: service_started
     networks:
-      - ruoyi-dev-network
+      - ezdata-dev-network
     restart: "no"
 
   # ---------------- 前端（Vite dev server / HMR） ----------------
-  ruoyi-frontend-dev:
+  ezdata-frontend-dev:
     build:
       context: ./web
       dockerfile: Dockerfile.dev          # 仅装 node_modules，跑 vite dev
-    image: ruoyi-frontend-dev:latest
-    container_name: ruoyi-frontend-dev
+    image: ezdata-frontend-dev:latest
+    container_name: ezdata-frontend-dev
     working_dir: /app
     volumes:
       - ./web:/app     # 挂载前端源码：改 .vue/.js 即时 HMR
       - /app/node_modules                 # 用镜像内的 node_modules，避免被宿主目录遮蔽
     environment:
       # vite.config.js 的代理目标读取此变量，docker 内指向后端服务名（容器互通）
-      - VITE_DEV_PROXY_TARGET=http://ruoyi-backend-dev:9099
+      - VITE_DEV_PROXY_TARGET=http://ezdata-backend-dev:9099
     ports:
       - "12580:12580"                     # 宿主与容器端口一致，避免 HMR websocket 端口错配
     depends_on:
-      - ruoyi-backend-dev
+      - ezdata-backend-dev
     networks:
-      - ruoyi-dev-network
+      - ezdata-dev-network
     restart: "no"
 
   # ---------------- MySQL ----------------
-  ruoyi-mysql-dev:
+  ezdata-mysql-dev:
     image: mysql:8.0
-    container_name: ruoyi-mysql-dev
+    container_name: ezdata-mysql-dev
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: ezdata       # 与 .env.dev 的 DB_DATABASE 一致
@@ -127,11 +155,11 @@ services:
       - "13306:3306"
     volumes:
       # 首次启动自动导入初始化 sql（库为空时执行）
-      - ./api/sql/ruoyi-fastapi.sql:/docker-entrypoint-initdb.d/ruoyi-fastapi.sql
-      - ruoyi-mysql-dev-data:/var/lib/mysql
+      - ./api/sql/ezdata.sql:/docker-entrypoint-initdb.d/ezdata.sql
+      - ezdata-mysql-dev-data:/var/lib/mysql
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_general_ci --skip-character-set-client-handshake=1
     networks:
-      - ruoyi-dev-network
+      - ezdata-dev-network
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
       interval: 5s
@@ -139,23 +167,69 @@ services:
       retries: 30
 
   # ---------------- Redis ----------------
-  ruoyi-redis-dev:
+  ezdata-redis-dev:
     image: redis:latest
-    container_name: ruoyi-redis-dev
+    container_name: ezdata-redis-dev
     ports:
       - "16379:6379"
     networks:
-      - ruoyi-dev-network
+      - ezdata-dev-network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 10s
       retries: 30
 
+  # ---------------- Elasticsearch（任务日志，TASK_LOG_TYPE=es） ----------------
+  ezdata-es-dev:
+    image: elasticsearch:7.17.13
+    container_name: ezdata-es-dev
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - ezdata-es-dev-data:/usr/share/elasticsearch/data
+    networks:
+      - ezdata-dev-network
+
+  # ---------------- MinIO（对象存储，STORAGE_TYPE=s3） ----------------
+  ezdata-minio-dev:
+    image: minio/minio
+    container_name: ezdata-minio-dev
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio123456
+    command: server /data --console-address ":19001"
+    ports:
+      - "9000:9000"
+      - "19001:19001"
+    volumes:
+      - ezdata-minio-dev-data:/data
+    networks:
+      - ezdata-dev-network
+
+  # ---------------- MinIO 建桶（一次性，建好退出） ----------------
+  ezdata-minio-init-dev:
+    image: minio/mc
+    depends_on:
+      - ezdata-minio-dev
+    entrypoint: >
+      /bin/sh -c "until mc alias set m http://ezdata-minio-dev:9000 minio minio123456; do echo waiting-for-minio; sleep 2; done;
+                  mc mb -p m/ezdata;
+                  mc anonymous set download m/ezdata;
+                  exit 0"
+    networks:
+      - ezdata-dev-network
+
 volumes:
-  ruoyi-mysql-dev-data:                   # 持久化数据库，重启不丢数据（如需重置：docker compose ... down -v）
+  ezdata-mysql-dev-data:                   # 持久化数据库，重启不丢数据（如需重置：docker compose ... down -v）
+  ezdata-es-dev-data:
+  ezdata-minio-dev-data:
 
 networks:
-  ruoyi-dev-network:
-    name: ruoyi-dev-network
+  ezdata-dev-network:
+    name: ezdata-dev-network
     driver: bridge

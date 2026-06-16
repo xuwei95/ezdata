@@ -115,7 +115,7 @@ CMD ["ruoyi", "app", "run", "--env=dockermy"]
       - http.cors.allow-origin=*
     ports: ["9200:9200"]
     volumes: [es-data:/usr/share/elasticsearch/data]
-    networks: [ruoyi-network]
+    networks: [ezdata-network]
 
   minio:
     image: minio/minio
@@ -125,7 +125,7 @@ CMD ["ruoyi", "app", "run", "--env=dockermy"]
     command: server /data --console-address ":19001"
     ports: ["9000:9000", "19001:19001"]
     volumes: [minio-data:/data]
-    networks: [ruoyi-network]
+    networks: [ezdata-network]
 ```
 
 backend/worker 的 `depends_on` 增加 `elasticsearch`、`minio`；`.env.docker*` 补 ES/MinIO 连接配置（host 用 compose 服务名）。

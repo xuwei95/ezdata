@@ -45,7 +45,7 @@ services:
     ports:
       - "13307:3306"
     volumes:
-      - ../api/sql/ruoyi-fastapi.sql:/docker-entrypoint-initdb.d/01-ruoyi-fastapi.sql
+      - ../api/sql/ezdata.sql:/docker-entrypoint-initdb.d/01-ezdata.sql
       - ./disable_captcha.sql:/docker-entrypoint-initdb.d/02-disable-captcha.sql
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_general_ci --skip-character-set-client-handshake=1
     networks:

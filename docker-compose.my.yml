@@ -1,51 +1,75 @@
 services:
   # 前端服务
-  ruoyi-frontend:
+  ezdata-frontend:
     build:
       context: ./web
       dockerfile: Dockerfile
-    image: ruoyi-frontend:latest
-    container_name: ruoyi-frontend
+    image: ezdata-frontend:latest
+    container_name: ezdata-frontend
     ports:
       - "12580:80"
     volumes:
       - ./web/bin/nginx.dockermy.conf:/etc/nginx/conf.d/default.conf
     depends_on:
-      - ruoyi-backend-my
+      - ezdata-backend-my
     networks:
-      - ruoyi-network
+      - ezdata-network
 
   # 后端服务（MySQL版本）
-  ruoyi-backend-my:
+  ezdata-backend-my:
     build:
       context: ./api
       dockerfile: Dockerfile.my
-    image: ruoyi-backend-my:latest
-    container_name: ruoyi-backend-my
+    image: ezdata-backend-my:latest
+    container_name: ezdata-backend-my
     ports:
       - "19099:9099"
     depends_on:
-      ruoyi-mysql:
+      ezdata-mysql:
         condition: service_healthy
-      ruoyi-redis:
+      ezdata-redis:
         condition: service_healthy
+      ezdata-es:
+        condition: service_started
+      ezdata-minio:
+        condition: service_started
     networks:
-      - ruoyi-network
+      - ezdata-network
+
+  # Celery Worker（任务执行层，复用后端镜像）
+  ezdata-worker-my:
+    build:
+      context: ./api
+      dockerfile: Dockerfile.my
+    image: ezdata-backend-my:latest
+    container_name: ezdata-worker-my
+    command: python -m celery -A config.celery_app worker -Q default --autoscale=4,1 --loglevel=INFO
+    depends_on:
+      ezdata-mysql:
+        condition: service_healthy
+      ezdata-redis:
+        condition: service_healthy
+      ezdata-es:
+        condition: service_started
+      ezdata-minio:
+        condition: service_started
+    networks:
+      - ezdata-network
 
   # MySQL服务
-  ruoyi-mysql:
+  ezdata-mysql:
     image: mysql:8.0
-    container_name: ruoyi-mysql
+    container_name: ezdata-mysql
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: ezdata
     ports:
       - "13306:3306"
     volumes:
-      - ./api/sql/ruoyi-fastapi.sql:/docker-entrypoint-initdb.d/ruoyi-fastapi.sql
+      - ./api/sql/ezdata.sql:/docker-entrypoint-initdb.d/ezdata.sql
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_general_ci --skip-character-set-client-handshake=1
     networks:
-      - ruoyi-network
+      - ezdata-network
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
       interval: 5s
@@ -53,21 +77,70 @@ services:
       retries: 30
 
   # Redis服务
-  ruoyi-redis:
+  ezdata-redis:
     image: redis:latest
-    container_name: ruoyi-redis
+    container_name: ezdata-redis
     ports:
       - "16379:6379"
     networks:
-      - ruoyi-network
+      - ezdata-network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 10s
       retries: 30
 
+  # Elasticsearch（任务日志检索后端，TASK_LOG_TYPE=es）
+  ezdata-es:
+    image: elasticsearch:7.17.13
+    container_name: ezdata-es
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - ezdata-es-data:/usr/share/elasticsearch/data
+    networks:
+      - ezdata-network
+
+  # MinIO（S3 兼容对象存储，STORAGE_TYPE=s3）
+  ezdata-minio:
+    image: minio/minio
+    container_name: ezdata-minio
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio123456
+    command: server /data --console-address ":19001"
+    ports:
+      - "9000:9000"
+      - "19001:19001"
+    volumes:
+      - ezdata-minio-data:/data
+    networks:
+      - ezdata-network
+
+  # 一次性创建 bucket（MinIO 不会自动建桶；建好后退出）
+  ezdata-minio-init:
+    image: minio/mc
+    depends_on:
+      - ezdata-minio
+    entrypoint: >
+      /bin/sh -c "until mc alias set m http://ezdata-minio:9000 minio minio123456; do echo waiting-for-minio; sleep 2; done;
+                  mc mb -p m/ezdata;
+                  mc anonymous set download m/ezdata;
+                  exit 0"
+    networks:
+      - ezdata-network
+
 # 网络配置
 networks:
-  ruoyi-network:
-    name: ruoyi-network
+  ezdata-network:
+    name: ezdata-network
     driver: bridge
+
+# 数据卷
+volumes:
+  ezdata-es-data:
+  ezdata-minio-data:

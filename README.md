@@ -236,7 +236,7 @@ pip3 install -r requirements-pg.txt
 
 # 运行sql文件
 1.新建数据库ruoyi-fastapi(默认，可修改)
-2.如果使用的是MySQL数据库，使用命令或数据库连接工具运行sql文件夹下的ruoyi-fastapi.sql；如果使用的是PostgreSQL数据库，使用命令或数据库连接工具运行sql文件夹下的ruoyi-fastapi-pg.sql
+2.如果使用的是MySQL数据库，使用命令或数据库连接工具运行sql文件夹下的ezdata.sql；如果使用的是PostgreSQL数据库，使用命令或数据库连接工具运行sql文件夹下的ezdata-pg.sql
 
 # 运行后端
 ruoyi app run --env=dev
