@@ -257,6 +257,27 @@ class CachePathConfig:
     PATHSTR = 'caches'
 
 
+class StorageSettings(BaseSettings):
+    """
+    存储配置（本地磁盘 / S3 兼容对象存储，如 MinIO）
+
+    storage_type:
+        local - 本地磁盘（默认，与 /profile 静态服务、UPLOAD_PATH 对齐，行为同模板原状）
+        s3    - S3 兼容对象存储（AWS S3 / MinIO 等，MinIO 走 S3 协议，address_style 用 path）
+    """
+
+    storage_type: Literal['local', 's3'] = 'local'
+    storage_local_path: str = 'vf_admin/upload_path'
+    storage_public_endpoint: str = ''
+    s3_endpoint: str = ''
+    s3_bucket_name: str = 'ezdata'
+    s3_access_key: str = ''
+    s3_secret_key: str = ''
+    s3_region: str = ''
+    s3_address_style: str = 'path'
+    s3_use_aws_managed_iam: bool = False
+
+
 class GetConfig:
     """
     获取配置
@@ -331,6 +352,12 @@ class GetConfig:
         # 实例上传配置
         return UploadSettings()
 
+    def get_storage_config(self) -> StorageSettings:
+        """
+        获取存储配置
+        """
+        return StorageSettings()
+
     @staticmethod
     def parse_cli_args() -> None:
         """
@@ -388,3 +415,5 @@ TaskLogConfig = get_config.get_task_log_config()
 GenConfig = get_config.get_gen_config()
 # 上传配置
 UploadConfig = get_config.get_upload_config()
+# 存储配置
+StorageConfig = get_config.get_storage_config()

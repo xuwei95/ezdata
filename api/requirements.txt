@@ -36,3 +36,6 @@ sqlglot[rs]==28.10.0
 textual==8.2.5
 user-agents==2.2.0
 .
+
+# 对象存储（S3 / MinIO，storage_type=s3 时使用）
+boto3

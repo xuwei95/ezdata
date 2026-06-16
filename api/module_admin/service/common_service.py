@@ -1,13 +1,14 @@
 import os
 from datetime import datetime
 
-import aiofiles
 from fastapi import BackgroundTasks, Request, UploadFile
+from fastapi.concurrency import run_in_threadpool
 
 from common.vo import CrudResponseModel
-from config.env import UploadConfig
+from config.env import StorageConfig, UploadConfig
 from exceptions.exception import ServiceException
 from module_admin.entity.vo.common_vo import UploadResponseModel
+from utils.storage_utils import storage
 from utils.upload_util import UploadUtil
 
 
@@ -30,28 +31,26 @@ class CommonService:
         relative_path = (
             f'upload/{datetime.now().strftime("%Y")}/{datetime.now().strftime("%m")}/{datetime.now().strftime("%d")}'
         )
-        dir_path = os.path.join(UploadConfig.UPLOAD_PATH, relative_path)
-        try:
-            os.makedirs(dir_path)
-        except FileExistsError:
-            pass
         filename = f'{file.filename.rsplit(".", 1)[0]}_{datetime.now().strftime("%Y%m%d%H%M%S")}{UploadConfig.UPLOAD_MACHINE}{UploadUtil.generate_random_number()}.{file.filename.rsplit(".")[-1]}'
-        filepath = os.path.join(dir_path, filename)
-        async with aiofiles.open(filepath, 'wb') as f:
-            # 流式写出大型文件，这里的10代表10MB
-            while True:
-                chunk = await file.read(1024 * 1024 * 10)
-                if not chunk:
-                    break
-                await f.write(chunk)
+        # 对象键：相对路径 + 文件名（local 后端落在 UPLOAD_PATH 下，与 /profile 静态服务一致）
+        object_key = f'{relative_path}/{filename}'
+        # 通过存储抽象写入（local 写磁盘 / s3 写 MinIO）。后端为同步实现，放线程池避免阻塞事件循环
+        data = await file.read()
+        await run_in_threadpool(storage.save, object_key, data)
+
+        # local 走 /profile 静态访问；s3/MinIO 走对象存储下载地址
+        if StorageConfig.storage_type == 's3':
+            url = storage.get_download_url(object_key)
+        else:
+            url = f'{request.base_url}{UploadConfig.UPLOAD_PREFIX[1:]}/{object_key}'
 
         return CrudResponseModel(
             is_success=True,
             result=UploadResponseModel(
-                fileName=f'{UploadConfig.UPLOAD_PREFIX}/{relative_path}/{filename}',
+                fileName=f'{UploadConfig.UPLOAD_PREFIX}/{object_key}',
                 newFileName=filename,
                 originalFilename=file.filename,
-                url=f'{request.base_url}{UploadConfig.UPLOAD_PREFIX[1:]}/{relative_path}/{filename}',
+                url=url,
             ),
             message='上传成功',
         )
@@ -85,7 +84,8 @@ class CommonService:
         :param resource: 下载的文件名称
         :return: 上传结果
         """
-        filepath = os.path.join(resource.replace(UploadConfig.UPLOAD_PREFIX, UploadConfig.UPLOAD_PATH))
+        # 还原对象键：去掉 /profile 前缀与前导斜杠（local/s3 后端统一用相对键）
+        object_key = resource.split(UploadConfig.UPLOAD_PREFIX, 1)[-1].lstrip('/')
         filename = resource.rsplit('/', 1)[-1]
         if (
             '..' in filename
@@ -94,6 +94,7 @@ class CommonService:
             or not UploadUtil.check_file_random_code(filename)
         ):
             raise ServiceException(message='文件名称不合法')
-        if not UploadUtil.check_file_exists(filepath):
+        if not await run_in_threadpool(storage.exists, object_key):
             raise ServiceException(message='文件不存在')
-        return CrudResponseModel(is_success=True, result=UploadUtil.generate_file(filepath), message='下载成功')
+        # 经存储抽象流式读取（local 读磁盘 / s3 读 MinIO）
+        return CrudResponseModel(is_success=True, result=storage.load_stream(object_key), message='下载成功')
