@@ -156,3 +156,7 @@ docker-compose.override.yml
 # 测试截图(不纳入版本库)
 _shots/
 tests/_e2e_shots/
+
+# 本地实验/基准脚本(不纳入版本库)
+tmp_bench/
+tmp/

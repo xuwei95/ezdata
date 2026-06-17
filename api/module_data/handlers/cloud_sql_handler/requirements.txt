@@ -1,0 +1,2 @@
+-r ../mysql_handler/requirements.txt
+-r ../mssql_handler/requirements.txt

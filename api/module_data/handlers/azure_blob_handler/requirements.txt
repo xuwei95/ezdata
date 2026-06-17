@@ -1,0 +1,2 @@
+adlfs
+duckdb>=0.10.0

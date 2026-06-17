@@ -49,6 +49,11 @@ ignore = [
     "RUF012", # mutable class attributes should be annotated with typing.ClassVar
 ]
 
+[lint.per-file-ignores]
+# 数据源 handler:可选驱动(dlt/boto3/pymongo/elasticsearch 等)按需惰性导入,
+# 保证未安装某源驱动时 import module_data 不报错,故允许函数内导入。
+"module_data/handlers/**" = ["PLC0415"]
+
 [lint.flake8-type-checking]
 runtime-evaluated-base-classes = ["pydantic.BaseModel", "sqlalchemy.orm.DeclarativeBase"]
 

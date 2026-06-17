@@ -1,0 +1,15 @@
+from collections import OrderedDict
+
+from module_data.handlers.const import ARG_TYPE
+
+connection_args = OrderedDict(
+    db_file={
+        'type': ARG_TYPE.STR,
+        'description': 'The database file where the data will be stored. The special path name :memory: can be provided'
+                       ' to create a temporary database in RAM.'
+    }
+)
+
+connection_args_example = OrderedDict(
+    db_file='chinook.db'
+)

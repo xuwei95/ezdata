@@ -1,0 +1,1 @@
+-r ../scylla_handler/requirements.txt

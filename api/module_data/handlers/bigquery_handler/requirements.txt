@@ -1,0 +1,4 @@
+google-cloud-bigquery[pandas]
+sqlalchemy-bigquery
+google-auth
+google-auth-oauthlib

@@ -1,0 +1,2 @@
+agno[pgvector]
+psycopg2-binary
