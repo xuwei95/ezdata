@@ -16,10 +16,39 @@
     to_mongo(rules)           -> (filter, sort_list)       # MongoDB
 """
 
+import re
 from collections.abc import Callable
 from typing import Any
 
 from sqlalchemy import and_
+
+# 查询串保留参数(非筛选条件)
+_RESERVED = {'apikey', 'api_key', 'page', 'pagesize', 'page_num', 'page_size', 'show_info', 'sort'}
+_PARAM_RE = re.compile(r'^([a-zA-Z_]+)\[(.+)\]$')  # 形如 op[field]
+
+
+def parse_query_params(params: dict) -> list[dict]:
+    """老版查询串格式 `op[field]=value` -> 统一 filters。例:gt[time]=123 / eq[status]=PAID。"""
+    rules: list[dict] = []
+    for k, v in (params or {}).items():
+        if k in _RESERVED:
+            continue
+        m = _PARAM_RE.match(k)
+        if m:
+            rules.append({'field': m.group(2).replace('][', '.'), 'op': m.group(1), 'value': v})
+        else:
+            rules.append({'field': k, 'op': 'eq', 'value': v})  # 无 op 默认等于
+    return rules
+
+
+def filters_to_query_string(filters: list[dict]) -> str:
+    """filters -> 接口查询串 `op[field]=value&...`(供前端复制)。"""
+    parts = []
+    for r in filters or []:
+        field, op, value = r.get('field'), (r.get('op') or r.get('rule')), r.get('value')
+        if field and op:
+            parts.append(f'{op}[{field}]={value}')
+    return '&'.join(parts)
 
 # 操作符目录(供前端渲染条件构造器:name + 中文 + 适用维度)
 OPERATORS = [

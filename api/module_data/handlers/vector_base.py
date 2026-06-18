@@ -16,7 +16,7 @@ from module_data.handlers.base import Capability, Connector, ConnectResult
 
 class VectorConnector(Connector):
     family = 'vector'
-    capabilities = Capability.READ | Capability.WRITE | Capability.VECTOR | Capability.SCHEMA
+    capabilities = Capability.WRITE | Capability.VECTOR | Capability.SCHEMA
     agno_path: str = ''        # 'agno.vectordb.qdrant.Qdrant'
 
     @staticmethod

@@ -44,6 +44,12 @@ import ImagePreview from "@/components/ImagePreview"
 // 字典标签组件
 import DictTag from '@/components/DictTag'
 
+// vxe-table(数据网格,虚拟滚动)
+import VxeUIAll from 'vxe-pc-ui'
+import 'vxe-pc-ui/lib/style.css'
+import VxeUITable from 'vxe-table'
+import 'vxe-table/lib/style.css'
+
 const app = createApp(App)
 
 // 全局方法挂载
@@ -69,6 +75,8 @@ app.component('Editor', Editor)
 app.use(router)
 app.use(store)
 app.use(plugins)
+app.use(VxeUIAll)
+app.use(VxeUITable)
 app.use(elementIcons)
 app.component('svg-icon', SvgIcon)
 

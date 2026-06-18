@@ -9,6 +9,8 @@ WORKDIR /app
 COPY . .
 
 RUN pip install --no-cache-dir -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/
+# 数据集成(ETL)依赖：连接器 extract/write 与 DataIntegrationTask 任务运行所需(dlt 等)
+RUN pip install --no-cache-dir -r requirements-data.txt -i https://mirrors.aliyun.com/pypi/simple/
 
 EXPOSE 9099
 

@@ -18,7 +18,7 @@ from typing import Any
 
 import pymysql
 
-from module_data.handlers.base import Capability, Connector, ConnectResult
+from module_data.handlers.base import Capability, Column, Connector, ConnectResult
 from module_data.handlers.mysql_binlog_handler.connection_args import connection_args, connection_args_example
 
 
@@ -26,7 +26,7 @@ class MySQLBinlogHandler(Connector):
     name = 'mysql_binlog'
     title = 'MySQL Binlog (CDC)'
     family = 'cdc'
-    capabilities = Capability.READ | Capability.EXTRACT | Capability.STREAM | Capability.SCHEMA
+    capabilities = Capability.EXTRACT | Capability.STREAM | Capability.SCHEMA
     connection_args = connection_args
     connection_args_example = connection_args_example
 
@@ -85,6 +85,30 @@ class MySQLBinlogHandler(Connector):
             return ConnectResult(True, 'ok')
         except Exception as e:
             return ConnectResult(False, str(e))
+
+    def _db_conn(self) -> Any:
+        return pymysql.connect(**{**self._conn_setting(), 'database': self.arg('database'), 'connect_timeout': 5})
+
+    def list_tables(self) -> list[str]:
+        """列出可监听的表(配置库内的表)。"""
+        conn = self._db_conn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute('SHOW TABLES')
+                return [r[0] for r in cur.fetchall()]
+        finally:
+            conn.close()
+
+    def get_columns(self, table: str) -> list[Column]:
+        conn = self._db_conn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(f'SHOW FULL COLUMNS FROM `{table}`')
+                rows = cur.fetchall()
+            # 列序:Field, Type, Collation, Null, Key, Default, Extra, Privileges, Comment
+            return [Column(name=r[0], type=r[1], nullable=(r[3] == 'YES'), comment=r[8] or '') for r in rows]
+        finally:
+            conn.close()
 
     def query(self, statement: dict | None = None, params: dict | None = None, limit: int | None = None) -> list[dict]:
         """有界预览:从头读最多 N 个变更后返回(blocking=False)。"""

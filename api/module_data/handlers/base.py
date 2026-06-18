@@ -76,8 +76,8 @@ class Connector(ABC):
 
     @classmethod
     def connection_schema(cls) -> dict:
-        """connection_args → JSON Schema(前端表单)。"""
-        return to_json_schema(cls.connection_args)
+        """connection_args → JSON Schema(前端表单,带 example 默认值)。"""
+        return to_json_schema(cls.connection_args, cls.connection_args_example)
 
     @classmethod
     def secret_fields(cls) -> list[str]:
@@ -115,6 +115,10 @@ class Connector(ABC):
         """原生查询取数(读路径)。statement 形态由各源决定:SQL 串 / DSL dict / Cypher。"""
         self._require(Capability.READ)
         raise NotImplementedError
+
+    def sample_query(self, table: str, limit: int = 100) -> Any:
+        """原生查询默认示例(前端预填)。基类给通用 SQL,各异构源覆盖为对应方言/DSL。"""
+        return f'SELECT * FROM {table} LIMIT {limit}'
 
     def extract(self, table: str, **kwargs: Any) -> Any:
         """返回 dlt source/resource,供 Celery 批跑装载(写路径)。"""

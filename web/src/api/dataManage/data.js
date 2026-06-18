@@ -1,0 +1,84 @@
+import request from '@/utils/request'
+
+// ---------------- 元信息 ----------------
+export function getSourceTypes() {
+  return request({ url: '/data/source/types', method: 'get' })
+}
+export function getSourceSchema(sourceType) {
+  return request({ url: '/data/source/schema/' + sourceType, method: 'get' })
+}
+export function getOperators() {
+  return request({ url: '/data/operators', method: 'get' })
+}
+
+// ---------------- 数据源 ----------------
+export function listSource(query) {
+  return request({ url: '/data/source/list', method: 'get', params: query })
+}
+export function getSource(id) {
+  return request({ url: '/data/source/info/' + id, method: 'get' })
+}
+export function addSource(data) {
+  return request({ url: '/data/source', method: 'post', data })
+}
+export function updateSource(data) {
+  return request({ url: '/data/source', method: 'put', data })
+}
+export function delSource(ids) {
+  return request({ url: '/data/source/' + ids, method: 'delete' })
+}
+export function testSource(data) {
+  return request({ url: '/data/source/test', method: 'post', data })
+}
+export function listTables(id) {
+  return request({ url: `/data/source/${id}/tables`, method: 'get' })
+}
+export function listColumns(id, table) {
+  return request({ url: `/data/source/${id}/columns`, method: 'get', params: { table } })
+}
+
+// ---------------- 数据模型 ----------------
+export function listModel(query) {
+  return request({ url: '/data/model/list', method: 'get', params: query })
+}
+export function getModel(id) {
+  return request({ url: '/data/model/info/' + id, method: 'get' })
+}
+export function addModel(data) {
+  return request({ url: '/data/model', method: 'post', data })
+}
+export function updateModel(data) {
+  return request({ url: '/data/model', method: 'put', data })
+}
+export function delModel(ids) {
+  return request({ url: '/data/model/' + ids, method: 'delete' })
+}
+
+// ---------------- 查询 / 接口 ----------------
+export function queryModel(id, data) {
+  return request({ url: `/data/model/${id}/query`, method: 'post', data })
+}
+export function searchModel(id, data) {
+  return request({ url: `/data/model/${id}/search`, method: 'post', data })
+}
+export function aiQueryModel(id, data) {
+  return request({ url: `/data/model/${id}/ai-query`, method: 'post', data })
+}
+export function getSampleQuery(id) {
+  return request({ url: `/data/model/${id}/sample-query`, method: 'get' })
+}
+
+// ---------------- ETL 调试 ----------------
+export function previewEtl(data) {
+  return request({ url: '/data/etl/preview', method: 'post', data })
+}
+export function testLoadEtl(data) {
+  return request({ url: '/data/etl/test-load', method: 'post', data })
+}
+export function aiQueryEtl(data) {
+  return request({ url: '/data/etl/ai-query', method: 'post', data })
+}
+export function aiTransformEtl(data) {
+  return request({ url: '/data/etl/ai-transform', method: 'post', data })
+}
+

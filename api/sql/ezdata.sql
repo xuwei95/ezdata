@@ -905,6 +905,7 @@ insert into task_template values ('2', 'Shell脚本任务', 'ShellTask', '', 1, 
 insert into task_template values ('3', '动态代码任务', 'DynamicTask', '', 2, 2, 'def run(params, logger):
     logger.info("动态任务参数: " + str(params))
     return "执行成功"', '', '[{"field":"message","label":"消息内容","component":"text","required":false,"default":"hello dynamic"}]', 1, 1, 'admin', sysdate(), '', null, '动态代码模板：run(params, logger) 在模板上维护，任务只填参数');
+insert into task_template values ('4', '数据集成任务', 'DataIntegrationTask', '', 1, 1, null, 'DataIntegrationTask', '', 1, 1, 'admin', sysdate(), '', null, '内置组件: 数据集成 ETL(抽取-转换-装载),支持抽取预览调试');
 
 -- ----------------------------
 -- 任务调度模块菜单/权限
@@ -998,6 +999,78 @@ insert into sys_menu values('2213', '策略删除', '2201', '4', '#', '', '', ''
 insert into sys_menu values('2220', '记录查询', '2202', '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'alert:record:list',    '#', 'admin', sysdate(), '', null, '');
 insert into sys_menu values('2221', '记录处理', '2202', '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'alert:record:edit',    '#', 'admin', sysdate(), '', null, '');
 insert into sys_menu values('2222', '记录删除', '2202', '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'alert:record:remove',  '#', 'admin', sysdate(), '', null, '');
+
+-- ============================================================================
+-- 数据管理模块(module_data)：数据源 / 数据模型
+-- ============================================================================
+drop table if exists data_source;
+create table data_source (
+  id           varchar(36)  not null comment '主键',
+  name         varchar(200) default '' comment '名称',
+  code         varchar(200) default '' comment '编码(稳定引用)',
+  source_type  varchar(50)  default null comment '源类型,如 mysql/elasticsearch',
+  family       varchar(50)  default null comment '源族,如 rdbms/search/vector',
+  config       json         default null comment '非密钥连接参数(JSON)',
+  secrets      text         default null comment '密钥(AES 加密)',
+  status       varchar(20)  default 'untested' comment '状态 untested/ok/failed',
+  last_test_at datetime     default null comment '最后测试时间',
+  remark       varchar(500) default '' comment '备注',
+  create_by    varchar(64)  default '' comment '创建者',
+  create_time  datetime     default null comment '创建时间',
+  update_by    varchar(64)  default '' comment '更新者',
+  update_time  datetime     default null comment '更新时间',
+  tenant_id    bigint       default null comment '租户ID(顶级部门)',
+  primary key (id),
+  key ix_data_source_tenant_id (tenant_id),
+  key ix_data_source_code (code)
+) engine=innodb default charset=utf8mb4 comment='数据源表';
+
+drop table if exists data_model;
+create table data_model (
+  id              varchar(36)  not null comment '主键',
+  name            varchar(200) default '' comment '名称',
+  code            varchar(200) default '' comment '编码',
+  datasource_code varchar(200) default null comment '引用的数据源编码',
+  kind            varchar(50)  default 'table' comment 'table/collection/index/topic/custom_query',
+  object_name     varchar(200) default null comment '表/索引/集合名',
+  db_schema       varchar(200) default '' comment 'schema/库名',
+  fields          json         default null comment '字段结构(introspect 缓存)',
+  default_filters json         default null comment '默认过滤条件',
+  auth            varchar(200) default 'query,extract' comment '授权位 query/extract/api/write(逗号)',
+  status          smallint     default 1 comment '状态 1启用 0停用',
+  remark          varchar(500) default '' comment '备注',
+  create_by       varchar(64)  default '' comment '创建者',
+  create_time     datetime     default null comment '创建时间',
+  update_by       varchar(64)  default '' comment '更新者',
+  update_time     datetime     default null comment '更新时间',
+  tenant_id       bigint       default null comment '租户ID(顶级部门)',
+  primary key (id),
+  key ix_data_model_tenant_id (tenant_id),
+  key ix_data_model_code (code)
+) engine=innodb default charset=utf8mb4 comment='数据模型表';
+
+-- ----------------------------
+-- 通用 API Token 模块(module_apitoken)：apikey 校验,data_api/agent 等用途复用
+-- ----------------------------
+drop table if exists api_token;
+create table api_token (
+  id          varchar(36)  not null comment '主键',
+  name        varchar(200) default '' comment '名称',
+  token       varchar(80)  default null comment 'apikey',
+  token_type  varchar(50)  default 'data_api' comment '用途 data_api/agent/...',
+  ref_id      varchar(200) default null comment '绑定的资源(如数据模型 code);空=该 type 全部',
+  status      smallint     default 1 comment '1启用 0停用',
+  expire_time datetime     default null comment '过期时间(空=永不)',
+  remark      varchar(500) default '' comment '备注',
+  create_by   varchar(64)  default '' comment '创建者',
+  create_time datetime     default null comment '创建时间',
+  update_by   varchar(64)  default '' comment '更新者',
+  update_time datetime     default null comment '更新时间',
+  tenant_id   bigint       default null comment '租户ID(顶级部门)',
+  primary key (id),
+  key ix_api_token_token (token),
+  key ix_api_token_tenant_id (tenant_id)
+) engine=innodb default charset=utf8mb4 comment='通用 API Token 表(data_api/agent 复用)';
 
 -- ============================================================================
 -- 多租户(行级)：业务/组织表增加 tenant_id 列(值=顶级部门ID)，并回填已有种子到默认租户(集团总公司=100)

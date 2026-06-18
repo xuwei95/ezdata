@@ -106,6 +106,9 @@ class S3Handler(Connector):
         # DESCRIBE 列: column_name, column_type, null, key, default, extra
         return [Column(name=r[0], type=str(r[1]), nullable=(r[2] != 'NO')) for r in rows]
 
+    def sample_query(self, table: str, limit: int = 100) -> str:
+        return f"SELECT * FROM 's3://{self.bucket}/{table}' LIMIT {limit}"
+
     def query(self, statement: str, params: dict | None = None, limit: int | None = None) -> list[dict]:
         """
         DuckDB SQL 查询。statement 可直接引用 's3://bucket/..' 文件;

@@ -64,6 +64,9 @@ class MongoDBHandler(Connector):
             return []
         return [Column(name=k, type=type(v).__name__) for k, v in doc.items()]
 
+    def sample_query(self, table: str, limit: int = 100) -> dict:
+        return {'collection': table, 'pipeline': [{'$limit': limit}]}
+
     def query(self, statement: dict, params: dict | None = None, limit: int | None = None) -> list[dict]:
         """statement = {'collection':..., 'filter':{...}} 或 {'collection':..., 'pipeline':[...]}。"""
         coll = self.db[statement['collection']]

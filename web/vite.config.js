@@ -43,6 +43,8 @@ export default defineConfig(({ mode, command }) => {
       port: 80,
       host: true,
       open: true,
+      // Windows/Docker bind mount 收不到 inotify 事件,强制轮询以保证 HMR 生效
+      watch: { usePolling: true, interval: 300 },
       proxy: {
         // https://cn.vitejs.dev/config/#server-proxy
         '/dev-api': {

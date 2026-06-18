@@ -1272,6 +1272,7 @@ insert into task_template values ('2', 'Shell脚本任务', 'ShellTask', '', 1, 
 insert into task_template values ('3', '动态代码任务', 'DynamicTask', '', 2, 2, 'def run(params, logger):
     logger.info("动态任务参数: " + str(params))
     return "执行成功"', '', '[{"field":"message","label":"消息内容","component":"text","required":false,"default":"hello dynamic"}]', 1, 1, 'admin', current_timestamp, '', null, '动态代码模板：run(params, logger) 在模板上维护，任务只填参数');
+insert into task_template values ('4', '数据集成任务', 'DataIntegrationTask', '', 1, 1, null, 'DataIntegrationTask', '', 1, 1, 'admin', current_timestamp, '', null, '内置组件: 数据集成 ETL(抽取-转换-装载),支持抽取预览调试');
 
 -- ----------------------------
 -- 任务调度模块菜单/权限
@@ -1360,6 +1361,79 @@ insert into sys_menu values(2213, '策略删除', 2201, '4', '#', '', '', '', 1,
 insert into sys_menu values(2220, '记录查询', 2202, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'alert:record:list',    '#', 'admin', current_timestamp, '', null, '');
 insert into sys_menu values(2221, '记录处理', 2202, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'alert:record:edit',    '#', 'admin', current_timestamp, '', null, '');
 insert into sys_menu values(2222, '记录删除', 2202, '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'alert:record:remove',  '#', 'admin', current_timestamp, '', null, '');
+
+-- ============================================================================
+-- 数据管理模块(module_data)：数据源 / 数据模型
+-- ============================================================================
+drop table if exists data_source;
+create table data_source (
+  id           varchar(36)  not null,
+  name         varchar(200) default '',
+  code         varchar(200) default '',
+  source_type  varchar(50),
+  family       varchar(50),
+  config       jsonb,
+  secrets      text,
+  status       varchar(20)  default 'untested',
+  last_test_at timestamp,
+  remark       varchar(500) default '',
+  create_by    varchar(64)  default '',
+  create_time  timestamp,
+  update_by    varchar(64)  default '',
+  update_time  timestamp,
+  tenant_id    bigint,
+  primary key (id)
+);
+create index ix_data_source_tenant_id on data_source (tenant_id);
+create index ix_data_source_code on data_source (code);
+comment on table data_source is '数据源表';
+
+drop table if exists data_model;
+create table data_model (
+  id              varchar(36)  not null,
+  name            varchar(200) default '',
+  code            varchar(200) default '',
+  datasource_code varchar(200),
+  kind            varchar(50)  default 'table',
+  object_name     varchar(200),
+  db_schema       varchar(200) default '',
+  fields          jsonb,
+  default_filters jsonb,
+  auth            varchar(200) default 'query,extract',
+  status          smallint     default 1,
+  remark          varchar(500) default '',
+  create_by       varchar(64)  default '',
+  create_time     timestamp,
+  update_by       varchar(64)  default '',
+  update_time     timestamp,
+  tenant_id       bigint,
+  primary key (id)
+);
+create index ix_data_model_tenant_id on data_model (tenant_id);
+create index ix_data_model_code on data_model (code);
+comment on table data_model is '数据模型表';
+
+-- 通用 API Token 模块(module_apitoken)：apikey 校验,data_api/agent 等用途复用
+drop table if exists api_token;
+create table api_token (
+  id          varchar(36)  not null,
+  name        varchar(200) default '',
+  token       varchar(80),
+  token_type  varchar(50)  default 'data_api',
+  ref_id      varchar(200),
+  status      smallint     default 1,
+  expire_time timestamp,
+  remark      varchar(500) default '',
+  create_by   varchar(64)  default '',
+  create_time timestamp,
+  update_by   varchar(64)  default '',
+  update_time timestamp,
+  tenant_id   bigint,
+  primary key (id)
+);
+create index ix_api_token_token on api_token (token);
+create index ix_api_token_tenant_id on api_token (tenant_id);
+comment on table api_token is '通用 API Token 表(data_api/agent 复用)';
 
 -- ============================================================================
 -- 多租户(行级)：业务/组织表增加 tenant_id 列(值=顶级部门ID)，回填已有种子到默认租户(集团总公司=100)

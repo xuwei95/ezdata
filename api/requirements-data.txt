@@ -1,0 +1,5 @@
+# 数据集成(ETL)可选依赖:仅在使用「数据管理」抽取/装载(DataIntegrationTask)或连接器 extract/write 时按需安装。
+# 连接器读路径(query/search/预览)不依赖 dlt;批量抽取/装载走 dlt。
+dlt[sqlalchemy]==1.4.1   # 数据装载工具:sql_database 源 + sqlalchemy 目标
+pyarrow>=14              # dlt backend=pyarrow(高吞吐抽取)
+mysql-replication>=1.0   # MySQL binlog 流式消费(mysql_binlog 源)

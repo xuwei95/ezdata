@@ -126,13 +126,17 @@ def execute_task(task_id: str, instance_id: str, worker: str | None = None, retr
     except Exception as e:
         err = str(e)
         try:
-            logger.exception(f'任务执行失败: {err}')
+            logger.exception(f'任务执行失败: {err}')  # 完整堆栈进日志
         except Exception:
             pass
+        # 执行记录的 result 仅存简短摘要(完整信息看明细日志),避免列表/详情里超长
+        brief = ' '.join(err.split())
+        if len(brief) > 500:
+            brief = f'{brief[:440]} …(已截断,完整见执行日志)'
         _upsert_instance(
             db,
             instance_id,
-            {'status': 'FAILURE', 'end_time': datetime.now(), 'result': err[:2000], 'closed': 1},
+            {'status': 'FAILURE', 'end_time': datetime.now(), 'result': brief, 'closed': 1},
         )
         raise
     finally:

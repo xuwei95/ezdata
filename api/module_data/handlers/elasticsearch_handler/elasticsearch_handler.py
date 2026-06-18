@@ -62,6 +62,9 @@ class ElasticsearchHandler(Connector):
         props = next(iter(mapping.values()))['mappings'].get('properties', {})
         return [Column(name=k, type=v.get('type', 'object')) for k, v in props.items()]
 
+    def sample_query(self, table: str, limit: int = 100) -> dict:
+        return {'index': table, 'body': {'query': {'match_all': {}}, 'size': limit}}
+
     def query(self, statement: dict, params: dict | None = None, limit: int | None = None) -> list[dict]:
         """statement = {'index': ..., 'body': <ES DSL>}(程序化构造 DSL,不做模板注入)。"""
         index = statement['index']

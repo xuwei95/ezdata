@@ -61,7 +61,7 @@
     <pagination v-show="total > 0" :total="total" v-model:page="queryParams.pageNum" v-model:limit="queryParams.pageSize" @pagination="getList" />
 
     <!-- 新增/修改任务（模板驱动的低代码表单） -->
-    <el-dialog :title="title" v-model="open" width="760px" append-to-body>
+    <el-dialog :title="title" v-model="open" fullscreen append-to-body class="task-form-dialog">
       <el-form ref="taskRef" :model="form" :rules="rules" label-width="100px">
         <el-form-item label="任务名称" prop="name">
           <el-input v-model="form.name" placeholder="请输入任务名称" />
@@ -688,5 +688,13 @@ getList()
 }
 .lvl-INFO .log-level {
   color: #569cd6;
+}
+</style>
+
+<!-- 全屏任务表单:内容居中限宽,避免输入框拉满过宽 -->
+<style>
+.task-form-dialog .el-dialog__body {
+  max-width: 1180px;
+  margin: 0 auto;
 }
 </style>

@@ -43,6 +43,9 @@ class Neo4jHandler(Connector):
         """节点标签(当作"表")。"""
         return [r['label'] for r in self.query('CALL db.labels() YIELD label RETURN label')]
 
+    def sample_query(self, table: str, limit: int = 100) -> str:
+        return f'MATCH (n:`{table}`) RETURN n LIMIT {limit}'
+
     def query(self, statement: str, params: dict | None = None, limit: int | None = None) -> list[dict]:
         """Cypher 参数化查询($param,绝不拼接)。"""
         cypher = statement

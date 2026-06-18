@@ -38,7 +38,11 @@ class BaseRunner:
 
 def ensure_builtin_runners() -> None:
     """确保内置 runner 模块已导入(触发注册)"""
-    from module_task_schedule.runners import python_runner, shell_runner  # noqa: F401
+    from module_task_schedule.runners import (  # noqa: F401
+        data_integration_runner,
+        python_runner,
+        shell_runner,
+    )
 
 
 def get_runner(template_code: str) -> type[BaseRunner] | None:

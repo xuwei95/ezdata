@@ -83,6 +83,19 @@ export const constantRoutes = [
         meta: { title: '个人中心', icon: 'user' }
       }
     ]
+  },
+  {
+    path: '/dataManage',
+    component: Layout,
+    redirect: '/dataManage/index',
+    children: [
+      {
+        path: 'index',
+        component: () => import('@/views/dataManage/index'),
+        name: 'DataManage',
+        meta: { title: '数据管理', icon: 'database' }
+      }
+    ]
   }
 ]
 

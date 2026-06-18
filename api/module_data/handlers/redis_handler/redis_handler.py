@@ -59,6 +59,9 @@ class RedisHandler(Connector):
             val = None
         return {'key': key, 'type': t, 'value': val}
 
+    def sample_query(self, table: str = '*', limit: int = 100) -> dict:
+        return {'pattern': table or '*'}
+
     def query(self, statement: str | dict, params: dict | None = None, limit: int | None = None) -> list[dict]:
         """statement = key 名 或 {'pattern': '...'}(批量读匹配的 key)。"""
         if isinstance(statement, dict):

@@ -322,6 +322,47 @@ class StorageSettings(BaseSettings):
     tencent_cos_scheme: str = 'https'
 
 
+# 兼容旧项目/小写写法的 provider 别名 -> AiUtil 工厂注册名(CamelCase)
+_LLM_PROVIDER_ALIASES = {
+    'openai': 'OpenAI', 'anthropic': 'Anthropic', 'claude': 'Anthropic',
+    'deepseek': 'DeepSeek', 'tongyi': 'DashScope', 'qwen': 'DashScope', 'dashscope': 'DashScope',
+    'siliconflow': 'SiliconFlow', 'google': 'Google', 'gemini': 'Google', 'ollama': 'Ollama',
+    'openrouter': 'OpenRouter', 'mistral': 'Mistral', 'groq': 'Groq', 'xai': 'xAI',
+}
+
+
+class AiSettings(BaseSettings):
+    """
+    系统内置 AI 兜底模型配置(环境变量,沿用旧项目 LLM_* 命名)
+
+    用于「AI 模型管理」无可用模型时,系统内部的 AI 生成(ETL AI 取数/转换、数据查询 AI 取数等)
+    回退到这里配置的模型。优先级:数据库启用模型 > 环境变量兜底模型。
+    api_key 为明文(区别于库内 AES 加密存储)。
+
+    .env 示例:
+        LLM_TYPE=anthropic
+        LLM_MODEL=claude-sonnet-4-6
+        LLM_API_KEY=xxxx
+        LLM_URL=http://10.0.3.248:3000/api
+    """
+
+    llm_type: str = ''        # 提供商:openai/anthropic/deepseek/tongyi...(大小写均可)
+    llm_model: str = ''       # 模型编码,如 claude-sonnet-4-6 / deepseek-chat
+    llm_api_key: str = ''
+    llm_url: str = ''         # base_url(可空)
+    llm_max_tokens: int = 1024
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self.llm_type and self.llm_model and self.llm_api_key)
+
+    @property
+    def provider(self) -> str:
+        """归一化为 AiUtil 工厂注册名;未命中别名则按原样(允许直接写 CamelCase)。"""
+        t = (self.llm_type or '').strip()
+        return _LLM_PROVIDER_ALIASES.get(t.lower(), t)
+
+
 class GetConfig:
     """
     获取配置
@@ -329,6 +370,12 @@ class GetConfig:
 
     def __init__(self) -> None:
         self.parse_cli_args()
+
+    def get_ai_config(self) -> AiSettings:
+        """
+        获取系统内置 AI 兜底模型配置
+        """
+        return AiSettings()
 
     def get_app_config(self) -> AppSettings:
         """
@@ -461,3 +508,5 @@ GenConfig = get_config.get_gen_config()
 UploadConfig = get_config.get_upload_config()
 # 存储配置
 StorageConfig = get_config.get_storage_config()
+# 系统内置 AI 兜底模型配置
+AiConfig = get_config.get_ai_config()

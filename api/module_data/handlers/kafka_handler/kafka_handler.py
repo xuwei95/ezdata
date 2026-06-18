@@ -22,7 +22,7 @@ class KafkaHandler(Connector):
     title = 'Apache Kafka'
     family = 'stream'
     capabilities = (
-        Capability.READ | Capability.WRITE | Capability.EXTRACT
+        Capability.WRITE | Capability.EXTRACT
         | Capability.STREAM | Capability.SCHEMA
     )
     connection_args = connection_args
