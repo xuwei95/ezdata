@@ -107,6 +107,8 @@ class DataIntegrationRunner(BaseRunner):
         # 批量源:原生查询取数 -> 装载
         if not native:
             raise ValueError('批量源需提供 extract.native 原生查询')
+        from module_data.etl_util import assert_readonly_sql  # noqa: PLC0415
+        assert_readonly_sql(native)  # 抽取只读护栏:只允许 SELECT 类
         self.logger.info(f'执行原生查询抽取:{str(native)[:200]}')
         data = src.query(native, None, None)
         if fn:

@@ -32,10 +32,26 @@
             <div style="width: 100%">
               <div class="bar">
                 <span class="muted">原生 SQL / DSL</span>
-                <el-button size="small" icon="MagicStick" @click="aiQuery">AI 生成查询</el-button>
+                <el-button size="small" icon="MagicStick" @click="aiq.open = !aiq.open">AI 生成查询</el-button>
               </div>
               <el-input v-model="model.extract.native" type="textarea" :rows="6"
                 placeholder="例如:SELECT * FROM orders WHERE status='PAID'" />
+              <!-- AI 生成面板:生成后流式打印,确认再采用 -->
+              <div v-if="aiq.open" class="ai-panel">
+                <el-input v-model="aiq.question" type="textarea" :rows="2"
+                  placeholder="用自然语言描述要抽取的数据,如:金额>1000 的已支付订单,按金额降序" />
+                <div class="bar" style="margin-top: 6px">
+                  <el-button size="small" type="primary" icon="MagicStick" :loading="aiq.loading" @click="genQuery">
+                    {{ aiq.output ? '重新生成' : '生成' }}</el-button>
+                  <span class="muted">生成结果见下方,确认后再采用</span>
+                </div>
+                <pre v-if="aiq.output" class="ai-out">{{ aiq.output }}<span v-if="aiq.loading" class="cursor">▋</span></pre>
+                <div v-if="aiq.output" class="bar">
+                  <el-button size="small" type="success" icon="Check" :disabled="aiq.loading"
+                    @click="applyQuery">采用到查询</el-button>
+                  <el-button size="small" @click="aiq.output = ''">清空</el-button>
+                </div>
+              </div>
             </div>
           </el-form-item>
 
@@ -54,10 +70,26 @@
             <div style="width: 100%">
               <div class="bar">
                 <span class="muted">def transform(row)</span>
-                <el-button size="small" icon="MagicStick" @click="aiTransform">AI 生成转换</el-button>
+                <el-button size="small" icon="MagicStick" @click="ait.open = !ait.open">AI 生成转换</el-button>
               </div>
               <code-editor v-model="model.transform.code" language="python" height="180px"
                 placeholder="定义 transform(row) 逐行转换并返回 row" />
+              <!-- AI 生成面板 -->
+              <div v-if="ait.open" class="ai-panel">
+                <el-input v-model="ait.question" type="textarea" :rows="2"
+                  placeholder="用自然语言描述转换逻辑,如:把 amount 乘 1.13 存为 amount_with_tax" />
+                <div class="bar" style="margin-top: 6px">
+                  <el-button size="small" type="primary" icon="MagicStick" :loading="ait.loading" @click="genTransform">
+                    {{ ait.output ? '重新生成' : '生成' }}</el-button>
+                  <span class="muted">可用字段取自最近一次预览</span>
+                </div>
+                <pre v-if="ait.output" class="ai-out">{{ ait.output }}<span v-if="ait.loading" class="cursor">▋</span></pre>
+                <div v-if="ait.output" class="bar">
+                  <el-button size="small" type="success" icon="Check" :disabled="ait.loading"
+                    @click="applyTransform">采用到转换</el-button>
+                  <el-button size="small" @click="ait.output = ''">清空</el-button>
+                </div>
+              </div>
             </div>
           </el-form-item>
 
@@ -130,7 +162,8 @@
 
 <script setup name="DataIntegrationTask">
 import CodeEditor from '@/components/CodeEditor'
-import { listSource, listTables, previewEtl, testLoadEtl, aiQueryEtl, aiTransformEtl } from '@/api/dataManage/data'
+import { listSource, listTables, previewEtl, testLoadEtl } from '@/api/dataManage/data'
+import { getToken } from '@/utils/auth'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const props = defineProps({
@@ -245,27 +278,70 @@ onMounted(async () => {
 })
 watch(() => props.taskParams, initParams, { deep: true })
 
-async function aiQuery() {
-  if (!model.extract.datasource_code) { ElMessage.warning('请先选择源数据源'); return }
-  const { value: q } = await ElMessageBox.prompt('用自然语言描述要抽取的数据', 'AI 生成原生查询', {
-    inputType: 'textarea', inputPlaceholder: '例如:状态为已支付、金额大于 1000 的订单'
-  }).catch(() => ({}))
-  if (!q) return
-  const res = await aiQueryEtl({
-    datasourceCode: model.extract.datasource_code, objectNames: model.extract.tables, question: q
-  })
-  model.extract.native = res.data.native || ''
-  ElMessage.success('已生成,请检查后预览')
+// ---- AI 流式生成(生成→下方流式打印→确认采用)----
+const aiq = reactive({ open: false, question: '', output: '', loading: false })
+const ait = reactive({ open: false, question: '', output: '', loading: false })
+const AI_BASE = import.meta.env.VITE_APP_BASE_API || ''
+
+function stripFence(t) {
+  let s = (t || '').trim()
+  if (s.startsWith('```')) s = s.replace(/^```[^\n]*\n/, '').replace(/```\s*$/, '').trim()
+  return s
 }
 
-async function aiTransform() {
-  const { value: q } = await ElMessageBox.prompt('用自然语言描述转换逻辑', 'AI 生成转换函数', {
-    inputType: 'textarea', inputPlaceholder: '例如:把 amount 字段乘以 1.13 存为 amount_with_tax'
-  }).catch(() => ({}))
-  if (!q) return
-  const res = await aiTransformEtl({ question: q, columns: previewCols.value })
-  model.transform.code = res.data.code || DEFAULT_TRANSFORM
-  ElMessage.success('已生成,请检查后预览')
+async function streamAi(url, body, onChunk) {
+  const resp = await fetch(AI_BASE + url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() },
+    body: JSON.stringify(body)
+  })
+  if (!resp.ok || !resp.body) throw new Error('HTTP ' + resp.status)
+  const reader = resp.body.getReader()
+  const dec = new TextDecoder()
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    onChunk(dec.decode(value, { stream: true }))
+  }
+}
+
+async function genQuery() {
+  if (!model.extract.datasource_code) { ElMessage.warning('请先选择源数据源'); return }
+  if (!aiq.question.trim()) { ElMessage.warning('请描述要抽取的数据'); return }
+  aiq.output = ''; aiq.loading = true
+  try {
+    await streamAi('/data/etl/ai-query/stream',
+      { datasourceCode: model.extract.datasource_code, objectNames: model.extract.tables, question: aiq.question },
+      (c) => { aiq.output += c })
+  } catch (e) {
+    ElMessage.error('生成失败: ' + e.message)
+  } finally {
+    aiq.loading = false
+  }
+}
+function applyQuery() {
+  model.extract.native = stripFence(aiq.output).replace(/;\s*$/, '')
+  aiq.open = false
+  ElMessage.success('已采用到原生查询')
+}
+
+async function genTransform() {
+  if (!ait.question.trim()) { ElMessage.warning('请描述转换逻辑'); return }
+  ait.output = ''; ait.loading = true
+  try {
+    await streamAi('/data/etl/ai-transform/stream',
+      { question: ait.question, columns: previewCols.value },
+      (c) => { ait.output += c })
+  } catch (e) {
+    ElMessage.error('生成失败: ' + e.message)
+  } finally {
+    ait.loading = false
+  }
+}
+function applyTransform() {
+  model.transform.code = stripFence(ait.output) || DEFAULT_TRANSFORM
+  ait.open = false
+  ElMessage.success('已采用到转换代码')
 }
 
 async function doPreview() {
@@ -356,4 +432,12 @@ defineExpose({ genTaskParams })
 <style scoped>
 .etl-form .bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
 .etl-form .muted { color: #909399; font-size: 12px; }
+.etl-form .ai-panel { margin-top: 8px; padding: 10px; border: 1px dashed #c0c4cc; border-radius: 6px; background: #fafafa; }
+.etl-form .ai-out {
+  margin: 8px 0; padding: 8px 10px; max-height: 220px; overflow: auto;
+  background: #1e1e1e; color: #d4d4d4; border-radius: 4px;
+  font-family: Consolas, Monaco, monospace; font-size: 12px; white-space: pre-wrap; word-break: break-all;
+}
+.etl-form .cursor { animation: blink 1s steps(1) infinite; color: #67c23a; }
+@keyframes blink { 50% { opacity: 0; } }
 </style>

@@ -83,20 +83,8 @@ export const constantRoutes = [
         meta: { title: '个人中心', icon: 'user' }
       }
     ]
-  },
-  {
-    path: '/dataManage',
-    component: Layout,
-    redirect: '/dataManage/index',
-    children: [
-      {
-        path: 'index',
-        component: () => import('@/views/dataManage/index'),
-        name: 'DataManage',
-        meta: { title: '数据管理', icon: 'database' }
-      }
-    ]
   }
+  // 数据管理已改为后台菜单驱动(sys_menu: data/manage -> dataManage/index),按权限 data:* 下发
 ]
 
 // 动态路由，基于用户权限动态去加载

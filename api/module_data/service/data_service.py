@@ -19,7 +19,7 @@ from module_data.entity.vo.data_vo import (
     SearchReq,
     TestConnReq,
 )
-from module_data.etl_util import is_file_target, serialize_records, short_err, stream_statement
+from module_data.etl_util import assert_readonly_sql, is_file_target, serialize_records, short_err, stream_statement
 from module_data.handlers import Capability, connection_schema, create_handler, get_handler_cls, list_source_types
 from module_data.query import OPERATORS
 from utils.crypto_util import CryptoUtil
@@ -44,42 +44,68 @@ def _handler_from_ds(ds: DataSource) -> Any:
     return _build_handler(ds.source_type, ds.config or {}, _decrypt_secrets(ds))
 
 
-async def _ai_complete(db: AsyncSession, prompt: str) -> str:
-    """系统内 AI 生成统一入口:优先库内启用模型,无则回退环境变量兜底模型(LLM_*)。
-
-    复用 Agno,跑一次补全并返回文本(自动去掉 markdown 代码围栏)。
-    """
+async def _ai_resolve_cfg(db: AsyncSession) -> dict:
+    """解析系统内 AI 模型配置:优先库内启用模型,无则回退环境变量兜底模型(LLM_*)。"""
     from sqlalchemy import select  # noqa: PLC0415
 
     from config.env import AiConfig  # noqa: PLC0415
     from module_ai.entity.do.ai_model_do import AiModels  # noqa: PLC0415
-    from utils.ai_util import AiUtil  # noqa: PLC0415
 
     mc = (await db.execute(
         select(AiModels).where(AiModels.status == '0').order_by(AiModels.model_sort))).scalars().first()
     if mc:  # 库内启用模型(api_key 为 AES 密文)
-        cfg = dict(provider=mc.provider, model_code=mc.model_code, model_name=mc.model_name,
-                   api_key=CryptoUtil.decrypt(mc.api_key) if mc.api_key else None,
-                   base_url=mc.base_url, max_tokens=mc.max_tokens or 1024)
-    elif AiConfig.enabled:  # 环境变量兜底模型(api_key 明文)
-        cfg = dict(provider=AiConfig.provider, model_code=AiConfig.llm_model, model_name=None,
-                   api_key=AiConfig.llm_api_key, base_url=AiConfig.llm_url or None,
-                   max_tokens=AiConfig.llm_max_tokens or 1024)
-    else:
-        raise ServiceException(
-            message='未配置可用 AI 模型:请在「AI 模型管理」启用一个,或在环境变量配置兜底模型(LLM_TYPE/LLM_MODEL/LLM_API_KEY[/LLM_URL])')
+        return dict(provider=mc.provider, model_code=mc.model_code, model_name=mc.model_name,
+                    api_key=CryptoUtil.decrypt(mc.api_key) if mc.api_key else None,
+                    base_url=mc.base_url, max_tokens=mc.max_tokens or 1024)
+    if AiConfig.enabled:  # 环境变量兜底模型(api_key 明文)
+        return dict(provider=AiConfig.provider, model_code=AiConfig.llm_model, model_name=None,
+                    api_key=AiConfig.llm_api_key, base_url=AiConfig.llm_url or None,
+                    max_tokens=AiConfig.llm_max_tokens or 1024)
+    raise ServiceException(
+        message='未配置可用 AI 模型:请在「AI 模型管理」启用一个,或在环境变量配置兜底模型(LLM_TYPE/LLM_MODEL/LLM_API_KEY[/LLM_URL])')
+
+
+def _strip_fence(text: str) -> str:
+    """去掉 markdown ```lang ... ``` 代码围栏。"""
+    t = (text or '').strip()
+    if t.startswith('```'):
+        t = t.split('\n', 1)[-1].rsplit('```', 1)[0].strip()
+    return t
+
+
+async def _ai_complete(db: AsyncSession, prompt: str) -> str:
+    """一次性补全并返回文本(自动去围栏)。"""
+    from utils.ai_util import AiUtil  # noqa: PLC0415
+
+    cfg = await _ai_resolve_cfg(db)
 
     def _run() -> str:
         from agno.agent import Agent  # noqa: PLC0415
 
-        model = AiUtil.get_model_from_factory(**cfg)
-        out = Agent(model=model).run(prompt)
-        text = (getattr(out, 'content', None) or str(out)).strip()
-        if text.startswith('```'):  # 去掉 ```lang ... ``` 围栏
-            text = text.split('\n', 1)[-1].rsplit('```', 1)[0].strip()
-        return text
+        out = Agent(model=AiUtil.get_model_from_factory(**cfg)).run(prompt)
+        return _strip_fence(getattr(out, 'content', None) or str(out))
 
     return await run_in_threadpool(_run)
+
+
+def _ai_stream(cfg: dict, prompt: str):
+    """同步生成器:流式产出文本增量,供 StreamingResponse 使用(围栏由前端采用时再去除)。"""
+    from agno.agent import Agent  # noqa: PLC0415
+
+    from utils.ai_util import AiUtil  # noqa: PLC0415
+    try:
+        agent = Agent(model=AiUtil.get_model_from_factory(**cfg))
+        produced = False
+        for ev in agent.run(prompt, stream=True):
+            chunk = getattr(ev, 'content', None)
+            if chunk:
+                produced = True
+                yield chunk
+        if not produced:  # 个别模型/版本不产 content 增量事件,回退整段
+            out = Agent(model=AiUtil.get_model_from_factory(**cfg)).run(prompt)
+            yield getattr(out, 'content', None) or str(out)
+    except Exception as e:  # noqa: BLE001 把错误也流式回去,前端可见
+        yield f'\n[生成出错] {short_err(e)}'
 
 
 class DataMetaService:
@@ -294,6 +320,10 @@ class DataQueryService:
         """数据查询(不分页):native 或 filter,查出多少返回多少。"""
         m, handler = await cls._load(db, m_id)
         if req.native is not None:
+            try:
+                assert_readonly_sql(req.native)  # 只读护栏:拦截 DML/DDL,只允许 SELECT 类
+            except ValueError as e:
+                raise ServiceException(message=str(e)) from None
             records = await run_in_threadpool(handler.query, req.native, None, req.limit)
         else:
             cls._check_fields(m, req.filters)
@@ -326,6 +356,23 @@ class DataQueryService:
         return {'query': sql, 'records': records, 'total': len(records)}
 
     @classmethod
+    async def prep_ai_query(cls, db: AsyncSession, m_id: str, question: str) -> tuple[dict, str]:
+        """流式 AI 取数:解析模型配置 + 按源类型构造提示词(SQL 出 SELECT;ES 出 DSL JSON)。"""
+        m, handler = await cls._load(db, m_id)
+        cols = '\n'.join(f"- {f['name']} ({f.get('type', '')})" for f in (m.fields or []))
+        if getattr(handler, 'family', '') == 'search' or handler.name == 'elasticsearch':
+            fmt = (f'返回 Elasticsearch 查询 DSL 的 JSON,形如 '
+                   f'{{"index":"{m.object_name}","body":{{"query":{{...}},"size":50}}}};只输出 JSON,不要解释、不要 markdown 围栏。')
+        else:
+            fmt = '写一条**只读 SELECT** 查询(单条语句、不要注释、不要 markdown 围栏);只输出 SQL 本身。'
+        prompt = (
+            f'你是 {handler.name} 数据查询专家。表/索引:`{m.object_name}`,字段:\n{cols}\n\n'
+            f'请根据下面的自然语言需求,{fmt}\n需求:{question}'
+        )
+        cfg = await _ai_resolve_cfg(db)
+        return cfg, prompt
+
+    @classmethod
     async def search(cls, db: AsyncSession, m_id: str, req: SearchReq) -> dict:
         """数据接口(分页)。"""
         m, handler = await cls._load(db, m_id)
@@ -351,6 +398,10 @@ class EtlService:
                 native = req.native
                 if not native or (isinstance(native, str) and not native.strip()):
                     raise ServiceException(message='请填写原生查询')
+                try:
+                    assert_readonly_sql(native)  # 抽取预览同样只读
+                except ValueError as e:
+                    raise ServiceException(message=str(e)) from None
                 limit = min(int(req.limit or 50), 200)
                 rows = await run_in_threadpool(handler.query, native, None, limit)
             elif handler.has(Capability.STREAM):  # 流式源:有界抽 1 条
@@ -407,17 +458,7 @@ class EtlService:
         - 选了若干表:只喂这些表的结构(支持连表 join);
         - 不选表:喂全库表结构,大库截断到 SCHEMA_TABLE_CAP 张并提示。
         """
-        ds = await DataSourceDao.get_by_code(db, req.datasource_code)
-        if not ds:
-            raise ServiceException(message='源数据源不存在')
-        handler = _handler_from_ds(ds)
-
-        schema_ctx = await run_in_threadpool(cls._schema_context, handler, req.object_names)
-        prompt = (
-            f'你是 {handler.name} 数据库的查询专家。{schema_ctx}'
-            f'请根据下面的自然语言需求,写一条**只读**抽取查询(可按需连表 join;单条语句、不要注释、不要 markdown 代码块)。'
-            f'只输出查询本身:\n需求:{req.question}'
-        )
+        _, prompt = await cls.prep_query(db, req)
         try:
             native = (await _ai_complete(db, prompt)).rstrip(';')
         except ServiceException:
@@ -425,6 +466,26 @@ class EtlService:
         except Exception as e:  # noqa: BLE001 模型调用报错截断
             raise ServiceException(message=f'AI 生成失败:{short_err(e)}') from None
         return {'native': native}
+
+    @classmethod
+    async def prep_query(cls, db: AsyncSession, req: Any) -> tuple[dict, str]:
+        """流式/一次性生成共用:解析模型配置 + 构造查询提示词。"""
+        ds = await DataSourceDao.get_by_code(db, req.datasource_code)
+        if not ds:
+            raise ServiceException(message='源数据源不存在')
+        handler = _handler_from_ds(ds)
+        prompt = await run_in_threadpool(cls._query_prompt, handler, req.object_names, req.question)
+        cfg = await _ai_resolve_cfg(db)
+        return cfg, prompt
+
+    @classmethod
+    def _query_prompt(cls, handler: Any, object_names: list[str] | None, question: str) -> str:
+        schema_ctx = cls._schema_context(handler, object_names)
+        return (
+            f'你是 {handler.name} 数据库的查询专家。{schema_ctx}'
+            f'请根据下面的自然语言需求,写一条**只读**抽取查询(可按需连表 join;单条语句、不要注释、不要 markdown 代码块)。'
+            f'只输出查询本身:\n需求:{question}'
+        )
 
     @classmethod
     def _schema_context(cls, handler: Any, object_names: list[str] | None) -> str:
@@ -466,12 +527,7 @@ class EtlService:
     @classmethod
     async def ai_transform(cls, db: AsyncSession, req: Any) -> dict:
         """AI 生成逐行转换函数:NL + 字段 → transform(row)。"""
-        cols = ('可用字段:' + ', '.join(req.columns) + '\n\n') if req.columns else ''
-        prompt = (
-            f'你是 Python 数据处理专家。{cols}'
-            f'请根据需求写一个函数 `def transform(row):`,入参 row 是一条记录(dict),返回处理后的 dict。'
-            f'只输出函数代码本身(不要注释外的解释、不要 markdown 代码块):\n需求:{req.question}'
-        )
+        _, prompt = await cls.prep_transform(db, req)
         try:
             code = await _ai_complete(db, prompt)
         except ServiceException:
@@ -479,6 +535,18 @@ class EtlService:
         except Exception as e:  # noqa: BLE001 模型调用报错截断
             raise ServiceException(message=f'AI 生成失败:{short_err(e)}') from None
         return {'code': code}
+
+    @classmethod
+    async def prep_transform(cls, db: AsyncSession, req: Any) -> tuple[dict, str]:
+        """流式/一次性生成共用:解析模型配置 + 构造转换提示词。"""
+        cols = ('可用字段:' + ', '.join(req.columns) + '\n\n') if req.columns else ''
+        prompt = (
+            f'你是 Python 数据处理专家。{cols}'
+            f'请根据需求写一个函数 `def transform(row):`,入参 row 是一条记录(dict),返回处理后的 dict。'
+            f'只输出函数代码本身(不要注释外的解释、不要 markdown 代码块):\n需求:{req.question}'
+        )
+        cfg = await _ai_resolve_cfg(db)
+        return cfg, prompt
 
     @staticmethod
     def _apply_transform(code: str, rows: list[dict]) -> list[dict]:

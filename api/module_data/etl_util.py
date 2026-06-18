@@ -1,9 +1,37 @@
-"""ETL 公共工具:目标族判断 / 记录序列化 / 错误信息截断。供数据服务与任务 runner 共用。"""
+"""ETL 公共工具:目标族判断 / 记录序列化 / 错误信息截断 / 只读 SQL 校验。供数据服务与任务 runner 共用。"""
 
 import csv
 import io
 import json
+import re
 from typing import Any
+
+# 只读语句起始关键字白名单
+_SQL_READONLY_START = re.compile(r'^\s*(select|with|show|explain|desc|describe)\b', re.IGNORECASE)
+# 写入/DDL/危险关键字黑名单(以词边界匹配,避免误伤普通子串)
+_SQL_DANGEROUS = re.compile(
+    r'\b(insert|update|delete|drop|truncate|alter|create|replace|rename|grant|revoke|merge|call|exec|execute|'
+    r'load\s+data|lock|unlock)\b|into\s+(out|dump)file',
+    re.IGNORECASE,
+)
+
+
+def assert_readonly_sql(statement: Any) -> None:
+    """断言为「单条只读 SQL」,否则抛 ValueError。
+
+    非字符串(如 ES/Mongo 的 DSL dict)直接放行——它们各自的 query 方法本就是只读检索。
+    """
+    if not isinstance(statement, str):
+        return
+    s = statement.strip().rstrip(';').strip()
+    if not s:
+        return
+    if ';' in s:  # 多语句(防堆叠注入)
+        raise ValueError('查询仅允许单条只读语句(检测到多条语句)')
+    if not _SQL_READONLY_START.match(s):
+        raise ValueError('查询仅允许只读语句(SELECT / WITH / SHOW / EXPLAIN)')
+    if _SQL_DANGEROUS.search(s):
+        raise ValueError('检测到写入/DDL 关键字,已拦截(查询仅限只读,写入请用数据集成任务)')
 
 # 目标为对象/文件存储时,写入路径是「整对象 bytes」,需先把记录序列化
 FILE_FAMILIES = {'file', 'object', 'filesystem'}

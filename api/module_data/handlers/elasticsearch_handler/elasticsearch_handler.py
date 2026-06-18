@@ -12,6 +12,39 @@ from module_data.handlers.base import Capability, Column, Connector, ConnectResu
 from module_data.handlers.elasticsearch_handler.connection_args import connection_args, connection_args_example
 
 
+def _flatten_aggs(aggs: dict, base: dict | None = None) -> list[dict]:
+    """把 ES 聚合结果拍平成表格行:
+
+    - 桶聚合(terms/histogram/range/filters):每个桶一行,key→以聚合名为列,带 doc_count;
+    - 指标聚合(avg/sum/max/min/cardinality...):value 作为列拼到当前行;
+    - 嵌套桶:逐层交叉展开(父桶 key + 子桶 key 同行)。
+    """
+    base = dict(base or {})
+    bucket_aggs = {n: a for n, a in aggs.items() if isinstance(a, dict) and 'buckets' in a}
+    # 同层的指标聚合 → 直接作为列
+    for n, a in aggs.items():
+        if isinstance(a, dict) and 'buckets' not in a:
+            if 'value' in a:
+                base[n] = a['value']
+            elif 'values' in a:  # percentiles 等多值
+                base[n] = a['values']
+    if not bucket_aggs:
+        return [base] if base else []
+    rows: list[dict] = []
+    for n, a in bucket_aggs.items():
+        buckets = a['buckets']
+        if isinstance(buckets, dict):  # filters/keyed range:dict 形态
+            buckets = [{'key': k, **v} for k, v in buckets.items()]
+        for b in buckets:
+            row = dict(base)
+            row[n] = b.get('key_as_string', b.get('key'))
+            row['doc_count'] = b.get('doc_count')
+            sub = {k: v for k, v in b.items()
+                   if k not in ('key', 'key_as_string', 'doc_count') and isinstance(v, dict)}
+            rows.extend(_flatten_aggs(sub, row) if sub else [row])
+    return rows
+
+
 class ElasticsearchHandler(Connector):
     name = 'elasticsearch'
     title = 'Elasticsearch'
@@ -66,12 +99,17 @@ class ElasticsearchHandler(Connector):
         return {'index': table, 'body': {'query': {'match_all': {}}, 'size': limit}}
 
     def query(self, statement: dict, params: dict | None = None, limit: int | None = None) -> list[dict]:
-        """statement = {'index': ..., 'body': <ES DSL>}(程序化构造 DSL,不做模板注入)。"""
+        """statement = {'index': ..., 'body': <ES DSL>}(程序化构造 DSL,不做模板注入)。
+
+        含聚合(aggs)时返回拍平后的聚合行;否则返回命中文档(hits)。
+        """
         index = statement['index']
         body = dict(statement.get('body') or {})
-        if limit is not None:
+        if limit is not None:  # size 已显式给定则取较小值(聚合常用 size:0,保持为 0)
             body['size'] = min(int(limit), body.get('size', limit))
         resp = self.client.search(index=index, body=body)
+        if resp.get('aggregations'):
+            return _flatten_aggs(resp['aggregations'])
         return [h['_source'] | {'_id': h['_id']} for h in resp['hits']['hits']]
 
     def search(self, table: str, filters: list[dict] | None = None, page: int = 1,

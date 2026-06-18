@@ -125,6 +125,7 @@ create table sys_role (
 -- ----------------------------
 insert into sys_role values('1', '超级管理员',  'admin',  1, 1, 1, 1, '0', '0', 'admin', sysdate(), '', null, '超级管理员');
 insert into sys_role values('2', '普通角色',    'common', 2, 2, 1, 1, '0', '0', 'admin', sysdate(), '', null, '普通角色');
+insert into sys_role values('3', '数据管理员',  'data_admin', 3, 1, 1, 1, '0', '0', 'admin', sysdate(), '', null, '数据管理模块管理员:数据源/模型/查询/接口/集成/令牌');
 
 
 -- ----------------------------
@@ -999,6 +1000,44 @@ insert into sys_menu values('2213', '策略删除', '2201', '4', '#', '', '', ''
 insert into sys_menu values('2220', '记录查询', '2202', '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'alert:record:list',    '#', 'admin', sysdate(), '', null, '');
 insert into sys_menu values('2221', '记录处理', '2202', '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'alert:record:edit',    '#', 'admin', sysdate(), '', null, '');
 insert into sys_menu values('2222', '记录删除', '2202', '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'alert:record:remove',  '#', 'admin', sysdate(), '', null, '');
+
+-- ----------------------------
+-- 数据管理模块菜单/权限(module_data + module_apitoken)
+-- ----------------------------
+insert into sys_menu values('2300', '数据管理', '0',    '0', 'data',   null,               '', '', 1, 0, 'M', '0', '0', '',                  'database', 'admin', sysdate(), '', null, '数据管理目录(置顶)');
+insert into sys_menu values('2301', '数据管理', '2300', '1', 'manage', 'dataManage/index', '', '', 1, 0, 'C', '0', '0', 'data:source:list',  'database', 'admin', sysdate(), '', null, '数据管理菜单');
+insert into sys_menu values('2310', '数据源查询', '2301', '1',  '#', '', '', '', 1, 0, 'F', '0', '0', 'data:source:list',   '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('2311', '数据源新增', '2301', '2',  '#', '', '', '', 1, 0, 'F', '0', '0', 'data:source:add',    '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('2312', '数据源修改', '2301', '3',  '#', '', '', '', 1, 0, 'F', '0', '0', 'data:source:edit',   '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('2313', '数据源删除', '2301', '4',  '#', '', '', '', 1, 0, 'F', '0', '0', 'data:source:remove', '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('2314', '模型查询',   '2301', '5',  '#', '', '', '', 1, 0, 'F', '0', '0', 'data:model:list',    '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('2315', '模型新增',   '2301', '6',  '#', '', '', '', 1, 0, 'F', '0', '0', 'data:model:add',     '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('2316', '模型修改',   '2301', '7',  '#', '', '', '', 1, 0, 'F', '0', '0', 'data:model:edit',    '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('2317', '模型删除',   '2301', '8',  '#', '', '', '', 1, 0, 'F', '0', '0', 'data:model:remove',  '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('2318', '数据查询',   '2301', '9',  '#', '', '', '', 1, 0, 'F', '0', '0', 'data:query',         '#', 'admin', sysdate(), '', null, '原生/AI 取数');
+insert into sys_menu values('2319', '数据接口',   '2301', '10', '#', '', '', '', 1, 0, 'F', '0', '0', 'data:api',           '#', 'admin', sysdate(), '', null, '分页接口预览');
+insert into sys_menu values('2320', '数据集成',   '2301', '11', '#', '', '', '', 1, 0, 'F', '0', '0', 'data:etl',           '#', 'admin', sysdate(), '', null, 'ETL 预览/测试/AI生成');
+insert into sys_menu values('2321', '令牌查询',   '2301', '12', '#', '', '', '', 1, 0, 'F', '0', '0', 'apitoken:list',      '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('2322', '令牌生成',   '2301', '13', '#', '', '', '', 1, 0, 'F', '0', '0', 'apitoken:add',       '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('2323', '令牌删除',   '2301', '14', '#', '', '', '', 1, 0, 'F', '0', '0', 'apitoken:remove',    '#', 'admin', sysdate(), '', null, '');
+
+-- 数据管理员角色(role_id=3)分配数据管理全部菜单/权限
+insert into sys_role_menu values('3', '2300');
+insert into sys_role_menu values('3', '2301');
+insert into sys_role_menu values('3', '2310');
+insert into sys_role_menu values('3', '2311');
+insert into sys_role_menu values('3', '2312');
+insert into sys_role_menu values('3', '2313');
+insert into sys_role_menu values('3', '2314');
+insert into sys_role_menu values('3', '2315');
+insert into sys_role_menu values('3', '2316');
+insert into sys_role_menu values('3', '2317');
+insert into sys_role_menu values('3', '2318');
+insert into sys_role_menu values('3', '2319');
+insert into sys_role_menu values('3', '2320');
+insert into sys_role_menu values('3', '2321');
+insert into sys_role_menu values('3', '2322');
+insert into sys_role_menu values('3', '2323');
 
 -- ============================================================================
 -- 数据管理模块(module_data)：数据源 / 数据模型

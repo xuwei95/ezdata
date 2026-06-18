@@ -1,28 +1,29 @@
 <template>
   <div class="query-tab">
-    <el-radio-group v-model="mode" size="small" style="margin-bottom: 10px">
-      <el-radio-button label="native">原生查询</el-radio-button>
-      <el-radio-button label="ai">AI 取数</el-radio-button>
-    </el-radio-group>
-
-    <!-- AI 取数:自然语言 → 生成原生查询 → 执行 -->
-    <div v-if="mode === 'ai'" class="ai-bar">
-      <el-input v-model="question" placeholder="用自然语言描述你想查什么,例如:最近一周金额最高的 10 笔订单"
-        @keyup.enter="runAi">
-        <template #prepend><el-icon><MagicStick /></el-icon></template>
-        <template #append>
-          <el-button :loading="loading" @click="runAi">生成并查询</el-button>
-        </template>
-      </el-input>
-      <div v-if="genSql" class="gen-sql">
-        <span class="lbl">AI 生成:</span><code>{{ genSql }}</code>
+    <div class="native-bar">
+      <div class="bar">
+        <span class="muted">原生查询(SQL 字符串 / ES DSL JSON)</span>
+        <el-button size="small" icon="MagicStick" @click="aiq.open = !aiq.open">AI 生成查询</el-button>
       </div>
-    </div>
-
-    <!-- 原生查询 -->
-    <div v-else class="native-bar">
       <el-input v-model="native" type="textarea" :rows="4"
-        placeholder="原生查询(SQL 字符串 / DSL JSON),例如:SELECT * FROM xxx WHERE ..." />
+        placeholder="例如:SELECT * FROM xxx WHERE ...;或点「AI 生成查询」用自然语言生成" />
+
+      <!-- AI 辅助生成:流式打印 → 确认采用到查询框 -->
+      <div v-if="aiq.open" class="ai-panel">
+        <el-input v-model="aiq.question" type="textarea" :rows="2"
+          placeholder="用自然语言描述你想查什么,例如:最近一周金额最高的 10 笔订单" @keyup.enter.stop="genQuery" />
+        <div class="bar" style="margin-top: 6px">
+          <el-button size="small" type="primary" icon="MagicStick" :loading="aiq.loading" @click="genQuery">
+            {{ aiq.output ? '重新生成' : '生成' }}</el-button>
+          <span class="muted">生成结果见下方,确认后采用到查询框</span>
+        </div>
+        <pre v-if="aiq.output" class="ai-out">{{ aiq.output }}<span v-if="aiq.loading" class="cursor">▋</span></pre>
+        <div v-if="aiq.output && !aiq.loading" class="bar">
+          <el-button size="small" type="success" icon="Check" @click="applyQuery">采用到查询</el-button>
+          <el-button size="small" @click="aiq.output = ''">清空</el-button>
+        </div>
+      </div>
+
       <el-button type="primary" icon="Search" :loading="loading" @click="runNative" style="margin-top: 8px">查询</el-button>
     </div>
 
@@ -45,20 +46,21 @@
 </template>
 
 <script setup name="DataQueryTab">
-import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, reactive, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import * as XLSX from 'xlsx'
-import { queryModel, aiQueryModel, getSampleQuery } from '@/api/dataManage/data'
+import { queryModel, getSampleQuery } from '@/api/dataManage/data'
+import { getToken } from '@/utils/auth'
 
 const props = defineProps({ model: { type: Object, required: true } })
 
-const mode = ref('native')
-const question = ref('')
-const genSql = ref('')
 const native = ref('')
 const rows = ref([])
 const columns = ref([])
 const loading = ref(false)
+// AI 辅助生成
+const aiq = reactive({ open: false, question: '', output: '', loading: false })
+const AI_BASE = import.meta.env.VITE_APP_BASE_API || ''
 
 // 表格高度:按表格实际位置算,正好贴到视口底部(留出横向滚动条空间)
 const gridH = ref(400)
@@ -67,6 +69,28 @@ async function computeH() {
   await nextTick()
   const top = gridWrap.value ? gridWrap.value.getBoundingClientRect().top : 240
   gridH.value = Math.max(240, Math.floor(window.innerHeight - top - 24))
+}
+
+function stripFence(t) {
+  let s = (t || '').trim()
+  if (s.startsWith('```')) s = s.replace(/^```[^\n]*\n/, '').replace(/```\s*$/, '').trim()
+  return s
+}
+
+async function streamAi(url, body, onChunk) {
+  const resp = await fetch(AI_BASE + url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() },
+    body: JSON.stringify(body)
+  })
+  if (!resp.ok || !resp.body) throw new Error('HTTP ' + resp.status)
+  const reader = resp.body.getReader()
+  const dec = new TextDecoder()
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    onChunk(dec.decode(value, { stream: true }))
+  }
 }
 
 function exportExcel() {
@@ -78,7 +102,8 @@ function exportExcel() {
 }
 
 async function syncModel() {
-  question.value = ''; genSql.value = ''; native.value = ''; rows.value = []; columns.value = []
+  native.value = ''; rows.value = []; columns.value = []
+  aiq.open = false; aiq.question = ''; aiq.output = ''
   if (!props.model || !props.model.id) return
   // 预填原生查询默认示例(各源对应方言,limit 100)
   try {
@@ -87,8 +112,9 @@ async function syncModel() {
   } catch (e) { /* 忽略 */ }
 }
 watch(() => props.model && props.model.id, syncModel)
-// 模式切换(AI 单行/原生多行)、AI 生成 SQL 行出现都会改变表格起点,重算高度
-watch([mode, genSql], computeH)
+// AI 面板展开/收起、生成开始结束都会改变表格起点,重算高度
+watch(() => aiq.open, computeH)
+watch(() => aiq.loading, computeH)
 onMounted(() => { syncModel(); computeH(); window.addEventListener('resize', computeH) })
 onUnmounted(() => window.removeEventListener('resize', computeH))
 
@@ -97,21 +123,7 @@ function fill(records) {
   columns.value = rows.value.length ? Object.keys(rows.value[0]) : []
 }
 
-async function runAi() {
-  if (!question.value.trim()) { ElMessage.warning('请输入查询需求'); return }
-  loading.value = true
-  try {
-    const res = await aiQueryModel(props.model.id, { question: question.value })
-    genSql.value = res.data.query
-    fill(res.data.records)
-    ElMessage.success(`AI 取数 ${res.data.total} 行`)
-  } catch (e) {
-    ElMessage.error('AI 取数失败:' + (e?.msg || e?.message || '请检查是否已配置 AI 模型'))
-  } finally {
-    loading.value = false
-  }
-}
-
+// 执行原生查询(SQL 串或 ES DSL JSON,自动识别)
 async function runNative() {
   if (!native.value.trim()) { ElMessage.warning('请输入查询语句'); return }
   loading.value = true
@@ -127,12 +139,38 @@ async function runNative() {
     loading.value = false
   }
 }
+
+// AI 流式生成查询(辅助:打在下方,确认后采用到查询框)
+async function genQuery() {
+  if (!aiq.question.trim()) { ElMessage.warning('请描述你想查什么'); return }
+  aiq.output = ''; aiq.loading = true
+  try {
+    await streamAi(`/data/model/${props.model.id}/ai-query/stream`, { question: aiq.question },
+      (c) => { aiq.output += c })
+  } catch (e) {
+    ElMessage.error('生成失败: ' + e.message)
+  } finally {
+    aiq.loading = false
+  }
+}
+function applyQuery() {
+  native.value = stripFence(aiq.output).replace(/;\s*$/, '')
+  aiq.open = false
+  ElMessage.success('已采用到查询框,点「查询」执行')
+}
 </script>
 
 <style scoped>
+.native-bar .bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.native-bar .muted { color: #909399; font-size: 12px; }
+.ai-panel { margin-top: 8px; padding: 10px; border: 1px dashed #c0c4cc; border-radius: 6px; background: #fafafa; }
 .result-bar { display: flex; align-items: center; justify-content: space-between; margin: 10px 0 6px; }
 .count { color: #909399; font-size: 13px; }
-.gen-sql { margin-top: 8px; font-size: 13px; background: #f5f7fa; padding: 6px 10px; border-radius: 4px; }
-.gen-sql .lbl { color: #909399; margin-right: 6px; }
-.gen-sql code { color: #409eff; word-break: break-all; }
+.ai-out {
+  margin: 8px 0; padding: 8px 10px; max-height: 220px; overflow: auto;
+  background: #1e1e1e; color: #d4d4d4; border-radius: 4px;
+  font-family: Consolas, Monaco, monospace; font-size: 12px; white-space: pre-wrap; word-break: break-all;
+}
+.cursor { animation: blink 1s steps(1) infinite; color: #67c23a; }
+@keyframes blink { 50% { opacity: 0; } }
 </style>
