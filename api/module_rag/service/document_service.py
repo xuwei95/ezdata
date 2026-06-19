@@ -80,12 +80,16 @@ class DocumentService:
     @classmethod
     async def delete(cls, db: AsyncSession, ids: str) -> CrudResponseModel:
         id_list = [i for i in ids.split(',') if i]
+        from module_rag.runtime_util import snapshot_dataset  # noqa: PLC0415
         docs = (await db.execute(select(RagDocument).where(RagDocument.id.in_(id_list)))).scalars().all()
-        # 先从向量库删该文档分段
+        # 先从向量库删该文档分段(用游离快照,避免线程内懒加载)
+        targets = []
         for doc in docs:
             ds = (await db.execute(select(RagDataset).where(RagDataset.id == doc.dataset_id))).scalars().first()
             if ds:
-                await run_in_threadpool(cls._drop_doc_vectors, ds, doc.id, doc.tenant_id)
+                targets.append((snapshot_dataset(ds), doc.id, doc.tenant_id))
+        for snap, did, tid in targets:
+            await run_in_threadpool(cls._drop_doc_vectors, snap, did, tid)
         try:
             for doc_id in id_list:
                 await db.execute(delete(RagChunk).where(RagChunk.document_id == doc_id))

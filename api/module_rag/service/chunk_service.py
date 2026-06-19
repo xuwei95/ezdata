@@ -31,6 +31,8 @@ class ChunkService:
         ds = (await db.execute(select(RagDataset).where(RagDataset.id == req.dataset_id))).scalars().first()
         if not ds:
             raise ServiceException(message='知识库不存在')
+        from module_rag.runtime_util import snapshot_dataset  # noqa: PLC0415
+        ds_snap = snapshot_dataset(ds)  # commit 后 ds 会过期,提前快照供线程池用
         tenant_id = RequestContext.get_effective_tenant_id()
         is_qa = req.chunk_type == 'qa'
         if is_qa and not (req.question and req.answer):
@@ -63,8 +65,8 @@ class ChunkService:
                     create_by=operator, create_time=datetime.now(),
                 ))
             await db.commit()
-            # 同步向量库
-            await run_in_threadpool(cls._index_single, ds, cid, index_text, req.chunk_type, doc_id, tenant_id)
+            # 同步向量库(用游离快照,避免线程内读已过期 ORM 触发懒加载)
+            await run_in_threadpool(cls._index_single, ds_snap, cid, index_text, req.chunk_type, doc_id, tenant_id)
             return {'id': cid}
         except Exception as e:
             await db.rollback()

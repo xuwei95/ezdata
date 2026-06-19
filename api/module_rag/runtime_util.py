@@ -40,6 +40,19 @@ def index_name(dataset: RagDataset) -> str:
     return dataset.index_name or f'rag_ds_{dataset.id}'
 
 
+def snapshot_dataset(ds: RagDataset) -> RagDataset:
+    """把(可能绑定 async 会话的)dataset 拷成游离实例,供线程池/同步上下文安全读取。
+
+    必须在 async 上下文、且属性未过期(commit 前)时调用,避免线程内懒加载触发 MissingGreenlet。
+    """
+    return RagDataset(
+        id=ds.id, name=ds.name, embedding_provider=ds.embedding_provider,
+        embedding_model=ds.embedding_model, embedding_dims=ds.embedding_dims,
+        vector_backend=ds.vector_backend, vector_source_id=ds.vector_source_id,
+        index_name=ds.index_name,
+    )
+
+
 def build_store(dataset: RagDataset) -> VectorStore:
     backend = dataset.vector_backend or RagConfig.rag_vector_backend
     return get_vector_store(backend, _vector_connection(dataset), index_name(dataset))

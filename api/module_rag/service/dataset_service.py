@@ -82,8 +82,10 @@ class DatasetService:
     async def delete(cls, db: AsyncSession, ids: str) -> CrudResponseModel:
         id_list = [i for i in ids.split(',') if i]
         # 先删向量库索引(同步)
+        from module_rag.runtime_util import snapshot_dataset  # noqa: PLC0415
         datasets = (await db.execute(select(RagDataset).where(RagDataset.id.in_(id_list)))).scalars().all()
-        for d in datasets:
+        snaps = [snapshot_dataset(d) for d in datasets]
+        for d in snaps:
             await run_in_threadpool(cls._drop_index, d)
         try:
             for ds_id in id_list:
