@@ -38,3 +38,28 @@ def run_task(task_id: Any, *args: Any, **kwargs: Any) -> str | None:
     async_result = celery_app.send_task('module_task_schedule.run_task', args=[task_id], queue=queue)
     loguru_logger.info(f'任务已投递到 Celery: task_id={task_id} queue={queue} instance={async_result.id}')
     return async_result.id
+
+
+def run_dag(dag_task_id: Any, source: str = 'published') -> str | None:
+    """DAG 分发入口:投递 run_dag 到 Celery(返回的 task id 即 DAG run 实例id)。"""
+    dag_task_id = str(dag_task_id)
+    queue = _load_run_queue(dag_task_id)
+
+    from config.celery_app import celery_app
+
+    async_result = celery_app.send_task(
+        'module_task_schedule.run_dag', args=[dag_task_id, source], queue=queue)
+    loguru_logger.info(f'DAG 已投递: dag={dag_task_id} source={source} queue={queue} run={async_result.id}')
+    return async_result.id
+
+
+def run_single_node(dag_task_id: Any, node_key: str, source: str = 'draft') -> str | None:
+    """单独运行 DAG 节点(调试)。"""
+    dag_task_id = str(dag_task_id)
+    queue = _load_run_queue(dag_task_id)
+
+    from config.celery_app import celery_app
+
+    async_result = celery_app.send_task(
+        'module_task_schedule.run_single_node', args=[dag_task_id, node_key, source], queue=queue)
+    return async_result.id

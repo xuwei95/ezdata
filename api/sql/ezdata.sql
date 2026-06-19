@@ -847,6 +847,7 @@ create table task (
   id                  varchar(36)     not null                   comment '主键',
   template_code       varchar(200)    default ''                 comment '任务模板编码',
   task_type           smallint        default 1                  comment '任务类型，1普通任务2dag工作流任务',
+  run_type            smallint        default 1                  comment 'DAG运行模式 1分布式2单机',
   name                varchar(100)    default ''                 comment '名称',
   params              text                                       comment '参数',
   status              smallint        default 0                  comment '状态 0停用 1启用',
@@ -859,6 +860,7 @@ create table task (
   run_queue           varchar(200)    default 'default'          comment '运行队列',
   running_id          varchar(36)     default null               comment '正在运行任务实例ID',
   job_id              int             default null               comment '关联的调度任务ID(sys_job)',
+  published_version_id varchar(36)    default null               comment 'DAG当前发布版(dag_graph.id)',
   create_by           varchar(64)     default ''                 comment '创建者',
   create_time         datetime                                   comment '创建时间',
   update_by           varchar(64)     default ''                 comment '更新者',
@@ -883,10 +885,27 @@ create table task_instance (
   end_time            datetime                                   comment '结束时间',
   closed              smallint        default 0                  comment '是否已关闭',
   result              text                                       comment '执行结果',
+  dag_version_id      varchar(36)     default null               comment 'DAG run 图版本(dag_graph.id)',
   primary key (id),
   key idx_task_instance_task (task_id),
   key idx_task_instance_status (status)
 ) engine=innodb comment = '任务实例表';
+
+-- DAG 图版本文档表(Dify/n8n 范式:draft 可变 + published 不可变)
+drop table if exists dag_graph;
+create table dag_graph (
+  id                  varchar(36)     not null                   comment '主键',
+  dag_task_id         varchar(36)     default null               comment '所属 DAG 任务id',
+  version             varchar(64)     default 'draft'            comment "版本:'draft' 或 发布版本号",
+  status              varchar(20)     default 'draft'            comment 'draft/published/archived',
+  graph               mediumtext                                 comment '整张图 JSON(nodes/edges/viewport)',
+  remark              varchar(500)    default ''                 comment '发布说明',
+  create_by           varchar(64)     default ''                 comment '创建者',
+  create_time         datetime                                   comment '创建时间',
+  tenant_id           bigint          default null               comment '租户ID',
+  primary key (id),
+  key ix_dag_graph_dag_task_id (dag_task_id)
+) engine=innodb comment = 'DAG图版本文档表';
 
 -- 任务执行明细日志表(仅 TASK_LOG_TYPE=db 时写入)
 drop table if exists task_log;
@@ -912,8 +931,14 @@ insert into task_template values ('4', '数据集成任务', 'DataIntegrationTas
 -- 任务调度模块菜单/权限
 -- ----------------------------
 insert into sys_menu values('2100', '任务调度', '0',    '2', 'task',     null,                  '', '', 1, 0, 'M', '0', '0', '',                       'job',  'admin', sysdate(), '', null, '任务调度目录');
-insert into sys_menu values('2101', '任务管理', '2100', '1', 'info',     'task/info/index',     '', '', 1, 0, 'C', '0', '0', 'task:info:list',         'list', 'admin', sysdate(), '', null, '任务管理菜单');
-insert into sys_menu values('2102', '任务模板', '2100', '2', 'template', 'task/template/index', '', '', 1, 0, 'C', '0', '0', 'task:template:list',     'form', 'admin', sysdate(), '', null, '任务模板菜单');
+insert into sys_menu values('2101', '普通任务调度', '2100', '1', 'info',     'task/info/index',     '', '', 1, 0, 'C', '0', '0', 'task:info:list',         'list', 'admin', sysdate(), '', null, '任务管理菜单');
+insert into sys_menu values('2102', '任务模板', '2100', '3', 'template', 'task/template/index', '', '', 1, 0, 'C', '0', '0', 'task:template:list',     'form', 'admin', sysdate(), '', null, '任务模板菜单');
+insert into sys_menu values('2103', '任务工作流', '2100', '2', 'dag',     'task/dag/index',      '', '', 1, 0, 'C', '0', '0', 'task:dag:list',          'share', 'admin', sysdate(), '', null, 'DAG工作流菜单');
+-- DAG 工作流 按钮
+insert into sys_menu values('2140', 'DAG查询', '2103', '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:dag:list',    '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('2141', 'DAG编辑', '2103', '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:dag:edit',    '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('2142', 'DAG发布', '2103', '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:dag:publish', '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('2143', 'DAG运行', '2103', '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:dag:run',     '#', 'admin', sysdate(), '', null, '');
 -- 任务管理 按钮
 insert into sys_menu values('2110', '任务查询', '2101', '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:info:query',        '#', 'admin', sysdate(), '', null, '');
 insert into sys_menu values('2111', '任务新增', '2101', '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:info:add',          '#', 'admin', sysdate(), '', null, '');

@@ -55,6 +55,9 @@ class Task(Base, TenantMixin):
     task_type: Mapped[int | None] = mapped_column(
         SmallInteger, nullable=True, server_default='1', comment='任务类型，1普通任务2dag工作流任务'
     )
+    run_type: Mapped[int | None] = mapped_column(
+        SmallInteger, nullable=True, server_default='1', comment='DAG运行模式，1分布式2单机'
+    )
     name: Mapped[str | None] = mapped_column(String(100), nullable=True, server_default="''", comment='名称')
     params: Mapped[str | None] = mapped_column(Text, nullable=True, comment='参数')
     status: Mapped[int | None] = mapped_column(
@@ -75,6 +78,9 @@ class Task(Base, TenantMixin):
     )
     running_id: Mapped[str | None] = mapped_column(String(36), nullable=True, comment='正在运行任务实例ID')
     job_id: Mapped[int | None] = mapped_column(Integer, nullable=True, comment='关联的调度任务ID(sys_job)')
+    published_version_id: Mapped[str | None] = mapped_column(
+        String(36), nullable=True, comment='DAG 当前生效的发布版(dag_graph.id)'
+    )
     alert_strategy_ids: Mapped[str | None] = mapped_column(
         String(500), nullable=True, server_default="''", comment='绑定的告警策略ID(逗号分隔)'
     )
@@ -106,6 +112,29 @@ class TaskInstance(Base, TenantMixin):
     end_time: Mapped[datetime | None] = mapped_column(nullable=True, comment='结束时间')
     closed: Mapped[int | None] = mapped_column(SmallInteger, nullable=True, server_default='0', comment='是否已关闭')
     result: Mapped[str | None] = mapped_column(Text, nullable=True, comment='执行结果')
+    dag_version_id: Mapped[str | None] = mapped_column(
+        String(36), nullable=True, comment='DAG run 跑的图版本(dag_graph.id)'
+    )
+
+
+class DagGraph(Base, TenantMixin):
+    """DAG 图文档(按版本存):草稿可变,发布版不可变(Dify/n8n 范式)。"""
+
+    __tablename__ = 'dag_graph'
+    __table_args__ = {'comment': 'DAG 图版本文档表'}
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, comment='主键')
+    dag_task_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True, comment='所属 DAG 任务id')
+    version: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, server_default='draft', comment="版本:'draft' 或 发布版本号"
+    )
+    status: Mapped[str | None] = mapped_column(
+        String(20), nullable=True, server_default='draft', comment='draft/published/archived'
+    )
+    graph: Mapped[str | None] = mapped_column(Text, nullable=True, comment='整张图 JSON(nodes/edges/viewport)')
+    remark: Mapped[str | None] = mapped_column(String(500), nullable=True, server_default="''", comment='发布说明')
+    create_by: Mapped[str | None] = mapped_column(String(64), nullable=True, server_default="''", comment='创建者')
+    create_time: Mapped[datetime | None] = mapped_column(default=datetime.now, nullable=True, comment='创建时间')
 
 
 class TaskLog(Base, TenantMixin):
