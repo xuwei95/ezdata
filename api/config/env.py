@@ -363,6 +363,53 @@ class AiSettings(BaseSettings):
         return _LLM_PROVIDER_ALIASES.get(t.lower(), t)
 
 
+class RagSettings(BaseSettings):
+    """
+    知识库(RAG)配置:embedding / rerank / 向量后端 兜底参数(沿用旧项目命名)。
+
+    优先级:知识库绑定的 ai_models 模型 > 这里的环境变量兜底。
+    向量后端默认 ES8;rag_vector_hosts 为空时回退到任务日志 ES(task_es_hosts)。
+
+    .env 示例(取自旧 prod.env):
+        EMBEDDING_TYPE=dashscope
+        EMBEDDING_MODEL=text-embedding-v2
+        DASHSCOPE_API_KEY=sk-xxx
+        RAG_VECTOR_BACKEND=elasticsearch
+        RAG_VECTOR_HOSTS=http://127.0.0.1:9200
+    """
+
+    embedding_type: str = 'dashscope'          # EMBEDDING_TYPE
+    embedding_model: str = 'text-embedding-v2'  # EMBEDDING_MODEL
+    embedding_dims: int = 0                     # EMBEDDING_DIMS(0=自动探测/按已知模型)
+    embedding_api_key: str = ''                 # EMBEDDING_API_KEY
+    embedding_url: str = ''                     # EMBEDDING_URL(base_url,可空)
+    dashscope_api_key: str = ''                 # DASHSCOPE_API_KEY(provider=dashscope 时复用)
+    embedding_cache: int = 1                    # EMBEDDING_CACHE(1=启用 rag_embedding 缓存)
+
+    rerank_type: str = ''                       # RERANK_TYPE(空=不启用)
+    rerank_model: str = 'gte-rerank'            # RERANK_MODEL
+    rerank_api_key: str = ''                    # RERANK_API_KEY
+
+    rag_vector_backend: str = 'elasticsearch'   # RAG_VECTOR_BACKEND
+    rag_vector_hosts: str = ''                  # RAG_VECTOR_HOSTS(空=回退 task_es_hosts)
+    rag_vector_user: str = ''                   # RAG_VECTOR_USER
+    rag_vector_password: str = ''               # RAG_VECTOR_PASSWORD
+    rag_vector_api_key: str = ''                # RAG_VECTOR_API_KEY
+
+    @property
+    def api_key(self) -> str:
+        """embedding 用的 key:优先 EMBEDDING_API_KEY,dashscope 系回退 DASHSCOPE_API_KEY。"""
+        if self.embedding_api_key:
+            return self.embedding_api_key
+        if (self.embedding_type or '').lower() in ('dashscope', 'tongyi', 'qwen'):
+            return self.dashscope_api_key
+        return ''
+
+    @property
+    def rerank_key(self) -> str:
+        return self.rerank_api_key or self.dashscope_api_key
+
+
 class GetConfig:
     """
     获取配置
@@ -510,3 +557,5 @@ UploadConfig = get_config.get_upload_config()
 StorageConfig = get_config.get_storage_config()
 # 系统内置 AI 兜底模型配置
 AiConfig = get_config.get_ai_config()
+# 知识库(RAG)兜底配置
+RagConfig = RagSettings()

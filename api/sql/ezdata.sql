@@ -1064,6 +1064,110 @@ insert into sys_role_menu values('3', '2321');
 insert into sys_role_menu values('3', '2322');
 insert into sys_role_menu values('3', '2323');
 
+-- ----------------------------
+-- 知识库模块菜单/权限(module_rag),一级菜单
+-- ----------------------------
+insert into sys_menu values('2400', '知识库',   '0',    '1', 'rag',       null,                 '', '', 1, 0, 'M', '0', '0', '',               'documentation', 'admin', sysdate(), '', null, '知识库目录');
+insert into sys_menu values('2401', '知识库管理', '2400', '1', 'dataset',   'rag/dataset/index',  '', '', 1, 0, 'C', '0', '0', 'rag:dataset:list', 'documentation', 'admin', sysdate(), '', null, '知识库/文档/分段管理');
+insert into sys_menu values('2402', '召回测试',   '2400', '2', 'retrieval', 'rag/retrieval/index','', '', 1, 0, 'C', '0', '0', 'rag:retrieval',    'search', 'admin', sysdate(), '', null, '知识库召回测试');
+insert into sys_menu values('2410', '知识库查询', '2401', '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'rag:dataset:list', '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('2411', '知识库编辑', '2401', '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'rag:dataset:edit', '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('2412', '召回执行',   '2402', '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'rag:retrieval',    '#', 'admin', sysdate(), '', null, '');
+
+-- 数据管理员角色(role_id=3)分配知识库菜单/权限
+insert into sys_role_menu values('3', '2400');
+insert into sys_role_menu values('3', '2401');
+insert into sys_role_menu values('3', '2402');
+insert into sys_role_menu values('3', '2410');
+insert into sys_role_menu values('3', '2411');
+insert into sys_role_menu values('3', '2412');
+
+-- ============================================================================
+-- 知识库模块(module_rag):知识库 / 文档 / 分段 / embedding 缓存
+-- ============================================================================
+drop table if exists rag_dataset;
+create table rag_dataset (
+  id                 varchar(36)  not null comment '知识库ID',
+  name               varchar(200) not null comment '名称',
+  description        varchar(500) default null comment '描述',
+  embedding_provider varchar(50)  default null comment 'embedding 提供商',
+  embedding_model    varchar(100) default null comment 'embedding 模型编码',
+  embedding_dims     int          default null comment '向量维度',
+  vector_backend     varchar(50)  default 'elasticsearch' comment '向量后端',
+  vector_source_id   varchar(36)  default null comment '向量库 data_source(空=系统默认ES)',
+  index_name         varchar(200) default null comment '向量索引/集合名',
+  retrieval_config   text         default null comment '默认检索参数(JSON)',
+  built_in           tinyint      default 0 comment '是否内置',
+  status             tinyint      default 1 comment '状态 1启用0禁用',
+  tenant_id          bigint       default null comment '租户ID',
+  create_by          varchar(64)  default '' comment '创建者',
+  create_time        datetime     default null comment '创建时间',
+  update_by          varchar(64)  default '' comment '更新者',
+  update_time        datetime     default null comment '更新时间',
+  remark             varchar(500) default null comment '备注',
+  primary key (id),
+  key idx_rag_dataset_tenant (tenant_id)
+) engine=innodb default charset=utf8mb4 comment='RAG 知识库';
+
+drop table if exists rag_document;
+create table rag_document (
+  id             varchar(36)   not null comment '文档ID',
+  dataset_id     varchar(36)   not null comment '所属知识库',
+  name           varchar(300)  not null comment '文档名',
+  document_type  varchar(30)   default 'upload_file' comment '来源类型',
+  file_key       varchar(500)  default null comment '文件存储key',
+  source         varchar(1000) default null comment '来源(URL/datamodel_id等)',
+  meta_data      text          default null comment '元数据(JSON)',
+  chunk_strategy text          default null comment '切分/清洗策略(JSON)',
+  status         tinyint       default 1 comment '状态 1待训练2训练中3成功4失败',
+  chunk_count    int           default 0 comment '分段数',
+  error          varchar(1000) default null comment '失败原因',
+  tenant_id      bigint        default null comment '租户ID',
+  create_by      varchar(64)   default '' comment '创建者',
+  create_time    datetime      default null comment '创建时间',
+  update_by      varchar(64)   default '' comment '更新者',
+  update_time    datetime      default null comment '更新时间',
+  primary key (id),
+  key idx_rag_document_dataset (dataset_id),
+  key idx_rag_document_tenant (tenant_id)
+) engine=innodb default charset=utf8mb4 comment='RAG 文档';
+
+drop table if exists rag_chunk;
+create table rag_chunk (
+  id            varchar(36) not null comment '分段ID(=向量库_id)',
+  dataset_id    varchar(36) not null comment '所属知识库',
+  document_id   varchar(36) not null comment '所属文档',
+  chunk_type    varchar(10) default 'chunk' comment '类型 chunk/qa',
+  content       text        default null comment '正文',
+  question      text        default null comment '问题(QA)',
+  question_hash varchar(64) default null comment '问题hash',
+  answer        text        default null comment '答案(QA)',
+  hash          varchar(64) default null comment '正文hash',
+  position      int         default 0 comment '序号',
+  status        tinyint     default 1 comment '状态 1已索引0未索引',
+  star_flag     tinyint     default 0 comment '标星',
+  tenant_id     bigint      default null comment '租户ID',
+  create_by     varchar(64) default '' comment '创建者',
+  create_time   datetime    default null comment '创建时间',
+  primary key (id),
+  key idx_rag_chunk_dataset (dataset_id),
+  key idx_rag_chunk_document (document_id),
+  key idx_rag_chunk_qhash (question_hash),
+  key idx_rag_chunk_tenant (tenant_id)
+) engine=innodb default charset=utf8mb4 comment='RAG 分段';
+
+drop table if exists rag_embedding;
+create table rag_embedding (
+  id          bigint      not null auto_increment comment '主键',
+  hash        varchar(64) not null comment '文本hash(md5)',
+  model_id    varchar(150) not null comment 'provider:model',
+  dim         int         default null comment '维度',
+  vector      mediumtext  default null comment '向量(JSON数组)',
+  create_time datetime    default null comment '创建时间',
+  primary key (id),
+  unique key uk_rag_embedding (hash, model_id)
+) engine=innodb default charset=utf8mb4 comment='RAG embedding 缓存';
+
 -- ============================================================================
 -- 数据管理模块(module_data)：数据源 / 数据模型
 -- ============================================================================

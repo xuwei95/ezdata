@@ -1423,6 +1423,110 @@ insert into sys_role_menu values(3, 2321);
 insert into sys_role_menu values(3, 2322);
 insert into sys_role_menu values(3, 2323);
 
+-- ----------------------------
+-- 知识库模块菜单/权限(module_rag),一级菜单
+-- ----------------------------
+insert into sys_menu values(2400, '知识库',   0,    '1', 'rag',       null,                 '', '', 1, 0, 'M', '0', '0', '',               'documentation', 'admin', current_timestamp, '', null, '知识库目录');
+insert into sys_menu values(2401, '知识库管理', 2400, '1', 'dataset',   'rag/dataset/index',  '', '', 1, 0, 'C', '0', '0', 'rag:dataset:list', 'documentation', 'admin', current_timestamp, '', null, '知识库/文档/分段管理');
+insert into sys_menu values(2402, '召回测试',   2400, '2', 'retrieval', 'rag/retrieval/index','', '', 1, 0, 'C', '0', '0', 'rag:retrieval',    'search', 'admin', current_timestamp, '', null, '知识库召回测试');
+insert into sys_menu values(2410, '知识库查询', 2401, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'rag:dataset:list', '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2411, '知识库编辑', 2401, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'rag:dataset:edit', '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2412, '召回执行',   2402, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'rag:retrieval',    '#', 'admin', current_timestamp, '', null, '');
+
+-- 数据管理员角色(role_id=3)分配知识库菜单/权限
+insert into sys_role_menu values(3, 2400);
+insert into sys_role_menu values(3, 2401);
+insert into sys_role_menu values(3, 2402);
+insert into sys_role_menu values(3, 2410);
+insert into sys_role_menu values(3, 2411);
+insert into sys_role_menu values(3, 2412);
+
+-- ============================================================================
+-- 知识库模块(module_rag):知识库 / 文档 / 分段 / embedding 缓存
+-- ============================================================================
+drop table if exists rag_dataset;
+create table rag_dataset (
+  id                 varchar(36)  not null,
+  name               varchar(200) not null,
+  description        varchar(500),
+  embedding_provider varchar(50),
+  embedding_model    varchar(100),
+  embedding_dims     int,
+  vector_backend     varchar(50)  default 'elasticsearch',
+  vector_source_id   varchar(36),
+  index_name         varchar(200),
+  retrieval_config   text,
+  built_in           smallint     default 0,
+  status             smallint     default 1,
+  tenant_id          bigint,
+  create_by          varchar(64)  default '',
+  create_time        timestamp,
+  update_by          varchar(64)  default '',
+  update_time        timestamp,
+  remark             varchar(500),
+  primary key (id)
+);
+create index idx_rag_dataset_tenant on rag_dataset (tenant_id);
+
+drop table if exists rag_document;
+create table rag_document (
+  id             varchar(36)   not null,
+  dataset_id     varchar(36)   not null,
+  name           varchar(300)  not null,
+  document_type  varchar(30)   default 'upload_file',
+  file_key       varchar(500),
+  source         varchar(1000),
+  meta_data      text,
+  chunk_strategy text,
+  status         smallint      default 1,
+  chunk_count    int           default 0,
+  error          varchar(1000),
+  tenant_id      bigint,
+  create_by      varchar(64)   default '',
+  create_time    timestamp,
+  update_by      varchar(64)   default '',
+  update_time    timestamp,
+  primary key (id)
+);
+create index idx_rag_document_dataset on rag_document (dataset_id);
+create index idx_rag_document_tenant on rag_document (tenant_id);
+
+drop table if exists rag_chunk;
+create table rag_chunk (
+  id            varchar(36) not null,
+  dataset_id    varchar(36) not null,
+  document_id   varchar(36) not null,
+  chunk_type    varchar(10) default 'chunk',
+  content       text,
+  question      text,
+  question_hash varchar(64),
+  answer        text,
+  hash          varchar(64),
+  position      int         default 0,
+  status        smallint    default 1,
+  star_flag     smallint    default 0,
+  tenant_id     bigint,
+  create_by     varchar(64) default '',
+  create_time   timestamp,
+  primary key (id)
+);
+create index idx_rag_chunk_dataset on rag_chunk (dataset_id);
+create index idx_rag_chunk_document on rag_chunk (document_id);
+create index idx_rag_chunk_qhash on rag_chunk (question_hash);
+create index idx_rag_chunk_tenant on rag_chunk (tenant_id);
+
+drop table if exists rag_embedding;
+create table rag_embedding (
+  id          bigserial   not null,
+  hash        varchar(64) not null,
+  model_id    varchar(150) not null,
+  dim         int,
+  vector      text,
+  create_time timestamp,
+  primary key (id),
+  unique (hash, model_id)
+);
+
 -- ============================================================================
 -- 数据管理模块(module_data)：数据源 / 数据模型
 -- ============================================================================

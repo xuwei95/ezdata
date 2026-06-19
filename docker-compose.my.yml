@@ -90,9 +90,9 @@ services:
       timeout: 10s
       retries: 30
 
-  # Elasticsearch（任务日志检索后端，TASK_LOG_TYPE=es）
+  # Elasticsearch 8（任务日志 + 知识库向量库 + 数据服务,一套三用）
   ezdata-es:
-    image: elasticsearch:7.17.13
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.4
     container_name: ezdata-es
     environment:
       - discovery.type=single-node
