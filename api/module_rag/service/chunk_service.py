@@ -19,11 +19,17 @@ class ChunkService:
 
     @classmethod
     async def get_list(cls, db: AsyncSession, dataset_id: str, document_id: str | None,
-                       page_num: int, page_size: int, is_page: bool = True) -> Any:
-        query = select(RagChunk).where(
-            RagChunk.dataset_id == dataset_id,
-            RagChunk.document_id == document_id if document_id else True,
-        ).order_by(RagChunk.position)
+                       page_num: int, page_size: int, is_page: bool = True,
+                       chunk_type: str | None = None, keyword: str | None = None) -> Any:
+        conds = [RagChunk.dataset_id == dataset_id]
+        if document_id:
+            conds.append(RagChunk.document_id == document_id)
+        if chunk_type:
+            conds.append(RagChunk.chunk_type == chunk_type)
+        if keyword:
+            like = f'%{keyword}%'
+            conds.append((RagChunk.content.like(like)) | (RagChunk.question.like(like)) | (RagChunk.answer.like(like)))
+        query = select(RagChunk).where(*conds).order_by(RagChunk.create_time.desc())
         return await PageUtil.paginate(db, query, page_num, page_size, is_page)
 
     @classmethod

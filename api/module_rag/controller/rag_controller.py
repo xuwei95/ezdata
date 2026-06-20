@@ -102,10 +102,13 @@ async def chunk_list(
     request: Request, db: Annotated[AsyncSession, DBSessionDependency()],
     datasetId: Annotated[str, Query()],  # noqa: N803
     documentId: Annotated[str | None, Query()] = None,  # noqa: N803
+    chunkType: Annotated[str | None, Query()] = None,  # noqa: N803
+    keyword: Annotated[str | None, Query()] = None,
     pageNum: Annotated[int, Query()] = 1, pageSize: Annotated[int, Query()] = 10,  # noqa: N803
 ) -> Response:
     return ResponseUtil.success(
-        model_content=await ChunkService.get_list(db, datasetId, documentId, pageNum, pageSize, is_page=True))
+        model_content=await ChunkService.get_list(db, datasetId, documentId, pageNum, pageSize, is_page=True,
+                                                  chunk_type=chunkType, keyword=keyword))
 
 
 @rag_controller.post('/chunk', summary='新增/编辑分段', dependencies=[UserInterfaceAuthDependency('rag:dataset:edit')])
