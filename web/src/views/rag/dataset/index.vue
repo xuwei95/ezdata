@@ -158,6 +158,17 @@
           <el-input v-model="docForm.name" placeholder="文档名(上传文件会自动填充)" />
         </el-form-item>
 
+        <el-form-item label="切分策略">
+          <el-select v-model="docForm.strategy" style="width: 200px">
+            <el-option label="递归(默认)" value="recursive" />
+            <el-option label="固定大小" value="fixed" />
+            <el-option label="按文档段落" value="document" />
+            <el-option label="语义切分(更准)" value="semantic" />
+          </el-select>
+          <el-tooltip content="语义切分按内容语义边界分块,召回更准,但训练时会多调用 embedding" placement="top">
+            <el-icon style="margin-left:6px;color:#909399"><QuestionFilled /></el-icon>
+          </el-tooltip>
+        </el-form-item>
         <el-form-item label="切分设置">
           <div class="chunk-cfg">
             <span>每段</span>
@@ -166,6 +177,10 @@
             <el-input-number v-model="docForm.chunkOverlap" :min="0" :max="1000" :step="20" controls-position="right" />
             <span>字符</span>
           </div>
+        </el-form-item>
+        <el-form-item label="上下文增强">
+          <el-switch v-model="docForm.contextual" />
+          <span class="up-tip" style="margin-left:8px">为每段附 LLM 生成的上下文背景(Contextual Retrieval),召回更准但训练更慢</span>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -308,7 +323,7 @@ const docSubmitting = ref(false)
 const docForm = ref({})
 const docRules = { name: [{ required: true, message: '文档名不能为空', trigger: 'blur' }] }
 function handleAddDoc() {
-  docForm.value = { documentType: 'upload_file', chunkSize: 512, chunkOverlap: 100, name: '', uploadedName: '' }
+  docForm.value = { documentType: 'upload_file', strategy: 'recursive', contextual: false, chunkSize: 512, chunkOverlap: 100, name: '', uploadedName: '' }
   docOpen.value = true
 }
 const uploading = ref(false)
@@ -346,7 +361,7 @@ function submitDoc() {
     addDocument({
       datasetId: curDataset.value.id, name: f.name, documentType: f.documentType,
       fileKey: f.fileKey, source: f.source, text: f.text, autoTrain: true,
-      chunkStrategy: { chunk_size: f.chunkSize, chunk_overlap: f.chunkOverlap },
+      chunkStrategy: { strategy: f.strategy, contextual: f.contextual, chunk_size: f.chunkSize, chunk_overlap: f.chunkOverlap },
     }).then(() => {
       proxy.$modal.msgSuccess('已创建,开始训练'); docOpen.value = false; getDocs()
     }).finally(() => (docSubmitting.value = false))

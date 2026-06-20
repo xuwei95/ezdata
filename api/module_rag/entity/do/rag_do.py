@@ -45,6 +45,7 @@ class RagDocument(Base, TenantMixin):
     source = Column(String(1000), nullable=True, comment='来源(URL / datamodel_id 等)')
     meta_data = Column(Text, nullable=True, comment='元数据(JSON)')
     chunk_strategy = Column(Text, nullable=True, comment='切分/清洗策略(JSON)')
+    content_hash = Column(String(64), nullable=True, comment='原文hash(增量,未变则跳过重训)')
     status = Column(SmallInteger, server_default='1', comment='状态 1待训练2训练中3成功4失败')
     chunk_count = Column(Integer, server_default='0', comment='分段数')
     error = Column(String(1000), nullable=True, comment='失败原因')

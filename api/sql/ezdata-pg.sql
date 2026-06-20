@@ -1479,6 +1479,7 @@ create table rag_document (
   source         varchar(1000),
   meta_data      text,
   chunk_strategy text,
+  content_hash   varchar(64),
   status         smallint      default 1,
   chunk_count    int           default 0,
   error          varchar(1000),

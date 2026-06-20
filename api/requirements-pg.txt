@@ -22,6 +22,8 @@ openpyxl==3.1.5
 pypdf==4.3.1
 python-docx==1.1.2
 beautifulsoup4==4.12.3
+# 语义切分(Agno semantic chunking 依赖)
+chonkie==1.6.8
 pandas==2.3.3
 Pillow==12.1.1
 portkey-ai==2.1.0

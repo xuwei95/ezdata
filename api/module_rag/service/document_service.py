@@ -59,15 +59,15 @@ class DocumentService:
         doc = (await db.execute(select(RagDocument).where(RagDocument.id == doc_id))).scalars().first()
         if not doc:
             raise ServiceException(message='文档不存在')
-        await cls._launch_train(doc_id)
+        await cls._launch_train(doc_id, force=True)  # 手动重训:强制(忽略增量跳过)
         return CrudResponseModel(is_success=True, message='已开始训练')
 
     @classmethod
-    async def _launch_train(cls, doc_id: str) -> None:
+    async def _launch_train(cls, doc_id: str, force: bool = False) -> None:
         """捕获当前租户,起后台线程训练(不阻塞请求)。"""
         tenant_id = RequestContext.get_effective_tenant_id()
         from module_rag.pipeline import train_document_async  # noqa: PLC0415
-        await run_in_threadpool(train_document_async, doc_id, tenant_id)
+        await run_in_threadpool(train_document_async, doc_id, tenant_id, force)
 
     @classmethod
     async def status(cls, db: AsyncSession, doc_id: str) -> dict:

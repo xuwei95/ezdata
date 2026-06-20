@@ -19,16 +19,17 @@ from sqlalchemy import delete, select
 
 from common.context import RequestContext
 from module_rag.cleaner import clean_text
+from module_rag.contextual import contextualize
 from module_rag.entity.do.rag_do import RagChunk, RagDataset, RagDocument
 from module_rag.extractor import extract_bytes, extract_file
+from module_rag.processing import chunk_text
 from module_rag.runtime_util import build_embedding_client, build_store, embed_with_cache, md5
-from module_rag.text_split import split_text
 from module_task_schedule.sync_db import get_sync_session_local
 
 
-def train_document_async(document_id: str, tenant_id: Any) -> None:
+def train_document_async(document_id: str, tenant_id: Any, force: bool = False) -> None:
     """起后台线程训练,立即返回。"""
-    threading.Thread(target=train_document, args=(document_id, tenant_id), daemon=True).start()
+    threading.Thread(target=train_document, args=(document_id, tenant_id, force), daemon=True).start()
 
 
 def _raw_text(db, doc: RagDocument) -> str:
@@ -54,7 +55,7 @@ def _raw_text(db, doc: RagDocument) -> str:
     raise ValueError(f'不支持的文档类型: {dt}')
 
 
-def train_document(document_id: str, tenant_id: Any) -> dict:
+def train_document(document_id: str, tenant_id: Any, force: bool = False) -> dict:
     db = get_sync_session_local()()
     token = RequestContext.set_current_tenant_id(tenant_id)
     try:
@@ -65,21 +66,31 @@ def train_document(document_id: str, tenant_id: Any) -> dict:
         if dataset is None:
             return {'ok': False, 'error': '知识库不存在'}
 
+        # 切分策略
+        strat = json.loads(doc.chunk_strategy) if doc.chunk_strategy else {}
+        chunk_size = int(strat.get('chunk_size') or 512)
+        overlap = int(strat.get('chunk_overlap') or 100)
+        strategy = strat.get('strategy') or 'recursive'
+        contextual = bool(strat.get('contextual'))
+
+        # 1 抽取 / 清洗
+        text = clean_text(_raw_text(db, doc),
+                          remove_extra_spaces=strat.get('remove_extra_spaces', True),
+                          remove_urls_emails=strat.get('remove_urls_emails', False))
+        # 增量:原文+策略未变且上次成功 → 跳过(force 时强制重训)
+        new_hash = md5(f'{text}|{strategy}|{chunk_size}|{overlap}|{int(contextual)}')
+        if not force and doc.status == 3 and doc.content_hash == new_hash:
+            return {'ok': True, 'skipped': True, 'chunks': doc.chunk_count}
+
         doc.status = 2
         doc.error = None
         doc.update_time = datetime.now()
         db.commit()
 
-        # 切分策略
-        strat = json.loads(doc.chunk_strategy) if doc.chunk_strategy else {}
-        chunk_size = int(strat.get('chunk_size') or 512)
-        overlap = int(strat.get('chunk_overlap') or 100)
-
-        # 1-3 抽取 / 清洗 / 切分
-        text = clean_text(_raw_text(db, doc),
-                          remove_extra_spaces=strat.get('remove_extra_spaces', True),
-                          remove_urls_emails=strat.get('remove_urls_emails', False))
-        pieces = split_text(text, chunk_size, overlap)
+        # 2-3 切分(Agno 策略)+ 可选 Contextual Retrieval
+        pieces = chunk_text(text, strategy=strategy, chunk_size=chunk_size, overlap=overlap, dataset=dataset)
+        if contextual and pieces:
+            pieces = contextualize(text, pieces)
         if not pieces:
             doc.status = 3
             doc.chunk_count = 0
@@ -122,9 +133,10 @@ def train_document(document_id: str, tenant_id: Any) -> dict:
 
         doc.status = 3
         doc.chunk_count = len(rows)
+        doc.content_hash = new_hash
         doc.update_time = datetime.now()
         db.commit()
-        return {'ok': True, 'chunks': len(rows)}
+        return {'ok': True, 'chunks': len(rows), 'strategy': strategy, 'contextual': contextual}
     except Exception as e:  # noqa: BLE001
         db.rollback()
         try:

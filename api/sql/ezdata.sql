@@ -1120,6 +1120,7 @@ create table rag_document (
   source         varchar(1000) default null comment '来源(URL/datamodel_id等)',
   meta_data      text          default null comment '元数据(JSON)',
   chunk_strategy text          default null comment '切分/清洗策略(JSON)',
+  content_hash   varchar(64)   default null comment '原文hash(增量,未变跳过重训)',
   status         tinyint       default 1 comment '状态 1待训练2训练中3成功4失败',
   chunk_count    int           default 0 comment '分段数',
   error          varchar(1000) default null comment '失败原因',
