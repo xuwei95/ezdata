@@ -227,6 +227,13 @@ class UploadSettings:
         'html',
         'htm',
         'txt',
+        # 文本/知识库文档
+        'md',
+        'markdown',
+        'csv',
+        'tsv',
+        'json',
+        'jsonl',
         # 压缩文件
         'rar',
         'zip',
