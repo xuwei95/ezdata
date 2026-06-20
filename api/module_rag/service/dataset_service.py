@@ -20,8 +20,10 @@ class DatasetService:
     @classmethod
     async def get_list(cls, db: AsyncSession, name: str | None, page_num: int, page_size: int,
                        is_page: bool = True) -> Any:
+        # 只展示通用知识库;数据源专属库(source_id 非空)在数据管理的「知识库」tab 里管理
         query = select(RagDataset).where(
-            RagDataset.name.like(f'%{name}%') if name else True
+            RagDataset.source_id.is_(None),
+            RagDataset.name.like(f'%{name}%') if name else True,
         ).order_by(RagDataset.create_time.desc())
         return await PageUtil.paginate(db, query, page_num, page_size, is_page)
 
