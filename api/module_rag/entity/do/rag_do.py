@@ -14,6 +14,7 @@ class RagDataset(Base, TenantMixin):
     id = Column(String(36), primary_key=True, comment='知识库ID')
     name = Column(String(200), nullable=False, comment='名称')
     description = Column(String(500), nullable=True, comment='描述')
+    source_id = Column(String(36), nullable=True, index=True, comment='专属数据源ID(空=普通知识库)')
     embedding_provider = Column(String(50), nullable=True, comment='embedding 提供商')
     embedding_model = Column(String(100), nullable=True, comment='embedding 模型编码')
     embedding_dims = Column(Integer, nullable=True, comment='向量维度')

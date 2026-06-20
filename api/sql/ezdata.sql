@@ -1090,6 +1090,7 @@ create table rag_dataset (
   id                 varchar(36)  not null comment '知识库ID',
   name               varchar(200) not null comment '名称',
   description        varchar(500) default null comment '描述',
+  source_id          varchar(36)  default null comment '专属数据源ID(空=普通知识库)',
   embedding_provider varchar(50)  default null comment 'embedding 提供商',
   embedding_model    varchar(100) default null comment 'embedding 模型编码',
   embedding_dims     int          default null comment '向量维度',

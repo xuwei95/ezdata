@@ -45,6 +45,39 @@ class DatasetService:
             raise e
 
     @classmethod
+    async def ensure_for_source(cls, db: AsyncSession, source_id: str | None, source_code: str | None,
+                                operator: str) -> dict:
+        """取数据源专属知识库,不存在则创建(每个数据源一个,供数据分析用)。"""
+        from module_data.entity.do.data_do import DataSource  # noqa: PLC0415
+
+        cond = DataSource.id == source_id if source_id else DataSource.code == source_code
+        src = (await db.execute(select(DataSource).where(cond))).scalars().first()
+        if not src:
+            raise ServiceException(message='数据源不存在')
+        # commit 后 ORM 实例会过期,提前把需要的值捕获到本地,避免懒加载 MissingGreenlet
+        src_id = src.id
+        src_label = src.name or src.code
+        existing = (await db.execute(
+            select(RagDataset).where(RagDataset.source_id == src_id))).scalars().first()
+        if existing:
+            return {'id': existing.id, 'name': existing.name, 'sourceId': src_id}
+        try:
+            ds_id = uuid.uuid4().hex
+            ds_name = f'{src_label} · 专属知识库'
+            db.add(RagDataset(
+                id=ds_id, name=ds_name, source_id=src_id,
+                description=f'数据源「{src_label}」的专属知识库,供数据分析使用',
+                embedding_provider=RagConfig.embedding_type, embedding_model=RagConfig.embedding_model,
+                vector_backend=RagConfig.rag_vector_backend, index_name=f'rag_ds_{ds_id}',
+                status=1, built_in=1, create_by=operator, create_time=datetime.now(),
+            ))
+            await db.commit()
+            return {'id': ds_id, 'name': ds_name, 'sourceId': src_id}
+        except Exception as e:
+            await db.rollback()
+            raise e
+
+    @classmethod
     async def get_detail(cls, db: AsyncSession, ds_id: str) -> dict:
         d = (await db.execute(select(RagDataset).where(RagDataset.id == ds_id))).scalars().first()
         if not d:

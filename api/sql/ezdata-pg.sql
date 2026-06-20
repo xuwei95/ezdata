@@ -1449,6 +1449,7 @@ create table rag_dataset (
   id                 varchar(36)  not null,
   name               varchar(200) not null,
   description        varchar(500),
+  source_id          varchar(36),
   embedding_provider varchar(50),
   embedding_model    varchar(100),
   embedding_dims     int,

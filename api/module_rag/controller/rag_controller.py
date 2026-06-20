@@ -39,6 +39,18 @@ async def dataset_create(
     return ResponseUtil.success(data=await DatasetService.create(db, req, current_user.user.user_name))
 
 
+@rag_controller.get('/dataset/by_source', summary='数据源专属知识库(取或建)',
+                    dependencies=[UserInterfaceAuthDependency('rag:dataset:list')])
+async def dataset_by_source(
+    request: Request, db: Annotated[AsyncSession, DBSessionDependency()],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
+    sourceId: Annotated[str | None, Query()] = None,  # noqa: N803
+    sourceCode: Annotated[str | None, Query()] = None,  # noqa: N803
+) -> Response:
+    return ResponseUtil.success(
+        data=await DatasetService.ensure_for_source(db, sourceId, sourceCode, current_user.user.user_name))
+
+
 @rag_controller.get('/dataset/{ds_id}', summary='知识库详情', dependencies=[UserInterfaceAuthDependency('rag:dataset:list')])
 async def dataset_detail(ds_id: Annotated[str, Path()], db: Annotated[AsyncSession, DBSessionDependency()]) -> Response:
     return ResponseUtil.success(data=await DatasetService.get_detail(db, ds_id))

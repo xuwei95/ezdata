@@ -19,6 +19,10 @@ export function delDataset(ids) {
 export function vectorBackends() {
   return request({ url: '/rag/vector/backends', method: 'get' })
 }
+// 数据源专属知识库(取或建)
+export function ensureSourceDataset(params) {
+  return request({ url: '/rag/dataset/by_source', method: 'get', params })
+}
 
 // ---------------- 文档 ----------------
 export function listDocument(query) {

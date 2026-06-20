@@ -1,60 +1,49 @@
 <template>
   <div class="kb-tab">
-    <!-- 顶部:选库 + 搜索 + 操作 -->
-    <el-form :inline="true" class="kb-bar">
-      <el-form-item label="知识库">
-        <el-select v-model="datasetId" filterable placeholder="选择知识库" style="width: 240px" @change="onDsChange">
-          <el-option v-for="d in datasets" :key="d.id" :label="d.name" :value="d.id" />
-        </el-select>
-      </el-form-item>
-      <el-form-item>
-        <el-select v-model="query.chunkType" placeholder="类型" clearable style="width: 110px" @change="reload">
+    <div class="kb-head">
+      <el-icon><Collection /></el-icon>
+      <span class="kb-name">{{ datasetName || '该数据源专属知识库' }}</span>
+      <el-text type="info" size="small">供数据分析使用的专属知识库</el-text>
+      <div class="kb-head-r">
+        <el-input v-model="query.keyword" placeholder="搜索内容/问题/答案" clearable size="small" style="width: 200px"
+          @keyup.enter="reload" @clear="reload" />
+        <el-select v-model="query.chunkType" placeholder="类型" clearable size="small" style="width: 100px" @change="reload">
           <el-option label="分段" value="chunk" />
           <el-option label="QA" value="qa" />
         </el-select>
-      </el-form-item>
-      <el-form-item>
-        <el-input v-model="query.keyword" placeholder="搜索内容/问题/答案" clearable style="width: 220px"
-          @keyup.enter="reload" @clear="reload" />
-      </el-form-item>
-      <el-form-item>
-        <el-button type="primary" icon="Search" @click="reload">查询</el-button>
-      </el-form-item>
-    </el-form>
+        <el-button size="small" type="primary" icon="Search" @click="reload">查询</el-button>
+      </div>
+    </div>
 
-    <el-row :gutter="10" class="mb8" v-if="datasetId">
-      <el-col :span="1.5"><el-button type="primary" plain icon="Plus" @click="add('chunk')" v-hasPermi="['rag:dataset:edit']">新增分段</el-button></el-col>
-      <el-col :span="1.5"><el-button type="warning" plain icon="ChatLineSquare" @click="add('qa')" v-hasPermi="['rag:dataset:edit']">新增 QA</el-button></el-col>
-      <el-col :span="1.5"><el-button icon="Upload" @click="importOpen = true" v-hasPermi="['rag:dataset:edit']">批量导入</el-button></el-col>
-      <el-col :span="1.5"><el-button type="primary" link icon="TopRight" @click="goManage">知识库管理</el-button></el-col>
+    <el-row :gutter="10" class="mb8">
+      <el-col :span="1.5"><el-button type="primary" plain icon="Plus" :disabled="!datasetId" @click="add('chunk')" v-hasPermi="['rag:dataset:edit']">新增分段</el-button></el-col>
+      <el-col :span="1.5"><el-button type="warning" plain icon="ChatLineSquare" :disabled="!datasetId" @click="add('qa')" v-hasPermi="['rag:dataset:edit']">新增 QA</el-button></el-col>
+      <el-col :span="1.5"><el-button icon="Upload" :disabled="!datasetId" @click="importOpen = true" v-hasPermi="['rag:dataset:edit']">批量导入</el-button></el-col>
     </el-row>
 
-    <el-empty v-if="!datasetId" description="请选择知识库" :image-size="80" />
-    <template v-else>
-      <el-table v-loading="loading" :data="rows" border>
-        <el-table-column label="类型" width="80">
-          <template #default="s"><el-tag size="small" :type="s.row.chunkType === 'qa' ? 'warning' : ''">{{ s.row.chunkType === 'qa' ? 'QA' : '分段' }}</el-tag></template>
-        </el-table-column>
-        <el-table-column label="内容 / 问题" min-width="260">
-          <template #default="s"><div class="cell-text">{{ s.row.chunkType === 'qa' ? s.row.question : s.row.content }}</div></template>
-        </el-table-column>
-        <el-table-column label="答案" min-width="200">
-          <template #default="s"><div class="cell-text" v-if="s.row.chunkType === 'qa'">{{ s.row.answer }}</div></template>
-        </el-table-column>
-        <el-table-column label="标星" width="64" align="center">
-          <template #default="s">
-            <el-button link :icon="s.row.starFlag ? 'StarFilled' : 'Star'" :type="s.row.starFlag ? 'warning' : 'info'" @click="toggleStar(s.row)" />
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="130" fixed="right">
-          <template #default="s">
-            <el-button link type="primary" icon="Edit" @click="edit(s.row)" v-hasPermi="['rag:dataset:edit']">编辑</el-button>
-            <el-button link type="danger" icon="Delete" @click="del(s.row)" v-hasPermi="['rag:dataset:edit']">删除</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-      <pagination v-show="total > 0" :total="total" v-model:page="query.pageNum" v-model:limit="query.pageSize" @pagination="getList" />
-    </template>
+    <el-table v-loading="loading" :data="rows" border>
+      <el-table-column label="类型" width="80">
+        <template #default="s"><el-tag size="small" :type="s.row.chunkType === 'qa' ? 'warning' : ''">{{ s.row.chunkType === 'qa' ? 'QA' : '分段' }}</el-tag></template>
+      </el-table-column>
+      <el-table-column label="内容 / 问题" min-width="260">
+        <template #default="s"><div class="cell-text">{{ s.row.chunkType === 'qa' ? s.row.question : s.row.content }}</div></template>
+      </el-table-column>
+      <el-table-column label="答案" min-width="200">
+        <template #default="s"><div class="cell-text" v-if="s.row.chunkType === 'qa'">{{ s.row.answer }}</div></template>
+      </el-table-column>
+      <el-table-column label="标星" width="64" align="center">
+        <template #default="s">
+          <el-button link :icon="s.row.starFlag ? 'StarFilled' : 'Star'" :type="s.row.starFlag ? 'warning' : 'info'" @click="toggleStar(s.row)" />
+        </template>
+      </el-table-column>
+      <el-table-column label="操作" width="130" fixed="right">
+        <template #default="s">
+          <el-button link type="primary" icon="Edit" @click="edit(s.row)" v-hasPermi="['rag:dataset:edit']">编辑</el-button>
+          <el-button link type="danger" icon="Delete" @click="del(s.row)" v-hasPermi="['rag:dataset:edit']">删除</el-button>
+        </template>
+      </el-table-column>
+    </el-table>
+    <pagination v-show="total > 0" :total="total" v-model:page="query.pageNum" v-model:limit="query.pageSize" @pagination="getList" />
 
     <!-- 新增/编辑 -->
     <el-dialog :title="(form.id ? '编辑' : '新增') + (form.chunkType === 'qa' ? ' QA' : '分段')" v-model="open" width="560px" append-to-body>
@@ -96,26 +85,43 @@
 </template>
 
 <script setup name="KnowledgeBaseTab">
-import { ref, reactive, getCurrentInstance, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, reactive, watch, getCurrentInstance, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { listDataset, listChunk, saveChunk, delChunk, starChunk, bulkImportChunk } from '@/api/rag'
+import { ensureSourceDataset, listChunk, saveChunk, delChunk, starChunk, bulkImportChunk } from '@/api/rag'
 import { getToken } from '@/utils/auth'
 
+const props = defineProps({ model: { type: Object, default: () => ({}) }, nodeType: { type: String, default: '' } })
 const { proxy } = getCurrentInstance()
-const router = useRouter()
 const uploadUrl = import.meta.env.VITE_APP_BASE_API + '/common/upload'
 const uploadHeaders = { Authorization: 'Bearer ' + getToken() }
 
-const datasets = ref([])
 const datasetId = ref()
+const datasetName = ref('')
 const rows = ref([])
 const total = ref(0)
 const loading = ref(false)
 const query = reactive({ pageNum: 1, pageSize: 10, chunkType: undefined, keyword: undefined })
 
-function loadDatasets() { listDataset({ pageNum: 1, pageSize: 100 }).then((res) => { datasets.value = res.rows || [] }) }
-function onDsChange() { query.pageNum = 1; getList() }
+// 当前数据源标识:源节点用 id,模型节点用其 datasourceCode
+function sourceParams() {
+  if (props.nodeType === 'source') return { sourceId: props.model?.id }
+  return { sourceCode: props.model?.datasourceCode }
+}
+function sourceKey() {
+  const p = sourceParams()
+  return p.sourceId || p.sourceCode || ''
+}
+
+function resolveDataset() {
+  const p = sourceParams()
+  if (!p.sourceId && !p.sourceCode) { datasetId.value = null; rows.value = []; total.value = 0; return }
+  ensureSourceDataset(p).then((res) => {
+    datasetId.value = res.data?.id
+    datasetName.value = res.data?.name || ''
+    query.pageNum = 1
+    getList()
+  }).catch(() => { datasetId.value = null })
+}
 function reload() { query.pageNum = 1; getList() }
 function getList() {
   if (!datasetId.value) return
@@ -124,7 +130,6 @@ function getList() {
     rows.value = res.rows; total.value = res.total; loading.value = false
   }).catch(() => (loading.value = false))
 }
-function goManage() { router.push('/rag/dataset') }
 
 // CRUD
 const open = ref(false)
@@ -147,7 +152,6 @@ function toggleStar(row) { starChunk(row.id, row.starFlag ? 0 : 1).then(() => { 
 const importOpen = ref(false)
 const importMsg = ref('')
 function beforeUpload(file) {
-  if (!datasetId.value) { ElMessage.error('请先选择知识库'); return false }
   if (!/\.(csv|xlsx|xls|tsv)$/i.test(file.name)) { ElMessage.error('仅支持 CSV / Excel'); return false }
   return true
 }
@@ -162,11 +166,14 @@ function onImport(res, type) {
 }
 function onErr() { ElMessage.error('上传失败') }
 
-onMounted(loadDatasets)
+watch(sourceKey, resolveDataset)
+onMounted(resolveDataset)
 </script>
 
 <style scoped>
-.kb-bar { margin-bottom: 4px; }
+.kb-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.kb-head .kb-name { font-size: 15px; font-weight: 600; color: #303133; }
+.kb-head-r { margin-left: auto; display: flex; gap: 8px; }
 .cell-text { white-space: pre-wrap; line-height: 1.5; max-height: 66px; overflow: hidden; }
 .hint { color: #909399; font-size: 12px; margin: 0 0 10px; }
 .imp-status { margin-top: 12px; font-size: 13px; display: flex; align-items: center; gap: 6px; }
