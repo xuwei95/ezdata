@@ -56,6 +56,12 @@ class ChunkStarReq(_Base):
     star_flag: int = Field(default=1, description='1标星0取消')
 
 
+class BulkImportReq(_Base):
+    dataset_id: str = Field(description='目标知识库')
+    chunk_type: str = Field(default='qa', description='qa/chunk')
+    file_key: str = Field(description='已上传文件的 key(CSV/Excel)')
+
+
 # ---------------- 召回 ----------------
 class RetrievalReq(_Base):
     query: str = Field(description='查询文本')

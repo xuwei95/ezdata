@@ -24,9 +24,17 @@
             <el-form-item label="TopK">
               <el-input-number v-model="topK" :min="1" :max="50" />
             </el-form-item>
+            <el-form-item label="分数阈值">
+              <el-input-number v-model="scoreThreshold" :min="0" :max="1" :step="0.05" :precision="2" />
+              <span class="tip">余弦相似度下限,作用于向量召回(0=不过滤)</span>
+            </el-form-item>
             <el-form-item label="重排">
               <el-switch v-model="rerank" />
-              <span class="tip">启用 rerank 模型二次排序(需配置 RERANK)</span>
+              <span class="tip">rerank 模型二次排序(需配置 RERANK)</span>
+            </el-form-item>
+            <el-form-item v-if="rerank" label="重排阈值">
+              <el-input-number v-model="rerankScoreThreshold" :min="0" :max="1" :step="0.05" :precision="2" />
+              <span class="tip">rerank 相关性下限</span>
             </el-form-item>
             <el-form-item>
               <el-button type="primary" icon="Search" :loading="loading" @click="doSearch">召回测试</el-button>
@@ -63,7 +71,9 @@ const datasetIds = ref([])
 const query = ref('')
 const retrievalType = ref('hybrid')
 const topK = ref(5)
+const scoreThreshold = ref(0)
 const rerank = ref(false)
+const rerankScoreThreshold = ref(0)
 const loading = ref(false)
 const records = ref([])
 
@@ -75,7 +85,8 @@ function doSearch() {
   loading.value = true
   retrieval({
     query: query.value, datasetIds: datasetIds.value, topK: topK.value,
-    retrievalType: retrievalType.value, rerank: rerank.value,
+    retrievalType: retrievalType.value, scoreThreshold: scoreThreshold.value,
+    rerank: rerank.value, rerankScoreThreshold: rerankScoreThreshold.value,
   }).then((res) => {
     records.value = res.data?.records || []; loading.value = false
   }).catch(() => (loading.value = false))

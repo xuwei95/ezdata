@@ -128,12 +128,14 @@
         <!-- 文件:拖拽上传 -->
         <el-form-item v-if="docForm.documentType === 'upload_file'" label="文件">
           <el-upload drag :action="uploadUrl" :headers="uploadHeaders" :limit="1" :show-file-list="false"
-            :before-upload="beforeUpload" :on-success="onUploaded" :on-error="onUploadError" style="width: 100%">
+            :before-upload="beforeUpload" :on-progress="onProgress" :on-success="onUploaded"
+            :on-error="onUploadError" style="width: 100%">
             <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
             <div class="el-upload__text">拖拽文件到此处,或<em>点击上传</em></div>
             <template #tip><div class="up-tip">支持 txt / md / pdf / csv / xlsx / docx / html / json,单文件 ≤ 50MB</div></template>
           </el-upload>
-          <div v-if="docForm.uploadedName" class="uploaded">
+          <el-progress v-if="uploading" :percentage="uploadPercent" :stroke-width="6" status="success" style="margin-top: 8px" />
+          <div v-else-if="docForm.uploadedName" class="uploaded">
             <el-icon color="#67c23a"><CircleCheck /></el-icon>
             <span>{{ docForm.uploadedName }}</span>
             <el-button link type="danger" icon="Close" @click="clearUpload">移除</el-button>
@@ -309,13 +311,18 @@ function handleAddDoc() {
   docForm.value = { documentType: 'upload_file', chunkSize: 512, chunkOverlap: 100, name: '', uploadedName: '' }
   docOpen.value = true
 }
-function onTypeChange() { docForm.value.fileKey = ''; docForm.value.uploadedName = '' }
+const uploading = ref(false)
+const uploadPercent = ref(0)
+function onTypeChange() { docForm.value.fileKey = ''; docForm.value.uploadedName = ''; uploading.value = false }
 function beforeUpload(file) {
   if (file.size > 50 * 1024 * 1024) { proxy.$modal.msgError('文件不能超过 50MB'); return false }
+  uploading.value = true; uploadPercent.value = 0
   return true
 }
+function onProgress(evt) { uploadPercent.value = Math.round(evt.percent || 0) }
 function onUploaded(res, file) {
   // ResponseUtil 把字段铺在顶层:{code, msg, fileName, originalFilename, url}
+  uploading.value = false
   if (res && res.code === 200) {
     docForm.value.fileKey = res.fileName || res.url
     docForm.value.uploadedName = res.originalFilename || res.newFileName || file?.name || '已上传'
@@ -325,7 +332,7 @@ function onUploaded(res, file) {
     proxy.$modal.msgError((res && res.msg) || '上传失败')
   }
 }
-function onUploadError() { proxy.$modal.msgError('上传失败,请检查文件类型或大小') }
+function onUploadError() { uploading.value = false; proxy.$modal.msgError('上传失败,请检查文件类型或大小') }
 function clearUpload() { docForm.value.fileKey = ''; docForm.value.uploadedName = '' }
 
 function submitDoc() {

@@ -76,6 +76,10 @@
               v-if="current.nodeType === 'model' && capsOf(current.sourceType).includes('GEN_API')">
               <DataInterfaceTab :model="current.raw" />
             </el-tab-pane>
+
+            <el-tab-pane label="知识库" name="rag">
+              <KnowledgeBaseTab :model="current.raw" :node-type="current.nodeType" />
+            </el-tab-pane>
           </el-tabs>
         </div>
         <el-empty v-else description="请选择左侧数据源 / 数据模型" />
@@ -117,6 +121,7 @@ import 'splitpanes/dist/splitpanes.css'
 import DataSourceModal from './components/DataSourceModal.vue'
 import DataQueryTab from './components/DataQueryTab.vue'
 import DataInterfaceTab from './components/DataInterfaceTab.vue'
+import KnowledgeBaseTab from './components/KnowledgeBaseTab.vue'
 import {
   getSourceTypes, listSource, testSource, delSource, listTables, listColumns,
   listModel, addModel, getModel,

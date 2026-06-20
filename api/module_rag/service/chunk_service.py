@@ -92,6 +92,16 @@ class ChunkService:
             raise e
 
     @classmethod
+    async def bulk_import(cls, db: AsyncSession, req) -> dict:  # noqa: ANN001
+        """CSV/Excel 批量导入 QA对/分段。"""
+        ds = (await db.execute(select(RagDataset).where(RagDataset.id == req.dataset_id))).scalars().first()
+        if not ds:
+            raise ServiceException(message='知识库不存在')
+        tenant_id = RequestContext.get_effective_tenant_id()
+        from module_rag.bulk_import import bulk_import_from_file  # noqa: PLC0415
+        return await run_in_threadpool(bulk_import_from_file, req.dataset_id, req.chunk_type, req.file_key, tenant_id)
+
+    @classmethod
     async def star(cls, db: AsyncSession, chunk_id: str, flag: int) -> CrudResponseModel:
         c = (await db.execute(select(RagChunk).where(RagChunk.id == chunk_id))).scalars().first()
         if not c:

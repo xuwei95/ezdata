@@ -50,6 +50,9 @@ export function delChunk(ids) {
 export function starChunk(id, starFlag) {
   return request({ url: `/rag/chunk/${id}/star`, method: 'post', data: { starFlag } })
 }
+export function bulkImportChunk(data) {
+  return request({ url: '/rag/chunk/bulk_import', method: 'post', data })
+}
 
 // ---------------- 召回 ----------------
 export function retrieval(data) {

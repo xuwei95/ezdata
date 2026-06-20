@@ -9,7 +9,7 @@ from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from common.router import APIRouterPro
 from module_admin.entity.vo.user_vo import CurrentUserModel
 from module_rag.entity.vo.rag_vo import (
-    ChunkSaveReq, ChunkStarReq, DatasetCreateReq, DatasetUpdateReq, DocumentCreateReq, RetrievalReq,
+    BulkImportReq, ChunkSaveReq, ChunkStarReq, DatasetCreateReq, DatasetUpdateReq, DocumentCreateReq, RetrievalReq,
 )
 from module_rag.service.chunk_service import ChunkService
 from module_rag.service.dataset_service import DatasetService
@@ -128,6 +128,14 @@ async def chunk_star(
 ) -> Response:
     r = await ChunkService.star(db, chunk_id, req.star_flag)
     return ResponseUtil.success(msg=r.message)
+
+
+@rag_controller.post('/chunk/bulk_import', summary='批量导入QA/分段(CSV/Excel)',
+                     dependencies=[UserInterfaceAuthDependency('rag:dataset:edit')])
+async def chunk_bulk_import(
+    request: Request, req: BulkImportReq, db: Annotated[AsyncSession, DBSessionDependency()],
+) -> Response:
+    return ResponseUtil.success(data=await ChunkService.bulk_import(db, req))
 
 
 # ---------------- 召回 / 杂项 ----------------

@@ -65,9 +65,11 @@ class VectorStore(abc.ABC):
     # ---- 混合检索(基类统一实现:应用层 RRF 融合)----
     def hybrid_search(self, query_vector: list[float], query_text: str, k: int = 5, *,
                       num_candidates: int = 100, filters: list[dict] | None = None,
-                      rrf_k: int = DEFAULT_RRF_K) -> list[dict]:
+                      rrf_k: int = DEFAULT_RRF_K, score_threshold: float = 0.0) -> list[dict]:
         pool = max(k * 4, 20)  # 各路多取一些再融合,提升召回
         vec = self.vector_search(query_vector, pool, num_candidates=num_candidates, filters=filters)
+        if score_threshold:  # 阈值作用于向量腿(余弦相似度 0~1),弱向量匹配不参与融合
+            vec = [h for h in vec if (h.get('score') or 0) >= score_threshold]
         kw = self.keyword_search(query_text, pool, filters=filters)
         return self.rrf_fuse([vec, kw], rrf_k=rrf_k)[:k]
 

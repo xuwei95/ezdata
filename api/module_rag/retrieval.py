@@ -48,17 +48,16 @@ def retrieve(tenant_id: Any, query: str, dataset_ids: list[str], *, k: int = 5,
                 qvec = build_embedding_client(dataset).embed_query(query)
                 if retrieval_type == 'vector':
                     hits = store.vector_search(qvec, k * 2, filters=tenant_filter)
-                else:  # hybrid
-                    hits = store.hybrid_search(qvec, query, k * 2, filters=tenant_filter)
+                    if score_threshold:  # 余弦相似度阈值
+                        hits = [h for h in hits if (h.get('score') or 0) >= score_threshold]
+                else:  # hybrid:阈值作用于向量腿
+                    hits = store.hybrid_search(qvec, query, k * 2, filters=tenant_filter,
+                                               score_threshold=score_threshold)
             all_hits.append(hits)
 
         # 跨库融合
         from module_rag.vector_store.base import VectorStore  # noqa: PLC0415
         fused = VectorStore.rrf_fuse(all_hits) if len(all_hits) > 1 else (all_hits[0] if all_hits else [])
-
-        # score 阈值(向量/全文的归一分;rrf 模式下用 _score 若有)
-        if score_threshold and retrieval_type in ('vector',):
-            fused = [h for h in fused if (h.get('score') or 0) >= score_threshold]
 
         # rerank
         if rerank and fused:
