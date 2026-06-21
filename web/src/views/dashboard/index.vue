@@ -2,7 +2,7 @@
   <div class="dash" v-loading="loading">
     <!-- 概览统计卡 -->
     <el-row :gutter="16">
-      <el-col :span="4" v-for="c in statCards" :key="c.key">
+      <el-col :span="6" v-for="c in statCards" :key="c.key">
         <el-card shadow="hover" class="stat" :body-style="{ padding: '16px' }" @click="go(c.to)">
           <div class="stat-row">
             <el-icon class="stat-ico" :style="{ background: c.color + '1f', color: c.color }"><component :is="c.icon" /></el-icon>
@@ -91,11 +91,10 @@ const PALETTE = ['#5B8FF9', '#5AD8A6', '#6F5EF9', '#945FB9', '#1E9493', '#F6BD16
 const statCards = computed(() => [
   { key: 'ds', label: '数据源', value: cards.value.dataSources ?? 0, icon: 'Coin', color: '#5B8FF9', to: '/data/manage' },
   { key: 'dm', label: '数据模型', value: cards.value.dataModels ?? 0, icon: 'Grid', color: '#5AD8A6', to: '/data/manage' },
-  { key: 'task', label: '普通任务', value: cards.value.tasks ?? 0, icon: 'AlarmClock', color: '#6DC8EC', to: '/task/info' },
-  { key: 'dag', label: '任务工作流', value: cards.value.dags ?? 0, icon: 'Share', color: '#6F5EF9', to: '/task/dag' },
+  { key: 'task', label: '任务', value: (cards.value.tasks ?? 0) + (cards.value.dags ?? 0), icon: 'AlarmClock', color: '#6F5EF9',
+    sub: `调度 ${cards.value.tasks ?? 0} · 工作流 ${cards.value.dags ?? 0}`, to: '/task/info' },
   { key: 'kb', label: '知识库', value: cards.value.knowledgeBases ?? 0, icon: 'Collection', color: '#1E9493',
     sub: `文档 ${cards.value.documents ?? 0} · 分段 ${cards.value.chunks ?? 0}`, to: '/rag/dataset' },
-  { key: 'ai', label: 'AI 模型', value: cards.value.aiModels ?? 0, icon: 'MagicStick', color: '#945FB9', to: '/ai/model' },
 ])
 const quickNav = [
   { label: '数据管理', icon: 'Coin', color: '#409eff', to: '/data/manage' },
