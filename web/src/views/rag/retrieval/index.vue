@@ -55,7 +55,7 @@
                 <span class="score">score: {{ (r.score ?? 0).toFixed ? (r.score ?? 0).toFixed(4) : r.score }}</span>
               </div>
               <div class="hit-body">{{ r.content }}</div>
-              <div class="hit-meta">库:{{ dsName(r.datasetId) }} · 文档:{{ r.documentId }}</div>
+              <div class="hit-meta">库:{{ dsName(r.datasetId) }} · 文档:{{ r.documentName || r.documentId }}</div>
             </div>
           </div>
         </el-card>

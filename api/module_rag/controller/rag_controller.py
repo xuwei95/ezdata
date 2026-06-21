@@ -156,7 +156,7 @@ async def chunk_bulk_import(
 # ---------------- 召回 / 杂项 ----------------
 @rag_controller.post('/retrieval', summary='召回测试', dependencies=[UserInterfaceAuthDependency('rag:retrieval')])
 async def retrieval(request: Request, req: RetrievalReq, db: Annotated[AsyncSession, DBSessionDependency()]) -> Response:
-    return ResponseUtil.success(data=await RetrievalService.search(req))
+    return ResponseUtil.success(data=await RetrievalService.search(db, req))
 
 
 @rag_controller.get('/vector/backends', summary='支持的向量后端', dependencies=[UserInterfaceAuthDependency('rag:dataset:list')])
