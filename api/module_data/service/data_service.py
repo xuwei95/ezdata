@@ -340,11 +340,30 @@ class DataQueryService:
         return {'native': handler.sample_query(m.object_name or '', 100)}
 
     @classmethod
+    async def _kb_context(cls, db: AsyncSession, m: Any, question: str) -> str:
+        """取数前从该数据源的专属知识库召回业务知识(表义务/字段口径/QA),注入 prompt。无则空。"""
+        try:
+            from common.context import RequestContext  # noqa: PLC0415
+            from module_rag.agent_tools import search_knowledge_base  # noqa: PLC0415
+            ds = await DataSourceDao.get_by_code(db, m.datasource_code)
+            if not ds:
+                return ''
+            tenant = RequestContext.get_effective_tenant_id()
+            txt = await run_in_threadpool(search_knowledge_base, question,
+                                          source_id=ds.id, tenant_id=tenant, top_k=5)
+            return '' if (not txt or txt.startswith(('未找到', '未检索', '未指定'))) else txt
+        except Exception:  # noqa: BLE001 KB 不影响取数主流程
+            return ''
+
+    @classmethod
     async def ai_query(cls, db: AsyncSession, m_id: str, question: str, limit: int = 200) -> dict:
-        """AI 取数:NL + 表结构 → 生成只读原生查询 → 执行。复用 ai_models 配置 + Agno。"""
+        """AI 取数:NL + 表结构(+专属知识库)→ 生成只读原生查询 → 执行。复用 ai_models 配置 + Agno。"""
         m, handler = await cls._load(db, m_id)
         cols = '\n'.join(f"- {f['name']} ({f.get('type', '')})" for f in (m.fields or []))
+        kb = await cls._kb_context(db, m, question)
+        kb_block = f'参考该数据源的业务知识(理解字段口径/表义务,可据此选字段写条件):\n{kb}\n\n' if kb else ''
         prompt = (
+            kb_block +
             f'你是 {handler.name} 数据库的 SQL 专家。表名:`{m.object_name}`,字段:\n{cols}\n\n'
             f'请根据下面的自然语言需求,写一条**只读 SELECT** 查询(单条语句、不要注释、不要 markdown 代码块、'
             f'不要修改数据)。只输出 SQL 本身:\n需求:{question}'
@@ -365,7 +384,10 @@ class DataQueryService:
                    f'{{"index":"{m.object_name}","body":{{"query":{{...}},"size":50}}}};只输出 JSON,不要解释、不要 markdown 围栏。')
         else:
             fmt = '写一条**只读 SELECT** 查询(单条语句、不要注释、不要 markdown 围栏);只输出 SQL 本身。'
+        kb = await cls._kb_context(db, m, question)
+        kb_block = f'参考该数据源的业务知识(理解字段口径/表义务):\n{kb}\n\n' if kb else ''
         prompt = (
+            kb_block +
             f'你是 {handler.name} 数据查询专家。表/索引:`{m.object_name}`,字段:\n{cols}\n\n'
             f'请根据下面的自然语言需求,{fmt}\n需求:{question}'
         )
