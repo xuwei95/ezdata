@@ -13,9 +13,50 @@ from __future__ import annotations
 
 from typing import Any
 
+import os
+import tempfile
+
 from config.env import RagConfig
 from module_rag.embedding import _DEFAULT_BASE
 from module_rag.text_split import split_text
+
+# 扩展名 → Agno reader key(免重依赖的几类)
+_EXT_READER = {
+    '.pdf': 'pdf', '.docx': 'docx', '.doc': 'docx', '.csv': 'csv', '.tsv': 'csv',
+    '.xlsx': 'excel', '.xls': 'excel', '.json': 'json', '.jsonl': 'json',
+    '.md': 'markdown', '.markdown': 'markdown', '.txt': 'text', '.text': 'text', '.log': 'text',
+}
+
+
+def read_file(file_key: str, *, filename: str | None = None) -> str:
+    """用 Agno Reader 读文件成文本;不支持/失败时回退我们的 extractor。"""
+    from module_rag.extractor import _normalize_key, _read_storage_bytes, extract_bytes  # noqa: PLC0415
+
+    name = filename or os.path.basename(_normalize_key(file_key))
+    ext = os.path.splitext(name)[1].lower()
+    raw = _read_storage_bytes(file_key)
+    key = _EXT_READER.get(ext)
+    if key:
+        try:
+            from pathlib import Path  # noqa: PLC0415
+            from agno.knowledge.reader.reader_factory import ReaderFactory  # noqa: PLC0415
+            with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tf:
+                tf.write(raw)
+                tmp = tf.name
+            try:
+                reader = ReaderFactory.create_reader(key)
+                docs = reader.read(Path(tmp), name=name)
+                text = '\n\n'.join((d.content or '') for d in docs).strip()
+                if text:
+                    return text
+            finally:
+                try:
+                    os.remove(tmp)
+                except OSError:
+                    pass
+        except Exception:  # noqa: BLE001 依赖缺失/解析失败 → 回退
+            pass
+    return extract_bytes(raw, ext)
 
 # 我方策略名 → Agno ChunkingStrategyType 名
 _AGNO_MAP = {

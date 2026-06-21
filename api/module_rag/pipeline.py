@@ -21,8 +21,8 @@ from common.context import RequestContext
 from module_rag.cleaner import clean_text
 from module_rag.contextual import contextualize
 from module_rag.entity.do.rag_do import RagChunk, RagDataset, RagDocument
-from module_rag.extractor import extract_bytes, extract_file
-from module_rag.processing import chunk_text
+from module_rag.extractor import extract_bytes
+from module_rag.processing import chunk_text, read_file
 from module_rag.runtime_util import build_embedding_client, build_store, embed_with_cache, md5
 from module_task_schedule.sync_db import get_sync_session_local
 
@@ -38,7 +38,7 @@ def _raw_text(db, doc: RagDocument) -> str:
     if dt == 'upload_file':
         if not doc.file_key:
             raise ValueError('文档缺少文件')
-        return extract_file(doc.file_key, filename=doc.name)
+        return read_file(doc.file_key, filename=doc.name)  # Agno reader,失败回退 extractor
     if dt == 'text':
         return meta.get('text') or doc.source or ''
     if dt == 'website':

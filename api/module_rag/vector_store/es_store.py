@@ -80,6 +80,10 @@ class EsVectorStore(VectorStore):
                     'chunk_id': {'type': 'keyword'},
                     'chunk_type': {'type': 'keyword'},
                     'question': {'type': 'text'},
+                    # Agno VectorDb 适配所需(去重/删除)
+                    'name': {'type': 'keyword'},
+                    'content_id': {'type': 'keyword'},
+                    'content_hash': {'type': 'keyword'},
                     'meta': {'type': 'object', 'enabled': False},
                 },
             },
