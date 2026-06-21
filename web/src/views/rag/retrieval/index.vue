@@ -47,14 +47,16 @@
       <el-col :span="15">
         <el-card shadow="never" v-loading="loading">
           <template #header>召回结果 ({{ records.length }})</template>
-          <el-empty v-if="!records.length" description="暂无结果" />
-          <div v-for="(r, i) in records" :key="r.chunkId || i" class="hit">
-            <div class="hit-head">
-              <el-tag size="small" :type="r.chunkType === 'qa' ? 'warning' : 'primary'">{{ r.chunkType }}</el-tag>
-              <span class="score">score: {{ (r.score ?? 0).toFixed ? (r.score ?? 0).toFixed(4) : r.score }}</span>
+          <div class="hit-list">
+            <el-empty v-if="!records.length" description="暂无结果" />
+            <div v-for="(r, i) in records" :key="r.chunkId || i" class="hit">
+              <div class="hit-head">
+                <el-tag size="small" :type="r.chunkType === 'qa' ? 'warning' : 'primary'">{{ r.chunkType }}</el-tag>
+                <span class="score">score: {{ (r.score ?? 0).toFixed ? (r.score ?? 0).toFixed(4) : r.score }}</span>
+              </div>
+              <div class="hit-body">{{ r.content }}</div>
+              <div class="hit-meta">库:{{ dsName(r.datasetId) }} · 文档:{{ r.documentId }}</div>
             </div>
-            <div class="hit-body">{{ r.content }}</div>
-            <div class="hit-meta">库:{{ dsName(r.datasetId) }} · 文档:{{ r.documentId }}</div>
           </div>
         </el-card>
       </el-col>
@@ -99,9 +101,10 @@ onMounted(() => {
 
 <style scoped>
 .tip { color: #909399; font-size: 12px; margin-left: 8px; }
+.hit-list { max-height: calc(100vh - 230px); overflow-y: auto; padding-right: 6px; }
 .hit { border: 1px solid #ebeef5; border-radius: 6px; padding: 10px 12px; margin-bottom: 10px; }
 .hit-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
 .hit-head .score { color: #67c23a; font-size: 12px; }
-.hit-body { color: #303133; font-size: 14px; line-height: 1.6; white-space: pre-wrap; }
+.hit-body { color: #303133; font-size: 14px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
 .hit-meta { color: #909399; font-size: 12px; margin-top: 6px; }
 </style>
