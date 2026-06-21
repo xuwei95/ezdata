@@ -163,6 +163,7 @@
             <el-option label="递归(默认)" value="recursive" />
             <el-option label="固定大小" value="fixed" />
             <el-option label="按文档段落" value="document" />
+            <el-option label="按 Markdown 标题" value="markdown" />
             <el-option label="语义切分(更准)" value="semantic" />
           </el-select>
           <el-tooltip content="语义切分按内容语义边界分块,召回更准,但训练时会多调用 embedding" placement="top">

@@ -27,22 +27,35 @@ def check(label, cond, detail=''):
 
 
 def main():
-    print('== 1. Agno Readers ==')
+    print('== 1. Agno Readers(含 pptx)==')
     cases = {
         '.txt': 'ezdata 文本读取测试。\n'.encode('utf-8') * 10,
         '.csv': 'name,role\nezdata,平台\ndlt,抽取\n'.encode('utf-8'),
         '.json': '{"product":"ezdata","kb":"rag"}'.encode('utf-8'),
         '.md': '# 标题\n\nezdata markdown 读取。'.encode('utf-8'),
     }
+    # 现造一个 pptx(python-pptx)
+    try:
+        import io as _io
+        from pptx import Presentation  # noqa: PLC0415
+        prs = Presentation()
+        s = prs.slides.add_slide(prs.slide_layouts[5])
+        s.shapes.title.text = 'ezdata pptx 抽取测试'
+        buf = _io.BytesIO(); prs.save(buf)
+        cases['.pptx'] = buf.getvalue()
+    except Exception as e:  # noqa: BLE001
+        print('  (跳过 pptx 造样本:', str(e)[:50], ')')
     for ext, data in cases.items():
         key = f'upload/_agno_rd{ext}'
         storage.save(key, data)
         txt = read_file(key, filename=f'test{ext}')
         check(f'reader {ext}', len(txt) > 0, repr(txt[:30]))
 
-    print('== 2. 切分策略 ==')
-    for s in ('recursive', 'fixed', 'semantic'):
-        cs = chunk_text('ezdata 是 AI 原生数据平台。' * 40, strategy=s, chunk_size=200, overlap=30)
+    print('== 2. 切分策略(含 markdown)==')
+    md_doc = '# 平台\n\nezdata 是 AI 原生数据平台。\n\n## 福利\n\n年假15天。\n\n## 技术\n\n向量库 ES8。'
+    for s in ('recursive', 'fixed', 'semantic', 'markdown'):
+        src = md_doc if s == 'markdown' else 'ezdata 是 AI 原生数据平台。' * 40
+        cs = chunk_text(src, strategy=s, chunk_size=200, overlap=30)
         check(f'chunk {s}', len(cs) >= 1, f'{len(cs)} 段')
 
     print('== 3. EsAgnoVectorDb(agno VectorDb 接口)==')

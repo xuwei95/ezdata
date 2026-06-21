@@ -22,11 +22,15 @@ ollama==0.6.1
 openai==2.17.0
 openpyxl==3.1.5
 # RAG 文件解析(pdf / docx / html)
-pypdf==4.3.1
+pypdf>=4.3  # unstructured 会拉 6.x
 python-docx==1.1.2
 beautifulsoup4==4.12.3
 # 语义切分(Agno semantic chunking 依赖)
 chonkie==1.6.8
+# Agno 高级 readers/markdown 切分
+unstructured==0.18.32
+markdown==3.10.2
+python-pptx==1.0.2
 pandas==2.3.3
 Pillow==12.1.1
 portkey-ai==2.1.0

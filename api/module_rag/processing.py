@@ -25,6 +25,7 @@ _EXT_READER = {
     '.pdf': 'pdf', '.docx': 'docx', '.doc': 'docx', '.csv': 'csv', '.tsv': 'csv',
     '.xlsx': 'excel', '.xls': 'excel', '.json': 'json', '.jsonl': 'json',
     '.md': 'markdown', '.markdown': 'markdown', '.txt': 'text', '.text': 'text', '.log': 'text',
+    '.pptx': 'pptx', '.ppt': 'pptx',  # 需 python-pptx
 }
 
 
@@ -64,8 +65,9 @@ _AGNO_MAP = {
     'fixed': 'FIXED_SIZE_CHUNKER',
     'document': 'DOCUMENT_CHUNKER',
     'semantic': 'SEMANTIC_CHUNKER',
+    'markdown': 'MARKDOWN_CHUNKER',  # 需 unstructured
 }
-SUPPORTED = ['recursive', 'fixed', 'document', 'semantic']
+SUPPORTED = ['recursive', 'fixed', 'document', 'semantic', 'markdown']
 
 
 def _dashscope_compatible(dataset: Any) -> tuple[str, str, str]:

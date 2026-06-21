@@ -13,7 +13,9 @@ import sys
 
 from module_rag.es_vector_store import EsVectorStore
 
-ES_URL = os.environ.get('ES8_URL', 'http://127.0.0.1:9201')
+# 解析 ES 地址:ES8_URL > RAG_VECTOR_HOSTS > TASK_ES_HOSTS > 本机(host 9200 / 容器内同集群)
+ES_URL = (os.environ.get('ES8_URL') or os.environ.get('RAG_VECTOR_HOSTS')
+          or os.environ.get('TASK_ES_HOSTS') or 'http://127.0.0.1:9200')
 DIMS = 8
 INDEX = 'rag_ds_verify'
 TENANT = '100'
