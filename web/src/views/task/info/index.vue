@@ -90,6 +90,10 @@
             show-icon
             title="该模板为「内置组件」类型，但未找到对应前端组件，请检查模板 component 配置"
           />
+          <el-form-item>
+            <el-button icon="VideoPlay" :loading="debugLoading" @click="debugRun">调试运行</el-button>
+            <span class="form-tip" style="margin-left: 8px">不保存任务、不投调度，执行一次并打开日志窗口实时查看</span>
+          </el-form-item>
         </template>
 
         <el-divider content-position="left">调度配置</el-divider>
@@ -146,7 +150,6 @@
       </el-form>
       <template #footer>
         <div class="dialog-footer">
-          <el-button v-if="form.templateCode" icon="VideoPlay" :loading="debugLoading" @click="debugRun">调试运行</el-button>
           <el-button type="primary" @click="submitForm">确 定</el-button>
           <el-button @click="cancel">取 消</el-button>
         </div>
@@ -210,25 +213,6 @@
       </template>
     </el-dialog>
 
-    <!-- 调试运行结果(不落实例,沙箱/本地执行一次的即时输出) -->
-    <el-drawer v-model="debugOpen" title="调试运行结果" size="56%" append-to-body>
-      <div v-loading="debugLoading" style="min-height: 200px">
-        <el-alert v-if="debugResult && debugResult.success" title="执行成功" type="success" :closable="false" show-icon style="margin-bottom: 10px" />
-        <el-alert v-else-if="debugResult && !debugResult.success" :title="debugResult.error || '执行失败'" type="error" :closable="false" show-icon style="margin-bottom: 10px" />
-        <div v-if="debugResult && debugResult.result != null && debugResult.result !== ''" style="margin-bottom: 10px">
-          <strong>返回结果:</strong>
-          <pre class="debug-pre">{{ debugResult.result }}</pre>
-        </div>
-        <div class="log-console" v-if="debugResult">
-          <div v-for="(line, idx) in (debugResult.logs || [])" :key="idx" :class="['log-line', 'lvl-' + (line.level || 'INFO')]">
-            <span class="log-level">{{ line.level }}</span>
-            <span class="log-content">{{ line.message }}</span>
-          </div>
-          <pre v-if="debugResult.output" class="debug-pre">{{ debugResult.output }}</pre>
-          <el-empty v-if="!(debugResult.logs && debugResult.logs.length) && !debugResult.output" description="无日志输出" :image-size="60" />
-        </div>
-      </div>
-    </el-drawer>
   </div>
 </template>
 
@@ -271,10 +255,8 @@ const expression = ref('')
 const paramsSchema = ref([])
 const paramsModel = ref({})
 
-// 调试运行(不落实例,沙箱/本地执行一次)
-const debugOpen = ref(false)
+// 调试运行(不落实例,触发后打开日志弹窗流式查看)
 const debugLoading = ref(false)
-const debugResult = ref(null)
 
 // 当前选中的模板对象 / 内置组件(type=1 时按 component 字段解析专属前端组件)
 const selectedTemplate = computed(() => templateOptions.value.find(t => t.code === form.value.templateCode) || {})
@@ -615,18 +597,17 @@ function debugRun() {
       params = paramsModel.value || {}
     }
     const tpl = selectedTemplate.value
-    debugResult.value = null
     debugLoading.value = true
-    debugOpen.value = true
     debugTask({
       templateCode: form.value.templateCode,
       runnerType: tpl.runnerType || 1,
       runnerCode: tpl.runnerCode || null,
       params
     }).then(res => {
-      debugResult.value = res.data || { success: false, error: '无返回', logs: [] }
-    }).catch(err => {
-      debugResult.value = { success: false, error: (err && err.message) || '调试请求失败', logs: [] }
+      proxy.$modal.msgSuccess('调试已触发')
+      // 复用执行日志弹窗:按 taskUuid 流式自动刷新读取日志库,与正式任务一致
+      const uuid = res && res.data && res.data.taskUuid
+      if (uuid) openInstanceLog(uuid)
     }).finally(() => {
       debugLoading.value = false
     })
@@ -749,17 +730,6 @@ getList()
 }
 .lvl-INFO .log-level {
   color: #569cd6;
-}
-.debug-pre {
-  white-space: pre-wrap;
-  word-break: break-all;
-  background: #f5f7fa;
-  border: 1px solid #e4e7ed;
-  border-radius: 4px;
-  padding: 8px;
-  margin: 6px 0 0;
-  font-family: Consolas, Monaco, 'Courier New', monospace;
-  font-size: 12px;
 }
 </style>
 

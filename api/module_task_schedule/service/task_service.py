@@ -26,42 +26,6 @@ _TRIGGER_CRON = 2
 _STATUS_ENABLED = 1
 
 
-class _CollectingLogger:
-    """收集日志行的轻量 logger(本地回落调试用),签名兼容 TaskLogger。"""
-
-    def __init__(self) -> None:
-        self.lines: list[dict[str, str]] = []
-
-    def _log(self, level: str, message: Any, exc: bool = False) -> None:
-        text = str(message)
-        if exc:
-            import traceback
-
-            text = f'{text}\n{traceback.format_exc()}'
-        self.lines.append({'level': level, 'message': text})
-
-    def debug(self, message: Any) -> None:
-        self._log('DEBUG', message)
-
-    def info(self, message: Any) -> None:
-        self._log('INFO', message)
-
-    def warning(self, message: Any) -> None:
-        self._log('WARNING', message)
-
-    def error(self, message: Any) -> None:
-        self._log('ERROR', message)
-
-    def exception(self, message: Any) -> None:
-        self._log('ERROR', message, exc=True)
-
-    def flush(self) -> None:
-        pass
-
-    def close(self) -> None:
-        pass
-
-
 class TaskService:
     """
     任务服务层
@@ -267,31 +231,32 @@ class TaskService:
 
     @classmethod
     async def debug_run_services(cls, query_db: AsyncSession, req: Any) -> CrudResponseModel:
-        """调试运行:不落任务实例、不投 Celery。SANDBOX_ENABLED 开则发沙箱,关则本地真实跑。"""
-        from fastapi.concurrency import run_in_threadpool
+        """调试运行:不落任务实例、不投 Celery。后台执行,日志实时写任务日志库,前端按 taskUuid 流式读取。
+
+        SANDBOX_ENABLED 开则发沙箱(env 空、连接随请求注入),关则本进程真实跑;两者日志都写库,体验同正式任务。
+        """
+        import asyncio
 
         from module_data import sandbox_client
+        from module_task_schedule.task_logger import is_task_log_viewable
 
         template_code = req.template_code or ''
         runner_type = req.runner_type or 1
         params = req.params or {}
         task_uuid = f'debug-{uuid.uuid4().hex[:12]}'
 
-        if sandbox_client.enabled():
-            # ETL 需预解密数据源(沙箱无凭据,连接信息随请求注入);其余任务 datasources 为空
-            datasources = (await cls._resolve_debug_datasources(query_db, params)
-                           if template_code == 'DataIntegrationTask' else {})
-            res = await run_in_threadpool(
-                sandbox_client.execute_task, template_code, params, runner_type,
-                req.runner_code, datasources, task_uuid, req.timeout,
-            )
-        else:
-            res = await run_in_threadpool(
-                cls._local_debug_run, template_code, runner_type, req.runner_code, params,
-            )
-        ok = bool(res.get('success'))
-        return CrudResponseModel(is_success=ok, message='调试完成' if ok else (res.get('error') or '调试失败'),
-                                 result=res)
+        use_sandbox = sandbox_client.enabled()
+        # ETL 需在持 db 会话时预解密数据源,随请求注入沙箱(沙箱无凭据);其余任务为空
+        datasources = (await cls._resolve_debug_datasources(query_db, params)
+                       if use_sandbox and template_code == 'DataIntegrationTask' else {})
+
+        # 后台执行,立即返回 taskUuid;日志由沙箱/本地实时写库,前端流式读取
+        asyncio.get_running_loop().run_in_executor(
+            None, cls._run_debug, task_uuid, template_code, runner_type, req.runner_code,
+            params, datasources, use_sandbox, req.timeout,
+        )
+        return CrudResponseModel(is_success=True, message='调试已触发',
+                                 result={'taskUuid': task_uuid, 'logViewable': is_task_log_viewable()})
 
     @staticmethod
     async def _resolve_debug_datasources(query_db: AsyncSession, params: dict) -> dict:
@@ -321,14 +286,30 @@ class TaskService:
         return out
 
     @staticmethod
-    def _local_debug_run(template_code: str, runner_type: int, runner_code: str | None, params: dict) -> dict:
-        """SANDBOX_ENABLED 关闭时的本地兜底:在本进程真实跑一次(行为同 worker)。"""
+    def _run_debug(task_uuid: str, template_code: str, runner_type: int, runner_code: str | None,
+                   params: dict, datasources: dict, use_sandbox: bool, timeout: int | None) -> None:
+        """后台线程:执行调试任务,日志实时写库(沙箱注入连接直写 / 本地 TaskLogger),供前端流式读取。"""
+        from module_task_schedule.task_logger import get_task_logger
+
+        if use_sandbox:
+            from module_data import sandbox_client
+
+            try:
+                sandbox_client.execute_task(template_code, params, runner_type, runner_code,
+                                            datasources, task_uuid, timeout)
+            except Exception as e:  # noqa: BLE001 沙箱连接失败,写一条错误日志供前端查看
+                lg = get_task_logger(task_uuid)
+                lg.error(f'[调试] 沙箱调用失败: {e}')
+                lg.close()
+            return
+
+        # 本地兜底(SANDBOX_ENABLED 关):本进程真实跑,用 TaskLogger 写库
         import contextlib
         import io
 
         from module_task_schedule.runners.base import get_runner
 
-        logger = _CollectingLogger()
+        logger = get_task_logger(task_uuid)
         out = io.StringIO()
         try:
             with contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
@@ -344,8 +325,10 @@ class TaskService:
                         raise ValueError(f'未注册的任务类型: {template_code}')
                     runner = runner_cls(params, logger, context=ctx)
                 result = runner.run()
-            return {'success': True, 'result': str(result), 'output': out.getvalue(),
-                    'logs': logger.lines, 'error': None}
+            if out.getvalue().strip():
+                logger.info(f'[stdout] {out.getvalue().rstrip()}')
+            logger.info(f'[执行成功] 返回值: {result}')
         except Exception as e:  # noqa: BLE001
-            return {'success': False, 'error': f'{type(e).__name__}: {e}', 'output': out.getvalue(),
-                    'logs': logger.lines, 'result': None}
+            logger.exception(f'[执行失败] {type(e).__name__}: {e}')
+        finally:
+            logger.close()

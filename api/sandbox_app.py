@@ -198,12 +198,20 @@ def _dispatch(kind: str, payload: dict) -> dict:
     try:
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stdout):
             result = _build_runner(payload, logger).run()
+        out = stdout.getvalue()
+        if out.strip():  # 用户 print 输出也进日志流(写库),便于调试弹窗查看
+            logger.info(f'[stdout] {out.rstrip()}')
+        logger.info(f'[执行成功] 返回值: {_jsonable(result)}')
         logger.close()
-        return {'success': True, 'result': _jsonable(result), 'output': stdout.getvalue(),
+        return {'success': True, 'result': _jsonable(result), 'output': out,
                 'logs': logger.lines, 'error': None}
     except Exception as e:  # noqa: BLE001 业务执行错误回报给调用方
+        out = stdout.getvalue()
+        if out.strip():
+            logger.info(f'[stdout] {out.rstrip()}')
+        logger.error(f'[执行失败] {type(e).__name__}: {e}')
         logger.close()
-        return {'success': False, 'error': f'{type(e).__name__}: {e}', 'output': stdout.getvalue(),
+        return {'success': False, 'error': f'{type(e).__name__}: {e}', 'output': out,
                 'logs': logger.lines, 'result': None}
 
 
