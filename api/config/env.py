@@ -393,9 +393,10 @@ class RagSettings(BaseSettings):
     dashscope_api_key: str = ''                 # DASHSCOPE_API_KEY(provider=dashscope 时复用)
     embedding_cache: int = 1                    # EMBEDDING_CACHE(1=启用 rag_embedding 缓存)
 
-    rerank_type: str = ''                       # RERANK_TYPE(空=不启用)
+    rerank_type: str = ''                       # RERANK_TYPE(空=不启用;dashscope / siliconflow / openai 兼容)
     rerank_model: str = 'gte-rerank'            # RERANK_MODEL
     rerank_api_key: str = ''                    # RERANK_API_KEY
+    rerank_url: str = ''                        # RERANK_URL(OpenAI 兼容 rerank 的 base_url,可空;有内置默认的可不填)
 
     rag_vector_backend: str = 'elasticsearch'   # RAG_VECTOR_BACKEND
     rag_vector_hosts: str = ''                  # RAG_VECTOR_HOSTS(空=回退 task_es_hosts)

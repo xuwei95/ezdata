@@ -10,11 +10,13 @@ from __future__ import annotations
 
 import requests
 
-# provider → 默认 base_url(用户未配 base_url 时)
+# provider → 默认 base_url(用户未配 base_url 时);其它 OpenAI 兼容端点设 EMBEDDING_URL 即可
 _DEFAULT_BASE = {
     'dashscope': 'https://dashscope.aliyuncs.com/compatible-mode/v1',
     'tongyi': 'https://dashscope.aliyuncs.com/compatible-mode/v1',
     'openai': 'https://api.openai.com/v1',
+    'siliconflow': 'https://api.siliconflow.cn/v1',
+    'deepseek': 'https://api.deepseek.com/v1',
 }
 
 # 已知模型维度(便于建库时确定 dims;未知则用首条文本实测)
@@ -25,6 +27,10 @@ _KNOWN_DIMS = {
     'text-embedding-ada-002': 1536,
     'text-embedding-3-small': 1536,
     'text-embedding-3-large': 3072,
+    'BAAI/bge-m3': 1024,
+    'BAAI/bge-large-zh-v1.5': 1024,
+    'BAAI/bge-large-en-v1.5': 1024,
+    'Qwen/Qwen3-Embedding-0.6B': 1024,
 }
 
 
