@@ -138,6 +138,18 @@ class DeleteTaskModel(BaseModel):
     ids: str = Field(description='需要删除的任务ID')
 
 
+class DebugTaskModel(BaseModel):
+    """任务调试运行入参(不落任务实例、不投 Celery,沙箱/本地执行一次)"""
+
+    model_config = ConfigDict(alias_generator=to_camel)
+
+    template_code: str | None = Field(default=None, description='模板编码:PythonTask/ShellTask/DataIntegrationTask 等')
+    runner_type: int | None = Field(default=1, description='执行器类型,1内置2动态')
+    runner_code: str | None = Field(default=None, description='动态执行器代码(runner_type=2)')
+    params: dict = Field(default_factory=dict, description='任务参数')
+    timeout: int | None = Field(default=None, description='超时(秒)')
+
+
 class TaskInstanceModel(BaseModel):
     """
     任务实例表对应pydantic模型

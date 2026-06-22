@@ -58,6 +58,7 @@ def _build_handler(rec: dict) -> Any:
     from module_data.handlers import get_handler_cls  # noqa: PLC0415
 
     cls = get_handler_cls(rec['source_type'])
+    # secrets 为密文串(查库)→ from_record 内部解密;为明文 dict(沙箱注入)→ 直接合并不解密
     return cls.from_record(rec['config'], rec['secrets'])
 
 
@@ -75,6 +76,15 @@ def _compile_transform(code: str):
 class DataIntegrationRunner(BaseRunner):
     """抽取 -> 转换 -> 装载。"""
 
+    def _resolve_datasource(self, code: str) -> dict:
+        """解析数据源记录 {source_type, config, secrets}。
+
+        沙箱(无凭据)场景:context['resolved_datasources'] 由调用方预解密注入,secrets 为明文 dict;
+        worker 正式场景:无注入,查库取记录,secrets 为 AES 密文串(由 from_record 内部解密)。
+        """
+        injected = (self.context.get('resolved_datasources') or {}).get(code)
+        return injected or _load_datasource(code)
+
     def run(self) -> Any:
         from module_data.handlers import Capability  # noqa: PLC0415
 
@@ -91,8 +101,8 @@ class DataIntegrationRunner(BaseRunner):
             raise ValueError('ETL 参数不完整:需 extract.datasource_code 与 load.datasource_code/table')
 
         self.logger.info(f'加载源数据源 {src_code} / 目标数据源 {dst_code}')
-        src = _build_handler(_load_datasource(src_code))
-        dst = _build_handler(_load_datasource(dst_code))
+        src = _build_handler(self._resolve_datasource(src_code))
+        dst = _build_handler(self._resolve_datasource(dst_code))
         if not dst.has(Capability.WRITE):
             raise ValueError(f'目标数据源 {dst.name} 不支持写入(WRITE)')
 

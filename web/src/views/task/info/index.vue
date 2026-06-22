@@ -146,6 +146,7 @@
       </el-form>
       <template #footer>
         <div class="dialog-footer">
+          <el-button v-if="form.templateCode" icon="VideoPlay" :loading="debugLoading" @click="debugRun">调试运行</el-button>
           <el-button type="primary" @click="submitForm">确 定</el-button>
           <el-button @click="cancel">取 消</el-button>
         </div>
@@ -208,11 +209,31 @@
         <div class="log-tip">已展示 {{ logLines.length }} 条日志，新日志将持续追加在末尾</div>
       </template>
     </el-dialog>
+
+    <!-- 调试运行结果(不落实例,沙箱/本地执行一次的即时输出) -->
+    <el-drawer v-model="debugOpen" title="调试运行结果" size="56%" append-to-body>
+      <div v-loading="debugLoading" style="min-height: 200px">
+        <el-alert v-if="debugResult && debugResult.success" title="执行成功" type="success" :closable="false" show-icon style="margin-bottom: 10px" />
+        <el-alert v-else-if="debugResult && !debugResult.success" :title="debugResult.error || '执行失败'" type="error" :closable="false" show-icon style="margin-bottom: 10px" />
+        <div v-if="debugResult && debugResult.result != null && debugResult.result !== ''" style="margin-bottom: 10px">
+          <strong>返回结果:</strong>
+          <pre class="debug-pre">{{ debugResult.result }}</pre>
+        </div>
+        <div class="log-console" v-if="debugResult">
+          <div v-for="(line, idx) in (debugResult.logs || [])" :key="idx" :class="['log-line', 'lvl-' + (line.level || 'INFO')]">
+            <span class="log-level">{{ line.level }}</span>
+            <span class="log-content">{{ line.message }}</span>
+          </div>
+          <pre v-if="debugResult.output" class="debug-pre">{{ debugResult.output }}</pre>
+          <el-empty v-if="!(debugResult.logs && debugResult.logs.length) && !debugResult.output" description="无日志输出" :image-size="60" />
+        </div>
+      </div>
+    </el-drawer>
   </div>
 </template>
 
 <script setup name="Task">
-import { listTask, getTask, addTask, updateTask, delTask, changeTaskStatus, runTask, listRunQueues } from '@/api/task/task'
+import { listTask, getTask, addTask, updateTask, delTask, changeTaskStatus, runTask, debugTask, listRunQueues } from '@/api/task/task'
 import { listTemplateAll } from '@/api/task/template'
 import { listStrategyAll } from '@/api/alert/strategy'
 import { listInstance, stopInstance, delInstance } from '@/api/task/instance'
@@ -249,6 +270,11 @@ const openCron = ref(false)
 const expression = ref('')
 const paramsSchema = ref([])
 const paramsModel = ref({})
+
+// 调试运行(不落实例,沙箱/本地执行一次)
+const debugOpen = ref(false)
+const debugLoading = ref(false)
+const debugResult = ref(null)
 
 // 当前选中的模板对象 / 内置组件(type=1 时按 component 字段解析专属前端组件)
 const selectedTemplate = computed(() => templateOptions.value.find(t => t.code === form.value.templateCode) || {})
@@ -572,6 +598,41 @@ function submitForm() {
   })
 }
 
+// 调试运行:复用表单取参逻辑,不保存任务、不投调度,直接把结果/日志展示在抽屉
+function debugRun() {
+  proxy.$refs['taskRef'].validate(valid => {
+    if (!valid) return
+    let params = {}
+    if (selectedTemplateType.value === 2 && proxy.$refs.paramsRendererRef) {
+      const paramErr = proxy.$refs.paramsRendererRef.validate()
+      if (paramErr) { proxy.$modal.msgError(paramErr); return }
+      params = paramsModel.value || {}
+    } else if (selectedTemplateType.value === 1 && proxy.$refs.builtinFormRef) {
+      const r = proxy.$refs.builtinFormRef.genTaskParams()
+      if (r.error) { proxy.$modal.msgError(r.error); return }
+      params = r.params || {}
+    } else {
+      params = paramsModel.value || {}
+    }
+    const tpl = selectedTemplate.value
+    debugResult.value = null
+    debugLoading.value = true
+    debugOpen.value = true
+    debugTask({
+      templateCode: form.value.templateCode,
+      runnerType: tpl.runnerType || 1,
+      runnerCode: tpl.runnerCode || null,
+      params
+    }).then(res => {
+      debugResult.value = res.data || { success: false, error: '无返回', logs: [] }
+    }).catch(err => {
+      debugResult.value = { success: false, error: (err && err.message) || '调试请求失败', logs: [] }
+    }).finally(() => {
+      debugLoading.value = false
+    })
+  })
+}
+
 function handleStatusChange(row) {
   const text = row.status === 1 ? '启用' : '停用'
   proxy.$modal.confirm('确认要"' + text + '""' + row.name + '"任务吗?').then(function () {
@@ -688,6 +749,17 @@ getList()
 }
 .lvl-INFO .log-level {
   color: #569cd6;
+}
+.debug-pre {
+  white-space: pre-wrap;
+  word-break: break-all;
+  background: #f5f7fa;
+  border: 1px solid #e4e7ed;
+  border-radius: 4px;
+  padding: 8px;
+  margin: 6px 0 0;
+  font-family: Consolas, Monaco, 'Courier New', monospace;
+  font-size: 12px;
 }
 </style>
 

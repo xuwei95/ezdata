@@ -419,10 +419,11 @@ class RagSettings(BaseSettings):
 
 
 class SandboxSettings(BaseSettings):
-    """代码执行沙箱(仅调试层用:转换/分析「已抽取的数据行」)。
+    """代码执行沙箱(调试层:无状态远程执行器)。
 
-    沙箱是独立容器、独立隔离网络、不持有任何连接凭据;worker 先抽好数据,
-    只把「数据行 + 转换代码」发进去执行,日志随响应回传。生产 ETL 任务不走沙箱(直跑)。
+    平台所有「运行代码」的调试态在此执行(Python/Shell/ETL/动态),正式态仍 worker 直跑。
+    沙箱进程 env 为空、不持任何持久凭据;执行所需的一切(代码、数据源明文连接、日志库连接)
+    都随每次请求注入,用完即弃,请求之间互相隔离。SANDBOX_ENABLED 关闭时调用方回落本地真实跑。
 
     .env 示例:
         SANDBOX_ENABLED=true
@@ -431,7 +432,7 @@ class SandboxSettings(BaseSettings):
         SANDBOX_TIMEOUT=60
     """
 
-    sandbox_enabled: bool = False                          # SANDBOX_ENABLED(关=本地 exec 兜底)
+    sandbox_enabled: bool = False                          # SANDBOX_ENABLED(关=本地真实跑兜底)
     sandbox_api_url: str = 'http://ezdata-sandbox-dev:8003'  # SANDBOX_API_URL
     sandbox_bearer_key: str = 'change-me'                  # SANDBOX_BEARER_KEY
     sandbox_timeout: int = 60                              # SANDBOX_TIMEOUT(秒)

@@ -58,7 +58,7 @@ services:
       - S3_ADDRESS_STYLE=path
       # Windows 主机 bind mount 文件事件传不进容器，强制轮询以保证 --reload 生效
       - WATCHFILES_FORCE_POLLING=true
-      # 调试层代码沙箱（只对已抽取数据跑转换；沙箱在隔离网络、无任何凭据）
+      # 调试层代码沙箱(无状态远程执行器;沙箱 env 空,凭据随请求注入)
       - SANDBOX_ENABLED=true
       - SANDBOX_API_URL=http://ezdata-sandbox-dev:8003
       - SANDBOX_BEARER_KEY=ezdata-sandbox-dev-key
@@ -75,8 +75,7 @@ services:
       ezdata-minio-dev:
         condition: service_started
     networks:
-      - ezdata-dev-network
-      - ezdata-sandbox-net                # 与沙箱通信(沙箱只在此网,连不到 db/redis/es/minio/外网)
+      - ezdata-dev-network                # 沙箱也在此网,直接互通
     stdin_open: true                      # 支持容器内 breakpoint()/pdb 交互
     tty: true
     restart: "no"
@@ -130,37 +129,35 @@ services:
       ezdata-minio-dev:
         condition: service_started
     networks:
-      - ezdata-dev-network
-      - ezdata-sandbox-net
+      - ezdata-dev-network                # 沙箱也在此网,直接互通
     restart: "no"
 
-  # ---------------- 代码执行沙箱（调试层专用，强隔离） ----------------
-  # 同后端镜像（自带 pandas/numpy 等重依赖），但：
-  #   - 只给 SANDBOX_* 环境变量，绝不给 DB/JWT/LLM/MinIO 任何凭据
-  #   - 只接入 ezdata-sandbox-net（internal:true）→ 连不到 db/redis/es/minio，也出不了公网
-  #   - 非 root + 只读根 fs + drop 所有 caps + no-new-privileges + pids/内存上限
-  # 即便代码逃逸,暴露面也只有「worker 本次发进来的那批数据」。
+  # ---------------- 代码执行沙箱（调试层:无状态远程执行器） ----------------
+  # 同后端镜像（自带 pandas/numpy 等重依赖）。平台所有「运行代码」的调试态在此执行,正式态仍 worker 直跑。
+  #   - env 为空(只 SANDBOX_*),不内置任何 DB/JWT/数据源凭据
+  #   - 执行所需的一切(代码、数据源明文连接、日志库连接)随每次请求注入,用完即弃,请求之间互相隔离
+  #   - 接 dev-network 以便数据面可达数据源/日志库(凭据不在 env,仍随请求来)
+  #   - 非 root + drop 所有 caps + no-new-privileges + pids/内存上限;每个执行请求 fork 子进程,可超时 kill
   ezdata-sandbox-dev:
     image: ezdata-backend-dev:latest      # 复用后端镜像
     container_name: ezdata-sandbox-dev
     working_dir: /app
-    command: python sandbox_app.py
+    command: uvicorn sandbox_app:app --host 0.0.0.0 --port 8003
     environment:
       - SANDBOX_PORT=8003
       - SANDBOX_BEARER_KEY=ezdata-sandbox-dev-key   # 与 backend/worker 一致
       - PYTHONDONTWRITEBYTECODE=1
     volumes:
-      - ./api:/app:ro                     # 只读挂载源码（沙箱只需读 sandbox_app.py）
+      - ./api:/app:ro                     # 只读挂载源码
     networks:
-      - ezdata-sandbox-net                # 仅此隔离网；不接 ezdata-dev-network
-    read_only: true                       # 只读根文件系统
+      - ezdata-dev-network                # 数据面可达数据源/日志库;凭据不在 env,随请求注入
     tmpfs:
-      - /tmp                              # 临时可写
+      - /tmp                              # 临时可写(dlt pipeline 等)
     cap_drop:
       - ALL
     security_opt:
       - no-new-privileges:true
-    pids_limit: 128
+    pids_limit: 256
     mem_limit: 1g
     restart: "no"
 
@@ -275,8 +272,3 @@ networks:
   ezdata-dev-network:
     name: ezdata-dev-network
     driver: bridge
-  # 沙箱隔离网:internal=true → 无外网网关;db/redis/es/minio 都不在此网 → 沙箱触达不到
-  ezdata-sandbox-net:
-    name: ezdata-sandbox-net
-    driver: bridge
-    internal: true

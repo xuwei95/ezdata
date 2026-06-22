@@ -26,6 +26,42 @@ _TRIGGER_CRON = 2
 _STATUS_ENABLED = 1
 
 
+class _CollectingLogger:
+    """收集日志行的轻量 logger(本地回落调试用),签名兼容 TaskLogger。"""
+
+    def __init__(self) -> None:
+        self.lines: list[dict[str, str]] = []
+
+    def _log(self, level: str, message: Any, exc: bool = False) -> None:
+        text = str(message)
+        if exc:
+            import traceback
+
+            text = f'{text}\n{traceback.format_exc()}'
+        self.lines.append({'level': level, 'message': text})
+
+    def debug(self, message: Any) -> None:
+        self._log('DEBUG', message)
+
+    def info(self, message: Any) -> None:
+        self._log('INFO', message)
+
+    def warning(self, message: Any) -> None:
+        self._log('WARNING', message)
+
+    def error(self, message: Any) -> None:
+        self._log('ERROR', message)
+
+    def exception(self, message: Any) -> None:
+        self._log('ERROR', message, exc=True)
+
+    def flush(self) -> None:
+        pass
+
+    def close(self) -> None:
+        pass
+
+
 class TaskService:
     """
     任务服务层
@@ -228,3 +264,88 @@ class TaskService:
             return CrudResponseModel(is_success=True, message='已触发执行', result={'instanceId': instance_id})
         except Exception as e:  # noqa: BLE001
             raise ServiceException(message=f'触发执行失败: {e}')
+
+    @classmethod
+    async def debug_run_services(cls, query_db: AsyncSession, req: Any) -> CrudResponseModel:
+        """调试运行:不落任务实例、不投 Celery。SANDBOX_ENABLED 开则发沙箱,关则本地真实跑。"""
+        from fastapi.concurrency import run_in_threadpool
+
+        from module_data import sandbox_client
+
+        template_code = req.template_code or ''
+        runner_type = req.runner_type or 1
+        params = req.params or {}
+        task_uuid = f'debug-{uuid.uuid4().hex[:12]}'
+
+        if sandbox_client.enabled():
+            # ETL 需预解密数据源(沙箱无凭据,连接信息随请求注入);其余任务 datasources 为空
+            datasources = (await cls._resolve_debug_datasources(query_db, params)
+                           if template_code == 'DataIntegrationTask' else {})
+            res = await run_in_threadpool(
+                sandbox_client.execute_task, template_code, params, runner_type,
+                req.runner_code, datasources, task_uuid, req.timeout,
+            )
+        else:
+            res = await run_in_threadpool(
+                cls._local_debug_run, template_code, runner_type, req.runner_code, params,
+            )
+        ok = bool(res.get('success'))
+        return CrudResponseModel(is_success=ok, message='调试完成' if ok else (res.get('error') or '调试失败'),
+                                 result=res)
+
+    @staticmethod
+    async def _resolve_debug_datasources(query_db: AsyncSession, params: dict) -> dict:
+        """查 ETL 源/目标数据源并解密 secrets 为明文 dict(沙箱无凭据,连接信息随请求注入)。"""
+        import json
+
+        from sqlalchemy import select
+
+        from module_data.entity.do.data_do import DataSource
+        from utils.crypto_util import CryptoUtil
+
+        extract = params.get('extract') or {}
+        load = params.get('load') or {}
+        codes = {c for c in (extract.get('datasource_code'), load.get('datasource_code')) if c}
+        out: dict[str, Any] = {}
+        for code in codes:
+            ds = (await query_db.execute(select(DataSource).where(DataSource.code == code))).scalars().first()
+            if ds is None:
+                raise ServiceException(message=f'数据源不存在: {code}')
+            secrets: dict = {}
+            if ds.secrets:
+                try:
+                    secrets = json.loads(CryptoUtil.decrypt(ds.secrets))
+                except Exception:  # noqa: BLE001 解密失败按空密钥处理,由 handler 报连接错误
+                    secrets = {}
+            out[code] = {'source_type': ds.source_type, 'config': ds.config or {}, 'secrets': secrets}
+        return out
+
+    @staticmethod
+    def _local_debug_run(template_code: str, runner_type: int, runner_code: str | None, params: dict) -> dict:
+        """SANDBOX_ENABLED 关闭时的本地兜底:在本进程真实跑一次(行为同 worker)。"""
+        import contextlib
+        import io
+
+        from module_task_schedule.runners.base import get_runner
+
+        logger = _CollectingLogger()
+        out = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
+                ctx: dict[str, Any] = {'sandbox': True}
+                if runner_type == 2:
+                    from module_task_schedule.runners.dynamic_runner import DynamicRunner
+
+                    ctx['runner_code'] = runner_code or ''
+                    runner = DynamicRunner(params, logger, context=ctx)
+                else:
+                    runner_cls = get_runner(template_code)
+                    if runner_cls is None:
+                        raise ValueError(f'未注册的任务类型: {template_code}')
+                    runner = runner_cls(params, logger, context=ctx)
+                result = runner.run()
+            return {'success': True, 'result': str(result), 'output': out.getvalue(),
+                    'logs': logger.lines, 'error': None}
+        except Exception as e:  # noqa: BLE001
+            return {'success': False, 'error': f'{type(e).__name__}: {e}', 'output': out.getvalue(),
+                    'logs': logger.lines, 'result': None}

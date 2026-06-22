@@ -13,6 +13,7 @@ from common.router import APIRouterPro
 from common.vo import DataResponseModel, PageResponseModel, ResponseBaseModel
 from module_admin.entity.vo.user_vo import CurrentUserModel
 from module_task_schedule.entity.vo.task_vo import (
+    DebugTaskModel,
     DeleteTaskModel,
     EditTaskStatusModel,
     TaskModel,
@@ -116,6 +117,23 @@ async def run_task_once(
     query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     result = await TaskService.run_task_once_services(query_db, task_id)
+    logger.info(result.message)
+    return ResponseUtil.success(msg=result.message, data=result.result)
+
+
+@task_controller.post(
+    '/debug',
+    summary='调试运行任务(不落实例,沙箱/本地执行一次)',
+    response_model=DataResponseModel,
+    dependencies=[UserInterfaceAuthDependency('task:info:run')],
+)
+@Log(title='任务管理', business_type=BusinessType.OTHER)
+async def debug_run_task(
+    request: Request,
+    debug_req: DebugTaskModel,
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
+) -> Response:
+    result = await TaskService.debug_run_services(query_db, debug_req)
     logger.info(result.message)
     return ResponseUtil.success(msg=result.message, data=result.result)
 

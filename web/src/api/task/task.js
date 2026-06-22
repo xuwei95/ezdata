@@ -68,3 +68,12 @@ export function runTask(taskId) {
     method: 'put'
   })
 }
+
+// 调试运行任务(不落实例、不投调度,沙箱/本地执行一次)
+export function debugTask(data) {
+  return request({
+    url: '/task/info/debug',
+    method: 'post',
+    data: data
+  })
+}
