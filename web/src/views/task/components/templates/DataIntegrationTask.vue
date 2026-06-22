@@ -192,6 +192,21 @@ function fmtCell(v) {
   if (v === null || v === undefined) return ''
   return typeof v === 'object' ? JSON.stringify(v) : v
 }
+
+// native 是 Any:SQL 源为字符串,ES/Mongo 等 DSL 源为 dict/数组。
+// 文本框只能编辑字符串 → 入框时 dict 转 JSON 文本(否则显示 [object Object]),
+// 提交/预览时再把 JSON 文本解析回 dict,SQL 文本解析失败则原样保留为字符串。
+function nativeToText(v) {
+  if (v === null || v === undefined) return ''
+  return typeof v === 'object' ? JSON.stringify(v, null, 2) : String(v)
+}
+function nativeFromText(t) {
+  const s = (t || '').trim()
+  if (s.startsWith('{') || s.startsWith('[')) {
+    try { return JSON.parse(s) } catch { /* 非合法 JSON,按原始文本提交 */ }
+  }
+  return t
+}
 const previewJson = computed(() => JSON.stringify(previewRows.value, null, 2))
 
 const STREAM_FAMILIES = ['cdc', 'stream']
@@ -254,6 +269,8 @@ function initParams() {
   const p = props.taskParams || {}
   if (p.extract) {
     Object.assign(model.extract, p.extract)
+    // DSL 源 native 为 dict,文本框需字符串 → 转 JSON 文本,避免显示 [object Object]
+    model.extract.native = nativeToText(p.extract.native)
     // 还原多选(老数据可能只存了单个 object)
     model.extract.tables = Array.isArray(p.extract.tables) ? p.extract.tables
       : (p.extract.object ? [p.extract.object] : [])
@@ -355,7 +372,7 @@ async function doPreview() {
   try {
     const res = await previewEtl({
       datasourceCode: model.extract.datasource_code,
-      native: srcIsStream.value ? null : model.extract.native,
+      native: srcIsStream.value ? null : nativeFromText(model.extract.native),
       objectName: model.extract.object || null,
       transformCode: model.transform.enabled ? model.transform.code : null,
       limit: previewLimit
@@ -411,7 +428,7 @@ function genTaskParams() {
         // 流式:单个消费对象;批量:选 1 张才作目标表兜底,多张/不选为 null
         object: srcIsStream.value ? (model.extract.object || null) : oneTable,
         tables: srcIsStream.value ? undefined : model.extract.tables,
-        native: srcIsStream.value ? '' : model.extract.native,
+        native: srcIsStream.value ? '' : nativeFromText(model.extract.native),
         max_events: srcIsStream.value ? (model.extract.max_events || 0) : undefined
       },
       transform: { enabled: !!model.transform.enabled, code: model.transform.enabled ? model.transform.code : '' },
