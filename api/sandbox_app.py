@@ -52,6 +52,14 @@ MEM_LIMIT = int(os.environ.get('SANDBOX_MEM_LIMIT_BYTES', str(512 * 1024 * 1024)
 IS_WINDOWS = platform.system() == 'Windows'
 _HAS_FORK = hasattr(os, 'fork')
 
+# 预加载重模块到主进程:fork 子进程继承已加载模块,避免子进程「首次 import」时
+# 撞上 fork-from-thread 继承的 import 锁而死锁(纯计算不 import 重模块故无此问题)。
+for _m in ('pandas', 'numpy'):
+    try:
+        __import__(_m)
+    except Exception:  # noqa: BLE001 未装则跳过
+        pass
+
 
 # ---------------------------------------------------------------------------
 # 沙箱内日志:总是收集(随响应回传),db/es 额外按注入连接参数直写任务日志库
@@ -191,6 +199,8 @@ def _dispatch(kind: str, payload: dict) -> dict:
     """执行任务,返回 {success, result, output, logs, error}。在子进程内调用。"""
     if kind == 'transform':
         return _run_transform(payload.get('code') or '', payload.get('rows') or [])
+    if kind in ('pyrun', 'pydata'):
+        return _run_pycode(kind, payload)
 
     logger = _SandboxLogger(_make_log_writer(payload.get('logger_config') or {}),
                             (payload.get('logger_config') or {}).get('task_uuid') or 'sandbox')
@@ -239,6 +249,38 @@ def _safe_builtins() -> dict:
 
     safe['__import__'] = _guarded_import
     return safe
+
+
+def _run_pycode(kind: str, payload: dict) -> dict:
+    """受限 exec 裸脚本(agent 代码工具),返回 {success, stdout, result, error}。
+
+    pyrun:纯计算/数据处理(math/json/pandas/numpy 等,禁 os/网络/文件)。
+    pydata:额外注入 handler(用明文连接建),code 中用 handler 取数,如
+            result = handler.query("SELECT ...");取 variable_to_return 变量返回。
+    """
+    code = payload.get('code') or ''
+    var = payload.get('variable_to_return')
+    if not code.strip():
+        return {'success': False, 'error': 'code 为空', 'stdout': '', 'result': None}
+    g: dict[str, Any] = {'__builtins__': _safe_builtins()}
+    if kind == 'pydata':
+        ds = payload.get('datasource') or {}
+        try:
+            from module_data.handlers import create_handler
+
+            g['handler'] = create_handler(ds.get('source_type'), ds.get('config') or {}, ds.get('secrets') or {})
+            g['datasource'] = g['handler']  # 别名
+        except Exception as e:  # noqa: BLE001
+            return {'success': False, 'error': f'数据源连接失败: {type(e).__name__}: {e}',
+                    'stdout': '', 'result': None}
+    stdout = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stdout):
+            exec(compile(code, '<sandbox-pycode>', 'exec'), g)  # noqa: S102 受限 builtins + 容器边界
+        result = _jsonable(g.get(var)) if var else None
+        return {'success': True, 'result': result, 'stdout': stdout.getvalue(), 'error': None}
+    except Exception as e:  # noqa: BLE001
+        return {'success': False, 'error': f'{type(e).__name__}: {e}', 'stdout': stdout.getvalue(), 'result': None}
 
 
 def _run_transform(code: str, rows: list) -> dict:
@@ -342,6 +384,19 @@ class TransformReq(BaseModel):
     timeout: int = 60
 
 
+class PyRunReq(BaseModel):
+    code: str
+    variable_to_return: str | None = None
+    timeout: int = 60
+
+
+class PyDataReq(BaseModel):
+    code: str
+    datasource: dict = {}                 # {source_type, config, secrets(明文 dict)}
+    variable_to_return: str | None = 'result'
+    timeout: int = 60
+
+
 @app.get('/health')
 async def health() -> dict:
     return {'status': 'ok', 'fork': _HAS_FORK}
@@ -362,6 +417,22 @@ async def transform(req: TransformReq, authorization: str = Header(default='')) 
     _auth(authorization)
     payload = {'code': req.code, 'rows': req.rows}
     return await run_in_threadpool(_execute_with_timeout, 'transform', payload, req.timeout)
+
+
+@app.post('/python/run')
+async def python_run(req: PyRunReq, authorization: str = Header(default='')) -> dict:
+    """运行普通 python 代码(纯计算/数据处理),返回 stdout 与指定变量值。"""
+    _auth(authorization)
+    payload = {'code': req.code, 'variable_to_return': req.variable_to_return}
+    return await run_in_threadpool(_execute_with_timeout, 'pyrun', payload, req.timeout)
+
+
+@app.post('/python/data')
+async def python_data(req: PyDataReq, authorization: str = Header(default='')) -> dict:
+    """运行数据源取数代码:注入 handler(用明文连接建),code 中用其取数。"""
+    _auth(authorization)
+    payload = {'code': req.code, 'datasource': req.datasource, 'variable_to_return': req.variable_to_return}
+    return await run_in_threadpool(_execute_with_timeout, 'pydata', payload, req.timeout)
 
 
 def main() -> None:

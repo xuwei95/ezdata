@@ -145,6 +145,10 @@ class AiChatService:
             max_tokens=model_config.max_tokens,
         )
         storage = AiUtil.get_storage_engine()
+        # 代码执行工具(沙箱隔离):让模型可主动跑 python 计算 / 对数据源取数
+        # 如需关闭,去掉 tools 参数即可
+        from module_ai.tools.sandbox_code_tools import SandboxCodeTools  # noqa: PLC0415
+
         return Agent(
             model=model,
             id='chat-agent',
@@ -154,6 +158,7 @@ class AiChatService:
             session_id=session_id,
             add_history_to_context=add_history,
             num_history_runs=num_history,
+            tools=[SandboxCodeTools()],
             markdown=True,
         )
 

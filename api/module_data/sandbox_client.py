@@ -58,6 +58,21 @@ def transform_rows(code: str, rows: list[dict], timeout: int | None = None) -> d
     return _post('/transform', {'code': code, 'rows': rows, 'timeout': t}, t + 10)
 
 
+def run_python(code: str, variable_to_return: str | None = None,
+               timeout: int | None = None) -> dict[str, Any]:
+    """运行普通 python 代码(纯计算)。返回 {success, stdout, result, error}。"""
+    t = int(timeout or SandboxConfig.sandbox_timeout)
+    return _post('/python/run', {'code': code, 'variable_to_return': variable_to_return, 'timeout': t}, t + 10)
+
+
+def run_python_data(code: str, datasource: dict, variable_to_return: str | None = 'result',
+                    timeout: int | None = None) -> dict[str, Any]:
+    """运行数据源取数代码(沙箱注入 handler)。datasource={source_type, config, secrets(明文 dict)}。"""
+    t = int(timeout or SandboxConfig.sandbox_timeout)
+    return _post('/python/data', {'code': code, 'datasource': datasource or {},
+                                  'variable_to_return': variable_to_return, 'timeout': t}, t + 50)
+
+
 def execute_task(template_code: str, params: dict, runner_type: int = 1, runner_code: str | None = None,
                  datasources: dict | None = None, task_uuid: str | None = None,
                  timeout: int | None = None) -> dict[str, Any]:
