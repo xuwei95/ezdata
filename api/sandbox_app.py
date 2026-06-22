@@ -227,7 +227,7 @@ def _dispatch(kind: str, payload: dict) -> dict:
 
 # 受限 builtins / 校验:仅用于 /transform(逐行 transform(row),不走 run_user_code)
 _ALLOWED_MODULES = {
-    'math', 'datetime', 'json', 'random', 're', 'decimal', 'itertools', 'collections',
+    'math', 'datetime', 'time', 'json', 'random', 're', 'decimal', 'itertools', 'collections',
     'statistics', 'string', 'uuid', 'hashlib', 'base64', 'textwrap', 'functools', 'operator',
     'pandas', 'numpy', 'pyecharts',
 }
