@@ -66,7 +66,3 @@ docs/                设计与部署文档
 - [DAG 工作流方案](docs/DAG_REFACTOR_PLAN.md)
 - [知识库(RAG)方案](docs/KB_REFACTOR_PLAN.md)
 - [变更记录(模板)](docs/CHANGELOG.md)
-
-## 📄 License
-
-MIT。基于 RuoYi-Vue3-FastAPI 二次开发,致谢原作者。

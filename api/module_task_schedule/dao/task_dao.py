@@ -35,7 +35,7 @@ class TaskDao:
             .where(
                 Task.name.like(f'%{query_object.name}%') if query_object.name else True,
                 Task.template_code == query_object.template_code if query_object.template_code else True,
-                Task.task_type == query_object.task_type if query_object.task_type is not None else True,
+                Task.task_type == (query_object.task_type if query_object.task_type is not None else 1),
                 Task.trigger_type == query_object.trigger_type if query_object.trigger_type is not None else True,
                 Task.status == query_object.status if query_object.status is not None else True,
                 Task.create_time.between(query_object.begin_time, query_object.end_time)
