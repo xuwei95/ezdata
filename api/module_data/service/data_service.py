@@ -437,10 +437,12 @@ class EtlService:
             raise ServiceException(message=f'抽取失败:{short_err(e)}') from None
 
         transformed = None
+        transform_log = ''
         if (req.transform_code or '').strip():
-            transformed = cls._apply_transform(req.transform_code, rows)
+            transformed, transform_log = await run_in_threadpool(cls._apply_transform, req.transform_code, rows)
         cols = list((transformed or rows)[0].keys()) if (transformed or rows) else []
-        return {'records': rows, 'transformed': transformed, 'columns': cols, 'total': len(rows)}
+        return {'records': rows, 'transformed': transformed, 'columns': cols,
+                'total': len(rows), 'transformLog': transform_log}
 
     @classmethod
     async def test_load(cls, db: AsyncSession, req: Any) -> dict:
@@ -571,10 +573,23 @@ class EtlService:
         return cfg, prompt
 
     @staticmethod
-    def _apply_transform(code: str, rows: list[dict]) -> list[dict]:
-        """编译并逐行执行 transform(row)->row,预览转换后形态。单行异常不中断。"""
+    def _apply_transform(code: str, rows: list[dict]) -> tuple[list[dict], str]:
+        """逐行执行 transform(row)->row,返回 (转换后列表, 日志)。
+
+        沙箱开启(SANDBOX_ENABLED)时把「数据行 + 代码」发给独立沙箱容器执行(不传任何凭据),
+        日志随响应回传;沙箱未开启时本地 exec 兜底(仅可信/单机调试)。
+        """
+        from module_data import sandbox_client  # noqa: PLC0415
+
+        if sandbox_client.enabled():
+            res = sandbox_client.transform_rows(code, rows)
+            if not res.get('success'):
+                raise ServiceException(message=f'转换执行失败:{res.get("error") or "未知错误"}')
+            return res.get('transformed') or [], res.get('output') or ''
+
+        # 本地兜底:沙箱未启用
         ns: dict[str, Any] = {}
-        exec(compile(code, '<etl-transform>', 'exec'), ns)  # noqa: S102 内部调试用途
+        exec(compile(code, '<etl-transform>', 'exec'), ns)  # noqa: S102 内部调试用途(沙箱未启用时)
         fn = ns.get('transform')
         if not callable(fn):
             raise ServiceException(message='转换代码必须定义 transform(row) 函数')
@@ -584,7 +599,7 @@ class EtlService:
                 out.append(fn(dict(r)))
             except Exception as e:  # noqa: BLE001 预览容错:逐行报告
                 out.append({'_transform_error': str(e), **r})
-        return out
+        return out, ''
 
 
 class OpenDataService:

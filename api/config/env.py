@@ -418,6 +418,25 @@ class RagSettings(BaseSettings):
         return self.rerank_api_key or self.dashscope_api_key
 
 
+class SandboxSettings(BaseSettings):
+    """代码执行沙箱(仅调试层用:转换/分析「已抽取的数据行」)。
+
+    沙箱是独立容器、独立隔离网络、不持有任何连接凭据;worker 先抽好数据,
+    只把「数据行 + 转换代码」发进去执行,日志随响应回传。生产 ETL 任务不走沙箱(直跑)。
+
+    .env 示例:
+        SANDBOX_ENABLED=true
+        SANDBOX_API_URL=http://ezdata-sandbox-dev:8003
+        SANDBOX_BEARER_KEY=xxxx
+        SANDBOX_TIMEOUT=60
+    """
+
+    sandbox_enabled: bool = False                          # SANDBOX_ENABLED(关=本地 exec 兜底)
+    sandbox_api_url: str = 'http://ezdata-sandbox-dev:8003'  # SANDBOX_API_URL
+    sandbox_bearer_key: str = 'change-me'                  # SANDBOX_BEARER_KEY
+    sandbox_timeout: int = 60                              # SANDBOX_TIMEOUT(秒)
+
+
 class GetConfig:
     """
     获取配置
@@ -567,3 +586,5 @@ StorageConfig = get_config.get_storage_config()
 AiConfig = get_config.get_ai_config()
 # 知识库(RAG)兜底配置
 RagConfig = RagSettings()
+# 代码执行沙箱(调试层)配置
+SandboxConfig = SandboxSettings()
