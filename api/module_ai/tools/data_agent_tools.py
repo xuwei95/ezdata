@@ -25,7 +25,8 @@ class DataAgentTools(Toolkit):
         """列出数据源,并**直接带出每个源的所有表名**(已建数据模型的表标上业务名/描述)。
 
         一次就能看到"哪些数据源、各有哪些表、哪些是什么业务",据此直接认出目标表,
-        无需再调一次工具列表名。数据源多时传 codes(逗号分隔)只看指定的几个。
+        无需再调一次工具列表名。已建模的表逐行详列(业务名+描述);未建模的表名紧凑列出(仍可搜到)。
+        数据源多时传 codes(逗号分隔)只看指定的几个。
 
         :param codes: 可选,逗号分隔的数据源编码;为空返回全部
         :return: 数据源及其表清单(表名后「— 业务名: 描述」来自数据模型)
@@ -46,12 +47,18 @@ class DataAgentTools(Toolkit):
                 blocks.append(header + '  (无表)')
                 continue
             models = _models_of_source(r['code'])
-            lines = []
-            for t in names:
-                m = models.get(t)
-                note = f"  — {m['name']}{(': ' + m['remark']) if m.get('remark') else ''}" if m else ''
-                lines.append(f'  - {t}{note}')
-            blocks.append(f'{header} 共 {len(names)} 张表:\n' + '\n'.join(lines))
+            modeled = [t for t in names if t in models]
+            unmodeled = [t for t in names if t not in models]
+            parts = [f'{header} 共 {len(names)} 张表:']
+            # 已建模的表:逐行详列(业务名+描述,这些是业务相关、最常用的)
+            for t in modeled:
+                m = models[t]
+                parts.append(f"  - {t} — {m['name']}{(': ' + m['remark']) if m.get('remark') else ''}")
+            # 未建模的表(多为系统/中间表):表名紧凑列成一行,仍全在可搜,但不逐行占空间
+            if unmodeled:
+                label = '  其余未建模表' if modeled else '  表(均未建模)'
+                parts.append(f'{label}({len(unmodeled)}): ' + ', '.join(unmodeled))
+            blocks.append('\n'.join(parts))
         return ('数据源及其表(表名后「— 业务名: 描述」是已建模的):\n\n' + '\n\n'.join(blocks)
                 + '\n\n认出目标表后:get_table_schema(数据源编码, tables="表名") 查字段 → run_datasource_query 取数。')
 
