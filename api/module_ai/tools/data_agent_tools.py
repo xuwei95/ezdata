@@ -22,21 +22,38 @@ class DataAgentTools(Toolkit):
         )
 
     def list_datasources(self, codes: str = '') -> str:
-        """列出平台可用的数据源(编码 / 名称 / 类型)。
+        """列出数据源,并**直接带出每个源的所有表名**(已建数据模型的表标上业务名/描述)。
 
-        数据源多时,传 codes(逗号分隔)只看指定的几个;为空返回全部。
-        拿到数据源编码后,用 get_table_schema 查它的表和字段。
+        一次就能看到"哪些数据源、各有哪些表、哪些是什么业务",据此直接认出目标表,
+        无需再调一次工具列表名。数据源多时传 codes(逗号分隔)只看指定的几个。
 
         :param codes: 可选,逗号分隔的数据源编码;为空返回全部
-        :return: 数据源清单
+        :return: 数据源及其表清单(表名后「— 业务名: 描述」来自数据模型)
         """
         code_list = [c.strip() for c in codes.split(',') if c.strip()] or None
         rows = _list_datasources(code_list)
         if not rows:
             return '未找到数据源。'
-        return ('可用数据源(编码 | 名称 | 类型):\n' + '\n'.join(
-            f"- {r['code']} | {r['name'] or ''} | {r['source_type'] or ''}" for r in rows)
-            + '\n\n下一步:用 get_table_schema(数据源编码, keyword="关键词") 按业务词找表,或不带 keyword 看全部表。')
+        blocks: list[str] = []
+        for r in rows:
+            header = f"【{r['code']}】{r['name'] or ''} ({r['source_type'] or ''})"
+            try:
+                names = _build_handler(r['code']).list_tables()
+            except Exception:  # noqa: BLE001 不支持 schema / 连不上的源,跳过表名
+                blocks.append(header + '  (表列表暂不可用)')
+                continue
+            if not names:
+                blocks.append(header + '  (无表)')
+                continue
+            models = _models_of_source(r['code'])
+            lines = []
+            for t in names:
+                m = models.get(t)
+                note = f"  — {m['name']}{(': ' + m['remark']) if m.get('remark') else ''}" if m else ''
+                lines.append(f'  - {t}{note}')
+            blocks.append(f'{header} 共 {len(names)} 张表:\n' + '\n'.join(lines))
+        return ('数据源及其表(表名后「— 业务名: 描述」是已建模的):\n\n' + '\n\n'.join(blocks)
+                + '\n\n认出目标表后:get_table_schema(数据源编码, tables="表名") 查字段 → run_datasource_query 取数。')
 
     def get_table_schema(self, datasource_code: str, tables: str = '', keyword: str = '') -> str:
         """查数据源的表结构(实时、准确),并叠加数据模型里的业务描述。

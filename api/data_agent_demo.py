@@ -22,9 +22,8 @@ from module_ai.tools.sandbox_code_tools import SandboxCodeTools
 from utils.ai_util import AiUtil
 
 SYSTEM_PROMPT = """你是数据分析助手。回答数据问题时严格按步骤,并简要说明你在做什么:
-1. list_datasources 看有哪些数据源
-2. get_table_schema(数据源编码, keyword="业务词") 查表——结构是实时的(准),已建模的表会带业务名和描述;
-   表多时用 keyword 按业务名/表名筛(如"任务"、"用户");认出目标表后用 tables 参数查它的字段
+1. list_datasources 一次拿到所有数据源及其表名(已建模的表带业务名/描述),直接认出目标表(在哪个数据源、表名是什么)
+2. get_table_schema(数据源编码, tables="表名") 查该表字段(实时、准确)
 3. (可选)search_datasource_knowledge 查更细口径
 4. run_datasource_query(数据源编码, code) 写 Python 取数并加工:
    - code 中用 handler.query(sql, None, limit) 取数(返回 list[dict])
