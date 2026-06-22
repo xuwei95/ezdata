@@ -56,13 +56,18 @@
                   <el-descriptions-item label="对象">{{ current.raw.objectName }}</el-descriptions-item>
                   <el-descriptions-item label="数据源">{{ current.raw.datasourceCode }}</el-descriptions-item>
                   <el-descriptions-item label="授权">{{ current.raw.auth }}</el-descriptions-item>
+                  <el-descriptions-item label="描述" :span="2">{{ current.raw.remark || '—' }}</el-descriptions-item>
                 </el-descriptions>
-                <vxe-table :data="current.raw.fields || []" height="320" border style="margin-top: 12px">
+                <div style="margin-top: 12px">
+                  <el-button type="primary" icon="Edit" @click="openEditModel(current.raw)">编辑模型(描述/字段说明)</el-button>
+                  <el-button type="danger" icon="Delete" @click="removeModel(current.raw)">删除</el-button>
+                </div>
+                <vxe-table :data="current.raw.fields || []" height="300" border style="margin-top: 12px">
                   <vxe-column type="seq" width="60" />
                   <vxe-column field="name" title="字段" />
                   <vxe-column field="type" title="类型" />
-                  <vxe-column field="nullable" title="可空" />
-                  <vxe-column field="comment" title="备注" />
+                  <vxe-column field="nullable" title="可空" width="70" />
+                  <vxe-column field="comment" title="业务说明" />
                 </vxe-table>
               </template>
             </el-tab-pane>
@@ -89,20 +94,23 @@
     <!-- 新建数据源 -->
     <DataSourceModal ref="sourceModalRef" @ok="reloadTree" />
 
-    <!-- 从表新建模型 -->
-    <el-dialog title="从表新建数据模型" v-model="modelModal.visible" width="520px" append-to-body>
+    <!-- 新建 / 编辑数据模型 -->
+    <el-dialog :title="modelModal.id ? '编辑数据模型' : '从表新建数据模型'" v-model="modelModal.visible"
+      width="760px" append-to-body>
       <el-form label-width="90px">
-        <el-form-item label="表/索引">
+        <el-form-item label="表/索引" v-if="!modelModal.id">
           <el-select v-model="modelModal.table" filterable placeholder="选择表" style="width: 100%"
             @change="onTableChange">
             <el-option v-for="t in modelModal.tables" :key="t" :label="t" :value="t" />
           </el-select>
         </el-form-item>
+        <el-form-item label="对象" v-else>{{ modelModal.objectName }}</el-form-item>
         <el-form-item label="模型名称">
           <el-input v-model="modelModal.name" />
         </el-form-item>
-        <el-form-item label="字段">
-          <span style="color: #909399">{{ (modelModal.fields || []).length }} 个字段(已自动 introspect)</span>
+        <el-form-item label="描述">
+          <el-input v-model="modelModal.remark" type="textarea" :rows="4"
+            placeholder="该表的业务描述,帮助 AI 理解(如:订单主表,记录每笔交易;关键字段口径:status=PAID 已支付、amount 单位分)" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -124,7 +132,7 @@ import DataInterfaceTab from './components/DataInterfaceTab.vue'
 import KnowledgeBaseTab from './components/KnowledgeBaseTab.vue'
 import {
   getSourceTypes, listSource, testSource, delSource, listTables, listColumns,
-  listModel, addModel, getModel,
+  listModel, addModel, getModel, updateModel, delModel,
 } from '@/api/dataManage/data'
 
 const treeRef = ref()
@@ -188,27 +196,49 @@ async function removeSource(src) {
   reloadTree()
 }
 
-// ---- 从表新建模型 ----
-const modelModal = reactive({ visible: false, source: null, tables: [], table: '', name: '', fields: [] })
+// ---- 新建 / 编辑模型 ----
+const modelModal = reactive({
+  visible: false, id: '', source: null, tables: [], table: '', name: '', remark: '', objectName: '', fields: [],
+})
 
 async function openModelModal(src) {
-  modelModal.source = src; modelModal.table = ''; modelModal.name = ''; modelModal.fields = []
+  Object.assign(modelModal, {
+    visible: true, id: '', source: src, table: '', name: '', remark: '', objectName: '', fields: [],
+  })
   modelModal.tables = (await listTables(src.id)).data || []
-  modelModal.visible = true
+}
+// 编辑已有模型:只改业务名和描述(结构/字段以实时 introspect 为准,不在此维护)
+function openEditModel(m) {
+  Object.assign(modelModal, {
+    visible: true, id: m.id, source: null, table: '', name: m.name, remark: m.remark || '',
+    objectName: m.objectName, fields: m.fields || [],
+  })
 }
 async function onTableChange(table) {
   modelModal.name = table
   modelModal.fields = (await listColumns(modelModal.source.id, table)).data || []
 }
 async function saveModel() {
-  if (!modelModal.table) { ElMessage.warning('请选择表'); return }
-  await addModel({
-    name: modelModal.name, datasourceCode: modelModal.source.code, kind: 'table',
-    objectName: modelModal.table, dbSchema: (modelModal.source.config || {}).database || '',
-    fields: modelModal.fields, auth: 'query,extract,api',
-  })
-  ElMessage.success('模型创建成功')
+  if (modelModal.id) {
+    await updateModel({ id: modelModal.id, name: modelModal.name, remark: modelModal.remark })
+    ElMessage.success('已保存')
+  } else {
+    if (!modelModal.table) { ElMessage.warning('请选择表'); return }
+    await addModel({
+      name: modelModal.name, datasourceCode: modelModal.source.code, kind: 'table',
+      objectName: modelModal.table, dbSchema: (modelModal.source.config || {}).database || '',
+      remark: modelModal.remark, fields: modelModal.fields, auth: 'query,extract,api',
+    })
+    ElMessage.success('模型创建成功')
+  }
   modelModal.visible = false
+  reloadTree()
+}
+
+async function removeModel(m) {
+  await ElMessageBox.confirm(`删除数据模型「${m.name}」?`, '提示', { type: 'warning' })
+  await delModel(m.id)
+  ElMessage.success('删除成功')
   reloadTree()
 }
 

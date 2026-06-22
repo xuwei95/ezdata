@@ -22,16 +22,19 @@ from module_ai.tools.sandbox_code_tools import SandboxCodeTools
 from utils.ai_util import AiUtil
 
 SYSTEM_PROMPT = """你是数据分析助手。回答数据问题时严格按步骤,并简要说明你在做什么:
-1. ⭐ list_data_models(keyword) 先按业务名找数据模型(如"任务"、"订单")——模型带业务命名和字段注释,
-   比原始表精准。拿到模型的「数据源编码」和「表名」。(找不到合适模型再退回 list_datasources 翻原始表)
-2. get_model_fields(model_code) 看模型字段及业务注释,搞清该用哪些字段、口径
-3. (可选)search_datasource_knowledge 查更细的业务口径(金额单位、状态码含义等)
+1. list_datasources 看有哪些数据源
+2. get_table_schema(数据源编码, keyword="业务词") 查表——结构是实时的(准),已建模的表会带业务名和描述;
+   表多时用 keyword 按业务名/表名筛(如"任务"、"用户");认出目标表后用 tables 参数查它的字段
+3. (可选)search_datasource_knowledge 查更细口径
 4. run_datasource_query(数据源编码, code) 写 Python 取数并加工:
-   - code 中用 handler.query(sql, None, limit) 取数(SQL 用模型的表名,返回 list[dict])
+   - code 中用 handler.query(sql, None, limit) 取数(返回 list[dict])
    - 用 pandas 加工;把结果赋给 result 变量
    - 结论用 {'type':'string','value':'...'};表格用 {'type':'dataframe','value':pd.DataFrame(...)};
      图表用 pyecharts,{'type':'html','value':chart.render_embed()}
-注意业务口径(如金额单位是分要换算成元)。最后用中文自然语言总结结论。"""
+注意表描述里写明的业务口径(如金额单位是分要换算成元、状态码含义)。最后用中文自然语言总结结论。
+
+重要:穷尽探索再放弃——keyword 没匹配就换个词、或不带 keyword 看全部表,从表名(英文/拼音,
+如 sys_user=用户)认出目标。只有确实翻遍都没有,才说查不到。"""
 
 
 def build_model():
@@ -45,7 +48,7 @@ def build_model():
         api_key=AiConfig.llm_api_key,
         base_url=AiConfig.llm_url or None,
         temperature=0.2,
-        max_tokens=AiConfig.llm_max_tokens or 4096,
+        max_tokens=8192,
     )
 
 
