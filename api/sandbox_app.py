@@ -229,7 +229,7 @@ def _dispatch(kind: str, payload: dict) -> dict:
 _ALLOWED_MODULES = {
     'math', 'datetime', 'json', 'random', 're', 'decimal', 'itertools', 'collections',
     'statistics', 'string', 'uuid', 'hashlib', 'base64', 'textwrap', 'functools', 'operator',
-    'pandas', 'numpy',
+    'pandas', 'numpy', 'pyecharts',
 }
 _BLOCKED_BUILTINS = {
     'open', 'eval', 'exec', 'compile', 'input', 'breakpoint', 'exit', 'quit', 'help',
@@ -249,6 +249,41 @@ def _safe_builtins() -> dict:
 
     safe['__import__'] = _guarded_import
     return safe
+
+
+def _is_dataframe(v: Any) -> bool:
+    try:
+        import pandas as pd
+
+        return isinstance(v, pd.DataFrame)
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _df_to_list(df: Any) -> list:
+    """DataFrame → records list:datetime 列转字符串,数值列 NaN→0,其余 NaN→''。"""
+    import pandas as pd
+
+    for col in df.select_dtypes(include=['datetime', 'datetimetz']).columns:
+        df[col] = df[col].astype(str)
+    for col in df.columns:
+        df[col] = df[col].fillna(0) if pd.api.types.is_numeric_dtype(df[col]) else df[col].fillna('')
+    return df.to_dict(orient='records')
+
+
+def _normalize_result(v: Any) -> Any:
+    """规整执行结果,对齐 {type, value} 约定。
+
+    - 裸 DataFrame          → {'type':'dataframe', 'value': records}
+    - {'type','value'} dict → value 若是 DataFrame 转 records,否则 _jsonable
+    - 其他(str/list/dict/数字) → _jsonable 原样
+    """
+    if _is_dataframe(v):
+        return {'type': 'dataframe', 'value': _df_to_list(v)}
+    if isinstance(v, dict) and 'type' in v and 'value' in v:
+        val = v['value']
+        return {'type': v['type'], 'value': _df_to_list(val) if _is_dataframe(val) else _jsonable(val)}
+    return _jsonable(v)
 
 
 def _run_pycode(kind: str, payload: dict) -> dict:
@@ -277,7 +312,7 @@ def _run_pycode(kind: str, payload: dict) -> dict:
     try:
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stdout):
             exec(compile(code, '<sandbox-pycode>', 'exec'), g)  # noqa: S102 受限 builtins + 容器边界
-        result = _jsonable(g.get(var)) if var else None
+        result = _normalize_result(g.get(var)) if var else None
         return {'success': True, 'result': result, 'stdout': stdout.getvalue(), 'error': None}
     except Exception as e:  # noqa: BLE001
         return {'success': False, 'error': f'{type(e).__name__}: {e}', 'stdout': stdout.getvalue(), 'result': None}

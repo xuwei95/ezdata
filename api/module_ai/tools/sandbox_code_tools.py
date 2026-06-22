@@ -26,12 +26,17 @@ class SandboxCodeTools(Toolkit):
     def run_python_code(self, code: str, variable_to_return: str | None = None) -> str:
         """运行 Python 代码做计算或数据处理,返回结果。
 
-        可用库:math、json、datetime、re、statistics、pandas、numpy 等;禁止文件/网络/系统访问。
-        把结果赋值给一个变量并通过 variable_to_return 指定要返回的变量名,或直接 print 输出。
+        可用库:math、json、datetime、re、statistics、pandas、numpy、pyecharts 等;禁止文件/网络/系统访问。
+        把结果赋值给变量并用 variable_to_return 指定返回,或直接 print。结果可加工成结构化格式——
+        把变量赋为 {type, value} 字典:
+          - {'type':'string','value':'结论文本'}              文本结论
+          - {'type':'dataframe','value': df}                   表格(df 为 pandas DataFrame,自动转换)
+          - {'type':'html','value': chart.render_embed()}      图表(用 pyecharts 绘图)
+        也可直接返回数字/字符串/列表。
 
         :param code: 要执行的 Python 代码
         :param variable_to_return: 要返回其值的变量名(可选)
-        :return: 执行结果(变量值 / 标准输出 / 错误信息)
+        :return: 执行结果摘要(结论 / 表格预览 / 图表提示 / 标准输出)
         """
         from module_data import sandbox_client
 
@@ -43,16 +48,20 @@ class SandboxCodeTools(Toolkit):
 
     def run_datasource_query(self, datasource_code: str, code: str,
                              variable_to_return: str = 'result') -> str:
-        """对指定数据源运行取数代码,返回查询结果。
+        """对指定数据源运行取数代码,可对数据加工后返回结论 / 表格 / 图表。
 
         code 中可直接使用预置的 `handler` 对象访问数据源,例如:
-            result = handler.query("SELECT * FROM users LIMIT 10")
-        把取到的数据赋值给变量(默认 result),通过 variable_to_return 指定要返回的变量名。
+            rows = handler.query("SELECT * FROM users LIMIT 10")  # 返回 list[dict]
+        把结果赋值给 result(或用 variable_to_return 指定),可加工成 {type, value}:
+          - {'type':'string','value':'共 100 个用户'}                 文本结论
+          - {'type':'dataframe','value': pd.DataFrame(rows)}          表格(自动转换)
+          - {'type':'html','value': chart.render_embed()}             图表(用 pyecharts 绘图)
+        也可直接返回 list/数字/字符串。可用 pandas、numpy、pyecharts 等做加工。
 
         :param datasource_code: 数据源编码(平台已配置的数据源)
         :param code: 取数 Python 代码,内部可用 handler 对象
         :param variable_to_return: 要返回其值的变量名(默认 result)
-        :return: 查询结果 / 错误信息
+        :return: 结果摘要(结论 / 表格预览 / 图表提示)
         """
         from module_data import sandbox_client
 
@@ -82,13 +91,33 @@ def _resolve_datasource(code: str) -> dict:
     return {'source_type': rec['source_type'], 'config': rec.get('config') or {}, 'secrets': secrets}
 
 
+def _preview(v: Any, limit: int = 500) -> str:
+    s = v if isinstance(v, str) else json.dumps(v, ensure_ascii=False, default=str)
+    return s[:limit] + '…' if len(s) > limit else s
+
+
+def _summarize(result: Any) -> str:
+    """把结果摘要成给 LLM 的文本:html/大表不全量回传,避免污染上下文。"""
+    if result is None:
+        return ''
+    if isinstance(result, dict) and 'type' in result and 'value' in result:
+        t, val = result['type'], result['value']
+        if t == 'html':
+            return f'已生成图表(html,{len(str(val))} 字符),将展示给用户。'
+        if t == 'dataframe':
+            rows = val if isinstance(val, list) else []
+            return f'数据表格 {len(rows)} 行。前 3 行预览:\n{_preview(rows[:3])}'
+        if t == 'string':
+            return f'结论: {val}'
+        return f'结果({t}): {_preview(val)}'
+    return f'结果: {_preview(result)}'
+
+
 def _format_result(res: dict) -> str:
-    """把沙箱响应拼成给 LLM 的文本。"""
+    """把沙箱响应拼成给 LLM 的文本(按结果类型摘要)。"""
     if not res.get('success'):
         return f'执行失败: {res.get("error") or "未知错误"}'
-    parts: list[str] = []
-    if res.get('result') is not None:
-        parts.append(f'结果: {json.dumps(res["result"], ensure_ascii=False, default=str)}')
+    parts: list[str] = [_summarize(res.get('result'))]
     if (res.get('stdout') or '').strip():
         parts.append(f'输出:\n{res["stdout"].rstrip()}')
-    return '\n'.join(parts) if parts else '执行成功(无返回值/输出)'
+    return '\n'.join(p for p in parts if p) or '执行成功(无返回值/输出)'

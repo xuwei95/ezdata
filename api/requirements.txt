@@ -32,6 +32,7 @@ unstructured==0.18.32
 markdown==3.10.2
 python-pptx==1.0.2
 pandas==2.3.3
+pyecharts==2.0.6
 Pillow==12.1.1
 portkey-ai==2.1.0
 psutil==7.2.2
