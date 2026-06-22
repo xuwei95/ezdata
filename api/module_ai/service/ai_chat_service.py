@@ -85,6 +85,33 @@ class AiChatService:
         return bool(add_history), int(num_history)
 
     @classmethod
+    async def _resolve_chat_model_config(cls, query_db: AsyncSession, model_id: int) -> AiModelModel:
+        """解析对话模型配置,返回 api_key 已为明文的 AiModelModel。
+
+        model_id == 0 走环境变量兜底模型(AiConfig/LLM_*,api_key 明文);
+        否则查库内模型并解密 api_key。
+        """
+        if model_id == 0:
+            from config.env import AiConfig  # noqa: PLC0415
+
+            if not AiConfig.enabled:
+                raise ServiceException(
+                    message='未配置兜底模型:请在「AI 模型管理」启用一个对话模型,或配置环境变量 LLM_TYPE/LLM_MODEL/LLM_API_KEY')
+            return AiModelModel(
+                modelId=0, provider=AiConfig.provider, modelCode=AiConfig.llm_model,
+                apiKey=AiConfig.llm_api_key, baseUrl=AiConfig.llm_url or None,
+                maxTokens=AiConfig.llm_max_tokens, supportReasoning='N', supportImages='N',
+            )
+
+        ai_model = await AiModelDao.get_ai_model_detail_by_id(query_db, model_id)
+        if not ai_model:
+            raise ServiceException(message='模型不存在')
+        model_config = AiModelModel(**CamelCaseUtil.transform_result(ai_model))
+        if model_config.api_key:
+            model_config.api_key = CryptoUtil.decrypt(model_config.api_key)
+        return model_config
+
+    @classmethod
     def _build_agent(
         cls,
         model_config: AiModelModel,
@@ -107,13 +134,12 @@ class AiChatService:
         :param num_history: 历史消息轮数
         :return: Agent对象
         """
-        real_api_key = CryptoUtil.decrypt(model_config.api_key)
-
+        # api_key 由调用方解密(DB 模型)或本就明文(环境变量兜底模型)后传入
         model = AiUtil.get_model_from_factory(
             provider=model_config.provider,
             model_code=model_config.model_code,
             model_name=model_config.model_name,
-            api_key=real_api_key,
+            api_key=model_config.api_key,
             base_url=model_config.base_url,
             temperature=temperature,
             max_tokens=model_config.max_tokens,
@@ -266,10 +292,7 @@ class AiChatService:
         :param user_id: 用户ID
         :return: 对话响应流
         """
-        ai_model = await AiModelDao.get_ai_model_detail_by_id(query_db, chat_req.model_id)
-        model_config = AiModelModel(**CamelCaseUtil.transform_result(ai_model)) if ai_model else AiModelModel()
-        if not model_config:
-            raise ServiceException(message='模型不存在')
+        model_config = await cls._resolve_chat_model_config(query_db, chat_req.model_id)
 
         user_config = await cls.ai_chat_config_detail_services(query_db, user_id)
 

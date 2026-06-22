@@ -74,7 +74,7 @@
               <el-option
                 v-for="item in modelOptions"
                 :key="item.modelId"
-                :label="`${item.provider}/${item.modelCode}`"
+                :label="item.isDefault ? item.modelName : `${item.provider}/${item.modelCode}`"
                 :value="item.modelId"
               />
             </el-select>
@@ -489,7 +489,8 @@ const editingUserConfig = reactive({
 });
 
 const currentModelInfo = computed(() => {
-  if (!currentModelId.value) return null;
+  // 默认模型 modelId 为 0(falsy),用 == null 判断"未选",避免把 0 当成未选
+  if (currentModelId.value == null) return null;
   return modelOptions.value.find((m) => m.modelId === currentModelId.value);
 });
 
@@ -617,7 +618,7 @@ function handleDeleteSession(sessionId) {
 }
 
 async function sendRequest(text, images) {
-  if (!currentModelId.value) {
+  if (currentModelId.value == null) {
     proxy.$modal.msgError("请先选择模型");
     return;
   }
@@ -800,7 +801,7 @@ async function handleSend() {
   const text = inputMessage.value.trim();
   const images = inputImages.value;
   if (!text && !images.length) return;
-  if (!currentModelId.value) {
+  if (currentModelId.value == null) {
     proxy.$modal.msgError("请先选择模型");
     return;
   }

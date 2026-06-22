@@ -63,11 +63,8 @@ async def get_ai_model_all(
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     data_scope_sql: Annotated[ColumnElement, DataScopeDependency(AiModels)],
 ) -> Response:
-    # 获取不分页数据
-    ai_model_page_query = AiModelPageQueryModel(status='0')
-    result = await AiModelService.get_ai_model_list_services(
-        query_db, ai_model_page_query, data_scope_sql, is_page=False
-    )
+    # 仅 chat 类启用模型 + 环境变量兜底默认项(供 AI 选模型下拉)
+    result = await AiModelService.get_chat_models_with_default(query_db, data_scope_sql)
     logger.info('获取成功')
 
     return ResponseUtil.success(data=result)
