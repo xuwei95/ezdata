@@ -25,6 +25,7 @@ params(由前端内置组件 DataIntegrationTask 生成):
 """
 
 import os
+import re
 from typing import Any
 
 from sqlalchemy import select
@@ -36,6 +37,9 @@ from module_task_schedule.runners.base import BaseRunner, register_runner
 os.environ.setdefault('EXTRACT__WORKERS', '1')
 os.environ.setdefault('NORMALIZE__WORKERS', '1')
 os.environ.setdefault('LOAD__WORKERS', '1')
+# dlt 默认 snake_case 命名会 strip 掉非 ASCII(中文)列名 → 多列塌缩冲突、数据丢失。
+# 用 direct 命名保留原始列名(中文源/akshare 等),MySQL/PG 的 utf8 标识符可承载。
+os.environ.setdefault('SCHEMA__NAMING', 'direct')
 
 
 def _load_datasource(code: str) -> Any:
@@ -55,11 +59,27 @@ def _load_datasource(code: str) -> Any:
 
 
 def _build_handler(rec: dict) -> Any:
-    from module_data.handlers import get_handler_cls  # noqa: PLC0415
+    from module_data.handlers import create_handler  # noqa: PLC0415
 
-    cls = get_handler_cls(rec['source_type'])
+    # 经 create_handler 走进程内实例缓存(worker 跨任务复用连接池);
     # secrets 为密文串(查库)→ from_record 内部解密;为明文 dict(沙箱注入)→ 直接合并不解密
-    return cls.from_record(rec['config'], rec['secrets'])
+    return create_handler(rec['source_type'], rec['config'], rec['secrets'])
+
+
+# 平凡整表查询:仅 `SELECT * FROM <表>`(可带反引号/分号),无 WHERE/JOIN/LIMIT/ORDER/聚合等。
+# 严格锚定整串,任何附加子句都不匹配 → 回退普通 query 路径(安全优先,绝不误判)。
+_WHOLE_TABLE_RE = re.compile(r'^\s*select\s+\*\s+from\s+`?([A-Za-z_][\w$]*)`?\s*;?\s*$', re.IGNORECASE)
+
+
+def _whole_table_native(native: Any) -> str | None:
+    """`SELECT * FROM <表>` → 返回表名(可走 dlt 原生 pyarrow 流式快路);否则 None。
+
+    仅对单一未限定标识符整表查询生效;含 schema 点号/WHERE/LIMIT/JOIN 等一律返回 None。
+    """
+    if not isinstance(native, str):
+        return None
+    m = _WHOLE_TABLE_RE.match(native)
+    return m.group(1) if m else None
 
 
 def _compile_transform(code: str):
@@ -117,7 +137,31 @@ class DataIntegrationRunner(BaseRunner):
         # 批量源:原生查询取数 -> 装载
         if not native:
             raise ValueError('批量源需提供 extract.native 原生查询')
-        from module_data.etl_util import assert_readonly_sql  # noqa: PLC0415
+
+        # 列式快路(无 transform + DB 目标):避开 query→list[dict] 行模式,直接喂 dlt 列式装载。
+        # 任一条件不满足(转换/文件目标/不支持)都回退下方普通 query→list→write。
+        from module_data.etl_util import assert_readonly_sql, is_file_target  # noqa: PLC0415
+        dst_is_file = is_file_target(getattr(dst, 'family', None))
+
+        # 快路①:文件源(DuckDB)→ DuckDB→Arrow→dlt(实测约 3x)。任意只读查询都适用
+        # (整条 SQL 交 DuckDB 跑,结果取 Arrow 而非 list;WHERE/列裁剪均可)。
+        if not fn and not dst_is_file and isinstance(native, str) and hasattr(src, 'query_arrow'):
+            assert_readonly_sql(native)
+            self.logger.info(f'文件源 → DuckDB→Arrow→dlt 列式快路:{str(native)[:120]}')
+            tbl = src.query_arrow(native)
+            info = self._load(dst, src_code, table, tbl, load)
+            self.logger.info(str(info)[:500])
+            return f'ETL 完成(Arrow 列式): {src_code} -> {dst_code}.{table}'
+
+        # 快路②:SQL 源整表查询(SELECT * FROM 表)→ dlt 原生 pyarrow 流式 extract→load(实测约 2x)。
+        fast_table = None if fn else _whole_table_native(native)
+        if fast_table and src.has(Capability.EXTRACT) and not dst_is_file:
+            self.logger.info(f'整表无转换 → dlt 原生流式快路(pyarrow):extract {fast_table} -> {dst_code}.{table}')
+            resource = src.extract(fast_table, backend='pyarrow')
+            info = self._load(dst, src_code, table, resource, load)
+            self.logger.info(str(info)[:500])
+            return f'ETL 完成(pyarrow 流式): {src_code} -> {dst_code}.{table}'
+
         assert_readonly_sql(native)  # 抽取只读护栏:只允许 SELECT 类
         self.logger.info(f'执行原生查询抽取:{str(native)[:200]}')
         data = src.query(native, None, None)

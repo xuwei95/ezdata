@@ -126,6 +126,16 @@ class S3Handler(Connector):
         finally:
             con.close()
 
+    def query_arrow(self, statement: str, params: dict | None = None) -> Any:
+        """DuckDB 查询直接返回 pyarrow.Table(列式;供 dlt 高吞吐装载,ETL 快路用)。"""
+        sql = statement.replace("read('", f"'s3://{self.bucket}/").replace("')", "'") \
+            if "read('" in statement else statement
+        con = self._duckdb()
+        try:
+            return con.execute(sql, params or {}).fetch_arrow_table()
+        finally:
+            con.close()
+
     # ---------- dlt(批量抽取)----------
     def extract(self, table: str, *, file_glob: str | None = None, **kwargs: Any) -> Any:
         """用 dlt filesystem 源读取桶内文件(table 作为前缀/glob)。"""

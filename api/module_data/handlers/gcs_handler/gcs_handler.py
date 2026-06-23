@@ -70,6 +70,14 @@ class GCSHandler(Connector):
         finally:
             con.close()
 
+    def query_arrow(self, statement: str, params: dict | None = None) -> Any:
+        """DuckDB 查询直接返回 pyarrow.Table(列式;供 dlt 高吞吐装载,ETL 快路用)。"""
+        con = self._duckdb()
+        try:
+            return con.execute(statement, params or {}).fetch_arrow_table()
+        finally:
+            con.close()
+
     def extract(self, table: str, *, file_glob: str | None = None, **kwargs: Any) -> Any:
         from dlt.sources.filesystem import filesystem
 
