@@ -3,3 +3,12 @@
 dlt[sqlalchemy]==1.4.1   # 数据装载工具:sql_database 源 + sqlalchemy 目标
 pyarrow>=14              # dlt backend=pyarrow(高吞吐抽取)
 mysql-replication>=1.0   # MySQL binlog 流式消费(mysql_binlog 源)
+akshare>=1.18.0          # AKShare 财经数据接口(akshare 源,免 key 只读)
+
+# 常用数据源 handler 驱动(纯 Python、随镜像装好,免 live install)。
+# 仅收常用且无需系统库的;exotic 驱动(oracle/db2/odbc/mssql/hana/firebird/各向量库等需系统库或巨重)
+# 仍按需 lazy —— 见各 module_data/handlers/<x>_handler/requirements.txt,避免镜像臃肿与构建失败。
+# 注:boto3 / PyMySQL / redis / elasticsearch / kafka-python 已在 requirements.txt,此处不重复。
+duckdb>=0.10.0           # 文件源(s3/gcs/azure)DuckDB httpfs 查询 + Arrow 列式快路
+pymongo>=4               # mongodb 源
+neo4j>=5.0.0             # neo4j 源

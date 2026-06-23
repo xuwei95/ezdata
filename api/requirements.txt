@@ -9,7 +9,7 @@ bcrypt==5.0.0
 celery==5.4.0
 cerebras-cloud-sdk==1.67.0
 cohere==5.20.4
-elasticsearch==7.17.13
+elasticsearch>=8.13,<9
 fastapi[all]==0.128.2
 google-genai==1.62.0
 groq==1.0.0
