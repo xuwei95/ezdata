@@ -75,7 +75,8 @@ services:
       ezdata-minio-dev:
         condition: service_started
     networks:
-      - ezdata-dev-network                # 沙箱也在此网,直接互通
+      - ezdata-dev-network
+      - ezdata-sandbox-net                # 以便可达 internal 网里的沙箱
     stdin_open: true                      # 支持容器内 breakpoint()/pdb 交互
     tty: true
     restart: "no"
@@ -129,7 +130,8 @@ services:
       ezdata-minio-dev:
         condition: service_started
     networks:
-      - ezdata-dev-network                # 沙箱也在此网,直接互通
+      - ezdata-dev-network
+      - ezdata-sandbox-net                # 以便可达 internal 网里的沙箱
     restart: "no"
 
   # ---------------- 代码执行沙箱（调试层:无状态远程执行器） ----------------
@@ -147,10 +149,17 @@ services:
       - SANDBOX_PORT=8003
       - SANDBOX_BEARER_KEY=ezdata-sandbox-dev-key   # 与 backend/worker 一致
       - PYTHONDONTWRITEBYTECODE=1
+      # 出网只能经 egress 代理(域名白名单);内部服务走 NO_PROXY 直连内网
+      - HTTP_PROXY=http://ezdata-egress-proxy:8888
+      - HTTPS_PROXY=http://ezdata-egress-proxy:8888
+      - http_proxy=http://ezdata-egress-proxy:8888
+      - https_proxy=http://ezdata-egress-proxy:8888
+      - NO_PROXY=localhost,127.0.0.1,ezdata-mysql-dev,ezdata-es-dev,ezdata-minio-dev,ezdata-redis-dev,ezdata-backend-dev,ezdata-worker-dev
+      - no_proxy=localhost,127.0.0.1,ezdata-mysql-dev,ezdata-es-dev,ezdata-minio-dev,ezdata-redis-dev,ezdata-backend-dev,ezdata-worker-dev
     volumes:
       - ./api:/app:ro                     # 只读挂载源码
     networks:
-      - ezdata-dev-network                # 数据面可达数据源/日志库;凭据不在 env,随请求注入
+      - ezdata-sandbox-net                # 仅 internal 网:无直连公网,出网经 egress-proxy;内部服务亦在此网可达
     tmpfs:
       - /tmp                              # 临时可写(dlt pipeline 等)
     cap_drop:
@@ -159,6 +168,23 @@ services:
       - no-new-privileges:true
     pids_limit: 256
     mem_limit: 1g
+    restart: "no"
+
+  # ---------------- 沙箱出网代理（egress 白名单） ----------------
+  # 沙箱在 internal 网无直连公网,出网只能经此。tinyproxy 按 SANDBOX_EGRESS_ALLOW 做域名白名单:
+  #   *           → 全放行
+  #   逗号域名列表 → 仅放行这些域名(含子域),其余拒绝(默认即财经数据域名,够 akshare 用)
+  # 双网卡:internal 网面向沙箱,dev-network 借 NAT 出公网。
+  ezdata-egress-proxy:
+    build:
+      context: ./deploy/egress-proxy   # 构建期装好 tinyproxy
+    image: ezdata-egress-proxy:latest
+    container_name: ezdata-egress-proxy
+    environment:
+      - SANDBOX_EGRESS_ALLOW=eastmoney.com,sinajs.cn,sina.com.cn,sse.com.cn,szse.cn,cninfo.com.cn,csindex.com.cn,hexun.com,jrj.com.cn,10jqka.com.cn
+    networks:
+      - ezdata-sandbox-net                # 面向沙箱(internal)
+      - ezdata-dev-network                # 借 NAT 出公网
     restart: "no"
 
   # ---------------- 前端（Vite dev server / HMR） ----------------
@@ -199,6 +225,7 @@ services:
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_general_ci --skip-character-set-client-handshake=1
     networks:
       - ezdata-dev-network
+      - ezdata-sandbox-net                # 沙箱经内网取内部数据源
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
       interval: 5s
@@ -233,6 +260,7 @@ services:
       - ezdata-es-dev-data:/usr/share/elasticsearch/data
     networks:
       - ezdata-dev-network
+      - ezdata-sandbox-net                # 沙箱经内网写任务日志
 
   # ---------------- MinIO（对象存储，STORAGE_TYPE=s3） ----------------
   ezdata-minio-dev:
@@ -249,6 +277,7 @@ services:
       - ezdata-minio-dev-data:/data
     networks:
       - ezdata-dev-network
+      - ezdata-sandbox-net                # 沙箱经内网读写对象存储数据源
 
   # ---------------- MinIO 建桶（一次性，建好退出） ----------------
   ezdata-minio-init-dev:
@@ -272,3 +301,7 @@ networks:
   ezdata-dev-network:
     name: ezdata-dev-network
     driver: bridge
+  ezdata-sandbox-net:                      # 沙箱专用内网:internal=true 无 NAT/公网,出网只能经 egress-proxy
+    name: ezdata-sandbox-net
+    driver: bridge
+    internal: true

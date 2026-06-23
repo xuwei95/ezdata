@@ -225,11 +225,15 @@ def _dispatch(kind: str, payload: dict) -> dict:
                 'logs': logger.lines, 'result': None}
 
 
-# 受限 builtins / 校验:仅用于 /transform(逐行 transform(row),不走 run_user_code)
+# 受限 builtins:门住所有沙箱代码(/python/run、/python/data、/transform)的 import。
+# 仅校验顶层模块名;被放行模块自身的内部 import(如 akshare→requests/socket)走真实 import 不受此限。
+# 网络类(akshare/requests)的出网由 egress 代理(SANDBOX_EGRESS_ALLOW 域名白名单)兜底,而非此处。
+# 注:run_datasource_query 走 akshare 数据源时,handler.query 在普通作用域 import,无需在此放行。
 _ALLOWED_MODULES = {
     'math', 'datetime', 'time', 'json', 'random', 're', 'decimal', 'itertools', 'collections',
     'statistics', 'string', 'uuid', 'hashlib', 'base64', 'textwrap', 'functools', 'operator',
     'pandas', 'numpy', 'pyecharts',
+    'akshare', 'requests',  # 联网取数:出网受 egress 代理域名白名单约束
 }
 _BLOCKED_BUILTINS = {
     'open', 'eval', 'exec', 'compile', 'input', 'breakpoint', 'exit', 'quit', 'help',
@@ -303,7 +307,8 @@ def _run_pycode(kind: str, payload: dict) -> dict:
         try:
             from module_data.handlers import create_handler
 
-            g['handler'] = create_handler(ds.get('source_type'), ds.get('config') or {}, ds.get('secrets') or {})
+            g['handler'] = create_handler(ds.get('source_type'), ds.get('config') or {}, ds.get('secrets') or {},
+                                          cache=False)  # 沙箱 fork 子进程用完即死,不缓
             g['datasource'] = g['handler']  # 别名
         except Exception as e:  # noqa: BLE001
             return {'success': False, 'error': f'数据源连接失败: {type(e).__name__}: {e}',
