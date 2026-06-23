@@ -36,8 +36,8 @@ def _decrypt_secrets(ds: DataSource) -> dict:
         return {}
 
 
-def _build_handler(source_type: str, config: dict | None, secrets: dict | None) -> Any:
-    return create_handler(source_type, config or {}, secrets or {})
+def _build_handler(source_type: str, config: dict | None, secrets: dict | None, *, cache: bool = True) -> Any:
+    return create_handler(source_type, config or {}, secrets or {}, cache=cache)
 
 
 def _handler_from_ds(ds: DataSource) -> Any:
@@ -213,7 +213,7 @@ class DataSourceService:
                 raise ServiceException(message='数据源不存在')
             handler = _handler_from_ds(ds)
         else:
-            handler = _build_handler(req.source_type, req.config, req.secrets)
+            handler = _build_handler(req.source_type, req.config, req.secrets, cache=False)  # 未保存配置不入缓存
         result = await run_in_threadpool(handler.test_connection)
         if req.id:
             await DataSourceDao.edit(db, req.id, {

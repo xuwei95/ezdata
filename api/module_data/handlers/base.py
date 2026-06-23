@@ -91,6 +91,32 @@ class Connector(ABC):
                 return self.connection_data[k]
         return default
 
+    # ---------- 生命周期 ----------
+    def close(self) -> None:
+        """释放底层连接(供缓存淘汰/手动回收)。基类尽力释放已知句柄,各源可覆写。
+
+        覆盖常见持有方式:_engine(SQLAlchemy 池)、_client(pymongo/es/boto3)、_driver(neo4j)。
+        无连接(如文件源每次开/关 :memory: DuckDB)则全为 None,安全跳过。
+        """
+        eng = getattr(self, '_engine', None)
+        if eng is not None and hasattr(eng, 'dispose'):
+            try:
+                eng.dispose()
+            except Exception:  # noqa: BLE001
+                pass
+        for attr in ('_client', '_driver'):
+            obj = getattr(self, attr, None)
+            if obj is None:
+                continue
+            for m in ('close', 'disconnect'):
+                fn = getattr(obj, m, None)
+                if callable(fn):
+                    try:
+                        fn()
+                    except Exception:  # noqa: BLE001
+                        pass
+                    break
+
     # ---------- 能力 ----------
     def has(self, cap: Capability) -> bool:
         return cap in self.capabilities
