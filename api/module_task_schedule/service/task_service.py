@@ -114,7 +114,7 @@ class TaskService:
                 task.job_id = await cls._create_schedule(query_db, page_object)
             await query_db.commit()
             await cls._request_scheduler_sync()
-            return CrudResponseModel(is_success=True, message='新增成功')
+            return CrudResponseModel(is_success=True, message='新增成功', result={'id': page_object.id})
         except Exception as e:
             await query_db.rollback()
             raise e

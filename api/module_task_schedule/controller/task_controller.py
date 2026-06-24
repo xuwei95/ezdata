@@ -64,7 +64,7 @@ async def add_task(
     add_task.update_time = datetime.now()
     result = await TaskService.add_task_services(query_db, add_task)
     logger.info(result.message)
-    return ResponseUtil.success(msg=result.message)
+    return ResponseUtil.success(msg=result.message, data=result.result)
 
 
 @task_controller.put(
