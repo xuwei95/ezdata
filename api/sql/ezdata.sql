@@ -273,6 +273,11 @@ insert into sys_menu values('1065', '工具查询', '121', '1', '#', '', '', '',
 insert into sys_menu values('1066', '工具新增', '121', '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:tool:add',                '#', 'admin', sysdate(), '', null, '');
 insert into sys_menu values('1067', '工具修改', '121', '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:tool:edit',               '#', 'admin', sysdate(), '', null, '');
 insert into sys_menu values('1068', '工具删除', '121', '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:tool:remove',             '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('122',  '应用管理', '4',   '4', 'app',                 'ai/app/index',                      '', 'AiApp', 1, 0, 'C', '0', '0', 'ai:app:list',                      'menu',          'admin', sysdate(), '', null, 'AI应用管理菜单');
+insert into sys_menu values('1069', '应用查询', '122', '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:app:query',               '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1070', '应用新增', '122', '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:app:add',                 '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1071', '应用修改', '122', '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:app:edit',                '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1072', '应用删除', '122', '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:app:remove',              '#', 'admin', sysdate(), '', null, '');
 
 
 -- ----------------------------
@@ -830,6 +835,51 @@ insert into ai_tool (name,code,tool_type,description,args,status,built_in,create
 ('数据探索','data_explore','builtin','发现数据源、查表结构、检索数据源知识库(含收藏的取数解法)','{}','0','1','admin',sysdate(),'admin',sysdate()),
 ('沙箱执行','sandbox_code','builtin','在隔离沙箱里跑 Python 计算 / 对数据源取数,产出结论/表格/图表','{}','0','1','admin',sysdate(),'admin',sysdate()),
 ('任务提议','task_propose','builtin','向用户弹出预填的任务确认表单(数据集成/Python/Shell)','{}','0','1','admin',sysdate(),'admin',sysdate());
+
+
+-- ----------------------------
+-- AI应用表(打包的助手配置)
+-- ----------------------------
+drop table if exists ai_app;
+create table ai_app (
+  app_id            bigint(20)      not null auto_increment    comment '应用主键',
+  name              varchar(100)    not null                   comment '应用名称',
+  icon              varchar(500)    default null               comment '应用图标',
+  description       varchar(500)    default null               comment '应用描述',
+  app_type          varchar(50)     default null               comment '应用类型/分类',
+  status            char(1)         default '0'                comment '状态: 0发布 1草稿',
+  config            text                                       comment '应用配置JSON(prompt/绑定工具知识库/参数等)',
+  user_id           bigint(20)                                 comment '用户ID',
+  dept_id           bigint(20)                                 comment '部门ID',
+  create_by         varchar(64)     default ''                 comment '创建者',
+  create_time       datetime                                   comment '创建时间',
+  update_by         varchar(64)     default ''                 comment '更新者',
+  update_time       datetime                                   comment '更新时间',
+  remark            varchar(500)    default null               comment '备注',
+  tenant_id         bigint(20)                                 comment '租户ID(顶级部门)',
+  primary key (app_id),
+  key ix_ai_app_tenant_id (tenant_id)
+) engine=innodb auto_increment=1 comment = 'AI应用表';
+
+-- ----------------------------
+-- AI应用对外 API Key 表
+-- ----------------------------
+drop table if exists ai_app_token;
+create table ai_app_token (
+  token_id          bigint(20)      not null auto_increment    comment '主键',
+  app_id            bigint(20)      not null                   comment '所属应用ID',
+  api_key           varchar(64)     not null                   comment 'API Key',
+  name              varchar(100)    default null               comment '名称/用途',
+  status            char(1)         default '0'                comment '状态: 0启用 1停用',
+  expire_time       datetime                                   comment '过期时间(空=永久)',
+  create_by         varchar(64)     default ''                 comment '创建者',
+  create_time       datetime                                   comment '创建时间',
+  tenant_id         bigint(20)                                 comment '租户ID(顶级部门)',
+  primary key (token_id),
+  key ix_ai_app_token_tenant_id (tenant_id),
+  key ix_ai_app_token_api_key (api_key),
+  key ix_ai_app_token_app_id (app_id)
+) engine=innodb auto_increment=1 comment = 'AI应用APIKey表';
 
 
 -- ----------------------------

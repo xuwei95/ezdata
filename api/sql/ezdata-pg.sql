@@ -356,6 +356,11 @@ insert into sys_menu values(1065, '工具查询', 121, '1', '#', '', '', '', 1, 
 insert into sys_menu values(1066, '工具新增', 121, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:tool:add',                '#', 'admin', current_timestamp, '', null, '');
 insert into sys_menu values(1067, '工具修改', 121, '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:tool:edit',               '#', 'admin', current_timestamp, '', null, '');
 insert into sys_menu values(1068, '工具删除', 121, '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:tool:remove',             '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(122,  '应用管理', 4,   '4', 'app',                 'ai/app/index',                      '', 'AiApp', 1, 0, 'C', '0', '0', 'ai:app:list',                      'menu',          'admin', current_timestamp, '', null, 'AI应用管理菜单');
+insert into sys_menu values(1069, '应用查询', 122, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:app:query',               '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1070, '应用新增', 122, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:app:add',                 '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1071, '应用修改', 122, '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:app:edit',                '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1072, '应用删除', 122, '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:app:remove',              '#', 'admin', current_timestamp, '', null, '');
 
 -- ----------------------------
 -- 6、用户和角色关联表  用户N-1角色
@@ -1106,6 +1111,53 @@ insert into ai_tool (name,code,tool_type,description,args,status,built_in,create
 ('数据探索','data_explore','builtin','发现数据源、查表结构、检索数据源知识库(含收藏的取数解法)','{}','0','1','admin',now(),'admin',now()),
 ('沙箱执行','sandbox_code','builtin','在隔离沙箱里跑 Python 计算 / 对数据源取数,产出结论/表格/图表','{}','0','1','admin',now(),'admin',now()),
 ('任务提议','task_propose','builtin','向用户弹出预填的任务确认表单(数据集成/Python/Shell)','{}','0','1','admin',now(),'admin',now());
+
+-- ----------------------------
+-- AI应用表
+-- ----------------------------
+drop table if exists ai_app;
+create table ai_app (
+  app_id            bigserial       not null,
+  name              varchar(100)    not null,
+  icon              varchar(500)    default null,
+  description       varchar(500)    default null,
+  app_type          varchar(50)     default null,
+  status            char(1)         default '0',
+  config            text            default null,
+  user_id           bigint,
+  dept_id           bigint,
+  create_by         varchar(64)     default '',
+  create_time       timestamp(0),
+  update_by         varchar(64)     default '',
+  update_time       timestamp(0),
+  remark            varchar(500)    default null,
+  tenant_id         bigint,
+  primary key (app_id)
+);
+create index ix_ai_app_tenant_id on ai_app (tenant_id);
+comment on table ai_app is 'AI应用表';
+comment on column ai_app.config is '应用配置JSON(prompt/绑定工具知识库/参数等)';
+
+-- ----------------------------
+-- AI应用对外 API Key 表
+-- ----------------------------
+drop table if exists ai_app_token;
+create table ai_app_token (
+  token_id          bigserial       not null,
+  app_id            bigint          not null,
+  api_key           varchar(64)     not null,
+  name              varchar(100)    default null,
+  status            char(1)         default '0',
+  expire_time       timestamp(0),
+  create_by         varchar(64)     default '',
+  create_time       timestamp(0),
+  tenant_id         bigint,
+  primary key (token_id)
+);
+create index ix_ai_app_token_tenant_id on ai_app_token (tenant_id);
+create index ix_ai_app_token_api_key on ai_app_token (api_key);
+create index ix_ai_app_token_app_id on ai_app_token (app_id);
+comment on table ai_app_token is 'AI应用APIKey表';
 
 -- ----------------------------
 -- 21、AI对话配置表
