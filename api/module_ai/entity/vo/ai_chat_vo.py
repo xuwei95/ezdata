@@ -19,6 +19,15 @@ class AiChatRequestModel(BaseModel):
     images: list[str] | None = Field(default=None, description='图片URL列表')
 
 
+class SaveRecipeReq(BaseModel):
+    """收藏「成功取数解法」请求:把某次工具调用的全量代码+问题存进该数据源知识库"""
+
+    model_config = ConfigDict(alias_generator=to_camel)
+
+    session_id: str = Field(description='会话ID')
+    tool_call_id: str = Field(description='工具调用ID(对话流里的工具块 id)')
+
+
 class AiChatConfigModel(BaseModel):
     """
     AI对话配置模型
@@ -30,7 +39,7 @@ class AiChatConfigModel(BaseModel):
     user_id: int | None = Field(default=None, description='用户ID')
     temperature: float | None = Field(default=None, description='默认温度')
     add_history_to_context: Literal['0', '1'] | None = Field(default=None, description='是否添加历史记录')
-    num_history_runs: int | None = Field(default=3, description='历史记录条数')
+    num_history_runs: int | None = Field(default=10, description='历史记录条数')
     system_prompt: str | None = Field(default=None, description='系统提示词')
     metrics_default_visible: Literal['0', '1'] | None = Field(default=None, description='默认显示指标')
     vision_enabled: Literal['0', '1'] | None = Field(default=None, description='是否开启视觉')
@@ -144,6 +153,7 @@ class ChatMessageModel(BaseModel):
     from_history: bool | None = Field(default=None, description='是否来自历史记录')
     reasoning_content: str | None = Field(default=None, description='推理/思考内容')
     stop_after_tool_call: bool | None = Field(default=None, description='是否在工具调用后停止')
+    blocks: list[dict] | None = Field(default=None, description='重建的内容块(文字/工具调用),与流式 blocks 同构')
 
 
 class AiChatSessionModel(AiChatSessionBaseModel):

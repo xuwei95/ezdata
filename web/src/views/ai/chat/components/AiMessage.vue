@@ -29,6 +29,18 @@
             <el-icon v-else class="step-icon done"><CircleCheckFilled /></el-icon>
             <span class="step-name">{{ toolLabel(b.name) }}</span>
             <span v-if="b.status === 'running'" class="step-status">运行中…</span>
+            <el-button
+              v-if="canSaveRecipe(b) && sessionId"
+              class="step-recipe"
+              link
+              size="small"
+              :type="b.saved ? 'success' : 'warning'"
+              :icon="b.saved ? StarFilled : Star"
+              :loading="!!savingBlk[b.id]"
+              :disabled="b.saved"
+              @click.stop="saveRecipeOf(b)"
+              >{{ b.saved ? "已收藏" : "收藏到知识库" }}</el-button
+            >
             <el-icon class="step-toggle" :class="{ 'is-open': expandedBlks[i] }"><ArrowRight /></el-icon>
           </div>
           <div v-show="expandedBlks[i]" class="step-detail">
@@ -75,6 +87,11 @@
             </div>
           </template>
         </div>
+        <!-- 任务提议:可编辑的确认表单卡片(创建并运行 / 仅创建) -->
+        <TaskProposalCard
+          v-else-if="b.type === 'ui_action' && b.action && b.action.kind === 'task_proposal'"
+          :action="b.action"
+        />
       </template>
     </template>
     <!-- 历史消息(无 blocks)回退:纯文本 -->
@@ -94,6 +111,10 @@
 
 <script setup>
 import { computed, ref } from "vue";
+import { ElMessage } from "element-plus";
+import { Star, StarFilled } from "@element-plus/icons-vue";
+import TaskProposalCard from "./TaskProposalCard.vue";
+import { saveRecipe } from "@/api/ai/chat";
 import { MarkdownRender } from "markstream-vue";
 import { useDark } from "@vueuse/core";
 import { enableKatex, enableMermaid } from "markstream-vue";
@@ -122,7 +143,30 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  sessionId: {
+    type: String,
+    default: "",
+  },
 });
+
+// 「收藏为解法」:把成功的取数调用(全量代码+本轮问题)存进该数据源知识库
+const savingBlk = ref({});
+function canSaveRecipe(b) {
+  return b.type === "tool" && b.name === "run_datasource_query" && b.status === "done";
+}
+async function saveRecipeOf(b) {
+  if (!props.sessionId || !b.id || b.saved || savingBlk.value[b.id]) return;
+  savingBlk.value[b.id] = true;
+  try {
+    const res = await saveRecipe(props.sessionId, b.id);
+    b.saved = true;
+    ElMessage.success("已存入「" + (res.data?.datasetName || "数据源知识库") + "」");
+  } catch (e) {
+    ElMessage.error("收藏失败: " + (e?.message || e));
+  } finally {
+    savingBlk.value[b.id] = false;
+  }
+}
 
 // 工具名 → 友好中文
 const TOOL_LABELS = {
@@ -285,6 +329,10 @@ function toggleReasoning() {
   .step-status {
     font-size: 12px;
     color: var(--el-color-primary);
+  }
+  .step-recipe {
+    margin-left: auto;
+    font-size: 12px;
   }
   .step-toggle {
     margin-left: auto;

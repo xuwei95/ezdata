@@ -129,11 +129,14 @@ class DataAgentTools(Toolkit):
             return f'查询表结构失败(该源可能不支持 schema): {e}'
 
     def search_datasource_knowledge(self, datasource_code: str, query: str) -> str:
-        """检索数据源的专属知识库(字段口径 / 业务规则 / 术语),辅助理解怎么取数。
+        """检索数据源的专属知识库:字段口径/业务规则/术语,**以及用户收藏的“验证过的取数解法”**。
+
+        **写取数代码前必先调用**:结果里标 (QA) 的条目,其内容就是针对类似问题、已跑通的取数/分析代码,
+        命中后应直接复用或仅按本次差异微调,不要从零重写。query 传用户的原始问题(尽量原文,利于精确命中)。
 
         :param datasource_code: 数据源编码
-        :param query: 检索问题(如「订单状态字段有哪些取值」)
-        :return: 检索到的知识片段
+        :param query: 检索问题(传用户原始问题,如「拉出小米近一年走势并画 MACD」;或字段口径类问题)
+        :return: 检索到的知识片段(含可复用的历史解法代码)
         """
         from module_rag.agent_tools import search_knowledge_base
 

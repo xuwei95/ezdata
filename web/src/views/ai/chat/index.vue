@@ -139,6 +139,7 @@
                     :content="msg.content"
                     :reasoning-content="msg.reasoningContent"
                     :blocks="msg.blocks"
+                    :session-id="currentSessionId"
                     :loading="loading && index === messageList.length - 1"
                   />
                 </div>
@@ -595,15 +596,18 @@ function normalizeHistory(msgs) {
   for (const m of msgs || []) {
     if (m.role === "user") { out.push(m); continue; }
     if (m.role !== "assistant") continue; // 跳过 tool / 其它
-    if (!m.content && !m.reasoningContent) continue; // 跳过纯 tool_call 的空 assistant
+    const hasBlocks = m.blocks && m.blocks.length;
+    if (!m.content && !m.reasoningContent && !hasBlocks) continue; // 跳过既无内容又无工具块的空 assistant
     const prev = out[out.length - 1];
     if (prev && prev.role === "assistant") {
       prev.content = [prev.content, m.content].filter(Boolean).join("\n\n");
       if (m.reasoningContent)
         prev.reasoningContent = [prev.reasoningContent, m.reasoningContent].filter(Boolean).join("\n");
       if (!prev.metrics && m.metrics) prev.metrics = m.metrics;
+      // 合并工具/文字块,保留同一回合内「文字-工具-文字」的交替时间线
+      if (hasBlocks) prev.blocks = [...(prev.blocks || []), ...m.blocks];
     } else {
-      out.push({ ...m });
+      out.push({ ...m, blocks: hasBlocks ? [...m.blocks] : undefined });
     }
   }
   return out;
@@ -733,6 +737,12 @@ async function sendRequest(text, images) {
             (messageList.value[aiMsgIndex].blocks ||= []).push({
               type: "artifact",
               artifact: data.artifact,
+            });
+          } else if (data.type === "ui_action") {
+            // 任务提议:按顺序入 blocks,渲染成可编辑的确认表单卡片
+            (messageList.value[aiMsgIndex].blocks ||= []).push({
+              type: "ui_action",
+              action: data.action,
             });
           } else if (data.type === "tool") {
             // 工具调用:start 按顺序入 blocks(夹在文字之间),end/error 按 id 更新状态

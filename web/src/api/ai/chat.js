@@ -51,3 +51,15 @@ export function cancelChatRun(runId) {
     },
   });
 }
+
+// 收藏取数解法到该数据源知识库(把某次成功取数调用的全量代码+问题存为带星 QA)
+export function saveRecipe(sessionId, toolCallId) {
+  return request({
+    url: "/ai/chat/recipe",
+    method: "post",
+    data: {
+      sessionId: sessionId,
+      toolCallId: toolCallId,
+    },
+  });
+}

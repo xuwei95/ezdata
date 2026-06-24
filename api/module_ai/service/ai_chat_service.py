@@ -54,6 +54,21 @@ def _short_args(args: Any, n: int = 600) -> Any:
     return {k: (_short(v, n) if isinstance(v, str) else v) for k, v in args.items()}
 
 
+# 数据 agent 工作流指令:约束"取数前先查知识库里验证过的解法",让收藏的解法被真正复用。
+# 这是工具用法层面的固定规则(由我们提供的工具决定),与用户自定义 system_prompt 叠加生效。
+_DATA_AGENT_INSTRUCTIONS: list[str] = [
+    '你是 ezdata 的数据分析助手:可发现数据源、查表结构、检索数据源知识库,并在沙箱里跑取数/计算代码、产出结论与图表表格。',
+    '取数工作流(务必按序遵守):',
+    '1. 用 list_datasources / get_table_schema 认清目标数据源编码与表结构。',
+    '2. 【关键】在写任何取数代码之前,先调用 search_datasource_knowledge(datasource_code, query=用户的原始问题),'
+    '查该数据源是否已有“验证过的解法”(标注为 QA 的历史问答,answer 即可直接运行的取数/分析代码)。',
+    '   - 若检索结果里有可复用的解法代码:**优先直接复用它、或仅按本次差异微调**,不要从零重写;',
+    '   - 仅当没有可用解法时,才用 run_datasource_query 自行编写取数代码。',
+    '3. 取数/计算成功后正常作答;无需主动声称“已存入知识库”(由用户点“收藏到知识库”决定)。',
+    '即:能复用知识库里已验证的解法时,绝不重复造轮子。',
+]
+
+
 class AiChatService:
     """
     AI对话服务层
@@ -93,9 +108,42 @@ class AiChatService:
         :return: (是否附带历史, 历史轮数)
         """
         add_history = user_config.add_history_to_context == '0'
-        num_history = user_config.num_history_runs or 3
+        num_history = user_config.num_history_runs or 10
 
         return bool(add_history), int(num_history)
+
+    @staticmethod
+    def _rebuild_blocks(m: 'Message', tool_results: dict[str, Any]) -> list[dict] | None:
+        """把一条 assistant 消息重建成与流式同构的 blocks(文字 + 工具调用),供历史回放展示工具调用。
+
+        tool_results: {tool_call_id: 结果文本}(由 role='tool' 的消息预索引)。
+        工具调用参数(arguments)为 JSON 串 → 解析成 dict;结果从 tool_results 回填。
+        """
+        blocks: list[dict] = []
+        if m.content:
+            blocks.append({'type': 'text', 'text': m.content})
+        for tc in (getattr(m, 'tool_calls', None) or []):
+            if isinstance(tc, dict):
+                tc_id = tc.get('id')
+                fn = tc.get('function') or {}
+                name = fn.get('name')
+                raw_args = fn.get('arguments')
+            else:  # 对象形态兜底
+                tc_id = getattr(tc, 'id', None)
+                fn = getattr(tc, 'function', None)
+                name = getattr(fn, 'name', None) if fn else None
+                raw_args = getattr(fn, 'arguments', None) if fn else None
+            args: Any = raw_args
+            if isinstance(raw_args, str):
+                try:
+                    args = json.loads(raw_args)
+                except (ValueError, TypeError):
+                    args = raw_args
+            result = tool_results.get(tc_id)
+            err = isinstance(result, str) and result.lstrip().startswith(('执行失败', '调用沙箱失败', '数据源解析失败'))
+            blocks.append({'type': 'tool', 'id': tc_id, 'name': name, 'args': args,
+                           'status': 'error' if err else 'done', 'result': result})
+        return blocks or None
 
     @classmethod
     async def _resolve_chat_model_config(cls, query_db: AsyncSession, model_id: int) -> AiModelModel:
@@ -135,6 +183,7 @@ class AiChatService:
         add_history: bool,
         num_history: int,
         artifacts: list | None = None,
+        ui_actions: list | None = None,
     ) -> Agent:
         """
         构建对话Agent对象
@@ -163,17 +212,20 @@ class AiChatService:
         # 如需关闭,去掉 tools 参数即可
         from module_ai.tools.data_agent_tools import DataAgentTools  # noqa: PLC0415
         from module_ai.tools.sandbox_code_tools import SandboxCodeTools  # noqa: PLC0415
+        from module_ai.tools.task_agent_tools import TaskAgentTools  # noqa: PLC0415
 
         return Agent(
             model=model,
             id='chat-agent',
             description=system_prompt or 'You are a helpful AI assistant.',
+            instructions=_DATA_AGENT_INSTRUCTIONS,
             db=storage,
             user_id=str(user_id),
             session_id=session_id,
             add_history_to_context=add_history,
             num_history_runs=num_history,
-            tools=[DataAgentTools(), SandboxCodeTools(artifacts=artifacts)],
+            tools=[DataAgentTools(), SandboxCodeTools(artifacts=artifacts),
+                   TaskAgentTools(ui_actions=ui_actions)],
             markdown=True,
         )
 
@@ -253,6 +305,7 @@ class AiChatService:
         is_reasoning: bool,
         session_id: str,
         artifacts: list | None = None,
+        ui_actions: list | None = None,
     ) -> AsyncGenerator[str, None]:
         """
         将Agent输出流式转换为前端SSE消息
@@ -268,6 +321,8 @@ class AiChatService:
         full_reasoning = ''
         arts = artifacts if artifacts is not None else []
         emitted = 0  # 已发出的产物游标
+        acts = ui_actions if ui_actions is not None else []
+        acts_emitted = 0  # 已发出的任务提议(ui_action)游标
         try:
             yield json.dumps({'session_id': session_id, 'type': 'meta'}) + '\n'
 
@@ -322,10 +377,18 @@ class AiChatService:
                     yield json.dumps({'artifact': arts[emitted], 'type': 'artifact'}, ensure_ascii=False) + '\n'
                     emitted += 1
 
-            # 兜底:最后一次工具调用后(run_completed 之后)产生的产物
+                # 增量排空任务提议(ui_action):工具产出后即推给前端渲染成确认表单卡片
+                while acts_emitted < len(acts):
+                    yield json.dumps({'action': acts[acts_emitted], 'type': 'ui_action'}, ensure_ascii=False) + '\n'
+                    acts_emitted += 1
+
+            # 兜底:最后一次工具调用后(run_completed 之后)产生的产物 / 提议
             while emitted < len(arts):
                 yield json.dumps({'artifact': arts[emitted], 'type': 'artifact'}, ensure_ascii=False) + '\n'
                 emitted += 1
+            while acts_emitted < len(acts):
+                yield json.dumps({'action': acts[acts_emitted], 'type': 'ui_action'}, ensure_ascii=False) + '\n'
+                acts_emitted += 1
         except Exception as e:
             yield json.dumps({'error': str(e), 'type': 'error'}) + '\n'
 
@@ -355,6 +418,7 @@ class AiChatService:
         system_prompt = user_config.system_prompt
 
         artifacts: list = []  # 工具(沙箱)产出的图表/表格收集器,经 _stream_agent 推给前端渲染
+        ui_actions: list = []  # 任务提议(确认表单)收集器,经 _stream_agent 推给前端渲染成卡片
         agent = cls._build_agent(
             model_config=model_config,
             temperature=temperature,
@@ -364,6 +428,7 @@ class AiChatService:
             add_history=add_history,
             num_history=num_history,
             artifacts=artifacts,
+            ui_actions=ui_actions,
         )
         run_kwargs = cls._build_run_kwargs(chat_req, user_config)
         async for chunk in cls._stream_agent(
@@ -373,6 +438,7 @@ class AiChatService:
             is_reasoning=is_reasoning,
             session_id=session_id,
             artifacts=artifacts,
+            ui_actions=ui_actions,
         ):
             yield chunk
 
@@ -498,6 +564,12 @@ class AiChatService:
                 if run.model_provider_data and (provider_id := run.model_provider_data.get('id')):
                     run_metrics_map[provider_id] = run.metrics
 
+        # 工具结果按 tool_call_id 预索引(role='tool' 的消息),供重建工具块时回填 result
+        tool_results = {
+            getattr(m, 'tool_call_id', None): m.content
+            for m in messages if m.role == 'tool' and getattr(m, 'tool_call_id', None)
+        }
+
         chat_messages = []
         for m in messages:
             if hasattr(m, 'provider_data') and m.provider_data:
@@ -522,6 +594,7 @@ class AiChatService:
                     reasoningContent=m.reasoning_content,
                     fromHistory=m.from_history,
                     stopAfterToolCall=m.stop_after_tool_call,
+                    blocks=cls._rebuild_blocks(m, tool_results) if m.role == 'assistant' else None,
                 )
             )
 
@@ -556,3 +629,53 @@ class AiChatService:
         if not cancel_result:
             raise ServiceException(message='取消运行失败')
         return CrudResponseModel(is_success=True, message='取消成功')
+
+    @classmethod
+    async def save_recipe_services(cls, query_db: AsyncSession, session_id: str,
+                                   tool_call_id: str, operator: str) -> dict:
+        """把某次成功的取数调用(全量 code + 触发问题)存进该数据源专属知识库,作为带星 QA 解法。
+
+        全量 code 从 agno 持久化的会话(ai_sessions)里按 tool_call_id 回查(流式事件里的 code 被截断,
+        不能用)。下次同问 → retrieval 的 QA 精确命中直接返回这段 code。
+        """
+        storage = AiUtil.get_storage_engine()
+        session: Session | None = await storage.get_session(session_id=session_id, session_type=SessionType.AGENT)
+        if not session:
+            raise ServiceException(message='会话不存在')
+
+        # 在所有 run 里按 tool_call_id 找那次工具调用,顺带取该 run 的用户问题
+        found_args: dict | None = None
+        question: str = ''
+        for run in (session.runs or []):
+            for t in (getattr(run, 'tools', None) or []):
+                if getattr(t, 'tool_call_id', None) == tool_call_id:
+                    found_args = getattr(t, 'tool_args', None) or {}
+                    question = (getattr(getattr(run, 'input', None), 'input_content', None) or '').strip()
+                    break
+            if found_args is not None:
+                break
+        if found_args is None:
+            raise ServiceException(message='未找到该工具调用(请等本轮回答结束后再收藏)')
+
+        code = (found_args.get('code') or '').strip()
+        datasource_code = (found_args.get('datasource_code') or '').strip()
+        if not (code and datasource_code):
+            raise ServiceException(message='该调用不是数据源取数(无 code/数据源),暂不支持收藏')
+        if not question:
+            raise ServiceException(message='未取到本轮问题,无法作为解法收藏')
+
+        from module_rag.entity.vo.rag_vo import ChunkSaveReq  # noqa: PLC0415
+        from module_rag.service.chunk_service import ChunkService  # noqa: PLC0415
+        from module_rag.service.dataset_service import DatasetService  # noqa: PLC0415
+
+        ds = await DatasetService.ensure_for_source(query_db, None, datasource_code, operator)
+        dataset_id = ds['id']
+        saved = await ChunkService.save(
+            query_db,
+            ChunkSaveReq(datasetId=dataset_id, chunkType='qa', question=question, answer=code),
+            operator,
+        )
+        chunk_id = saved['id']
+        await ChunkService.star(query_db, chunk_id, 1)
+        return {'chunkId': chunk_id, 'datasetName': ds.get('name'), 'datasourceCode': datasource_code,
+                'question': question}

@@ -19,6 +19,7 @@ from module_ai.entity.vo.ai_chat_vo import (
     AiChatRequestModel,
     AiChatSessionBaseModel,
     AiChatSessionModel,
+    SaveRecipeReq,
 )
 from module_ai.service.ai_chat_service import AiChatService
 from utils.log_util import logger
@@ -145,6 +146,26 @@ async def get_chat_session_detail(
     logger.info(f'获取session_id为{session_id}的信息成功')
 
     return ResponseUtil.success(data=chat_session_detail_result)
+
+
+@ai_chat_controller.post(
+    '/recipe',
+    summary='收藏取数解法到知识库',
+    description='把某次成功的取数调用(全量代码+问题)存为该数据源专属知识库的带星 QA 分段',
+    response_model=DataResponseModel,
+)
+@Log(title='AI对话-收藏解法', business_type=BusinessType.INSERT)
+async def save_recipe(
+    request: Request,
+    req: SaveRecipeReq,
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
+) -> Response:
+    operator = current_user.user.user_name if current_user and current_user.user else 'system'
+    result = await AiChatService.save_recipe_services(query_db, req.session_id, req.tool_call_id, operator)
+    logger.info(f'收藏取数解法到知识库成功: {result.get("chunkId")}')
+
+    return ResponseUtil.success(data=result, msg='已存入该数据源知识库')
 
 
 @ai_chat_controller.post(
