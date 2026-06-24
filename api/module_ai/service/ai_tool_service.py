@@ -116,16 +116,11 @@ class AiToolService:
         result.args = _loads(result.args)
         return result
 
-    @classmethod
-    async def test_mcp_tool_services(cls, args: dict) -> dict:
-        """用 agno MCPTools 试连一下 MCP server,返回其暴露的工具名/数。"""
-        try:
-            from agno.tools.mcp import MCPTools  # noqa: PLC0415
-        except Exception as e:  # noqa: BLE001
-            raise ServiceException(message=f'MCP 依赖未安装(需重建镜像后可测): {e}')
-
+    @staticmethod
+    def build_mcp_kwargs(args: dict, timeout_seconds: int = 15) -> dict:
+        """把工具 args(server_type/command/args/env 或 url/headers)转成 agno MCPTools 构造参数。"""
         server_type = (args.get('server_type') or 'stdio').lower()
-        kwargs: dict[str, Any] = {'timeout_seconds': 15}
+        kwargs: dict[str, Any] = {'timeout_seconds': timeout_seconds}
         if server_type == 'stdio':
             command = (args.get('command') or '').strip()
             if not command:
@@ -146,7 +141,31 @@ class AiToolService:
             if headers:
                 _h = {str(k): str(v) for k, v in headers.items()}
                 kwargs['header_provider'] = lambda: _h
+        return kwargs
 
+    @classmethod
+    async def get_enabled_mcp_tools_by_ids(cls, query_db: AsyncSession, tool_ids: list[int]) -> list[dict]:
+        """按 id 取启用的 MCP 工具,返回 [{name, code, args(dict)}](供 agent 装配)。"""
+        from sqlalchemy import select  # noqa: PLC0415
+
+        from module_ai.entity.do.ai_tool_do import AiTool  # noqa: PLC0415
+
+        if not tool_ids:
+            return []
+        rows = (await query_db.execute(
+            select(AiTool).where(AiTool.tool_id.in_(tool_ids), AiTool.tool_type == 'mcp', AiTool.status == '0')
+        )).scalars().all()
+        return [{'name': r.name, 'code': r.code, 'args': _loads(r.args)} for r in rows]
+
+    @classmethod
+    async def test_mcp_tool_services(cls, args: dict) -> dict:
+        """用 agno MCPTools 试连一下 MCP server,返回其暴露的工具名/数。"""
+        try:
+            from agno.tools.mcp import MCPTools  # noqa: PLC0415
+        except Exception as e:  # noqa: BLE001
+            raise ServiceException(message=f'MCP 依赖未安装(需重建镜像后可测): {e}')
+
+        kwargs = cls.build_mcp_kwargs(args)
         try:
             async with MCPTools(**kwargs) as t:
                 names = sorted((getattr(t, 'functions', None) or {}).keys())

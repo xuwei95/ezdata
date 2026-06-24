@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 import uuid
@@ -33,6 +34,7 @@ from module_ai.entity.vo.ai_model_vo import AiModelModel
 from utils.ai_util import AiUtil
 from utils.common_util import CamelCaseUtil
 from utils.crypto_util import CryptoUtil
+from utils.log_util import logger
 
 if TYPE_CHECKING:
     from agno.models.message import Message
@@ -184,6 +186,7 @@ class AiChatService:
         num_history: int,
         artifacts: list | None = None,
         ui_actions: list | None = None,
+        extra_tools: list | None = None,
     ) -> Agent:
         """
         构建对话Agent对象
@@ -207,6 +210,13 @@ class AiChatService:
             temperature=temperature,
             max_tokens=model_config.max_tokens,
         )
+        # Anthropic(经网关)在"并行工具调用 + 多个工具结果一次回灌"时,续轮会返回空 → 任务半截
+        # 而止("调了两个工具就断")。禁用并行工具调用(强制模型一次只调一个),续轮即正常。
+        # 该 tool_choice 形态为 Anthropic 专用;经 request_params 才会真正传到下游。
+        if (model_config.provider or '').lower() == 'anthropic':
+            rp = dict(getattr(model, 'request_params', None) or {})
+            rp.setdefault('tool_choice', {'type': 'auto', 'disable_parallel_tool_use': True})
+            model.request_params = rp
         storage = AiUtil.get_storage_engine()
         # 数据 agent 工具:探索(发现数据源/表结构/知识库) + 执行(沙箱跑 python 计算/取数)
         # 如需关闭,去掉 tools 参数即可
@@ -225,7 +235,7 @@ class AiChatService:
             add_history_to_context=add_history,
             num_history_runs=num_history,
             tools=[DataAgentTools(), SandboxCodeTools(artifacts=artifacts),
-                   TaskAgentTools(ui_actions=ui_actions)],
+                   TaskAgentTools(ui_actions=ui_actions), *(extra_tools or [])],
             markdown=True,
         )
 
@@ -419,28 +429,128 @@ class AiChatService:
 
         artifacts: list = []  # 工具(沙箱)产出的图表/表格收集器,经 _stream_agent 推给前端渲染
         ui_actions: list = []  # 任务提议(确认表单)收集器,经 _stream_agent 推给前端渲染成卡片
-        agent = cls._build_agent(
-            model_config=model_config,
-            temperature=temperature,
-            system_prompt=system_prompt,
-            user_id=user_id,
-            session_id=session_id,
-            add_history=add_history,
-            num_history=num_history,
-            artifacts=artifacts,
-            ui_actions=ui_actions,
-        )
         run_kwargs = cls._build_run_kwargs(chat_req, user_config)
-        async for chunk in cls._stream_agent(
-            agent=agent,
-            chat_req=chat_req,
-            run_kwargs=run_kwargs,
-            is_reasoning=is_reasoning,
-            session_id=session_id,
-            artifacts=artifacts,
-            ui_actions=ui_actions,
-        ):
-            yield chunk
+
+        build_kwargs = dict(
+            model_config=model_config, temperature=temperature, system_prompt=system_prompt,
+            user_id=user_id, session_id=session_id, add_history=add_history, num_history=num_history,
+        )
+        stream_kwargs = dict(
+            chat_req=chat_req, run_kwargs=run_kwargs, is_reasoning=is_reasoning,
+            session_id=session_id, artifacts=artifacts, ui_actions=ui_actions,
+        )
+
+        # 用户在对话设置里勾选的 MCP 工具配置(此处用请求 DB 会话取,仅取配置不建连接)
+        mcp_configs = await cls._load_mcp_configs(query_db, user_config)
+
+        if not mcp_configs:
+            # 无 MCP:原直连路径(保持既有行为不变)
+            agent = cls._build_agent(artifacts=artifacts, ui_actions=ui_actions, **build_kwargs)
+            async for chunk in cls._stream_agent(agent=agent, **stream_kwargs):
+                yield chunk
+            return
+
+        # 有 MCP:在独立 worker task 内连 MCP + 跑 agent,队列桥接给本生成器。
+        # MCPTools 基于 anyio cancel scope,其进入/退出必须在同一 task;放进 worker 可避免与
+        # 请求 DB 会话/生成器收尾跨 task 冲突("exit cancel scope in a different task")。
+        queue: asyncio.Queue = asyncio.Queue(maxsize=256)
+        sentinel = object()
+
+        async def _run_with_tools(extra_tools: list) -> None:
+            agent = cls._build_agent(artifacts=artifacts, ui_actions=ui_actions,
+                                     extra_tools=extra_tools, **build_kwargs)
+            async for chunk in cls._stream_agent(agent=agent, **stream_kwargs):
+                await queue.put(chunk)
+
+        async def _worker() -> None:
+            try:
+                logger.info(f'[MCP worker] 启动,选中 {len(mcp_configs)} 个 MCP 工具')
+                await cls._with_mcp_tools(mcp_configs, [], _run_with_tools)
+                logger.info('[MCP worker] 正常结束')
+            except Exception as e:  # noqa: BLE001
+                logger.exception(f'[MCP worker] 异常: {e}')
+                await queue.put(json.dumps({'error': str(e), 'type': 'error'}, ensure_ascii=False) + '\n')
+            finally:
+                await queue.put(sentinel)
+
+        task = asyncio.create_task(_worker())
+        emitted = 0
+        stuck = False
+        idle_timeout = 120  # 秒:超过此时长无任何输出则判定卡住(MCP/模型无响应),中断并报错而非冻结
+        try:
+            while True:
+                try:
+                    chunk = await asyncio.wait_for(queue.get(), timeout=idle_timeout)
+                except asyncio.TimeoutError:
+                    stuck = True
+                    logger.warning(f'[MCP worker] {idle_timeout}s 无输出,判定卡住,中断(已输出 {emitted} 段)')
+                    yield json.dumps(
+                        {'error': f'工具调用 {idle_timeout}s 无响应,已中断(可能是 MCP 服务或模型卡住,请重试或减少所选工具)',
+                         'type': 'error'}, ensure_ascii=False) + '\n'
+                    break
+                if chunk is sentinel:
+                    break
+                emitted += 1
+                yield chunk
+            if not stuck:  # 正常结束:等 worker 收尾(它已 put sentinel,很快完成)
+                await task
+                logger.info(f'[MCP worker] 生成器完成,共输出 {emitted} 段')
+        finally:
+            if not task.done():
+                logger.warning(f'[MCP worker] worker 未结束(已输出 {emitted} 段),取消')
+                task.cancel()
+                try:
+                    await task
+                except BaseException:  # noqa: BLE001 worker 取消时在自身 task 内收尾 MCP 连接
+                    pass
+
+    @classmethod
+    async def _load_mcp_configs(cls, query_db: AsyncSession, user_config: AiChatConfigModel) -> list[dict]:
+        """按用户配置 mcp_tool_ids 取启用的 MCP 工具配置(只读 DB,不建连接)。"""
+        raw = (getattr(user_config, 'mcp_tool_ids', None) or '').strip()
+        if not raw:
+            return []
+        try:
+            ids = [int(x) for x in raw.split(',') if x.strip()]
+        except ValueError:
+            return []
+        from module_ai.service.ai_tool_service import AiToolService  # noqa: PLC0415
+
+        return await AiToolService.get_enabled_mcp_tools_by_ids(query_db, ids)
+
+    @classmethod
+    async def _with_mcp_tools(cls, configs: list[dict], connected: list, cb: Any) -> None:
+        """递归地用**直接 async with** 逐个连上 MCP server,全部进入后在最内层调 cb(connected)。
+
+        为何递归而非 AsyncExitStack:agno MCPTools 基于 anyio,经 AsyncExitStack 退出时
+        stdio_client 的 cancel scope 会"跨 task"报错;直接嵌套 async with 进出都在本 task,稳。
+        单个连接失败则跳过该工具、继续其余(已连的保持在外层 async with 帧内)。
+        """
+        if not configs:
+            await cb(connected)
+            return
+        try:
+            from agno.tools.mcp import MCPTools  # noqa: PLC0415
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f'MCP 依赖未安装,跳过 MCP 工具装配: {e}')
+            await cb(connected)
+            return
+        from module_ai.service.ai_tool_service import AiToolService  # noqa: PLC0415
+
+        cfg, rest = configs[0], configs[1:]
+        try:
+            kwargs = AiToolService.build_mcp_kwargs(cfg['args'])
+        except Exception as e:  # noqa: BLE001 配置错,跳过该工具
+            logger.warning(f"MCP 工具配置无效,跳过 {cfg.get('code')}: {e}")
+            await cls._with_mcp_tools(rest, connected, cb)
+            return
+        try:
+            async with MCPTools(**kwargs) as t:
+                logger.info(f"MCP 工具已连接: {cfg['code']} ({len(getattr(t, 'functions', None) or {})} 个方法)")
+                await cls._with_mcp_tools(rest, [*connected, t], cb)
+        except Exception as e:  # noqa: BLE001 连不上不阻断,跳过该工具继续其余
+            logger.warning(f"MCP 工具连接失败,跳过 {cfg['code']}: {e}")
+            await cls._with_mcp_tools(rest, connected, cb)
 
     @classmethod
     async def ai_chat_config_detail_services(cls, query_db: AsyncSession, user_id: int) -> AiChatConfigModel:

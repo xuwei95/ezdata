@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import CHAR, BigInteger, Column, DateTime, Float, Integer, Text
+from sqlalchemy import CHAR, BigInteger, Column, DateTime, Float, Integer, String, Text
 
 from config.database import Base, TenantMixin
 
@@ -22,5 +22,6 @@ class AiChatConfig(Base, TenantMixin):
     metrics_default_visible = Column(CHAR(1), server_default='0', comment='默认显示指标(0是, 1否)')
     vision_enabled = Column(CHAR(1), server_default='1', comment='是否开启视觉(0是, 1否)')
     image_max_size_mb = Column(Integer, nullable=True, comment='图片最大大小(MB)')
+    mcp_tool_ids = Column(String(500), nullable=True, comment='启用的MCP工具ID(逗号分隔)')
     create_time = Column(DateTime, nullable=True, default=datetime.now, comment='创建时间')
     update_time = Column(DateTime, nullable=True, default=datetime.now, comment='更新时间')
