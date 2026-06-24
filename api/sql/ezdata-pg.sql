@@ -1319,10 +1319,10 @@ insert into sys_menu values(2130, '记录查询', 2101, '1', '#', '', '', '', 1,
 insert into sys_menu values(2131, '记录删除', 2101, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:instance:remove', '#', 'admin', current_timestamp, '', null, '');
 insert into sys_menu values(2132, '终止任务', 2101, '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:instance:stop',   '#', 'admin', current_timestamp, '', null, '');
 -- Worker 管理
-insert into sys_menu values(2103, 'Worker管理', 2100, '3', 'worker', 'task/worker/index', '', '', 1, 0, 'C', '0', '0', 'task:worker:list', 'server', 'admin', current_timestamp, '', null, 'Worker 管理菜单');
-insert into sys_menu values(2150, 'Worker查询', 2103, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:worker:list',     '#', 'admin', current_timestamp, '', null, '');
-insert into sys_menu values(2151, '队列管理',   2103, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:worker:consumer', '#', 'admin', current_timestamp, '', null, '');
-insert into sys_menu values(2152, '并发伸缩',   2103, '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:worker:scale',    '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2104, 'Worker管理', 2100, '4', 'worker', 'task/worker/index', '', '', 1, 0, 'C', '0', '0', 'task:worker:list', 'server', 'admin', current_timestamp, '', null, 'Worker 管理菜单');
+insert into sys_menu values(2150, 'Worker查询', 2104, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:worker:list',     '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2151, '队列管理',   2104, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:worker:consumer', '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2152, '并发伸缩',   2104, '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:worker:scale',    '#', 'admin', current_timestamp, '', null, '');
 
 -- ----------------------------
 -- 告警中心模块（module_alert）
