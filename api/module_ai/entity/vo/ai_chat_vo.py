@@ -17,6 +17,7 @@ class AiChatRequestModel(BaseModel):
     message: str = Field(description='用户消息')
     is_reasoning: bool | None = Field(default=None, description='本次是否开启深度思考')
     images: list[str] | None = Field(default=None, description='图片URL列表')
+    app_id: str | None = Field(default=None, description='AI应用ID(带则按应用配置装配 agent)')
 
 
 class SaveRecipeReq(BaseModel):

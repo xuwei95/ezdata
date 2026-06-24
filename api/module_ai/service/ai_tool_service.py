@@ -144,6 +144,27 @@ class AiToolService:
         return kwargs
 
     @classmethod
+    async def resolve_app_tools(cls, query_db: AsyncSession, tool_ids: list[int]) -> dict:
+        """按 ai_tool id 拆分:{'builtin_codes': [toolkit名...], 'mcp_configs': [{name,code,args}...]}。
+
+        内置工具 code = toolkit 名(data_explore/sandbox_code/task_propose);MCP 工具给出连接配置。
+        供 AI 应用按所选工具装配 agent。
+        """
+        from sqlalchemy import select  # noqa: PLC0415
+
+        from module_ai.entity.do.ai_tool_do import AiTool  # noqa: PLC0415
+
+        if not tool_ids:
+            return {'builtin_codes': [], 'mcp_configs': []}
+        rows = (await query_db.execute(
+            select(AiTool).where(AiTool.tool_id.in_(tool_ids), AiTool.status == '0')
+        )).scalars().all()
+        builtin_codes = [r.code for r in rows if r.tool_type == 'builtin']
+        mcp_configs = [{'name': r.name, 'code': r.code, 'args': _loads(r.args)}
+                       for r in rows if r.tool_type == 'mcp']
+        return {'builtin_codes': builtin_codes, 'mcp_configs': mcp_configs}
+
+    @classmethod
     async def get_enabled_mcp_tools_by_ids(cls, query_db: AsyncSession, tool_ids: list[int]) -> list[dict]:
         """按 id 取启用的 MCP 工具,返回 [{name, code, args(dict)}](供 agent 装配)。"""
         from sqlalchemy import select  # noqa: PLC0415

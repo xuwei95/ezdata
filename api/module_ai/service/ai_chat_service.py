@@ -187,9 +187,15 @@ class AiChatService:
         artifacts: list | None = None,
         ui_actions: list | None = None,
         extra_tools: list | None = None,
+        builtin_codes: list | None = None,
+        kb_tool: Any = None,
     ) -> Agent:
         """
         构建对话Agent对象
+
+        builtin_codes: 选用的内置工具集 code(data_explore/sandbox_code/task_propose);None=全部(普通对话)。
+        kb_tool: 应用绑定知识库时的检索工具闭包(make_kb_tool 产物),可空。
+        extra_tools: 已连接的 MCP 工具实例。
 
         :param model_config: 模型配置对象
         :param temperature: 对话温度
@@ -224,6 +230,18 @@ class AiChatService:
         from module_ai.tools.sandbox_code_tools import SandboxCodeTools  # noqa: PLC0415
         from module_ai.tools.task_agent_tools import TaskAgentTools  # noqa: PLC0415
 
+        # 内置工具集(code = toolkit 名)。builtin_codes=None → 全挂(普通对话);否则按所选挂(应用)。
+        builtin_map = {
+            'data_explore': lambda: DataAgentTools(),
+            'sandbox_code': lambda: SandboxCodeTools(artifacts=artifacts),
+            'task_propose': lambda: TaskAgentTools(ui_actions=ui_actions),
+        }
+        codes = list(builtin_map.keys()) if builtin_codes is None else [c for c in builtin_codes if c in builtin_map]
+        tools: list = [builtin_map[c]() for c in codes]
+        if kb_tool is not None:
+            tools.append(kb_tool)
+        tools.extend(extra_tools or [])
+
         return Agent(
             model=model,
             id='chat-agent',
@@ -234,8 +252,7 @@ class AiChatService:
             session_id=session_id,
             add_history_to_context=add_history,
             num_history_runs=num_history,
-            tools=[DataAgentTools(), SandboxCodeTools(artifacts=artifacts),
-                   TaskAgentTools(ui_actions=ui_actions), *(extra_tools or [])],
+            tools=tools,
             markdown=True,
         )
 
@@ -427,6 +444,37 @@ class AiChatService:
         add_history, num_history = cls._resolve_history_config(user_config)
         system_prompt = user_config.system_prompt
 
+        # —— AI 应用模式:带 app_id 时按应用配置覆盖(提示词/模型/参数/工具/知识库)——
+        builtin_codes: list | None = None  # None=全部内置工具(普通对话)
+        kb_tool = None
+        mcp_configs: list[dict] = []
+        app_cfg = None
+        if getattr(chat_req, 'app_id', None):
+            from module_ai.service.ai_app_service import AiAppService  # noqa: PLC0415
+            app_cfg = await AiAppService.get_app_config(query_db, chat_req.app_id)
+        if app_cfg:
+            if (app_cfg.get('prompt') or '').strip():
+                system_prompt = app_cfg['prompt']
+            m = app_cfg.get('model') or {}
+            if m.get('modelId') is not None:
+                model_config = await cls._resolve_chat_model_config(query_db, m.get('modelId') or 0)
+            if m.get('temperature') is not None:
+                temperature = m['temperature']
+            if m.get('maxTokens'):
+                model_config.max_tokens = m['maxTokens']
+            from module_ai.service.ai_tool_service import AiToolService  # noqa: PLC0415
+            resolved = await AiToolService.resolve_app_tools(query_db, app_cfg.get('toolIds') or [])
+            builtin_codes = resolved['builtin_codes']  # 应用选定的内置工具集(空=不挂内置)
+            mcp_configs = resolved['mcp_configs']
+            dsids = app_cfg.get('datasetIds') or []
+            if dsids:
+                from common.context import RequestContext  # noqa: PLC0415
+                from module_rag.agent_tools import make_kb_tool  # noqa: PLC0415
+                kb_tool = make_kb_tool(dataset_ids=dsids, tenant_id=RequestContext.get_effective_tenant_id())
+        else:
+            # 普通对话:MCP 工具来自用户对话设置
+            mcp_configs = await cls._load_mcp_configs(query_db, user_config)
+
         artifacts: list = []  # 工具(沙箱)产出的图表/表格收集器,经 _stream_agent 推给前端渲染
         ui_actions: list = []  # 任务提议(确认表单)收集器,经 _stream_agent 推给前端渲染成卡片
         run_kwargs = cls._build_run_kwargs(chat_req, user_config)
@@ -434,14 +482,12 @@ class AiChatService:
         build_kwargs = dict(
             model_config=model_config, temperature=temperature, system_prompt=system_prompt,
             user_id=user_id, session_id=session_id, add_history=add_history, num_history=num_history,
+            builtin_codes=builtin_codes, kb_tool=kb_tool,
         )
         stream_kwargs = dict(
             chat_req=chat_req, run_kwargs=run_kwargs, is_reasoning=is_reasoning,
             session_id=session_id, artifacts=artifacts, ui_actions=ui_actions,
         )
-
-        # 用户在对话设置里勾选的 MCP 工具配置(此处用请求 DB 会话取,仅取配置不建连接)
-        mcp_configs = await cls._load_mcp_configs(query_db, user_config)
 
         if not mcp_configs:
             # 无 MCP:原直连路径(保持既有行为不变)
