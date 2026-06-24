@@ -186,6 +186,7 @@ insert into sys_menu values('116',  '代码生成', '3',   '2', 'gen',          
 insert into sys_menu values('117',  '系统接口', '3',   '3', 'swagger',             'tool/swagger/index',                '', '', 1, 0, 'C', '0', '0', 'tool:swagger:list',                'swagger',       'admin', sysdate(), '', null, '系统接口菜单');
 insert into sys_menu values('118',  '模型管理', '4',   '1', 'model',               'ai/model/index',                    '', '', 1, 0, 'C', '0', '0', 'ai:model:list',                    'ai-model',      'admin', sysdate(), '', null, '模型管理菜单');
 insert into sys_menu values('119',  'AI 对话', '4',   '2', 'chat',                'ai/chat/index',                     '', '', 1, 0, 'C', '0', '0', 'ai:chat:list',                     'ai-chat',       'admin', sysdate(), '', null, 'AI 对话菜单');
+insert into sys_menu values('121',  '工具管理', '4',   '3', 'tool',                'ai/tool/index',                     '', 'AiTool', 1, 0, 'C', '0', '0', 'ai:tool:list',                     'tool',          'admin', sysdate(), '', null, '工具管理菜单');
 -- 三级菜单
 insert into sys_menu values('500',  '操作日志', '108', '1', 'operlog',    'monitor/operlog/index',    '', '', 1, 0, 'C', '0', '0', 'monitor:operlog:list',    'form',          'admin', sysdate(), '', null, '操作日志菜单');
 insert into sys_menu values('501',  '登录日志', '108', '2', 'logininfor', 'monitor/logininfor/index', '', '', 1, 0, 'C', '0', '0', 'monitor:logininfor:list', 'logininfor',    'admin', sysdate(), '', null, '登录日志菜单');
@@ -268,6 +269,10 @@ insert into sys_menu values('1061', '模型查询', '118', '1', '#', '', '', '',
 insert into sys_menu values('1062', '模型新增', '118', '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:model:add',               '#', 'admin', sysdate(), '', null, '');
 insert into sys_menu values('1063', '模型修改', '118', '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:model:edit',              '#', 'admin', sysdate(), '', null, '');
 insert into sys_menu values('1064', '模型删除', '118', '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:model:remove',            '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1065', '工具查询', '121', '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:tool:query',              '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1066', '工具新增', '121', '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:tool:add',                '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1067', '工具修改', '121', '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:tool:edit',               '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1068', '工具删除', '121', '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:tool:remove',             '#', 'admin', sysdate(), '', null, '');
 
 
 -- ----------------------------
@@ -793,6 +798,43 @@ create table ai_models (
   remark            varchar(500)    default null               comment '备注',
   primary key (model_id)
 ) engine=innodb auto_increment=1 comment = 'AI模型表';
+
+
+-- ----------------------------
+-- AI工具表(MCP 外部工具 + 内置工具)
+-- ----------------------------
+drop table if exists ai_tool;
+create table ai_tool (
+  tool_id           bigint(20)      not null auto_increment    comment '工具主键',
+  name              varchar(100)    not null                   comment '工具名称',
+  code              varchar(100)    not null                   comment '工具代码(唯一标识)',
+  tool_type         varchar(50)     not null default 'mcp'     comment '工具类型: mcp/builtin',
+  description       text                                       comment '工具描述',
+  args              text                                       comment '工具配置JSON',
+  status            char(1)         default '0'                comment '状态: 0启用 1停用',
+  built_in          char(1)         default '0'                comment '是否内置: 1是(不可删/改code) 0否',
+  user_id           bigint(20)                                 comment '用户ID',
+  dept_id           bigint(20)                                 comment '部门ID',
+  create_by         varchar(64)     default ''                 comment '创建者',
+  create_time       datetime                                   comment '创建时间',
+  update_by         varchar(64)     default ''                 comment '更新者',
+  update_time       datetime                                   comment '更新时间',
+  remark            varchar(500)    default null               comment '备注',
+  tenant_id         bigint(20)                                 comment '租户ID(顶级部门)',
+  primary key (tool_id),
+  key ix_ai_tool_tenant_id (tenant_id)
+) engine=innodb auto_increment=1 comment = 'AI工具表';
+
+-- 内置工具种子(built_in=1 不可删/改code)
+insert into ai_tool (name,code,tool_type,description,args,status,built_in,create_by,create_time,update_by,update_time) values
+('发现数据源','list_datasources','builtin','列出数据源并带出各源表名(业务名/描述)','{}','0','1','admin',sysdate(),'admin',sysdate()),
+('查表结构','get_table_schema','builtin','查数据源表结构(实时)+ 数据模型业务描述/接口文档','{}','0','1','admin',sysdate(),'admin',sysdate()),
+('检索知识库','search_datasource_knowledge','builtin','检索数据源专属知识库:字段口径/业务规则 + 收藏的取数解法(QA)','{}','0','1','admin',sysdate(),'admin',sysdate()),
+('运行代码','run_python_code','builtin','沙箱里运行 Python 做计算/数据处理,产出结论/表格/图表','{}','0','1','admin',sysdate(),'admin',sysdate()),
+('数据源取数','run_datasource_query','builtin','对指定数据源在沙箱里跑取数代码(注入 handler),产出结论/表格/图表','{}','0','1','admin',sysdate(),'admin',sysdate()),
+('提议数据集成任务','propose_data_integration_task','builtin','向用户弹出预填的 ETL 任务确认表单','{}','0','1','admin',sysdate(),'admin',sysdate()),
+('提议Python任务','propose_python_task','builtin','向用户弹出预填的 Python 任务确认表单','{}','0','1','admin',sysdate(),'admin',sysdate()),
+('提议Shell任务','propose_shell_task','builtin','向用户弹出预填的 Shell 任务确认表单','{}','0','1','admin',sysdate(),'admin',sysdate());
 
 
 -- ----------------------------

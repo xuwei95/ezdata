@@ -25,6 +25,8 @@ openpyxl==3.1.5
 pypdf>=4.3  # unstructured 会拉 6.x
 python-docx==1.1.2
 beautifulsoup4==4.12.3
+# MCP 工具(agno.tools.mcp:MCPTools/MultiMCPTools 依赖)
+mcp==1.28.0
 # 语义切分(Agno semantic chunking 依赖)
 chonkie==1.6.8
 # Agno 高级 readers/markdown 切分
