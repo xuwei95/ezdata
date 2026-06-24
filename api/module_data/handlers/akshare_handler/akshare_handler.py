@@ -27,25 +27,40 @@ _COMMON_FUNCS: dict[str, str] = {
     'stock_financial_report_sina': '三大财报(新浪;stock 如 sh600519,symbol 资产负债表/利润表/现金流量表)',
     # —— 指数(新浪)——
     'stock_zh_index_daily': '指数历史行情(新浪;symbol 如 sh000001 上证/sz399001 深成/sh000300 沪深300)',
+    'index_us_stock_sina': '美股指数历史(新浪;symbol 如 .INX 标普500/.DJI 道指/.IXIC 纳指)',
+    'index_stock_cons_sina': '指数成分股(新浪;symbol 指数代码如 000300 沪深300/000016 上证50;返回成分股清单+实时价)',
     # —— 港股 / 美股(新浪)——
     'stock_hk_daily': '港股历史行情(新浪;symbol 如 00700腾讯/01810小米,adjust qfq/hfq/"";取最新行=最新价)',
     'stock_us_daily': '美股历史行情(新浪;symbol 如 AAPL/TSLA/NVDA;取最新行=最新价)',
     # —— 基金 ——
     'fund_etf_hist_sina': 'ETF历史行情(新浪;symbol 如 sh510300 沪深300ETF)',
+    'fund_etf_category_sina': 'ETF分类列表(新浪;symbol 如 ETF基金;返回全市场 ETF 代码/名称/最新价)',
     'fund_open_fund_info_em': '开放式基金净值(东财·稳;symbol 基金代码如 000001,indicator 单位净值走势/累计净值走势)',
     # —— 债券(新浪)——
     'bond_zh_hs_daily': '沪深债券历史行情(新浪;symbol 如 sh010107)',
     'bond_zh_hs_cov_daily': '可转债历史行情(新浪;symbol 如 sh113527)',
+    'bond_cb_profile_sina': '可转债概况(新浪;symbol 如 sh113527;转股价/发行规模/到期日等条款,item-value 两列)',
+    'bond_zh_us_rate': '中美国债收益率(datacenter;start_date 如 20240101;中/美各期限到期收益率)',
+    'bond_china_yield': '中债国债收益率曲线(datacenter;start_date/end_date;各期限即期收益率)',
     # —— 外汇 / 期货(新浪)——
     'currency_boc_sina': '中行人民币汇率(新浪;symbol 如 美元/欧元/日元,start_date,end_date)',
     'futures_main_sina': '期货主力连续合约历史(新浪;symbol 如 V0聚氯乙烯/RB0螺纹钢,start_date,end_date)',
+    'futures_zh_daily_sina': '期货指定合约日线(新浪;symbol 具体合约如 V2501/RB2510)',
     # —— 宏观 ——
     'macro_china_gdp': '中国 GDP(无参)',
     'macro_china_cpi': '中国 CPI(无参)',
     'macro_china_ppi': '中国 PPI(无参)',
     'macro_china_pmi': '中国 PMI(无参)',
+    'macro_china_money_supply': '货币供应 M0/M1/M2(无参;数量+同比+环比)',
+    'macro_china_new_house_price': '70城新建/二手住宅价格指数(无参;同比/环比/定基)',
+    # —— 龙虎榜 / 解禁 / 交易所总貌 ——
+    'stock_restricted_release_queue_sina': '个股限售解禁批次(新浪;symbol 如 600519;解禁日期/数量/流通市值)',
+    'stock_sse_summary': '上交所市场总貌(无参;主板/科创板 股票数/市值/换手等)',
     # —— 新闻 ——
     'stock_news_em': '个股新闻(东财·稳;symbol 如 600519)',
+    'stock_info_global_sina': '新浪全球财经快讯(无参;最新 20 条 时间+内容)',
+    # —— 工具 ——
+    'tool_trade_date_hist_sina': 'A股历史交易日历(新浪,无参;判断某日是否开市/取最近交易日)',
 }
 
 
