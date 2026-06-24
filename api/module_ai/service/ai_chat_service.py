@@ -41,6 +41,19 @@ if TYPE_CHECKING:
     from agno.session import Session
 
 
+def _short(v: Any, n: int = 300) -> str:
+    """转字符串并截断(仅用于过程展示,不影响给 LLM 的内容)。"""
+    s = v if isinstance(v, str) else json.dumps(v, ensure_ascii=False, default=str)
+    return s if len(s) <= n else s[:n] + '…'
+
+
+def _short_args(args: Any, n: int = 600) -> Any:
+    """工具参数逐值截断(code 等长参数防刷屏)。"""
+    if not isinstance(args, dict):
+        return _short(args, n)
+    return {k: (_short(v, n) if isinstance(v, str) else v) for k, v in args.items()}
+
+
 class AiChatService:
     """
     AI对话服务层
@@ -121,6 +134,7 @@ class AiChatService:
         session_id: str,
         add_history: bool,
         num_history: int,
+        artifacts: list | None = None,
     ) -> Agent:
         """
         构建对话Agent对象
@@ -159,7 +173,7 @@ class AiChatService:
             session_id=session_id,
             add_history_to_context=add_history,
             num_history_runs=num_history,
-            tools=[DataAgentTools(), SandboxCodeTools()],
+            tools=[DataAgentTools(), SandboxCodeTools(artifacts=artifacts)],
             markdown=True,
         )
 
@@ -238,6 +252,7 @@ class AiChatService:
         run_kwargs: dict[str, Any],
         is_reasoning: bool,
         session_id: str,
+        artifacts: list | None = None,
     ) -> AsyncGenerator[str, None]:
         """
         将Agent输出流式转换为前端SSE消息
@@ -251,6 +266,8 @@ class AiChatService:
         """
         full_response = ''
         full_reasoning = ''
+        arts = artifacts if artifacts is not None else []
+        emitted = 0  # 已发出的产物游标
         try:
             yield json.dumps({'session_id': session_id, 'type': 'meta'}) + '\n'
 
@@ -262,6 +279,22 @@ class AiChatService:
 
                 if chunk.event == RunEvent.run_started and chunk.run_id:
                     yield json.dumps({'run_id': chunk.run_id, 'type': 'run_info'}) + '\n'
+
+                # 工具调用过程(可观测):转发 start/end/error,前端渲染"执行过程"时间线
+                tl = getattr(chunk, 'tool', None)
+                if tl is not None:
+                    if chunk.event == RunEvent.tool_call_started:
+                        yield json.dumps({'type': 'tool', 'phase': 'start', 'id': tl.tool_call_id,
+                                          'name': tl.tool_name, 'args': _short_args(tl.tool_args)},
+                                         ensure_ascii=False) + '\n'
+                    elif chunk.event == RunEvent.tool_call_completed:
+                        yield json.dumps({'type': 'tool', 'phase': 'end', 'id': tl.tool_call_id,
+                                          'name': tl.tool_name, 'result': _short(tl.result, 300)},
+                                         ensure_ascii=False) + '\n'
+                    elif chunk.event == RunEvent.tool_call_error:
+                        yield json.dumps({'type': 'tool', 'phase': 'error', 'id': tl.tool_call_id,
+                                          'name': tl.tool_name, 'error': _short(tl.tool_call_error or tl.result, 300)},
+                                         ensure_ascii=False) + '\n'
 
                 if chunk.event == RunEvent.run_content:
                     content = chunk.content
@@ -283,6 +316,16 @@ class AiChatService:
                 if content:
                     full_response += content
                     yield json.dumps({'content': content, 'type': 'content'}) + '\n'
+
+                # 增量排空结构化产物(图表/表格):工具产出后即推给前端渲染
+                while emitted < len(arts):
+                    yield json.dumps({'artifact': arts[emitted], 'type': 'artifact'}, ensure_ascii=False) + '\n'
+                    emitted += 1
+
+            # 兜底:最后一次工具调用后(run_completed 之后)产生的产物
+            while emitted < len(arts):
+                yield json.dumps({'artifact': arts[emitted], 'type': 'artifact'}, ensure_ascii=False) + '\n'
+                emitted += 1
         except Exception as e:
             yield json.dumps({'error': str(e), 'type': 'error'}) + '\n'
 
@@ -311,6 +354,7 @@ class AiChatService:
         add_history, num_history = cls._resolve_history_config(user_config)
         system_prompt = user_config.system_prompt
 
+        artifacts: list = []  # 工具(沙箱)产出的图表/表格收集器,经 _stream_agent 推给前端渲染
         agent = cls._build_agent(
             model_config=model_config,
             temperature=temperature,
@@ -319,6 +363,7 @@ class AiChatService:
             session_id=session_id,
             add_history=add_history,
             num_history=num_history,
+            artifacts=artifacts,
         )
         run_kwargs = cls._build_run_kwargs(chat_req, user_config)
         async for chunk in cls._stream_agent(
@@ -327,6 +372,7 @@ class AiChatService:
             run_kwargs=run_kwargs,
             is_reasoning=is_reasoning,
             session_id=session_id,
+            artifacts=artifacts,
         ):
             yield chunk
 

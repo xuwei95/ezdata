@@ -16,12 +16,32 @@ from typing import Any
 from agno.tools import Toolkit
 
 
+_ROW_CAP = 500  # 表格产物最多回传行数(避免大表撑爆传输;LLM 文本摘要已含总数)
+
+
 class SandboxCodeTools(Toolkit):
     """沙箱代码执行工具集(供 agent 调用)。"""
 
-    def __init__(self, **kwargs: Any) -> None:
+    def __init__(self, artifacts: list | None = None, **kwargs: Any) -> None:
+        # 结构化产物收集器(图表/表格):工具产出时 append,_stream_agent 排空发给前端渲染。
+        # 给 LLM 的返回值仍是文本摘要,不污染上下文。
+        self.artifacts: list = artifacts if artifacts is not None else []
         super().__init__(name='sandbox_code',
                          tools=[self.run_python_code, self.run_datasource_query], **kwargs)
+
+    def _collect(self, res: dict) -> None:
+        """把沙箱结果里的 html/dataframe 归一成前端可渲染的产物,append 到收集器。"""
+        if not (res and res.get('success')):
+            return
+        result = res.get('result')
+        if not (isinstance(result, dict) and 'type' in result and 'value' in result):
+            return
+        t, val = result['type'], result['value']
+        if t == 'html':
+            self.artifacts.append({'kind': 'chart', 'html': str(val)})
+        elif t == 'dataframe':
+            rows = val if isinstance(val, list) else []
+            self.artifacts.append({'kind': 'table', 'rows': rows[:_ROW_CAP], 'total': len(rows)})
 
     def run_python_code(self, code: str, variable_to_return: str | None = None) -> str:
         """运行 Python 代码做计算或数据处理,返回结果。
@@ -44,14 +64,18 @@ class SandboxCodeTools(Toolkit):
             res = sandbox_client.run_python(code, variable_to_return)
         except Exception as e:  # noqa: BLE001
             return f'调用沙箱失败: {e}'
+        self._collect(res)
         return _format_result(res)
 
     def run_datasource_query(self, datasource_code: str, code: str,
                              variable_to_return: str = 'result') -> str:
         """对指定数据源运行取数代码,可对数据加工后返回结论 / 表格 / 图表。
 
-        code 中可直接使用预置的 `handler` 对象访问数据源,例如:
-            rows = handler.query("SELECT * FROM users LIMIT 10")  # 返回 list[dict]
+        code 中可直接使用预置的 `handler` 对象访问数据源:
+            - SQL 源(mysql/pg…):rows = handler.query("SELECT * FROM users LIMIT 10")
+            - 非 SQL 源:statement 形态随源而定,**不是 SQL**。如 akshare 财经接口:
+              rows = handler.query("stock_hk_spot_em", {})   # 函数名 + 参数 dict,返回 list[dict](带重试)
+              先用 get_table_schema 查该源的函数名/参数,再调;勿对 akshare 写 SQL。
         把结果赋值给 result(或用 variable_to_return 指定),可加工成 {type, value}:
           - {'type':'string','value':'共 100 个用户'}                 文本结论
           - {'type':'dataframe','value': pd.DataFrame(rows)}          表格(自动转换)
@@ -73,6 +97,7 @@ class SandboxCodeTools(Toolkit):
             res = sandbox_client.run_python_data(code, datasource, variable_to_return)
         except Exception as e:  # noqa: BLE001
             return f'调用沙箱失败: {e}'
+        self._collect(res)
         return _format_result(res)
 
 

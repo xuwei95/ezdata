@@ -138,6 +138,7 @@
                     v-else
                     :content="msg.content"
                     :reasoning-content="msg.reasoningContent"
+                    :blocks="msg.blocks"
                     :loading="loading && index === messageList.length - 1"
                   />
                 </div>
@@ -587,13 +588,34 @@ function getSessions() {
   });
 }
 
+// 历史消息归一:一轮带工具调用时 Agno 会存成多条 assistant(被工具拆开)+ tool 消息,
+// 合并连续 assistant 为一个气泡、丢弃 tool/空消息,使重进与实时视图一致(一个块)。
+function normalizeHistory(msgs) {
+  const out = [];
+  for (const m of msgs || []) {
+    if (m.role === "user") { out.push(m); continue; }
+    if (m.role !== "assistant") continue; // 跳过 tool / 其它
+    if (!m.content && !m.reasoningContent) continue; // 跳过纯 tool_call 的空 assistant
+    const prev = out[out.length - 1];
+    if (prev && prev.role === "assistant") {
+      prev.content = [prev.content, m.content].filter(Boolean).join("\n\n");
+      if (m.reasoningContent)
+        prev.reasoningContent = [prev.reasoningContent, m.reasoningContent].filter(Boolean).join("\n");
+      if (!prev.metrics && m.metrics) prev.metrics = m.metrics;
+    } else {
+      out.push({ ...m });
+    }
+  }
+  return out;
+}
+
 function loadSession(sessionId) {
   if (currentSessionId.value === sessionId) return;
   currentSessionId.value = sessionId;
   messageList.value = [];
   loading.value = true;
   getChatSession(sessionId).then((res) => {
-    messageList.value = res.data.messages;
+    messageList.value = normalizeHistory(res.data.messages);
     currentSessionAgentData.value = res.data.agentData;
     loading.value = false;
     isAutoScroll.value = true;
@@ -631,6 +653,7 @@ async function sendRequest(text, images) {
       role: "assistant",
       content: "",
       reasoningContent: "",
+      blocks: [], // 按到达顺序:{type:text|tool|artifact}(文字-工具-文字交替)
     }) - 1;
   scrollToBottom();
   isAutoScroll.value = true;
@@ -681,7 +704,13 @@ async function sendRequest(text, images) {
           const data = JSON.parse(line);
           if (data.type === "content") {
             aiContent += data.content;
-            messageList.value[aiMsgIndex].content = aiContent;
+            const m = messageList.value[aiMsgIndex];
+            m.content = aiContent;
+            // 追加到当前文字块(连续 content 合并),保持与工具/产物的到达顺序
+            const blocks = (m.blocks ||= []);
+            const last = blocks[blocks.length - 1];
+            if (last && last.type === "text") last.text += data.content;
+            else blocks.push({ type: "text", text: data.content });
           } else if (data.type === "reasoning") {
             aiReasoning += data.content;
             messageList.value[aiMsgIndex].reasoningContent = aiReasoning;
@@ -699,6 +728,33 @@ async function sendRequest(text, images) {
             messageList.value[aiMsgIndex].metrics = data.metrics;
           } else if (data.type === "error") {
             proxy.$modal.msgError(data.error);
+          } else if (data.type === "artifact") {
+            // 结构化产物(图表/表格):按顺序入 blocks,内联渲染
+            (messageList.value[aiMsgIndex].blocks ||= []).push({
+              type: "artifact",
+              artifact: data.artifact,
+            });
+          } else if (data.type === "tool") {
+            // 工具调用:start 按顺序入 blocks(夹在文字之间),end/error 按 id 更新状态
+            const blocks = (messageList.value[aiMsgIndex].blocks ||= []);
+            if (data.phase === "start") {
+              blocks.push({
+                type: "tool",
+                id: data.id,
+                name: data.name,
+                args: data.args,
+                status: "running",
+              });
+            } else {
+              const s = blocks.find(
+                (b) => b.type === "tool" && b.id === data.id,
+              );
+              if (s) {
+                s.status = data.phase === "error" ? "error" : "done";
+                s.result = data.result;
+                s.error = data.error;
+              }
+            }
           }
         } catch (e) {
           console.error("Parse error", e);
