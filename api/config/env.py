@@ -357,7 +357,7 @@ class AiSettings(BaseSettings):
     llm_model: str = ''       # 模型编码,如 claude-sonnet-4-6 / deepseek-chat
     llm_api_key: str = ''
     llm_url: str = ''         # base_url(可空)
-    llm_max_tokens: int = 1024
+    llm_max_tokens: int = 128000
 
     @property
     def enabled(self) -> bool:
