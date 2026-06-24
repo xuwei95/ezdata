@@ -16,11 +16,6 @@
           <el-option label="内置工具" value="builtin" />
         </el-select>
       </el-form-item>
-      <el-form-item label="状态" prop="status">
-        <el-select v-model="queryParams.status" placeholder="状态" clearable style="width: 140px">
-          <el-option v-for="dict in sys_normal_disable" :key="dict.value" :label="dict.label" :value="dict.value" />
-        </el-select>
-      </el-form-item>
       <el-form-item>
         <el-button type="primary" icon="Search" @click="handleQuery">搜索</el-button>
         <el-button icon="Refresh" @click="resetQuery">重置</el-button>
@@ -30,7 +25,7 @@
     <el-row :gutter="10" class="mb8">
       <el-col :span="1.5">
         <el-button type="primary" plain icon="Plus" @click="handleAdd" v-hasPermi="['ai:tool:add']"
-          >新增 MCP 工具</el-button
+          >新增工具</el-button
         >
       </el-col>
       <right-toolbar v-model:showSearch="showSearch" @queryTable="getList"></right-toolbar>
@@ -47,16 +42,6 @@
         </template>
       </el-table-column>
       <el-table-column label="描述" align="center" prop="description" min-width="200" show-overflow-tooltip />
-      <el-table-column label="状态" align="center" prop="status" width="100">
-        <template #default="scope">
-          <el-switch
-            v-model="scope.row.status"
-            active-value="0"
-            inactive-value="1"
-            @change="handleStatusChange(scope.row)"
-          />
-        </template>
-      </el-table-column>
       <el-table-column label="创建时间" align="center" prop="createTime" width="160">
         <template #default="scope">
           <span>{{ parseTime(scope.row.createTime) }}</span>
@@ -104,19 +89,10 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="类型" prop="toolType">
-              <el-select v-model="form.toolType" style="width: 100%" :disabled="isBuiltin || isUpdate">
+              <el-select v-model="form.toolType" style="width: 100%" disabled>
                 <el-option label="MCP工具" value="mcp" />
                 <el-option label="内置工具" value="builtin" />
               </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="状态" prop="status">
-              <el-radio-group v-model="form.status">
-                <el-radio v-for="dict in sys_normal_disable" :key="dict.value" :value="dict.value">{{
-                  dict.label
-                }}</el-radio>
-              </el-radio-group>
             </el-form-item>
           </el-col>
           <el-col :span="24">
@@ -204,7 +180,6 @@
 import { listTool, addTool, delTool, getTool, updateTool, testTool } from "@/api/ai/tool";
 
 const { proxy } = getCurrentInstance();
-const { sys_normal_disable } = proxy.useDict("sys_normal_disable");
 
 const toolList = ref([]);
 const open = ref(false);
@@ -223,7 +198,6 @@ const data = reactive({
     pageSize: 10,
     keyword: undefined,
     toolType: undefined,
-    status: undefined,
   },
   rules: {
     name: [{ required: true, message: "工具名称不能为空", trigger: "blur" }],
@@ -312,7 +286,7 @@ function resetQuery() {
 function handleAdd() {
   reset();
   open.value = true;
-  title.value = "新增 MCP 工具";
+  title.value = "新增工具";
 }
 
 function handleUpdate(row) {
@@ -368,17 +342,6 @@ function submitForm() {
       getList();
     });
   });
-}
-
-/** 状态开关 */
-function handleStatusChange(row) {
-  const text = row.status === "0" ? "启用" : "停用";
-  // 编辑接口 name/code 必填,回传整行(含 name/code)而非仅状态
-  updateTool({ toolId: row.toolId, name: row.name, code: row.code, status: row.status })
-    .then(() => proxy.$modal.msgSuccess(text + "成功"))
-    .catch(() => {
-      row.status = row.status === "0" ? "1" : "0";
-    });
 }
 
 /** 删除 */

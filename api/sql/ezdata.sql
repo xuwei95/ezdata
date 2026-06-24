@@ -184,8 +184,8 @@ insert into sys_menu values('120',  '传输加密', '2',   '7', 'transportCrypto
 insert into sys_menu values('115',  '表单构建', '3',   '1', 'build',               'tool/build/index',                  '', '', 1, 0, 'C', '0', '0', 'tool:build:list',                  'build',         'admin', sysdate(), '', null, '表单构建菜单');
 insert into sys_menu values('116',  '代码生成', '3',   '2', 'gen',                 'tool/gen/index',                    '', '', 1, 0, 'C', '0', '0', 'tool:gen:list',                    'code',          'admin', sysdate(), '', null, '代码生成菜单');
 insert into sys_menu values('117',  '系统接口', '3',   '3', 'swagger',             'tool/swagger/index',                '', '', 1, 0, 'C', '0', '0', 'tool:swagger:list',                'swagger',       'admin', sysdate(), '', null, '系统接口菜单');
-insert into sys_menu values('118',  '模型管理', '4',   '1', 'model',               'ai/model/index',                    '', '', 1, 0, 'C', '0', '0', 'ai:model:list',                    'ai-model',      'admin', sysdate(), '', null, '模型管理菜单');
-insert into sys_menu values('119',  'AI 对话', '4',   '2', 'chat',                'ai/chat/index',                     '', '', 1, 0, 'C', '0', '0', 'ai:chat:list',                     'ai-chat',       'admin', sysdate(), '', null, 'AI 对话菜单');
+insert into sys_menu values('119',  'AI 对话', '4',   '1', 'chat',                'ai/chat/index',                     '', '', 1, 0, 'C', '0', '0', 'ai:chat:list',                     'ai-chat',       'admin', sysdate(), '', null, 'AI 对话菜单');
+insert into sys_menu values('118',  '模型管理', '4',   '2', 'model',               'ai/model/index',                    '', '', 1, 0, 'C', '0', '0', 'ai:model:list',                    'ai-model',      'admin', sysdate(), '', null, '模型管理菜单');
 insert into sys_menu values('121',  '工具管理', '4',   '3', 'tool',                'ai/tool/index',                     '', 'AiTool', 1, 0, 'C', '0', '0', 'ai:tool:list',                     'tool',          'admin', sysdate(), '', null, '工具管理菜单');
 -- 三级菜单
 insert into sys_menu values('500',  '操作日志', '108', '1', 'operlog',    'monitor/operlog/index',    '', '', 1, 0, 'C', '0', '0', 'monitor:operlog:list',    'form',          'admin', sysdate(), '', null, '操作日志菜单');
@@ -825,16 +825,11 @@ create table ai_tool (
   key ix_ai_tool_tenant_id (tenant_id)
 ) engine=innodb auto_increment=1 comment = 'AI工具表';
 
--- 内置工具种子(built_in=1 不可删/改code)
+-- 内置工具种子(按工具集粒度,built_in=1 不可删/改code)
 insert into ai_tool (name,code,tool_type,description,args,status,built_in,create_by,create_time,update_by,update_time) values
-('发现数据源','list_datasources','builtin','列出数据源并带出各源表名(业务名/描述)','{}','0','1','admin',sysdate(),'admin',sysdate()),
-('查表结构','get_table_schema','builtin','查数据源表结构(实时)+ 数据模型业务描述/接口文档','{}','0','1','admin',sysdate(),'admin',sysdate()),
-('检索知识库','search_datasource_knowledge','builtin','检索数据源专属知识库:字段口径/业务规则 + 收藏的取数解法(QA)','{}','0','1','admin',sysdate(),'admin',sysdate()),
-('运行代码','run_python_code','builtin','沙箱里运行 Python 做计算/数据处理,产出结论/表格/图表','{}','0','1','admin',sysdate(),'admin',sysdate()),
-('数据源取数','run_datasource_query','builtin','对指定数据源在沙箱里跑取数代码(注入 handler),产出结论/表格/图表','{}','0','1','admin',sysdate(),'admin',sysdate()),
-('提议数据集成任务','propose_data_integration_task','builtin','向用户弹出预填的 ETL 任务确认表单','{}','0','1','admin',sysdate(),'admin',sysdate()),
-('提议Python任务','propose_python_task','builtin','向用户弹出预填的 Python 任务确认表单','{}','0','1','admin',sysdate(),'admin',sysdate()),
-('提议Shell任务','propose_shell_task','builtin','向用户弹出预填的 Shell 任务确认表单','{}','0','1','admin',sysdate(),'admin',sysdate());
+('数据探索','data_explore','builtin','发现数据源、查表结构、检索数据源知识库(含收藏的取数解法)','{}','0','1','admin',sysdate(),'admin',sysdate()),
+('沙箱执行','sandbox_code','builtin','在隔离沙箱里跑 Python 计算 / 对数据源取数,产出结论/表格/图表','{}','0','1','admin',sysdate(),'admin',sysdate()),
+('任务提议','task_propose','builtin','向用户弹出预填的任务确认表单(数据集成/Python/Shell)','{}','0','1','admin',sysdate(),'admin',sysdate());
 
 
 -- ----------------------------
@@ -851,6 +846,7 @@ create table ai_chat_config (
   metrics_default_visible char(1)         default '0'                comment '默认显示指标(0是, 1否)',
   vision_enabled          char(1)         default '1'                comment '是否开启视觉(0是, 1否)',
   image_max_size_mb       int(4)          default null               comment '图片最大大小(MB)',
+  mcp_tool_ids            varchar(500)    default null               comment '启用的MCP工具ID(逗号分隔)',
   create_time             datetime                                   comment '创建时间',
   update_time             datetime                                   comment '更新时间',
   primary key (chat_config_id)

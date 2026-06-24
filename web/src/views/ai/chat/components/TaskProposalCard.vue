@@ -20,11 +20,19 @@
           <el-input
             v-if="triggerType === 2"
             v-model="crontab"
-            placeholder="Cron 表达式,如 0 2 * * *"
-            style="width: 220px; margin-left: 12px"
-          />
+            placeholder="Cron 表达式"
+            style="width: 300px; margin-left: 12px"
+          >
+            <template #append>
+              <el-button @click="handleShowCron">生成表达式</el-button>
+            </template>
+          </el-input>
         </el-form-item>
       </el-form>
+
+      <el-dialog title="Cron表达式生成器" v-model="openCron" append-to-body destroy-on-close>
+        <crontab @hide="openCron = false" @fill="crontabFill" :expression="expression"></crontab>
+      </el-dialog>
 
       <div class="tp-body">
         <component :is="tplComp" v-if="tplComp" ref="tplRef" :task-params="action.params" />
@@ -53,6 +61,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Document, CircleCheckFilled } from '@element-plus/icons-vue'
 import { addTask, runTask } from '@/api/task/task'
+import Crontab from '@/components/Crontab'
 import DataIntegrationTask from '../../../task/components/templates/DataIntegrationTask.vue'
 import PythonTask from '../../../task/components/templates/PythonTask.vue'
 import ShellTask from '../../../task/components/templates/ShellTask.vue'
@@ -73,6 +82,17 @@ const tplLabel = computed(() => (TPL_MAP[props.action.template_code] || {}).labe
 const name = ref(props.action.name || '未命名任务')
 const triggerType = ref(props.action.trigger_type || 1)
 const crontab = ref(props.action.crontab || '')
+
+// Cron 表达式生成器
+const openCron = ref(false)
+const expression = ref('')
+function handleShowCron() {
+  expression.value = crontab.value
+  openCron.value = true
+}
+function crontabFill(value) {
+  crontab.value = value
+}
 
 const tplRef = ref(null)
 const submitting = ref(false)

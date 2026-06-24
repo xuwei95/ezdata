@@ -1,8 +1,12 @@
 <template>
   <div class="app-container chat-container">
     <el-container style="height: 100%">
-      <!-- 侧边栏：会话历史 -->
-      <el-aside width="260px" class="session-sidebar">
+      <!-- 侧边栏：会话历史(可折叠) -->
+      <el-aside
+        :width="sidebarCollapsed ? '0px' : '260px'"
+        class="session-sidebar"
+        :class="{ collapsed: sidebarCollapsed }"
+      >
         <div class="sidebar-header">
           <el-button
             type="primary"
@@ -54,6 +58,14 @@
       <el-main class="chat-main">
         <div class="chat-header">
           <div class="header-left">
+            <el-tooltip :content="sidebarCollapsed ? '展开会话列表' : '收起会话列表'" placement="bottom">
+              <el-button
+                class="sidebar-toggle"
+                :icon="sidebarCollapsed ? 'Expand' : 'Fold'"
+                text
+                @click="sidebarCollapsed = !sidebarCollapsed"
+              ></el-button>
+            </el-tooltip>
             <span class="header-title">AI 智能助手</span>
           </div>
           <div class="header-right">
@@ -382,6 +394,26 @@
             </el-form-item>
           </el-col>
           <el-col :span="24">
+            <el-form-item label="MCP 工具">
+              <el-select
+                v-model="selectedMcpToolIds"
+                multiple
+                clearable
+                collapse-tags
+                collapse-tags-tooltip
+                placeholder="选择要挂载到对话的 MCP 工具(留空则不挂载)"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="t in mcpToolOptions"
+                  :key="t.toolId"
+                  :label="t.name + ' (' + t.code + ')'"
+                  :value="t.toolId"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
             <el-form-item label="系统提示词">
               <el-input
                 v-model="editingUserConfig.systemPrompt"
@@ -414,6 +446,7 @@
 
 <script setup name="AiChat">
 import { listModelAll } from "@/api/ai/model";
+import { listTool } from "@/api/ai/tool";
 import {
   listChatSession,
   delChatSession,
@@ -443,6 +476,7 @@ const chatHistoryRef = ref(null);
 const chatContentRef = ref(null);
 const currentSessionId = ref(null);
 const showConfigDialog = ref(false);
+const sidebarCollapsed = ref(false); // 会话侧栏折叠
 const imageInputRef = ref(null);
 const sessionList = ref([]);
 const sessionLoading = ref(false);
@@ -472,6 +506,7 @@ const userConfig = reactive({
   metricsDefaultVisible: "1",
   visionEnabled: "0",
   imageMaxSizeMb: 5,
+  mcpToolIds: "",
   createTime: undefined,
   updateTime: undefined,
 });
@@ -486,6 +521,7 @@ const editingUserConfig = reactive({
   metricsDefaultVisible: "1",
   visionEnabled: "0",
   imageMaxSizeMb: 5,
+  mcpToolIds: "",
   createTime: undefined,
   updateTime: undefined,
 });
@@ -495,6 +531,23 @@ const currentModelInfo = computed(() => {
   if (currentModelId.value == null) return null;
   return modelOptions.value.find((m) => m.modelId === currentModelId.value);
 });
+
+// 可选 MCP 工具(下拉多选);配置里 mcpToolIds 存逗号分隔串,UI 用数组
+const mcpToolOptions = ref([]);
+const selectedMcpToolIds = ref([]);
+
+function loadMcpTools() {
+  listTool({ pageNum: 1, pageSize: 200, toolType: "mcp" }).then((res) => {
+    mcpToolOptions.value = res.rows || [];
+  });
+}
+
+function csvToIds(csv) {
+  return (csv || "")
+    .split(",")
+    .map((s) => Number(s.trim()))
+    .filter((n) => !Number.isNaN(n) && n > 0);
+}
 
 function loadUserConfig() {
   getUserChatConfig().then((res) => {
@@ -507,11 +560,12 @@ function loadUserConfig() {
 
 function openConfigDialog() {
   Object.assign(editingUserConfig, userConfig);
+  selectedMcpToolIds.value = csvToIds(editingUserConfig.mcpToolIds);
   showConfigDialog.value = true;
 }
 
 function handleSaveConfig() {
-  const payload = { ...editingUserConfig };
+  const payload = { ...editingUserConfig, mcpToolIds: selectedMcpToolIds.value.join(",") };
   saveUserChatConfig(payload).then(() => {
     proxy.$modal.msgSuccess("配置保存成功");
     showConfigDialog.value = false;
@@ -963,6 +1017,7 @@ onMounted(() => {
   getModels();
   getSessions();
   loadUserConfig();
+  loadMcpTools();
 });
 </script>
 
@@ -983,15 +1038,21 @@ onMounted(() => {
   z-index: 10;
   margin-bottom: 0;
   overflow: hidden;
+  transition: width 0.25s ease;
+
+  &.collapsed {
+    border-right: none;
+    box-shadow: none;
+  }
 
   .sidebar-header {
-    padding: 20px;
+    padding: 14px;
     border-bottom: 1px solid var(--el-border-color);
 
     .new-chat-btn {
       width: 100%;
       border-radius: 8px;
-      height: 40px;
+      height: 38px;
       font-size: 14px;
     }
   }
@@ -1012,8 +1073,8 @@ onMounted(() => {
     .session-item {
       display: flex;
       align-items: center;
-      padding: 12px;
-      margin-bottom: 8px;
+      padding: 7px 10px;
+      margin-bottom: 3px;
       background-color: transparent;
       border-radius: 8px;
       cursor: pointer;
@@ -1066,16 +1127,17 @@ onMounted(() => {
         overflow: hidden;
 
         .session-title {
-          font-size: 14px;
+          font-size: 13px;
+          line-height: 1.3;
           color: var(--el-text-color-primary);
-          margin-bottom: 4px;
+          margin-bottom: 2px;
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
         }
 
         .session-time {
-          font-size: 12px;
+          font-size: 11px;
           color: var(--el-text-color-secondary);
           white-space: nowrap;
           overflow: hidden;
@@ -1122,6 +1184,21 @@ onMounted(() => {
     padding: 0 20px;
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.02);
 
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .sidebar-toggle {
+      font-size: 18px;
+      padding: 6px;
+      color: var(--el-text-color-secondary);
+      &:hover {
+        color: var(--el-color-primary);
+      }
+    }
+
     .header-title {
       font-size: 16px;
       font-weight: 600;
@@ -1133,6 +1210,10 @@ onMounted(() => {
     flex: 1;
     overflow-y: auto;
     padding: 20px;
+    // 柔和渐变背景,比纯色更有层次
+    background:
+      radial-gradient(1200px 400px at 50% -10%, var(--el-color-primary-light-9), transparent 60%),
+      var(--el-bg-color-page);
 
     .chat-content {
       min-height: 100%;
