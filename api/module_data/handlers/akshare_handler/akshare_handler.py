@@ -61,6 +61,35 @@ _COMMON_FUNCS: dict[str, str] = {
     'stock_info_global_sina': '新浪全球财经快讯(无参;最新 20 条 时间+内容)',
     # —— 工具 ——
     'tool_trade_date_hist_sina': 'A股历史交易日历(新浪,无参;判断某日是否开市/取最近交易日)',
+    # ============ 同花顺(THS,实测稳定;注意股票 symbol 多为 6 位代码不带 sh/sz 前缀)============
+    # —— 财务(同花顺,结构比新浪更全:按报告期/按单季度)——
+    'stock_financial_abstract_ths': '财务主要指标(同花顺;symbol 如 000063,indicator 按报告期/按单季度/按年度)',
+    'stock_financial_benefit_ths': '利润表(同花顺;symbol 如 000063,indicator 按报告期/按单季度/按年度)',
+    'stock_financial_debt_ths': '资产负债表(同花顺;symbol 如 000063,indicator 按报告期/按单季度/按年度)',
+    'stock_financial_cash_ths': '现金流量表(同花顺;symbol 如 000063,indicator 按报告期/按单季度/按年度)',
+    # —— 板块(同花顺)——
+    'stock_board_industry_name_ths': '行业板块列表(同花顺,无参;板块名称+代码)',
+    'stock_board_industry_summary_ths': '行业板块实时一览(同花顺,无参;各板块涨跌幅/成交额/领涨股)',
+    'stock_board_industry_index_ths': '行业板块指数历史(同花顺;symbol 行业名如 半导体/元件,start_date,end_date)',
+    'stock_board_concept_index_ths': '概念板块指数历史(同花顺;symbol 概念名如 阿里巴巴概念,start_date,end_date)',
+    'stock_board_concept_summary_ths': '概念板块时间表(同花顺,无参;概念/驱动事件/龙头股/成分股数)',
+    # —— 新股 / 分红 / 盈利预测 / 主营(同花顺)——
+    'stock_ipo_ths': '新股申购与中签(同花顺;symbol 全部A股/京市/沪市/深市)',
+    'stock_fhps_detail_ths': 'A股分红派息明细(同花顺;symbol 如 603444)',
+    'stock_hk_fhpx_detail_ths': '港股分红派息明细(同花顺;symbol 如 0700)',
+    'stock_profit_forecast_ths': '机构盈利预测(同花顺;symbol 如 600519,indicator 预测年报每股收益/净利润等)',
+    'stock_zyjs_ths': '主营业务介绍(同花顺;symbol 如 000066)',
+    # —— 股东 / 高管异动(同花顺)——
+    'stock_management_change_ths': '高管持股变动(同花顺;symbol 如 688981)',
+    'stock_shareholder_change_ths': '股东持股变动(同花顺;symbol 如 688981)',
+    # —— 技术选股(同花顺)——
+    'stock_rank_cxg_ths': '技术选股·创新高(同花顺;symbol 创月新高/半年新高/一年新高/历史新高)',
+    'stock_rank_lxsz_ths': '技术选股·连续上涨(同花顺,无参;连涨天数/累计涨幅)',
+    # —— 基金 / 可转债(同花顺)——
+    'fund_info_ths': '基金基本信息(同花顺;symbol 基金代码如 161130)',
+    'bond_zh_cov_info_ths': '可转债数据中心(同花顺,无参;全市场可转债 申购/转股/规模)',
+    # —— 新闻(同花顺)——
+    'stock_info_global_ths': '同花顺全球财经直播(无参;最新 20 条 标题/内容/时间/链接)',
 }
 
 
