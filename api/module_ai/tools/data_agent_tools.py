@@ -79,6 +79,18 @@ class DataAgentTools(Toolkit):
         except Exception as e:  # noqa: BLE001
             return f'数据源连接失败: {e}'
         models = _models_of_source(datasource_code)  # {object_name: {name, remark, fdesc}}
+        tl = handler.table_labels() if hasattr(handler, 'table_labels') else {}  # 内置说明(如 akshare 函数中文名)
+        is_api = getattr(handler, 'family', '') == 'api'
+        api_hint = ('【API 数据源用法】每个“表”是一个数据接口函数(akshare 财经函数 / ccxt 交易所方法等);'
+                    '取数在 run_datasource_query 里写 `result = handler.query("函数名", {参数})`'
+                    '(返回 list[dict],已带重试),参数见下方各函数说明/接口文档;**勿用 SQL**。\n')
+
+        def _label(t: str) -> str:
+            m = models.get(t)
+            if m:
+                return f"{m['name']}{(': ' + m['remark']) if m.get('remark') else ''}"
+            return tl.get(t, '')  # 回退到 handler 内置说明
+
         table_list = [t.strip() for t in tables.split(',') if t.strip()]
         try:
             if not table_list:
@@ -86,28 +98,33 @@ class DataAgentTools(Toolkit):
                 kw = keyword.strip().lower()
                 rows: list[str] = []
                 for t in names:
-                    m = models.get(t)
-                    label = (f"{m['name']}{(': ' + m['remark']) if m.get('remark') else ''}") if m else ''
+                    label = _label(t)
                     if kw and kw not in t.lower() and kw not in label.lower():
                         continue
                     rows.append(f'- {t}' + (f'  ({label})' if label else ''))
                 if not rows:
                     return (f'没有匹配「{keyword}」的表;换个关键词,或不传 keyword 看全部表。'
                             if kw else '该数据源无可见表。')
-                tip = '(带括号的是已建模的表,括号内为业务名/描述)' if models else ''
-                return (f'表(共 {len(rows)} 张){tip}:\n' + '\n'.join(rows)
-                        + '\n\n认出目标表后,用 tables 参数查它的字段。')
+                tip = '(括号内为业务名/说明)'
+                return ((api_hint if is_api else '') + f'表(共 {len(rows)} 张){tip}:\n' + '\n'.join(rows)
+                        + '\n\n认出目标表后,用 tables 参数查它的字段/调用参数。')
             out: list[str] = []
             for t in table_list:
                 cols = handler.get_columns(t)
-                m = models.get(t) or {}
-                head = f'表 {t}' + (f'「{m["name"]}」{m.get("remark") or ""}'.rstrip() if m else '')
+                lbl = _label(t)
+                head = f'表 {t}' + (f'「{lbl}」' if lbl else '')
                 lines = []
                 for c in cols:
                     cm = getattr(c, 'comment', '') or ''  # 字段注释用实时 introspect(准),不叠加数据模型
                     lines.append(f'  {c.name} {getattr(c, "type", "")}'.rstrip() + (f'  -- {cm}' if cm else ''))
-                out.append(head + '\n' + '\n'.join(lines))
-            return '\n\n'.join(out)
+                block = head + '\n' + '\n'.join(lines)
+                # API 源(akshare 等):附完整接口文档(参数可选值/返回列/示例),便于精准调用
+                if hasattr(handler, 'describe'):
+                    doc = handler.describe(t)
+                    if doc:
+                        block += '\n  【接口文档】\n' + '\n'.join('    ' + ln for ln in doc.splitlines())
+                out.append(block)
+            return (api_hint if is_api else '') + '\n\n'.join(out)
         except Exception as e:  # noqa: BLE001
             return f'查询表结构失败(该源可能不支持 schema): {e}'
 

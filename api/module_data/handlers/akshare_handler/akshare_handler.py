@@ -15,37 +15,44 @@ from module_data.handlers.base import Capability, Column, Connector, ConnectResu
 
 # 常用接口白名单(给 list_tables / agent 用,避免全量 ~1400 个函数撑爆上下文)。
 # 白名单之外的函数仍可经 query 直接调用。
+# 常用接口白名单(实测可用)。标注数据源:新浪/金十 较稳,东财(em)实时/全市场快照在高频时易限流,
+# 故能用单标的(新浪)就别用全市场(东财)快照。value 是给 AI 选函数的中文说明。
 _COMMON_FUNCS: dict[str, str] = {
-    # —— A股行情 ——
-    'stock_zh_a_spot_em': 'A股实时行情(东财)',
-    'stock_zh_a_hist': 'A股历史行情(日/周/月,可复权)',
-    'stock_zh_a_hist_min_em': 'A股分钟历史行情',
-    'stock_bid_ask_em': '个股实时买卖五档',
-    'stock_zh_index_spot_em': '指数实时行情',
-    'stock_zh_index_daily': '指数历史行情',
-    # —— 个股资料/财务 ——
-    'stock_individual_info_em': '个股基本信息',
-    'stock_financial_abstract': '财务摘要(关键指标)',
-    'stock_financial_analysis_indicator': '财务分析指标',
-    'stock_zygc_em': '主营构成',
-    'stock_news_em': '个股新闻',
-    # —— 资金/榜单 ——
-    'stock_individual_fund_flow': '个股资金流向',
-    'stock_lhb_detail_em': '龙虎榜明细',
-    'stock_hsgt_fund_flow_summary_em': '沪深港通资金流',
-    # —— 板块/概念 ——
-    'stock_board_industry_name_em': '行业板块列表',
-    'stock_board_concept_name_em': '概念板块列表',
-    'stock_board_industry_cons_em': '行业板块成分股',
+    # —— A股 ——
+    'stock_zh_a_hist': 'A股历史行情(东财;symbol 如 600519,period daily/weekly/monthly,adjust qfq/hfq/"")',
+    'stock_zh_a_daily': 'A股历史行情(新浪·更稳;symbol 带前缀如 sh600519,adjust qfq/hfq)',
+    'stock_zh_a_spot_em': 'A股实时行情快照(全市场·东财·较重;按名称/代码过滤目标股)',
+    'stock_bid_ask_em': '个股实时五档/最新价(东财;单标的 symbol 如 600519)',
+    'stock_individual_info_em': '个股基本信息(东财;symbol 如 600519)',
+    'stock_financial_abstract': '财务摘要关键指标(symbol 如 600519)',
+    'stock_financial_analysis_indicator': '财务分析指标(symbol,start_year)',
+    'stock_individual_fund_flow': '个股资金流向(stock 如 600519,market sh/sz)',
+    'stock_news_em': '个股新闻(symbol 如 600519)',
+    'stock_lhb_detail_em': '龙虎榜明细(start_date,end_date)',
+    'stock_board_industry_name_em': '行业板块列表(无参)',
+    'stock_board_concept_name_em': '概念板块列表(无参)',
+    'stock_board_industry_cons_em': '行业板块成分股(symbol=板块名)',
+    # —— 指数 ——
+    'stock_zh_index_daily': '指数历史行情(新浪·更稳;symbol 如 sh000001)',
+    'stock_zh_index_spot_em': '指数实时行情(东财;symbol 如 上证系列指数)',
+    # —— 港股 ——
+    'stock_hk_daily': '港股历史行情(新浪·更稳;symbol 如 00700腾讯/01810小米,adjust qfq/hfq/"")',
+    'stock_hk_hist': '港股历史行情(东财;symbol 如 00700,period,adjust)',
+    'stock_hk_spot_em': '港股实时行情快照(全市场·东财·较重;按名称/代码过滤,如小米=代码 01810)',
+    # —— 美股 ——
+    'stock_us_daily': '美股历史行情(新浪·更稳;symbol 如 AAPL/TSLA)',
+    'stock_us_hist': '美股历史行情(东财;symbol 如 105.AAPL)',
+    'stock_us_spot_em': '美股实时行情快照(全市场·东财·较重)',
+    # —— 币圈:akshare 的 crypto_* 接口数据已冻结(2020/2023 旧值),不收录;实时币价用 CCXT 交易所连接器 ——
     # —— 基金 ——
-    'fund_open_fund_info_em': '开放式基金净值',
-    'fund_etf_fund_daily_em': 'ETF基金实时行情',
-    'fund_etf_hist_em': 'ETF基金历史行情',
-    # —— 宏观/其他 ——
-    'macro_china_gdp': '中国GDP',
-    'macro_china_cpi': '中国CPI',
-    'currency_boc_sina': '人民币汇率中间价',
-    'bond_zh_hs_daily': '债券历史行情',
+    'fund_open_fund_info_em': '开放式基金净值(symbol 基金代码,indicator 如 单位净值走势)',
+    'fund_etf_spot_em': 'ETF 实时行情(全市场·东财)',
+    'fund_etf_hist_em': 'ETF 历史行情(symbol,period,adjust)',
+    # —— 债券 / 外汇 / 宏观 ——
+    'bond_zh_hs_daily': '沪深债券历史行情(新浪·稳;symbol 如 sh010107)',
+    'currency_boc_sina': '中行人民币汇率(新浪·稳;symbol 如 美元,start_date,end_date)',
+    'macro_china_gdp': '中国 GDP(无参)',
+    'macro_china_cpi': '中国 CPI(无参)',
 }
 
 
@@ -71,15 +78,46 @@ class AKShareHandler(Connector):
         """返回常用接口函数名(白名单)。"""
         return list(_COMMON_FUNCS.keys())
 
+    def table_labels(self) -> dict[str, str]:
+        """函数名 → 中文说明(供 agent 选对函数;data_agent_tools 在无数据模型时回退用)。"""
+        return dict(_COMMON_FUNCS)
+
     def get_columns(self, table: str) -> list[Column]:
-        """按默认参数试调一行推断列名;多数函数需必填参数,失败则返回空(容忍)。"""
+        """返回该函数的【调用参数签名】(而非试调取列——多数函数需必填参数且联网慢)。
+
+        agent 据此知道怎么调:`handler.query('<函数名>', {参数})`(带重试),返回 DataFrame 行。
+        """
+        import inspect
+
         try:
-            rows = self.query(table, None, limit=1)
+            import akshare as ak
+
+            fn = getattr(ak, table, None)
+            if fn is None:
+                return [Column(name='(未知函数)', type='', comment='不在 akshare 中')]
+            cols: list[Column] = []
+            for pname, p in inspect.signature(fn).parameters.items():
+                if pname in ('kwargs', 'args'):
+                    continue
+                required = p.default is inspect.Parameter.empty
+                default = '' if required else repr(p.default)
+                cols.append(Column(name=pname, type='参数',
+                                   comment=('必填' if required else f'默认 {default}')))
+            return cols
+        except Exception as e:  # noqa: BLE001
+            return [Column(name='(签名不可用)', type='', comment=str(e)[:80])]
+
+    def describe(self, table: str) -> str:
+        """返回该 akshare 函数的完整文档(参数可选值 / 返回列 / 示例),给 AI 精准调用。"""
+        import inspect
+
+        try:
+            import akshare as ak
+
+            fn = getattr(ak, table, None)
+            return (inspect.getdoc(fn) or '').strip()[:1800] if fn is not None else ''
         except Exception:  # noqa: BLE001
-            return []
-        if not rows:
-            return []
-        return [Column(name=str(k), type=type(v).__name__) for k, v in rows[0].items()]
+            return ''
 
     def sample_query(self, table: str, limit: int = 100) -> dict:
         """ETL/查询表单预填:{'func': 函数名, 'params': {签名默认值}}。"""
