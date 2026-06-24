@@ -149,6 +149,9 @@ services:
       - SANDBOX_PORT=8003
       - SANDBOX_BEARER_KEY=ezdata-sandbox-dev-key   # 与 backend/worker 一致
       - PYTHONDONTWRITEBYTECODE=1
+      # 禁用 RLIMIT_AS:它限的是虚拟地址空间,pandas/numpy/cryptography(akshare 依赖)的 .so
+      # mmap 远超实际 RSS,512MB 会导致 "failed to map segment"。真实内存由容器 mem_limit(cgroup)兜底。
+      - SANDBOX_MEM_LIMIT_BYTES=0
       # 出网只能经 egress 代理(域名白名单);内部服务走 NO_PROXY 直连内网
       - HTTP_PROXY=http://ezdata-egress-proxy:8888
       - HTTPS_PROXY=http://ezdata-egress-proxy:8888
@@ -167,7 +170,7 @@ services:
     security_opt:
       - no-new-privileges:true
     pids_limit: 256
-    mem_limit: 1g
+    mem_limit: 2g                          # akshare+pandas 真实内存留头;RLIMIT_AS 已禁用,cgroup 兜底
     restart: "no"
 
   # ---------------- 沙箱出网代理（egress 白名单） ----------------
@@ -181,7 +184,7 @@ services:
     image: ezdata-egress-proxy:latest
     container_name: ezdata-egress-proxy
     environment:
-      - SANDBOX_EGRESS_ALLOW=eastmoney.com,sinajs.cn,sina.com.cn,sse.com.cn,szse.cn,cninfo.com.cn,csindex.com.cn,hexun.com,jrj.com.cn,10jqka.com.cn
+      - SANDBOX_EGRESS_ALLOW=eastmoney.com,sinajs.cn,sina.com.cn,sse.com.cn,szse.cn,cninfo.com.cn,csindex.com.cn,hexun.com,jrj.com.cn,10jqka.com.cn,jin10.com,okx.com,gateio.ws,gate.io,kraken.com,kucoin.com
     networks:
       - ezdata-sandbox-net                # 面向沙箱(internal)
       - ezdata-dev-network                # 借 NAT 出公网

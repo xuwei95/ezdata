@@ -233,7 +233,7 @@ _ALLOWED_MODULES = {
     'math', 'datetime', 'time', 'json', 'random', 're', 'decimal', 'itertools', 'collections',
     'statistics', 'string', 'uuid', 'hashlib', 'base64', 'textwrap', 'functools', 'operator',
     'pandas', 'numpy', 'pyecharts',
-    'akshare', 'requests',  # 联网取数:出网受 egress 代理域名白名单约束
+    'akshare', 'requests', 'ccxt',  # 联网取数:出网受 egress 代理域名白名单约束
 }
 _BLOCKED_BUILTINS = {
     'open', 'eval', 'exec', 'compile', 'input', 'breakpoint', 'exit', 'quit', 'help',
