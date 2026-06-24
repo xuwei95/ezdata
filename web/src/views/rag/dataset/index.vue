@@ -114,81 +114,8 @@
       </div>
     </el-dialog>
 
-    <!-- 新增文档:优化后的 UI -->
-    <el-dialog title="新增文档" v-model="docOpen" width="620px" append-to-body :close-on-click-modal="false">
-      <el-form ref="docRef" :model="docForm" :rules="docRules" label-position="top">
-        <el-form-item label="来源类型">
-          <el-radio-group v-model="docForm.documentType" @change="onTypeChange">
-            <el-radio-button value="upload_file"><el-icon><Upload /></el-icon> 上传文件</el-radio-button>
-            <el-radio-button value="text"><el-icon><Document /></el-icon> 粘贴文本</el-radio-button>
-            <el-radio-button value="website"><el-icon><Link /></el-icon> 网页</el-radio-button>
-          </el-radio-group>
-        </el-form-item>
-
-        <!-- 文件:拖拽上传 -->
-        <el-form-item v-if="docForm.documentType === 'upload_file'" label="文件">
-          <el-upload drag :action="uploadUrl" :headers="uploadHeaders" :limit="1" :show-file-list="false"
-            :before-upload="beforeUpload" :on-progress="onProgress" :on-success="onUploaded"
-            :on-error="onUploadError" style="width: 100%">
-            <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
-            <div class="el-upload__text">拖拽文件到此处,或<em>点击上传</em></div>
-            <template #tip><div class="up-tip">支持 txt / md / pdf / csv / xlsx / docx / html / json,单文件 ≤ 50MB</div></template>
-          </el-upload>
-          <el-progress v-if="uploading" :percentage="uploadPercent" :stroke-width="6" status="success" style="margin-top: 8px" />
-          <div v-else-if="docForm.uploadedName" class="uploaded">
-            <el-icon color="#67c23a"><CircleCheck /></el-icon>
-            <span>{{ docForm.uploadedName }}</span>
-            <el-button link type="danger" icon="Close" @click="clearUpload">移除</el-button>
-          </div>
-        </el-form-item>
-
-        <!-- 文本 -->
-        <el-form-item v-if="docForm.documentType === 'text'" label="文本内容">
-          <el-input v-model="docForm.text" type="textarea" :rows="8" placeholder="粘贴要入库的文本内容" />
-        </el-form-item>
-
-        <!-- 网页 -->
-        <el-form-item v-if="docForm.documentType === 'website'" label="网页 URL">
-          <el-input v-model="docForm.source" placeholder="https://example.com/article">
-            <template #prepend><el-icon><Link /></el-icon></template>
-          </el-input>
-        </el-form-item>
-
-        <el-form-item label="文档名" prop="name">
-          <el-input v-model="docForm.name" placeholder="文档名(上传文件会自动填充)" />
-        </el-form-item>
-
-        <el-form-item label="切分策略">
-          <el-select v-model="docForm.strategy" style="width: 200px">
-            <el-option label="递归(默认)" value="recursive" />
-            <el-option label="固定大小" value="fixed" />
-            <el-option label="按文档段落" value="document" />
-            <el-option label="按 Markdown 标题" value="markdown" />
-            <el-option label="语义切分(更准)" value="semantic" />
-          </el-select>
-          <el-tooltip content="语义切分按内容语义边界分块,召回更准,但训练时会多调用 embedding" placement="top">
-            <el-icon style="margin-left:6px;color:#909399"><QuestionFilled /></el-icon>
-          </el-tooltip>
-        </el-form-item>
-        <el-form-item label="切分设置">
-          <div class="chunk-cfg">
-            <span>每段</span>
-            <el-input-number v-model="docForm.chunkSize" :min="128" :max="4000" :step="64" controls-position="right" />
-            <span>字符,重叠</span>
-            <el-input-number v-model="docForm.chunkOverlap" :min="0" :max="1000" :step="20" controls-position="right" />
-            <span>字符</span>
-          </div>
-        </el-form-item>
-        <el-form-item label="上下文增强">
-          <el-switch v-model="docForm.contextual" />
-          <span class="up-tip" style="margin-left:8px">为每段附 LLM 生成的上下文背景(Contextual Retrieval),召回更准但训练更慢</span>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="docOpen = false">取 消</el-button>
-        <el-button type="primary" :loading="docSubmitting" @click="submitDoc">创建并训练</el-button>
-      </template>
-    </el-dialog>
+    <!-- 新增文档(抽出的可复用组件) -->
+    <DocumentImportDialog :dataset-id="curDataset.id" v-model:visible="docOpen" @success="getDocs" />
 
     <!-- 分段抽屉 -->
     <el-drawer v-model="chunkDrawer" :title="`分段 - ${curDoc.name || ''}`" size="58%" append-to-body>
@@ -243,15 +170,12 @@ import {
   listDocument, addDocument, delDocument, trainDocument, documentStatus,
   listChunk, saveChunk, delChunk, starChunk,
 } from '@/api/rag'
-import { getToken } from '@/utils/auth'
+import DocumentImportDialog from '@/views/rag/components/DocumentImportDialog.vue'
 
 const { proxy } = getCurrentInstance()
 const STATUS_TEXT = { 1: '待训练', 2: '训练中', 3: '成功', 4: '失败' }
 const STATUS_TAG = { 1: 'info', 2: 'warning', 3: 'success', 4: 'danger' }
 const TYPE_TEXT = { upload_file: '文件', text: '文本', website: '网页', datamodel: '数据模型' }
-
-const uploadUrl = import.meta.env.VITE_APP_BASE_API + '/common/upload'
-const uploadHeaders = { Authorization: 'Bearer ' + getToken() }
 
 const loading = ref(false)
 const showSearch = ref(true)
@@ -319,55 +243,9 @@ function schedulePoll() {
   }
 }
 
+// 新增文档逻辑已抽到 DocumentImportDialog 组件;此处仅控制打开
 const docOpen = ref(false)
-const docSubmitting = ref(false)
-const docForm = ref({})
-const docRules = { name: [{ required: true, message: '文档名不能为空', trigger: 'blur' }] }
-function handleAddDoc() {
-  docForm.value = { documentType: 'upload_file', strategy: 'recursive', contextual: false, chunkSize: 512, chunkOverlap: 100, name: '', uploadedName: '' }
-  docOpen.value = true
-}
-const uploading = ref(false)
-const uploadPercent = ref(0)
-function onTypeChange() { docForm.value.fileKey = ''; docForm.value.uploadedName = ''; uploading.value = false }
-function beforeUpload(file) {
-  if (file.size > 50 * 1024 * 1024) { proxy.$modal.msgError('文件不能超过 50MB'); return false }
-  uploading.value = true; uploadPercent.value = 0
-  return true
-}
-function onProgress(evt) { uploadPercent.value = Math.round(evt.percent || 0) }
-function onUploaded(res, file) {
-  // ResponseUtil 把字段铺在顶层:{code, msg, fileName, originalFilename, url}
-  uploading.value = false
-  if (res && res.code === 200) {
-    docForm.value.fileKey = res.fileName || res.url
-    docForm.value.uploadedName = res.originalFilename || res.newFileName || file?.name || '已上传'
-    if (!docForm.value.name) docForm.value.name = docForm.value.uploadedName
-    proxy.$modal.msgSuccess('上传成功')
-  } else {
-    proxy.$modal.msgError((res && res.msg) || '上传失败')
-  }
-}
-function onUploadError() { uploading.value = false; proxy.$modal.msgError('上传失败,请检查文件类型或大小') }
-function clearUpload() { docForm.value.fileKey = ''; docForm.value.uploadedName = '' }
-
-function submitDoc() {
-  proxy.$refs.docRef.validate((valid) => {
-    if (!valid) return
-    const f = docForm.value
-    if (f.documentType === 'upload_file' && !f.fileKey) return proxy.$modal.msgError('请先上传文件')
-    if (f.documentType === 'text' && !f.text) return proxy.$modal.msgError('请填写文本内容')
-    if (f.documentType === 'website' && !f.source) return proxy.$modal.msgError('请填写网页 URL')
-    docSubmitting.value = true
-    addDocument({
-      datasetId: curDataset.value.id, name: f.name, documentType: f.documentType,
-      fileKey: f.fileKey, source: f.source, text: f.text, autoTrain: true,
-      chunkStrategy: { strategy: f.strategy, contextual: f.contextual, chunk_size: f.chunkSize, chunk_overlap: f.chunkOverlap },
-    }).then(() => {
-      proxy.$modal.msgSuccess('已创建,开始训练'); docOpen.value = false; getDocs()
-    }).finally(() => (docSubmitting.value = false))
-  })
-}
+function handleAddDoc() { docOpen.value = true }
 function doTrain(row) { trainDocument(row.id).then(() => { proxy.$modal.msgSuccess('已开始训练'); getDocs() }) }
 function delDoc(row) {
   proxy.$modal.confirm(`删除文档「${row.name}」?`).then(() => delDocument(row.id))

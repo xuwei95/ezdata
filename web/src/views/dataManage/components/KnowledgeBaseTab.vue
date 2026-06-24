@@ -18,10 +18,11 @@
     <el-row :gutter="10" class="mb8">
       <el-col :span="1.5"><el-button type="primary" plain icon="Plus" :disabled="!datasetId" @click="add('chunk')" v-hasPermi="['rag:dataset:edit']">新增分段</el-button></el-col>
       <el-col :span="1.5"><el-button type="warning" plain icon="ChatLineSquare" :disabled="!datasetId" @click="add('qa')" v-hasPermi="['rag:dataset:edit']">新增 QA</el-button></el-col>
-      <el-col :span="1.5"><el-button icon="Upload" :disabled="!datasetId" @click="importOpen = true" v-hasPermi="['rag:dataset:edit']">批量导入</el-button></el-col>
+      <el-col :span="1.5"><el-button icon="Files" :disabled="!datasetId" @click="docImportOpen = true" v-hasPermi="['rag:dataset:edit']">上传文件/网页</el-button></el-col>
+      <el-col :span="1.5"><el-button icon="Upload" :disabled="!datasetId" @click="importOpen = true" v-hasPermi="['rag:dataset:edit']">批量导入分段</el-button></el-col>
     </el-row>
 
-    <el-table v-loading="loading" :data="rows" border>
+    <el-table v-loading="loading" :data="rows" border max-height="calc(100vh - 320px)">
       <el-table-column label="类型" width="80">
         <template #default="s"><el-tag size="small" :type="s.row.chunkType === 'qa' ? 'warning' : ''">{{ s.row.chunkType === 'qa' ? 'QA' : '分段' }}</el-tag></template>
       </el-table-column>
@@ -81,6 +82,9 @@
       </el-row>
       <div v-if="importMsg" class="imp-status ok"><el-icon><CircleCheck /></el-icon> {{ importMsg }}</div>
     </el-dialog>
+
+    <!-- 上传文件 / 网页 / 文本(复用通用库的入库对话框) -->
+    <DocumentImportDialog :dataset-id="datasetId" v-model:visible="docImportOpen" @success="onDocSuccess" />
   </div>
 </template>
 
@@ -89,6 +93,7 @@ import { ref, reactive, watch, getCurrentInstance, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { ensureSourceDataset, listChunk, saveChunk, delChunk, starChunk, bulkImportChunk } from '@/api/rag'
 import { getToken } from '@/utils/auth'
+import DocumentImportDialog from '@/views/rag/components/DocumentImportDialog.vue'
 
 const props = defineProps({ model: { type: Object, default: () => ({}) }, nodeType: { type: String, default: '' } })
 const { proxy } = getCurrentInstance()
@@ -165,6 +170,13 @@ function onImport(res, type) {
   }).catch(() => ElMessage.error('导入失败'))
 }
 function onErr() { ElMessage.error('上传失败') }
+
+// 文件 / 网页 / 文本入库(复用 DocumentImportDialog)
+const docImportOpen = ref(false)
+function onDocSuccess() {
+  ElMessage.info('文档已提交训练,完成后分段会出现在列表(可稍后刷新)')
+  getList()
+}
 
 watch(sourceKey, resolveDataset)
 onMounted(resolveDataset)
