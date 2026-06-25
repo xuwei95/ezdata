@@ -19,7 +19,8 @@ from module_data.handlers.base import Capability, Column, Connector, ConnectResu
 # 仅保留 2 个非 push2、实测稳定的东财接口(基金净值/个股新闻,新浪无对应)。value 给 AI 选函数 + 参数。
 # 实时币价不在此(akshare crypto_* 已冻结)→ 用 CCXT 交易所连接器(source_type=ccxt)。
 _COMMON_FUNCS: dict[str, str] = {
-    # —— A股(新浪)——
+    # —— A股(新浪 / 东财)——
+    'stock_zh_a_spot_em': '沪深京A股实时行情(东财·无参;返回全部A股 代码/名称/最新价/涨跌幅/成交量 等,适合每日抓取全市场价格快照)',
     'stock_zh_a_daily': 'A股历史日线(新浪;symbol 带前缀如 sh600519/sz000001,adjust qfq/hfq/"";取最新一行=最新交易日价)',
     'stock_zh_a_minute': 'A股分时K线(新浪;symbol 如 sh600519,period 1/5/15/30/60 分钟,adjust)',
     # —— 财务(新浪)——

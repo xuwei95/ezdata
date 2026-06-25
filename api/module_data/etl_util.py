@@ -16,12 +16,20 @@ _SQL_DANGEROUS = re.compile(
 )
 
 
-def assert_readonly_sql(statement: Any) -> None:
+# native 为 SQL 文本的数据源族,才做只读 SQL 护栏;api(akshare/ccxt 的函数名)、
+# search/document(ES/Mongo 的 DSL)等族的 native 不是 SQL,各自 query 本就只读,无需且不能按 SQL 校验。
+_SQL_NATIVE_FAMILIES = {'rdbms', 'timeseries'}
+
+
+def assert_readonly_sql(statement: Any, family: str | None = None) -> None:
     """断言为「单条只读 SQL」,否则抛 ValueError。
 
     非字符串(如 ES/Mongo 的 DSL dict)直接放行——它们各自的 query 方法本就是只读检索。
+    family 传入时:仅对 SQL 文本族(rdbms/timeseries)校验;其余族(如 api/akshare 的函数名)放行。
     """
     if not isinstance(statement, str):
+        return
+    if family is not None and family not in _SQL_NATIVE_FAMILIES:
         return
     s = statement.strip().rstrip(';').strip()
     if not s:

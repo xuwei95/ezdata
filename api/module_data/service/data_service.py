@@ -321,7 +321,7 @@ class DataQueryService:
         m, handler = await cls._load(db, m_id)
         if req.native is not None:
             try:
-                assert_readonly_sql(req.native)  # 只读护栏:拦截 DML/DDL,只允许 SELECT 类
+                assert_readonly_sql(req.native, handler.family)  # 只读护栏(仅 SQL 文本族):拦截 DML/DDL
             except ValueError as e:
                 raise ServiceException(message=str(e)) from None
             records = await run_in_threadpool(handler.query, req.native, None, req.limit)
@@ -421,7 +421,7 @@ class EtlService:
                 if not native or (isinstance(native, str) and not native.strip()):
                     raise ServiceException(message='请填写原生查询')
                 try:
-                    assert_readonly_sql(native)  # 抽取预览同样只读
+                    assert_readonly_sql(native, handler.family)  # 抽取预览同样只读(仅 SQL 文本族)
                 except ValueError as e:
                     raise ServiceException(message=str(e)) from None
                 limit = min(int(req.limit or 50), 200)

@@ -31,11 +31,11 @@
           <el-form-item label="原生查询" required v-if="!srcIsStream">
             <div style="width: 100%">
               <div class="bar">
-                <span class="muted">原生 SQL / DSL</span>
+                <span class="muted">{{ srcFamily === 'api' ? '接口调用:函数名 + 参数(JSON)' : '原生 SQL / DSL' }}</span>
                 <el-button size="small" icon="MagicStick" @click="aiq.open = !aiq.open">AI 生成查询</el-button>
               </div>
               <el-input v-model="model.extract.native" type="textarea" :rows="6"
-                placeholder="例如:SELECT * FROM orders WHERE status='PAID'" />
+                :placeholder="srcFamily === 'api' ? '如:{&quot;func&quot;:&quot;stock_zh_a_daily&quot;,&quot;params&quot;:{&quot;symbol&quot;:&quot;sh600519&quot;}}' : '例如:SELECT * FROM orders WHERE status=\'PAID\''" />
               <!-- AI 生成面板:生成后流式打印,确认再采用 -->
               <div v-if="aiq.open" class="ai-panel">
                 <el-input v-model="aiq.question" type="textarea" :rows="2"
@@ -221,6 +221,8 @@ const srcIsStream = computed(() => {
   const s = sources.value.find((x) => x.code === model.extract.datasource_code)
   return !!s && STREAM_FAMILIES.includes(s.family)
 })
+// 当前源的 family(用于按源类型给原生查询不同的默认模板)
+const srcFamily = computed(() => sources.value.find((x) => x.code === model.extract.datasource_code)?.family || '')
 const destIsFile = computed(() => {
   const s = sources.value.find((x) => x.code === model.load.datasource_code)
   return !!s && s.family === 'file'
@@ -258,10 +260,15 @@ function onSrcChange(code) {
 }
 
 // 批量源多选:只选 1 张时预填默认查询和目标表;多张/不选则不预填(交给 AI 连表/全库)
+// 按源类型给不同默认:api(akshare/ccxt)是"函数名+参数",填 JSON 模板;SQL 源填 SELECT。
 function onTablesChange(tbls) {
   if ((tbls || []).length !== 1) return
   const t = tbls[0]
-  if (!model.extract.native.trim()) model.extract.native = `SELECT * FROM ${t} LIMIT 100`
+  if (!model.extract.native.trim()) {
+    model.extract.native = srcFamily.value === 'api'
+      ? `{\n  "func": "${t}",\n  "params": {}\n}`
+      : `SELECT * FROM ${t} LIMIT 100`
+  }
   if (!model.load.table) model.load.table = t
 }
 
