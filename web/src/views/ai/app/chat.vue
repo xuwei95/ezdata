@@ -1,8 +1,8 @@
 <template>
   <div class="app-chat">
     <el-container style="height: 100%">
-      <!-- 左侧:会话列表(可伸缩) -->
-      <el-aside :width="sidebarCollapsed ? '0px' : '240px'" class="ac-sidebar" :class="{ collapsed: sidebarCollapsed }">
+      <!-- 左侧:会话列表(可伸缩,收起时整列移除不留残块) -->
+      <el-aside v-show="!sidebarCollapsed" width="240px" class="ac-sidebar">
         <div class="ac-side-head">
           <el-button type="primary" class="ac-new" icon="Plus" @click="newChat">新建会话</el-button>
         </div>

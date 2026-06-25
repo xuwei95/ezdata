@@ -38,6 +38,9 @@
           <el-tooltip content="API Key" placement="top">
             <el-button type="primary" link icon="Key" @click="openTokens(app)" v-hasPermi="['ai:app:edit']" />
           </el-tooltip>
+          <el-tooltip content="复制" placement="top">
+            <el-button type="primary" link icon="CopyDocument" @click="handleCopy(app)" v-hasPermi="['ai:app:add']" />
+          </el-tooltip>
           <el-tooltip content="编辑" placement="top">
             <el-button type="primary" link icon="Edit" @click="handleEdit(app)" v-hasPermi="['ai:app:edit']" />
           </el-tooltip>
@@ -65,7 +68,7 @@
 <script setup name="AiApp">
 import { ref, reactive } from "vue";
 import { useRouter } from "vue-router";
-import { listApp, delApp, updateApp } from "@/api/ai/app";
+import { listApp, delApp, updateApp, getApp, addApp } from "@/api/ai/app";
 import TokenDialog from "./components/TokenDialog.vue";
 
 const { proxy } = getCurrentInstance();
@@ -110,6 +113,18 @@ function handleAdd() {
 }
 function handleEdit(app) {
   router.push("/ai/app/edit/" + app.appId);
+}
+// 复制应用:取完整配置,新建一个同配置应用,名称加 _copy(草稿态)
+async function handleCopy(app) {
+  try {
+    const res = await getApp(app.appId);
+    const d = res.data || {};
+    await addApp({ name: (d.name || app.name) + "_copy", description: d.description, status: "1", config: d.config });
+    proxy.$modal.msgSuccess("已复制");
+    getList();
+  } catch (e) {
+    proxy.$modal.msgError("复制失败: " + (e?.message || e));
+  }
 }
 function handleDelete(app) {
   proxy.$modal
