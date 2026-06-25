@@ -1,10 +1,11 @@
 import request from "@/utils/request";
 
-// 获取会话列表
-export function listChatSession() {
+// 获取会话列表(传 appId 则只返回该应用的会话)
+export function listChatSession(appId) {
   return request({
     url: "/ai/chat/session/list",
     method: "get",
+    params: appId ? { appId } : {},
   });
 }
 

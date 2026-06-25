@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import Body, Path, Request, Response
+from fastapi import Body, Path, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -107,8 +107,9 @@ async def save_user_chat_config(
 async def get_chat_session_list(
     request: Request,
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
+    app_id: Annotated[str | None, Query(alias='appId')] = None,
 ) -> Response:
-    result = await AiChatService.get_chat_session_list_services(current_user.user.user_id)
+    result = await AiChatService.get_chat_session_list_services(current_user.user.user_id, app_id)
     logger.info('获取成功')
 
     return ResponseUtil.success(data=result)

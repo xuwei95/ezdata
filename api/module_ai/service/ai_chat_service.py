@@ -872,11 +872,18 @@ class AiChatService:
         return CrudResponseModel(is_success=True, message='保存成功')
 
     @classmethod
-    async def get_chat_session_list_services(cls, user_id: int) -> list[AiChatSessionBaseModel]:
+    async def get_chat_session_list_services(
+        cls, user_id: int, app_id: str | None = None
+    ) -> list[AiChatSessionBaseModel]:
         """
         获取用户会话列表
 
+        会话按 session_id 前缀区分归属:应用对话用 `app-{appId}-` 前缀。
+        - 传 app_id:只返回该应用的会话;
+        - 不传:返回普通对话会话(排除所有 `app-` 前缀的应用会话),保持普通对话页干净。
+
         :param user_id: 用户ID
+        :param app_id: 应用ID(可选,按应用过滤会话)
         :return: 用户会话列表
         """
         # 获取Agno会话列表
@@ -887,8 +894,15 @@ class AiChatService:
             session_type=SessionType.AGENT,
         )
 
+        app_prefix = f'app-{app_id}-' if app_id else None
         result = []
         for s in sessions:
+            sid = s.session_id or ''
+            if app_prefix is not None:
+                if not sid.startswith(app_prefix):
+                    continue  # 只要本应用的会话
+            elif sid.startswith('app-'):
+                continue  # 普通对话列表:排除应用会话
             created_at = datetime.fromtimestamp(s.created_at) if s.created_at else None
             updated_at = datetime.fromtimestamp(s.updated_at) if s.updated_at else None
 
