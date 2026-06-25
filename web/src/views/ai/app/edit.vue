@@ -68,10 +68,18 @@
           </el-form-item>
 
           <el-divider content-position="left">能力绑定</el-divider>
+          <el-form-item label="数据分析">
+            <el-select v-model="cfg.datasourceCodes" multiple filterable clearable placeholder="选择可分析的数据源(不选则不启用数据分析)" style="width: 100%">
+              <el-option v-for="s in datasourceOptions" :key="s.code" :label="`${s.name} (${s.sourceType})`" :value="s.code" />
+            </el-select>
+            <div style="font-size: 12px; color: var(--el-text-color-secondary); line-height: 1.4">
+              选定后开放数据探索/取数能力,且只能访问所选数据源;不选则不挂数据分析工具。
+            </div>
+          </el-form-item>
           <el-form-item label="工具">
-            <el-select v-model="cfg.toolIds" multiple filterable clearable placeholder="选择可用工具" style="width: 100%">
+            <el-select v-model="cfg.toolIds" multiple filterable clearable placeholder="选择可用工具(MCP/任务)" style="width: 100%">
               <el-option
-                v-for="t in toolOptions"
+                v-for="t in selectableTools"
                 :key="t.toolId"
                 :label="`${t.name} (${t.toolType === 'builtin' ? '内置' : 'MCP'})`"
                 :value="t.toolId"
@@ -120,7 +128,7 @@
 </template>
 
 <script setup name="AiAppEdit">
-import { reactive, ref, nextTick, onMounted } from "vue";
+import { reactive, ref, computed, nextTick, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import AiMessage from "../chat/components/AiMessage.vue";
@@ -128,6 +136,7 @@ import { getApp, addApp, updateApp } from "@/api/ai/app";
 import { listTool } from "@/api/ai/tool";
 import { listModelAll } from "@/api/ai/model";
 import { listDataset } from "@/api/rag";
+import { listSource } from "@/api/dataManage/data";
 import { getToken } from "@/utils/auth";
 import { v4 as uuidv4 } from "uuid";
 
@@ -136,13 +145,16 @@ const router = useRouter();
 const apiBase = import.meta.env.VITE_APP_BASE_API || "";
 
 const form = reactive({ appId: route.params.appId ? Number(route.params.appId) : null, name: "", description: "", status: "0" });
-const cfg = reactive({ prompt: "", prologue: "", presetQuestions: [], quickCommands: [], toolIds: [], datasetIds: [], model: { modelId: 0, temperature: null, maxTokens: null } });
+const cfg = reactive({ prompt: "", prologue: "", presetQuestions: [], quickCommands: [], toolIds: [], datasetIds: [], datasourceCodes: [], model: { modelId: 0, temperature: null, maxTokens: null } });
 const genReq = ref("");
 const saving = ref(false);
 const generating = ref(false);
 const toolOptions = ref([]);
 const modelOptions = ref([]);
 const datasetOptions = ref([]);
+const datasourceOptions = ref([]);
+// 工具多选只给 MCP + 任务提议;数据分析工具由「数据分析」数据源选择控制
+const selectableTools = computed(() => toolOptions.value.filter((t) => !["data_explore", "sandbox_code"].includes(t.code)));
 
 // 右侧调试对话
 const messages = ref([]);
@@ -152,14 +164,16 @@ const sessionId = ref(uuidv4());
 const historyRef = ref(null);
 
 onMounted(async () => {
-  const [tools, models, datasets] = await Promise.all([
+  const [tools, models, datasets, sources] = await Promise.all([
     listTool({ pageNum: 1, pageSize: 200 }),
     listModelAll(),
     listDataset({ pageNum: 1, pageSize: 200 }),
+    listSource({ pageNum: 1, pageSize: 200 }),
   ]);
   toolOptions.value = tools.rows || [];
   modelOptions.value = models.data || [];
   datasetOptions.value = datasets.rows || [];
+  datasourceOptions.value = sources.rows || [];
   if (form.appId) {
     const res = await getApp(form.appId);
     const d = res.data || {};

@@ -190,6 +190,7 @@ class AiChatService:
         builtin_codes: list | None = None,
         kb_tool: Any = None,
         instructions: list | None = None,
+        datasource_scope: list | None = None,
     ) -> Agent:
         """
         构建对话Agent对象
@@ -233,8 +234,8 @@ class AiChatService:
 
         # 内置工具集(code = toolkit 名)。builtin_codes=None → 全挂(普通对话);否则按所选挂(应用)。
         builtin_map = {
-            'data_explore': lambda: DataAgentTools(),
-            'sandbox_code': lambda: SandboxCodeTools(artifacts=artifacts),
+            'data_explore': lambda: DataAgentTools(allowed_codes=datasource_scope),
+            'sandbox_code': lambda: SandboxCodeTools(artifacts=artifacts, allowed_codes=datasource_scope),
             'task_propose': lambda: TaskAgentTools(ui_actions=ui_actions),
         }
         codes = list(builtin_map.keys()) if builtin_codes is None else [c for c in builtin_codes if c in builtin_map]
@@ -452,6 +453,7 @@ class AiChatService:
         kb_tool = None
         mcp_configs: list[dict] = []
         app_instructions: list | None = None  # 应用模式置 [],用应用 prompt 作系统,不注入数据 agent 指令
+        datasource_scope: list | None = None  # 应用「数据分析」选定的数据源;限定数据工具范围
         app_cfg = None
         if app_config_override is not None:
             app_cfg = app_config_override  # 调试:用前端草稿配置(免保存)
@@ -471,8 +473,13 @@ class AiChatService:
                 model_config.max_tokens = m['maxTokens']
             from module_ai.service.ai_tool_service import AiToolService  # noqa: PLC0415
             resolved = await AiToolService.resolve_app_tools(query_db, app_cfg.get('toolIds') or [])
-            builtin_codes = resolved['builtin_codes']  # 应用选定的内置工具集(空=不挂内置)
+            # 工具区只保留 task_propose;数据分析工具(data_explore/sandbox_code)改由「数据分析」数据源选择控制
+            builtin_codes = [c for c in resolved['builtin_codes'] if c == 'task_propose']
             mcp_configs = resolved['mcp_configs']
+            ds_codes = app_cfg.get('datasourceCodes') or []
+            if ds_codes:  # 选了数据源才加数据分析工具,且限定在所选源内探索
+                builtin_codes = builtin_codes + ['data_explore', 'sandbox_code']
+                datasource_scope = ds_codes
             dsids = app_cfg.get('datasetIds') or []
             if dsids:
                 from common.context import RequestContext  # noqa: PLC0415
@@ -490,6 +497,7 @@ class AiChatService:
             model_config=model_config, temperature=temperature, system_prompt=system_prompt,
             user_id=user_id, session_id=session_id, add_history=add_history, num_history=num_history,
             builtin_codes=builtin_codes, kb_tool=kb_tool, instructions=app_instructions,
+            datasource_scope=datasource_scope,
         )
         stream_kwargs = dict(
             chat_req=chat_req, run_kwargs=run_kwargs, is_reasoning=is_reasoning,

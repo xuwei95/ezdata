@@ -14,7 +14,9 @@ from agno.tools import Toolkit
 class DataAgentTools(Toolkit):
     """数据探索工具集(供数据 agent 调用)。"""
 
-    def __init__(self, **kwargs: Any) -> None:
+    def __init__(self, allowed_codes: list | None = None, **kwargs: Any) -> None:
+        # allowed_codes 非空时,数据探索仅限这些数据源(应用「数据分析」选定的源);None=不限。
+        self.allowed_codes = set(allowed_codes) if allowed_codes else None
         super().__init__(
             name='data_explore',
             tools=[self.list_datasources, self.get_table_schema, self.search_datasource_knowledge],
@@ -32,6 +34,9 @@ class DataAgentTools(Toolkit):
         :return: 数据源及其表清单(表名后「— 业务名: 描述」来自数据模型)
         """
         code_list = [c.strip() for c in codes.split(',') if c.strip()] or None
+        if self.allowed_codes is not None:  # 限定数据源范围:只在授权的源里探索
+            code_list = (list(self.allowed_codes) if not code_list
+                         else [c for c in code_list if c in self.allowed_codes])
         rows = _list_datasources(code_list)
         if not rows:
             return '未找到数据源。'
@@ -74,6 +79,8 @@ class DataAgentTools(Toolkit):
         :param keyword: 可选,列表名时按 表名/业务名 筛选
         :return: 表结构文本(结构实时,描述来自数据模型)
         """
+        if self.allowed_codes is not None and datasource_code not in self.allowed_codes:
+            return f'该应用未授权访问数据源: {datasource_code}(仅可用: {", ".join(self.allowed_codes)})'
         try:
             handler = _build_handler(datasource_code)
         except Exception as e:  # noqa: BLE001
@@ -140,6 +147,8 @@ class DataAgentTools(Toolkit):
         """
         from module_rag.agent_tools import search_knowledge_base
 
+        if self.allowed_codes is not None and datasource_code not in self.allowed_codes:
+            return f'该应用未授权访问数据源: {datasource_code}'
         ds_id = _datasource_id(datasource_code)
         if not ds_id:
             return f'数据源不存在: {datasource_code}'
