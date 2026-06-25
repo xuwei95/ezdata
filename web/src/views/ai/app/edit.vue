@@ -40,9 +40,8 @@
           <el-form-item label="系统提示词">
             <div style="width: 100%">
               <el-input v-model="cfg.prompt" type="textarea" :rows="6" placeholder="设定角色/技能/限制(可点 AI 生成)" />
-              <div style="margin-top: 6px; display: flex; gap: 8px">
-                <el-input v-model="genReq" placeholder="一句话应用定位,AI 帮你写提示词" size="small" />
-                <el-button size="small" type="primary" :loading="generating" @click="doGenerate">AI 生成</el-button>
+              <div style="margin-top: 6px">
+                <el-button size="small" type="primary" icon="MagicStick" @click="pgVisible = true">AI 生成提示词</el-button>
               </div>
             </div>
           </el-form-item>
@@ -124,6 +123,14 @@
         </div>
       </div>
     </div>
+
+    <!-- AI 生成提示词:弹窗流式吐字,确认后回填到系统提示词 -->
+    <PromptGenDialog
+      v-model="pgVisible"
+      :model-id="cfg.model.modelId"
+      :initial-requirement="form.description || form.name"
+      @apply="(t) => (cfg.prompt = t)"
+    />
   </div>
 </template>
 
@@ -132,6 +139,7 @@ import { reactive, ref, computed, nextTick, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import AiMessage from "../chat/components/AiMessage.vue";
+import PromptGenDialog from "./components/PromptGenDialog.vue";
 import { getApp, addApp, updateApp } from "@/api/ai/app";
 import { listTool } from "@/api/ai/tool";
 import { listModelAll } from "@/api/ai/model";
@@ -146,9 +154,8 @@ const apiBase = import.meta.env.VITE_APP_BASE_API || "";
 
 const form = reactive({ appId: route.params.appId ? Number(route.params.appId) : null, name: "", description: "", status: "0" });
 const cfg = reactive({ prompt: "", prologue: "", presetQuestions: [], quickCommands: [], toolIds: [], datasetIds: [], datasourceCodes: [], model: { modelId: 0, temperature: null, maxTokens: null } });
-const genReq = ref("");
+const pgVisible = ref(false);
 const saving = ref(false);
-const generating = ref(false);
 const toolOptions = ref([]);
 const modelOptions = ref([]);
 const datasetOptions = ref([]);
@@ -208,34 +215,6 @@ function save() {
     })
     .finally(() => (saving.value = false));
 }
-async function doGenerate() {
-  if (!genReq.value.trim()) return ElMessage.warning("先填一句话应用定位");
-  generating.value = true;
-  cfg.prompt = "";
-  try {
-    const resp = await fetch(apiBase + "/ai/app/prompt/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: "Bearer " + getToken() },
-      body: JSON.stringify({ requirement: genReq.value, modelId: cfg.model.modelId || 0 }),
-    });
-    if (!resp.ok || !resp.body) {
-      ElMessage.error("生成失败: HTTP " + resp.status);
-      return;
-    }
-    const reader = resp.body.getReader();
-    const dec = new TextDecoder();
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      cfg.prompt += dec.decode(value, { stream: true });
-    }
-  } catch (e) {
-    ElMessage.error("生成失败: " + (e?.message || e));
-  } finally {
-    generating.value = false;
-  }
-}
-
 function newChat() {
   if (loading.value) return;
   messages.value = [];
