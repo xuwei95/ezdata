@@ -194,6 +194,7 @@ class AiChatService:
         datasource_query_enabled: bool = True,
         name: str | None = None,
         agent_id: str = 'chat-agent',
+        enable_memory: bool = False,
     ) -> Agent:
         """
         构建对话Agent对象
@@ -232,7 +233,24 @@ class AiChatService:
             num_history_runs=num_history,
             tools=tools,
             markdown=True,
+            **cls._memory_kwargs(model_config, enable_memory),
         )
+
+    @classmethod
+    def _memory_kwargs(cls, model_config: AiModelModel, enable_memory: bool) -> dict:
+        """长期记忆(跨会话、按 user_id 沉淀):开启时返回 agno 记忆参数,否则 {}。
+
+        用一个抽取模型(复用对话模型,温度 0 更稳),每轮后自动从对话抽取用户事实写入 ai_memories,
+        并把该用户的记忆注入上下文。关闭时不挂,行为与既有一致。
+        """
+        if not enable_memory:
+            return {}
+        from agno.memory import MemoryManager  # noqa: PLC0415
+
+        # 记忆抽取用小 max_tokens:大 max_tokens(如 128k)会触发 Anthropic「Streaming is required」而失败
+        mm_config = model_config.model_copy(update={'max_tokens': 4096})
+        mm = MemoryManager(model=cls._make_model(mm_config, 0), db=AiUtil.get_storage_engine())
+        return {'memory_manager': mm, 'enable_user_memories': True, 'add_memories_to_context': True}
 
     @classmethod
     def _make_model(cls, model_config: AiModelModel, temperature: float) -> Any:
@@ -254,6 +272,9 @@ class AiChatService:
             rp = dict(getattr(model, 'request_params', None) or {})
             rp.setdefault('tool_choice', {'type': 'auto', 'disable_parallel_tool_use': True})
             model.request_params = rp
+            # agno 2.4.8 仅按 id 前缀白名单判定结构化输出支持(opus 只认 4-1/4-5),
+            # 新版 opus-4-8 被误判为不支持 → 长期记忆抽取(用结构化输出)报错。实际支持,这里强制放行。
+            model._supports_structured_outputs = lambda: True  # noqa: SLF001
         return model
 
     @classmethod
@@ -288,7 +309,7 @@ class AiChatService:
         cls, members: list, leader_extra_tools: list,
         model_config: AiModelModel, temperature: float, system_prompt: str | None,
         session_id: str, add_history: bool, num_history: int,
-        artifacts: list, ui_actions: list,
+        artifacts: list, ui_actions: list, enable_memory: bool = False,
     ) -> Any:
         """构建多 agent Team:协调者(leader)+ 成员(被引用的应用 agent)。
 
@@ -323,6 +344,7 @@ class AiChatService:
             markdown=True,
             stream_member_events=True,
             respond_directly=False,
+            **cls._memory_kwargs(model_config, enable_memory),
         )
 
     @classmethod
@@ -528,6 +550,7 @@ class AiChatService:
         temperature = cls._resolve_temperature(user_config, model_config)
         is_reasoning = cls._resolve_is_reasoning(chat_req, model_config)
         add_history, num_history = cls._resolve_history_config(user_config)
+        enable_memory = getattr(user_config, 'enable_memory', '1') == '0'  # 长期记忆开关(0=开),应用模式不启用
         system_prompt = user_config.system_prompt
 
         # —— AI 应用模式:带 app_id 时按应用配置覆盖(提示词/模型/参数/工具/知识库)——
@@ -544,6 +567,7 @@ class AiChatService:
             from module_ai.service.ai_app_service import AiAppService  # noqa: PLC0415
             app_cfg = await AiAppService.get_app_config(query_db, chat_req.app_id)
         if app_cfg:
+            enable_memory = False  # 应用为共享配置,不启用按用户的长期记忆(避免人设/记忆串扰)
             app_instructions = []  # 应用模式:仅用应用 prompt 作系统提示,不叠加数据 agent 工作流指令
             if (app_cfg.get('prompt') or '').strip():
                 system_prompt = app_cfg['prompt']
@@ -590,6 +614,7 @@ class AiChatService:
             user_id=user_id, session_id=session_id, add_history=add_history, num_history=num_history,
             builtin_codes=builtin_codes, kb_tool=kb_tool, instructions=app_instructions,
             datasource_scope=datasource_scope, datasource_query_enabled=datasource_query_enabled,
+            enable_memory=enable_memory,
         )
         stream_kwargs = dict(
             chat_req=chat_req, run_kwargs=run_kwargs, is_reasoning=is_reasoning,
@@ -627,7 +652,7 @@ class AiChatService:
                 members=members, leader_extra_tools=by(leader_mcp_codes),
                 model_config=model_config, temperature=temperature, system_prompt=system_prompt,
                 session_id=session_id, add_history=add_history, num_history=num_history,
-                artifacts=artifacts, ui_actions=ui_actions,
+                artifacts=artifacts, ui_actions=ui_actions, enable_memory=enable_memory,
             )
 
         if not all_mcp_configs:

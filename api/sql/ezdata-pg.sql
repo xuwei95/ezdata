@@ -1156,6 +1156,7 @@ create table ai_chat_config (
   image_max_size_mb       int4           default null,
   mcp_tool_ids            varchar(500)   default null,
   agent_app_ids           varchar(500)   default null,
+  enable_memory           varchar(1)     default '1',
   create_time             timestamp(0),
   update_time             timestamp(0),
   primary key (chat_config_id)
@@ -1172,8 +1173,29 @@ comment on column ai_chat_config.vision_enabled is '是否开启视觉(0是, 1�
 comment on column ai_chat_config.image_max_size_mb is '图片最大大小(MB)';
 comment on column ai_chat_config.mcp_tool_ids is '启用的MCP工具ID(逗号分隔)';
 comment on column ai_chat_config.agent_app_ids is '引用的应用agent ID(逗号分隔,多agent协作)';
+comment on column ai_chat_config.enable_memory is '是否开启长期记忆(0是, 1否)';
 comment on column ai_chat_config.create_time is '创建时间';
 comment on column ai_chat_config.update_time is '更新时间';
+
+-- AI 长期记忆表(agno user-memory;按 user_id 跨会话沉淀,schema 须与 agno 一致)
+drop table if exists ai_memories;
+create table ai_memories (
+  memory_id   varchar(128)   not null,
+  memory      json           not null,
+  input       text,
+  agent_id    varchar(128),
+  team_id     varchar(128),
+  user_id     varchar(128),
+  topics      json,
+  feedback    text,
+  created_at  bigint         not null,
+  updated_at  bigint,
+  primary key (memory_id)
+);
+create index ix_ai_memories_user_id on ai_memories (user_id);
+create index ix_ai_memories_created_at on ai_memories (created_at);
+create index ix_ai_memories_updated_at on ai_memories (updated_at);
+comment on table ai_memories is 'AI长期记忆表(agno)';
 
 CREATE OR REPLACE FUNCTION "find_in_set"(int8, varchar)
     RETURNS "pg_catalog"."bool" AS $BODY$

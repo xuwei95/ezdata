@@ -880,10 +880,30 @@ create table ai_chat_config (
   image_max_size_mb       int(4)          default null               comment '图片最大大小(MB)',
   mcp_tool_ids            varchar(500)    default null               comment '启用的MCP工具ID(逗号分隔)',
   agent_app_ids           varchar(500)    default null               comment '引用的应用agent ID(逗号分隔,多agent协作)',
+  enable_memory           char(1)         default '1'                comment '是否开启长期记忆(0是, 1否)',
   create_time             datetime                                   comment '创建时间',
   update_time             datetime                                   comment '更新时间',
   primary key (chat_config_id)
 ) engine=innodb auto_increment=1 comment = 'AI对话配置表';
+
+-- AI 长期记忆表(agno user-memory;按 user_id 跨会话沉淀,schema 须与 agno 一致)
+drop table if exists ai_memories;
+create table ai_memories (
+  memory_id   varchar(128)    not null                   comment '记忆ID',
+  memory      json            not null                   comment '记忆内容',
+  input       text                                       comment '来源对话片段',
+  agent_id    varchar(128)                               comment 'agent ID',
+  team_id     varchar(128)                               comment 'team ID',
+  user_id     varchar(128)                               comment '用户ID',
+  topics      json                                       comment '主题标签',
+  feedback    text                                       comment '反馈',
+  created_at  bigint          not null                   comment '创建时间(epoch)',
+  updated_at  bigint                                     comment '更新时间(epoch)',
+  primary key (memory_id),
+  key ix_ai_memories_user_id (user_id),
+  key ix_ai_memories_created_at (created_at),
+  key ix_ai_memories_updated_at (updated_at)
+) engine=innodb comment = 'AI长期记忆表(agno)';
 
 -- ----------------------------
 -- 任务调度模块（module_task_schedule）

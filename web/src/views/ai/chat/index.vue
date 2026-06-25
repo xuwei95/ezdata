@@ -367,6 +367,12 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
+            <el-form-item label="长期记忆">
+              <el-switch active-value="0" inactive-value="1" v-model="editingUserConfig.enableMemory" />
+              <span style="margin-left: 8px; font-size: 12px; color: var(--el-text-color-secondary)">跨会话记住你的偏好/事实</span>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
             <el-form-item label="开启视觉功能">
               <el-switch
                 active-value="0"
@@ -524,6 +530,7 @@ const userConfig = reactive({
   imageMaxSizeMb: 5,
   mcpToolIds: "",
   agentAppIds: "",
+  enableMemory: "1",
   createTime: undefined,
   updateTime: undefined,
 });
@@ -540,6 +547,7 @@ const editingUserConfig = reactive({
   imageMaxSizeMb: 5,
   mcpToolIds: "",
   agentAppIds: "",
+  enableMemory: "1",
   createTime: undefined,
   updateTime: undefined,
 });

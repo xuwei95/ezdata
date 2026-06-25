@@ -24,5 +24,6 @@ class AiChatConfig(Base, TenantMixin):
     image_max_size_mb = Column(Integer, nullable=True, comment='图片最大大小(MB)')
     mcp_tool_ids = Column(String(500), nullable=True, comment='启用的MCP工具ID(逗号分隔)')
     agent_app_ids = Column(String(500), nullable=True, comment='引用的应用agent ID(逗号分隔,多agent协作)')
+    enable_memory = Column(CHAR(1), server_default='1', comment='是否开启长期记忆(0是, 1否)')
     create_time = Column(DateTime, nullable=True, default=datetime.now, comment='创建时间')
     update_time = Column(DateTime, nullable=True, default=datetime.now, comment='更新时间')
