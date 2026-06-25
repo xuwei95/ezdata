@@ -68,7 +68,7 @@
 <script setup name="AiApp">
 import { ref, reactive } from "vue";
 import { useRouter } from "vue-router";
-import { listApp, delApp, updateApp, getApp, addApp } from "@/api/ai/app";
+import { listApp, delApp, updateApp } from "@/api/ai/app";
 import TokenDialog from "./components/TokenDialog.vue";
 
 const { proxy } = getCurrentInstance();
@@ -114,17 +114,9 @@ function handleAdd() {
 function handleEdit(app) {
   router.push("/ai/app/edit/" + app.appId);
 }
-// 复制应用:取完整配置,新建一个同配置应用,名称加 _copy(草稿态)
-async function handleCopy(app) {
-  try {
-    const res = await getApp(app.appId);
-    const d = res.data || {};
-    await addApp({ name: (d.name || app.name) + "_copy", description: d.description, status: "1", config: d.config });
-    proxy.$modal.msgSuccess("已复制");
-    getList();
-  } catch (e) {
-    proxy.$modal.msgError("复制失败: " + (e?.message || e));
-  }
+// 复制应用:打开新建表单并带入源应用配置(名称加 _copy),由用户确认保存
+function handleCopy(app) {
+  router.push("/ai/app/edit?copyFrom=" + app.appId);
 }
 function handleDelete(app) {
   proxy.$modal

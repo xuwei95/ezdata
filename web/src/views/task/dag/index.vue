@@ -35,6 +35,7 @@
       <el-table-column label="操作" align="center" width="220">
         <template #default="s">
           <el-button link type="primary" icon="Share" @click="openEditor(s.row)" v-hasPermi="['task:dag:list']">编排</el-button>
+          <el-button link type="primary" icon="CopyDocument" @click="handleCopy(s.row)" v-hasPermi="['task:dag:edit']">复制</el-button>
           <el-button link type="danger" icon="Delete" @click="handleDelete(s.row)" v-hasPermi="['task:dag:edit']">删除</el-button>
         </template>
       </el-table-column>
@@ -47,7 +48,7 @@
 
 <script setup name="DagList">
 import { ref, reactive, getCurrentInstance } from 'vue'
-import { listDag, createDag, delDag } from '@/api/task/dag'
+import { listDag, createDag, delDag, copyDag } from '@/api/task/dag'
 import DagEditor from './editor.vue'
 
 const { proxy } = getCurrentInstance()
@@ -82,6 +83,19 @@ function handleAdd() {
 function openEditor(row) {
   curDag.value = { id: row.id, name: row.name }
   editorVisible.value = true
+}
+// 复制 DAG:弹出名称表单(预填 _copy),确认后复制同配置+草稿图,打开编排器供复核保存
+function handleCopy(row) {
+  proxy.$prompt('请输入新 DAG 名称', '复制 DAG', {
+    inputPattern: /\S/, inputErrorMessage: '名称不能为空', inputValue: (row.name || '') + '_copy',
+  }).then(({ value }) => {
+    return copyDag(row.id, value)
+  }).then((res) => {
+    proxy.$modal.msgSuccess('复制成功')
+    getList()
+    curDag.value = { id: res.data.id, name: '复制的 DAG' }
+    editorVisible.value = true
+  }).catch(() => {})
 }
 function handleDelete(row) {
   proxy.$modal.confirm(`确认删除 DAG「${row.name}」?`).then(() => delDag(row.id)).then(() => {

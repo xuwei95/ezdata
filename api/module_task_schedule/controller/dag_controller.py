@@ -34,6 +34,14 @@ async def dag_create(
     return ResponseUtil.success(data=await DagService.create(db, req, current_user.user.user_name))
 
 
+@dag_controller.post('/{dag_id}/copy', summary='复制 DAG', dependencies=[UserInterfaceAuthDependency('task:dag:edit')])
+async def dag_copy(
+    dag_id: Annotated[str, Path()], req: DagCreateReq, db: Annotated[AsyncSession, DBSessionDependency()],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
+) -> Response:
+    return ResponseUtil.success(data=await DagService.copy(db, dag_id, req.name, current_user.user.user_name))
+
+
 @dag_controller.delete('/{ids}', summary='删除 DAG', dependencies=[UserInterfaceAuthDependency('task:dag:edit')])
 async def dag_delete(ids: Annotated[str, Path()], db: Annotated[AsyncSession, DBSessionDependency()]) -> Response:
     r = await DagService.delete(db, ids)

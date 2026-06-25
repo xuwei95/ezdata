@@ -10,6 +10,9 @@ export function createDag(data) {
 export function delDag(ids) {
   return request({ url: '/task/dag/' + ids, method: 'delete' })
 }
+export function copyDag(id, name) {
+  return request({ url: `/task/dag/${id}/copy`, method: 'post', data: { name } })
+}
 export function getDagDetail(id) {
   return request({ url: `/task/dag/${id}/detail`, method: 'get' })
 }

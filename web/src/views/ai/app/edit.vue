@@ -194,6 +194,13 @@ onMounted(async () => {
     Object.assign(form, { name: d.name, description: d.description, status: d.status || "0" });
     Object.assign(cfg, { ...cfg, ...(d.config || {}) });
     if (!cfg.model) cfg.model = { modelId: 0 };
+  } else if (route.query.copyFrom) {
+    // 复制:带入源应用配置作为新建表单初值(appId 仍为空,保存即新增),名称加 _copy
+    const res = await getApp(route.query.copyFrom);
+    const d = res.data || {};
+    Object.assign(form, { name: (d.name || "") + "_copy", description: d.description, status: "1" });
+    Object.assign(cfg, { ...cfg, ...(d.config || {}) });
+    if (!cfg.model) cfg.model = { modelId: 0 };
   }
 });
 

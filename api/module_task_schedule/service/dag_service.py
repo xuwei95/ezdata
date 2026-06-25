@@ -58,6 +58,35 @@ class DagService:
             raise e
 
     @classmethod
+    async def copy(cls, db: AsyncSession, src_id: str, name: str, operator: str) -> dict:
+        """复制 DAG:新建一个同配置 DAG(名称由调用方给定),并把源草稿图整体拷入新草稿。
+
+        不复制定时调度(trigger_type 置 1、不建 job),避免副本自动跑;由用户在编排器里复核后再发布/启停。
+        """
+        src = (await db.execute(select(Task).where(Task.id == src_id))).scalars().first()
+        if not src:
+            raise ServiceException(message='DAG 不存在')
+        draft = await DagGraphDao.get_draft(db, src_id)
+        graph_json = draft.graph if (draft and draft.graph) else json.dumps(EMPTY_GRAPH, ensure_ascii=False)
+        try:
+            new_id = uuid.uuid4().hex
+            db.add(Task(
+                id=new_id, template_code='', task_type=2, name=name, status=1, trigger_type=1,
+                run_queue=src.run_queue or 'default', run_type=src.run_type, retry=src.retry,
+                countdown=src.countdown, remark=src.remark,
+                create_by=operator, create_time=datetime.now(),
+            ))
+            await DagGraphDao.add(db, {
+                'id': uuid.uuid4().hex, 'dag_task_id': new_id, 'version': 'draft', 'status': 'draft',
+                'graph': graph_json, 'create_by': operator, 'create_time': datetime.now(),
+            })
+            await db.commit()
+            return {'id': new_id}
+        except Exception as e:
+            await db.rollback()
+            raise e
+
+    @classmethod
     async def get_detail(cls, db: AsyncSession, dag_task_id: str) -> dict:
         t = (await db.execute(select(Task).where(Task.id == dag_task_id))).scalars().first()
         if not t:

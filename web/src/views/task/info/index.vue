@@ -51,6 +51,7 @@
       <el-table-column label="操作" align="center" width="260" class-name="small-padding fixed-width">
         <template #default="scope">
           <el-button link type="primary" icon="Edit" @click="handleUpdate(scope.row)" v-hasPermi="['task:info:edit']">修改</el-button>
+          <el-button link type="primary" icon="CopyDocument" @click="handleCopy(scope.row)" v-hasPermi="['task:info:add']">复制</el-button>
           <el-button link type="primary" icon="CaretRight" @click="handleRun(scope.row)" v-hasPermi="['task:info:run']">执行</el-button>
           <el-button link type="primary" icon="Histogram" @click="openRecords(scope.row)" v-hasPermi="['task:instance:query']">记录</el-button>
           <el-button link type="primary" icon="Delete" @click="handleDelete(scope.row)" v-hasPermi="['task:info:remove']">删除</el-button>
@@ -529,6 +530,25 @@ function handleUpdate(row) {
       : []
     open.value = true
     title.value = '修改任务'
+  })
+}
+
+// 复制任务:载入源任务配置作为新增表单初值(清空 id、名称加 _copy),由用户确认保存
+function handleCopy(row) {
+  reset()
+  loadStrategies()
+  loadRunQueues()
+  Promise.all([loadTemplates(), getTask(row.id)]).then(([, response]) => {
+    form.value = { ...response.data, id: undefined, name: (response.data.name || '') + '_copy' }
+    const tpl = templateOptions.value.find(t => t.code === form.value.templateCode)
+    selectedTemplateType.value = (tpl && tpl.type) || 2
+    paramsSchema.value = selectedTemplateType.value === 2 ? parseSchema(tpl && tpl.params) : []
+    paramsModel.value = form.value.params ? safeParse(form.value.params) : {}
+    alertStrategyIdsArr.value = form.value.alertStrategyIds
+      ? String(form.value.alertStrategyIds).split(',').filter(Boolean).map(Number)
+      : []
+    open.value = true
+    title.value = '复制任务（另存为新任务）'
   })
 }
 
