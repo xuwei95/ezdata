@@ -70,7 +70,13 @@ async def generate_prompt(
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     stream = AiAppService.generate_prompt_stream(query_db, req.requirement, req.model_id or 0)
-    return StreamingResponse(content=stream, media_type='text/plain; charset=utf-8')
+    # 用 text/event-stream:gzip 中间件对该类型不压缩(text/plain 会被 gzip 缓冲,导致整段一次性吐出、无流式)。
+    # 响应体仍是原始文本块,前端 fetch reader 按字节读取不受影响。
+    return StreamingResponse(
+        content=stream,
+        media_type='text/event-stream',
+        headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'},
+    )
 
 
 @ai_app_controller.post(
