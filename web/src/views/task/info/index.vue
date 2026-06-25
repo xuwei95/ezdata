@@ -48,7 +48,7 @@
           <el-switch v-model="scope.row.status" :active-value="1" :inactive-value="0" @change="handleStatusChange(scope.row)" />
         </template>
       </el-table-column>
-      <el-table-column label="操作" align="center" width="260" class-name="small-padding fixed-width">
+      <el-table-column label="操作" align="center" width="340" class-name="small-padding fixed-width">
         <template #default="scope">
           <el-button link type="primary" icon="Edit" @click="handleUpdate(scope.row)" v-hasPermi="['task:info:edit']">修改</el-button>
           <el-button link type="primary" icon="CopyDocument" @click="handleCopy(scope.row)" v-hasPermi="['task:info:add']">复制</el-button>
