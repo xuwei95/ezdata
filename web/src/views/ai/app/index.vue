@@ -50,7 +50,6 @@
     </div>
 
     <TokenDialog v-model:visible="tokenOpen" :app-id="tokenAppId" />
-    <AppDetailDialog v-model:visible="detailOpen" :app-id="detailAppId" @edit="handleEditById" @chat="goChatById" />
 
     <pagination
       v-show="total > 0"
@@ -68,7 +67,6 @@ import { ref, reactive } from "vue";
 import { useRouter } from "vue-router";
 import { listApp, delApp, updateApp } from "@/api/ai/app";
 import TokenDialog from "./components/TokenDialog.vue";
-import AppDetailDialog from "./components/AppDetailDialog.vue";
 
 const { proxy } = getCurrentInstance();
 const router = useRouter();
@@ -78,13 +76,11 @@ const total = ref(0);
 const loading = ref(true);
 const tokenOpen = ref(false);
 const tokenAppId = ref(null);
-const detailOpen = ref(false);
-const detailAppId = ref(null);
 const queryParams = reactive({ pageNum: 1, pageSize: 12, keyword: undefined });
 
+// 点卡片:进入只读配置页(左侧配置只读、右侧仍可对话);view=1 标识只读态
 function openDetail(app) {
-  detailAppId.value = app.appId;
-  detailOpen.value = true;
+  router.push("/ai/app/edit/" + app.appId + "?view=1");
 }
 
 function openTokens(app) {
@@ -114,12 +110,6 @@ function handleAdd() {
 }
 function handleEdit(app) {
   router.push("/ai/app/edit/" + app.appId);
-}
-function handleEditById(appId) {
-  router.push("/ai/app/edit/" + appId);
-}
-function goChatById(appId) {
-  router.push("/ai/app/chat/" + appId);
 }
 function handleDelete(app) {
   proxy.$modal

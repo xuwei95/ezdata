@@ -4,11 +4,12 @@
     <div class="ae-left">
       <div class="ae-left-head">
         <el-button link icon="ArrowLeft" @click="goBack">应用广场</el-button>
-        <span class="ae-title">{{ form.appId ? "编辑应用" : "新建应用" }}</span>
-        <el-button type="primary" size="small" :loading="saving" @click="save">保存</el-button>
+        <span class="ae-title">{{ readonly ? "查看应用" : form.appId ? "编辑应用" : "新建应用" }}</span>
+        <el-button v-if="readonly" type="primary" size="small" icon="Edit" @click="readonly = false" v-hasPermi="['ai:app:edit']">编辑</el-button>
+        <el-button v-else type="primary" size="small" :loading="saving" @click="save">保存</el-button>
       </div>
       <el-scrollbar class="ae-left-body">
-        <el-form :model="form" label-width="86px">
+        <el-form :model="form" label-width="86px" :disabled="readonly">
           <el-form-item label="应用名称" required>
             <el-input v-model="form.name" placeholder="如:数据分析助手" />
           </el-form-item>
@@ -24,7 +25,7 @@
                 <template #reference>
                   <el-button icon="Setting">设置</el-button>
                 </template>
-                <el-form label-width="72px" style="margin: 0">
+                <el-form label-width="72px" style="margin: 0" :disabled="readonly">
                   <el-form-item label="温度" style="margin-bottom: 10px">
                     <el-input-number v-model="cfg.model.temperature" :min="0" :max="2" :step="0.1" :precision="1" style="width: 100%" placeholder="默认" />
                   </el-form-item>
@@ -40,7 +41,7 @@
           <el-form-item label="系统提示词">
             <div style="width: 100%">
               <el-input v-model="cfg.prompt" type="textarea" :rows="6" placeholder="设定角色/技能/限制(可点 AI 生成)" />
-              <div style="margin-top: 6px">
+              <div v-if="!readonly" style="margin-top: 6px">
                 <el-button size="small" type="primary" icon="MagicStick" @click="pgVisible = true">AI 生成提示词</el-button>
               </div>
             </div>
@@ -50,9 +51,9 @@
             <div style="width: 100%">
               <div v-for="(q, i) in cfg.presetQuestions" :key="i" style="display: flex; gap: 8px; margin-bottom: 6px">
                 <el-input v-model="cfg.presetQuestions[i]" placeholder="点击即发送的示例问题" />
-                <el-button icon="Delete" @click="cfg.presetQuestions.splice(i, 1)" />
+                <el-button v-if="!readonly" icon="Delete" @click="cfg.presetQuestions.splice(i, 1)" />
               </div>
-              <el-button size="small" icon="Plus" @click="cfg.presetQuestions.push('')">添加问题</el-button>
+              <el-button v-if="!readonly" size="small" icon="Plus" @click="cfg.presetQuestions.push('')">添加问题</el-button>
             </div>
           </el-form-item>
           <el-form-item label="快捷指令">
@@ -60,9 +61,9 @@
               <div v-for="(c, i) in cfg.quickCommands" :key="i" style="display: flex; gap: 8px; margin-bottom: 6px">
                 <el-input v-model="c.name" placeholder="按钮名" style="width: 130px" />
                 <el-input v-model="c.content" placeholder="点击后发送的指令" />
-                <el-button icon="Delete" @click="cfg.quickCommands.splice(i, 1)" />
+                <el-button v-if="!readonly" icon="Delete" @click="cfg.quickCommands.splice(i, 1)" />
               </div>
-              <el-button size="small" icon="Plus" @click="cfg.quickCommands.push({ name: '', content: '' })">添加指令</el-button>
+              <el-button v-if="!readonly" size="small" icon="Plus" @click="cfg.quickCommands.push({ name: '', content: '' })">添加指令</el-button>
             </div>
           </el-form-item>
 
@@ -158,6 +159,8 @@ const apiBase = import.meta.env.VITE_APP_BASE_API || "";
 
 const form = reactive({ appId: route.params.appId ? Number(route.params.appId) : null, name: "", description: "", status: "0" });
 const cfg = reactive({ prompt: "", prologue: "", presetQuestions: [], quickCommands: [], toolIds: [], datasetIds: [], datasourceCodes: [], enableMemory: false, model: { modelId: 0, temperature: null, maxTokens: null } });
+// 只读态:点卡片进入(view=1)只看配置不可改,右侧仍可对话;点「编辑」切换为可编辑
+const readonly = ref(route.query.view === "1");
 const pgVisible = ref(false);
 const saving = ref(false);
 const toolOptions = ref([]);
