@@ -234,10 +234,32 @@ function colsOf(rows) {
   return rows && rows.length ? Object.keys(rows[0]) : [];
 }
 
-// 导出 echarts 图表为独立 html(render_embed 已是完整页面,直接下载即可离线打开)
-function exportChart(art) {
-  const html = art && art.html;
-  if (!html) return ElMessage.warning("无图表内容可导出");
+// 同源 echarts 源码缓存(用于把图表导出成自包含 html)
+let _echartsSrc = null;
+async function loadEchartsSrc() {
+  if (_echartsSrc !== null) return _echartsSrc;
+  try {
+    const resp = await fetch(window.location.origin + "/echarts.min.js");
+    _echartsSrc = resp.ok ? await resp.text() : "";
+  } catch (e) {
+    _echartsSrc = "";
+  }
+  return _echartsSrc;
+}
+// 导出 echarts 图表为独立 html:把 CDN <script src> 内联成本地 echarts 源码,
+// 这样导出的文件离线/任意网络都能打开看到图(否则原始 html 仍指向 CDN,受限网络空白)。
+async function exportChart(art) {
+  const raw = art && art.html;
+  if (!raw) return ElMessage.warning("无图表内容可导出");
+  let html = raw;
+  const js = await loadEchartsSrc();
+  if (js) {
+    // 用替换函数(而非字符串),避免 echarts 源码里的 $ 被当成 replace 特殊变量
+    html = html.replace(
+      /<script\s+type="text\/javascript"\s+src="https?:\/\/[^"]*\/echarts\.min\.js"><\/script>/i,
+      () => `<script type="text/javascript">${js}<\/script>`,
+    );
+  }
   saveAs(new Blob([html], { type: "text/html;charset=utf-8" }), `chart_${Date.now()}.html`);
 }
 // 导出当前表格为 Excel(导出已展示的行;大表仅含预览行)
