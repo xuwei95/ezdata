@@ -15,6 +15,26 @@
           <el-form-item label="应用描述">
             <el-input v-model="form.description" placeholder="一句话介绍" />
           </el-form-item>
+          <el-form-item label="模型">
+            <div style="display: flex; gap: 8px; width: 100%">
+              <el-select v-model="cfg.model.modelId" style="flex: 1" placeholder="选择模型">
+                <el-option v-for="m in modelOptions" :key="m.modelId" :label="m.modelName || m.modelCode" :value="m.modelId" />
+              </el-select>
+              <el-popover trigger="click" :width="270" placement="bottom-end">
+                <template #reference>
+                  <el-button icon="Setting">设置</el-button>
+                </template>
+                <el-form label-width="72px" style="margin: 0">
+                  <el-form-item label="温度" style="margin-bottom: 10px">
+                    <el-input-number v-model="cfg.model.temperature" :min="0" :max="2" :step="0.1" :precision="1" style="width: 100%" placeholder="默认" />
+                  </el-form-item>
+                  <el-form-item label="最大输出" style="margin-bottom: 0">
+                    <el-input-number v-model="cfg.model.maxTokens" :min="0" :step="1000" style="width: 100%" placeholder="默认" />
+                  </el-form-item>
+                </el-form>
+              </el-popover>
+            </div>
+          </el-form-item>
 
           <el-divider content-position="left">人设与开场</el-divider>
           <el-form-item label="系统提示词">
@@ -64,27 +84,6 @@
             </el-select>
           </el-form-item>
 
-          <el-divider content-position="left">模型</el-divider>
-          <el-form-item label="模型">
-            <div style="display: flex; gap: 8px; width: 100%">
-              <el-select v-model="cfg.model.modelId" style="flex: 1" placeholder="选择模型">
-                <el-option v-for="m in modelOptions" :key="m.modelId" :label="m.modelName || m.modelCode" :value="m.modelId" />
-              </el-select>
-              <el-popover trigger="click" :width="270" placement="bottom-end">
-                <template #reference>
-                  <el-button icon="Setting">设置</el-button>
-                </template>
-                <el-form label-width="72px" style="margin: 0">
-                  <el-form-item label="温度" style="margin-bottom: 10px">
-                    <el-input-number v-model="cfg.model.temperature" :min="0" :max="2" :step="0.1" :precision="1" style="width: 100%" placeholder="默认" />
-                  </el-form-item>
-                  <el-form-item label="最大输出" style="margin-bottom: 0">
-                    <el-input-number v-model="cfg.model.maxTokens" :min="0" :step="1000" style="width: 100%" placeholder="默认" />
-                  </el-form-item>
-                </el-form>
-              </el-popover>
-            </div>
-          </el-form-item>
         </el-form>
       </el-scrollbar>
     </div>
@@ -125,7 +124,7 @@ import { reactive, ref, nextTick, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import AiMessage from "../chat/components/AiMessage.vue";
-import { getApp, addApp, updateApp, generatePrompt } from "@/api/ai/app";
+import { getApp, addApp, updateApp } from "@/api/ai/app";
 import { listTool } from "@/api/ai/tool";
 import { listModelAll } from "@/api/ai/model";
 import { listDataset } from "@/api/rag";
@@ -195,15 +194,32 @@ function save() {
     })
     .finally(() => (saving.value = false));
 }
-function doGenerate() {
+async function doGenerate() {
   if (!genReq.value.trim()) return ElMessage.warning("先填一句话应用定位");
   generating.value = true;
-  generatePrompt({ requirement: genReq.value, modelId: cfg.model.modelId || 0 })
-    .then((res) => {
-      cfg.prompt = res.data?.prompt || cfg.prompt;
-      ElMessage.success("已生成");
-    })
-    .finally(() => (generating.value = false));
+  cfg.prompt = "";
+  try {
+    const resp = await fetch(apiBase + "/ai/app/prompt/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + getToken() },
+      body: JSON.stringify({ requirement: genReq.value, modelId: cfg.model.modelId || 0 }),
+    });
+    if (!resp.ok || !resp.body) {
+      ElMessage.error("生成失败: HTTP " + resp.status);
+      return;
+    }
+    const reader = resp.body.getReader();
+    const dec = new TextDecoder();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      cfg.prompt += dec.decode(value, { stream: true });
+    }
+  } catch (e) {
+    ElMessage.error("生成失败: " + (e?.message || e));
+  } finally {
+    generating.value = false;
+  }
 }
 
 function newChat() {
@@ -228,6 +244,12 @@ async function sendDebug(preset) {
       headers: { "Content-Type": "application/json", Authorization: "Bearer " + getToken() },
       body: JSON.stringify({ config: buildConfig(), message: text, sessionId: sessionId.value }),
     });
+    if (!resp.ok || !resp.body) {
+      const t = await resp.text().catch(() => "");
+      messages.value[ai].content = "调试失败: HTTP " + resp.status + " " + t.slice(0, 200);
+      ElMessage.error("调试失败: HTTP " + resp.status);
+      return;
+    }
     const reader = resp.body.getReader();
     const dec = new TextDecoder();
     let buf = "";

@@ -60,7 +60,7 @@ async def get_ai_app_all(
 
 
 @ai_app_controller.post(
-    '/prompt/generate', summary='AI 生成系统提示词', response_model=DataResponseModel,
+    '/prompt/generate', summary='AI 生成系统提示词(流式)', response_class=StreamingResponse,
     dependencies=[UserInterfaceAuthDependency('ai:app:query')],
 )
 async def generate_prompt(
@@ -69,8 +69,8 @@ async def generate_prompt(
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
-    prompt = await AiAppService.generate_prompt_services(query_db, req.requirement, req.model_id or 0)
-    return ResponseUtil.success(data={'prompt': prompt})
+    stream = AiAppService.generate_prompt_stream(query_db, req.requirement, req.model_id or 0)
+    return StreamingResponse(content=stream, media_type='text/plain; charset=utf-8')
 
 
 @ai_app_controller.post(

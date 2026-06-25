@@ -189,6 +189,7 @@ class AiChatService:
         extra_tools: list | None = None,
         builtin_codes: list | None = None,
         kb_tool: Any = None,
+        instructions: list | None = None,
     ) -> Agent:
         """
         构建对话Agent对象
@@ -246,7 +247,8 @@ class AiChatService:
             model=model,
             id='chat-agent',
             description=system_prompt or 'You are a helpful AI assistant.',
-            instructions=_DATA_AGENT_INSTRUCTIONS,
+            # 普通对话注入数据 agent 工作流指令;应用模式用应用自己的 prompt(instructions=[]),避免人设被盖
+            instructions=_DATA_AGENT_INSTRUCTIONS if instructions is None else instructions,
             db=storage,
             user_id=str(user_id),
             session_id=session_id,
@@ -449,6 +451,7 @@ class AiChatService:
         builtin_codes: list | None = None  # None=全部内置工具(普通对话)
         kb_tool = None
         mcp_configs: list[dict] = []
+        app_instructions: list | None = None  # 应用模式置 [],用应用 prompt 作系统,不注入数据 agent 指令
         app_cfg = None
         if app_config_override is not None:
             app_cfg = app_config_override  # 调试:用前端草稿配置(免保存)
@@ -456,6 +459,7 @@ class AiChatService:
             from module_ai.service.ai_app_service import AiAppService  # noqa: PLC0415
             app_cfg = await AiAppService.get_app_config(query_db, chat_req.app_id)
         if app_cfg:
+            app_instructions = []  # 应用模式:仅用应用 prompt 作系统提示,不叠加数据 agent 工作流指令
             if (app_cfg.get('prompt') or '').strip():
                 system_prompt = app_cfg['prompt']
             m = app_cfg.get('model') or {}
@@ -485,7 +489,7 @@ class AiChatService:
         build_kwargs = dict(
             model_config=model_config, temperature=temperature, system_prompt=system_prompt,
             user_id=user_id, session_id=session_id, add_history=add_history, num_history=num_history,
-            builtin_codes=builtin_codes, kb_tool=kb_tool,
+            builtin_codes=builtin_codes, kb_tool=kb_tool, instructions=app_instructions,
         )
         stream_kwargs = dict(
             chat_req=chat_req, run_kwargs=run_kwargs, is_reasoning=is_reasoning,

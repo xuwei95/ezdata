@@ -130,18 +130,19 @@ class AiAppService:
         return {'app_id': int(tk.ref_id), 'tenant_id': tk.tenant_id}
 
     @classmethod
-    async def generate_prompt_services(cls, query_db: AsyncSession, requirement: str, model_id: int) -> str:
-        """调 LLM 根据一句话需求草拟系统提示词(非流式)。"""
+    async def generate_prompt_stream(cls, query_db: AsyncSession, requirement: str, model_id: int):
+        """流式调 LLM 根据一句话需求草拟系统提示词;逐段 yield 文本。"""
         from agno.agent import Agent  # noqa: PLC0415
+        from agno.run.agent import RunEvent  # noqa: PLC0415
 
         from module_ai.service.ai_chat_service import AiChatService  # noqa: PLC0415
 
         mc = await AiChatService._resolve_chat_model_config(query_db, model_id or 0)
-        # 提示词较短,且过大的 max_tokens 会触发 Anthropic SDK "必须流式" 限制 → 固定较小上限
         model = AiUtil.get_model_from_factory(
             provider=mc.provider, model_code=mc.model_code, model_name=mc.model_name,
-            api_key=mc.api_key, base_url=mc.base_url, max_tokens=4096,
+            api_key=mc.api_key, base_url=mc.base_url, max_tokens=8192,
         )
         agent = Agent(model=model, id='prompt-gen', instructions=[_PROMPT_META], markdown=False)
-        run = await agent.arun(f'应用定位/需求:{requirement}')
-        return (getattr(run, 'content', None) or '').strip()
+        async for chunk in agent.arun(f'应用定位/需求:{requirement}', stream=True):
+            if chunk.event == RunEvent.run_content and getattr(chunk, 'content', None):
+                yield chunk.content
