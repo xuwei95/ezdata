@@ -51,6 +51,18 @@
         </div>
         <!-- 产物:图表(iframe echarts) / 表格(vxe-table) -->
         <div v-else-if="b.type === 'artifact'" class="ai-artifact">
+          <div class="artifact-bar">
+            <span class="artifact-kind">{{ b.artifact.kind === "chart" ? "图表" : "表格" }}</span>
+            <el-button
+              v-if="b.artifact.kind === 'chart'"
+              link
+              size="small"
+              icon="Download"
+              @click="exportChart(b.artifact)"
+              >导出 HTML</el-button
+            >
+            <el-button v-else link size="small" icon="Download" @click="exportTable(b.artifact)">导出 Excel</el-button>
+          </div>
           <iframe
             v-if="b.artifact.kind === 'chart'"
             class="artifact-chart"
@@ -113,6 +125,8 @@
 import { computed, ref } from "vue";
 import { ElMessage } from "element-plus";
 import { Star, StarFilled } from "@element-plus/icons-vue";
+import { saveAs } from "file-saver";
+import * as XLSX from "xlsx";
 import TaskProposalCard from "./TaskProposalCard.vue";
 import { saveRecipe } from "@/api/ai/chat";
 import { MarkdownRender } from "markstream-vue";
@@ -212,6 +226,22 @@ function colsOf(rows) {
   return rows && rows.length ? Object.keys(rows[0]) : [];
 }
 
+// 导出 echarts 图表为独立 html(render_embed 已是完整页面,直接下载即可离线打开)
+function exportChart(art) {
+  const html = art && art.html;
+  if (!html) return ElMessage.warning("无图表内容可导出");
+  saveAs(new Blob([html], { type: "text/html;charset=utf-8" }), `chart_${Date.now()}.html`);
+}
+// 导出当前表格为 Excel(导出已展示的行;大表仅含预览行)
+function exportTable(art) {
+  const rows = (art && art.rows) || [];
+  if (!rows.length) return ElMessage.warning("无数据可导出");
+  const ws = XLSX.utils.json_to_sheet(rows, { header: colsOf(rows) });
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+  XLSX.writeFile(wb, `table_${Date.now()}.xlsx`);
+}
+
 const isReasoningExpanded = ref(true);
 
 const isThinkingComplete = computed(() => {
@@ -237,6 +267,18 @@ function toggleReasoning() {
 
   .ai-artifact {
     margin: 10px 0;
+
+    .artifact-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+      .artifact-kind {
+        font-size: 12px;
+        color: var(--el-text-color-secondary);
+        margin-right: auto;
+      }
+    }
 
     .artifact-chart {
       width: 100%;
