@@ -17,8 +17,9 @@
     <!-- 主体:按到达顺序的 blocks(文字 — 工具调用 — 文字 — 产物 交替) -->
     <template v-if="blocks && blocks.length">
       <template v-for="(b, i) in blocks" :key="i">
-        <!-- 文字段 -->
+        <!-- 文字段(多 agent 时带成员归属标签) -->
         <div v-if="b.type === 'text'" class="ai-message-content">
+          <div v-if="b.agentName" class="agent-tag">🤖 {{ b.agentName }}</div>
           <MarkdownRender :content="b.text" :is-dark="isDark" />
         </div>
         <!-- 工具调用(内联,夹在文字之间) -->
@@ -28,6 +29,7 @@
             <el-icon v-else-if="b.status === 'error'" class="step-icon error"><CircleCloseFilled /></el-icon>
             <el-icon v-else class="step-icon done"><CircleCheckFilled /></el-icon>
             <span class="step-name">{{ toolLabel(b.name) }}</span>
+            <span v-if="b.agentName" class="step-agent">· {{ b.agentName }}</span>
             <span v-if="b.status === 'running'" class="step-status">运行中…</span>
             <el-button
               v-if="canSaveRecipe(b) && sessionId"
@@ -189,6 +191,7 @@ const TOOL_LABELS = {
   search_datasource_knowledge: "检索知识库",
   run_python_code: "运行代码",
   run_datasource_query: "取数查询",
+  delegate_task_to_member: "委派成员",
 };
 function toolLabel(name) {
   return TOOL_LABELS[name] || name;
@@ -293,6 +296,16 @@ function toggleReasoning() {
     color: var(--el-text-color-primary);
     overflow-wrap: break-word;
     word-break: break-word;
+
+    .agent-tag {
+      display: inline-block;
+      margin-bottom: 4px;
+      padding: 1px 8px;
+      font-size: 12px;
+      color: var(--el-color-primary);
+      background: var(--el-color-primary-light-9);
+      border-radius: 10px;
+    }
   }
 
   .ai-artifact {
@@ -397,6 +410,10 @@ function toggleReasoning() {
   .step-name {
     color: var(--el-text-color-regular);
     font-weight: 500;
+  }
+  .step-agent {
+    font-size: 12px;
+    color: var(--el-color-primary);
   }
   .step-status {
     font-size: 12px;

@@ -46,6 +46,7 @@ class AiChatConfigModel(BaseModel):
     vision_enabled: Literal['0', '1'] | None = Field(default=None, description='是否开启视觉')
     image_max_size_mb: int | None = Field(default=None, description='图片最大大小(MB)')
     mcp_tool_ids: str | None = Field(default=None, description='启用的MCP工具ID(逗号分隔)')
+    agent_app_ids: str | None = Field(default=None, description='引用的应用agent ID(逗号分隔,多agent协作)')
     create_time: datetime | None = Field(default=None, description='创建时间')
     update_time: datetime | None = Field(default=None, description='更新时间')
 

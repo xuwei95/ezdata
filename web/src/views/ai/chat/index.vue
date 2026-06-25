@@ -414,6 +414,21 @@
             </el-form-item>
           </el-col>
           <el-col :span="24">
+            <el-form-item label="引用智能体">
+              <el-select
+                v-model="selectedAgentAppIds"
+                multiple
+                clearable
+                collapse-tags
+                collapse-tags-tooltip
+                placeholder="引用已配置的应用作为协作成员(留空则单 agent;选了则按需委派给成员)"
+                style="width: 100%"
+              >
+                <el-option v-for="a in agentAppOptions" :key="a.appId" :label="a.name" :value="a.appId" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
             <el-form-item label="系统提示词">
               <el-input
                 v-model="editingUserConfig.systemPrompt"
@@ -447,6 +462,7 @@
 <script setup name="AiChat">
 import { listModelAll } from "@/api/ai/model";
 import { listTool } from "@/api/ai/tool";
+import { listAppAll } from "@/api/ai/app";
 import {
   listChatSession,
   delChatSession,
@@ -507,6 +523,7 @@ const userConfig = reactive({
   visionEnabled: "0",
   imageMaxSizeMb: 5,
   mcpToolIds: "",
+  agentAppIds: "",
   createTime: undefined,
   updateTime: undefined,
 });
@@ -522,6 +539,7 @@ const editingUserConfig = reactive({
   visionEnabled: "0",
   imageMaxSizeMb: 5,
   mcpToolIds: "",
+  agentAppIds: "",
   createTime: undefined,
   updateTime: undefined,
 });
@@ -535,10 +553,19 @@ const currentModelInfo = computed(() => {
 // 可选 MCP 工具(下拉多选);配置里 mcpToolIds 存逗号分隔串,UI 用数组
 const mcpToolOptions = ref([]);
 const selectedMcpToolIds = ref([]);
+// 可引用的应用 agent(多 agent 协作成员);agentAppIds 存逗号分隔串,UI 用数组
+const agentAppOptions = ref([]);
+const selectedAgentAppIds = ref([]);
 
 function loadMcpTools() {
   listTool({ pageNum: 1, pageSize: 200, toolType: "mcp" }).then((res) => {
     mcpToolOptions.value = res.rows || [];
+  });
+}
+
+function loadAgentApps() {
+  listAppAll().then((res) => {
+    agentAppOptions.value = res.data || res.rows || [];
   });
 }
 
@@ -561,11 +588,16 @@ function loadUserConfig() {
 function openConfigDialog() {
   Object.assign(editingUserConfig, userConfig);
   selectedMcpToolIds.value = csvToIds(editingUserConfig.mcpToolIds);
+  selectedAgentAppIds.value = csvToIds(editingUserConfig.agentAppIds);
   showConfigDialog.value = true;
 }
 
 function handleSaveConfig() {
-  const payload = { ...editingUserConfig, mcpToolIds: selectedMcpToolIds.value.join(",") };
+  const payload = {
+    ...editingUserConfig,
+    mcpToolIds: selectedMcpToolIds.value.join(","),
+    agentAppIds: selectedAgentAppIds.value.join(","),
+  };
   saveUserChatConfig(payload).then(() => {
     proxy.$modal.msgSuccess("配置保存成功");
     showConfigDialog.value = false;
@@ -765,10 +797,12 @@ async function sendRequest(text, images) {
             const m = messageList.value[aiMsgIndex];
             m.content = aiContent;
             // 追加到当前文字块(连续 content 合并),保持与工具/产物的到达顺序
+            // 多 agent:带 agentName 表示某成员发言;说话人变化时另起一个带归属的文字块
             const blocks = (m.blocks ||= []);
             const last = blocks[blocks.length - 1];
-            if (last && last.type === "text") last.text += data.content;
-            else blocks.push({ type: "text", text: data.content });
+            if (last && last.type === "text" && last.agentName === data.agentName)
+              last.text += data.content;
+            else blocks.push({ type: "text", text: data.content, agentName: data.agentName });
           } else if (data.type === "reasoning") {
             aiReasoning += data.content;
             messageList.value[aiMsgIndex].reasoningContent = aiReasoning;
@@ -808,6 +842,7 @@ async function sendRequest(text, images) {
                 name: data.name,
                 args: data.args,
                 status: "running",
+                agentName: data.agentName,
               });
             } else {
               const s = blocks.find(
@@ -1018,6 +1053,7 @@ onMounted(() => {
   getSessions();
   loadUserConfig();
   loadMcpTools();
+  loadAgentApps();
 });
 </script>
 

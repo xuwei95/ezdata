@@ -879,6 +879,7 @@ create table ai_chat_config (
   vision_enabled          char(1)         default '1'                comment '是否开启视觉(0是, 1否)',
   image_max_size_mb       int(4)          default null               comment '图片最大大小(MB)',
   mcp_tool_ids            varchar(500)    default null               comment '启用的MCP工具ID(逗号分隔)',
+  agent_app_ids           varchar(500)    default null               comment '引用的应用agent ID(逗号分隔,多agent协作)',
   create_time             datetime                                   comment '创建时间',
   update_time             datetime                                   comment '更新时间',
   primary key (chat_config_id)

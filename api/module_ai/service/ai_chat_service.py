@@ -192,6 +192,8 @@ class AiChatService:
         instructions: list | None = None,
         datasource_scope: list | None = None,
         datasource_query_enabled: bool = True,
+        name: str | None = None,
+        agent_id: str = 'chat-agent',
     ) -> Agent:
         """
         构建对话Agent对象
@@ -209,6 +211,32 @@ class AiChatService:
         :param num_history: 历史消息轮数
         :return: Agent对象
         """
+        model = cls._make_model(model_config, temperature)
+        storage = AiUtil.get_storage_engine()
+        tools = cls._assemble_tools(
+            artifacts=artifacts, ui_actions=ui_actions, extra_tools=extra_tools,
+            builtin_codes=builtin_codes, kb_tool=kb_tool,
+            datasource_scope=datasource_scope, datasource_query_enabled=datasource_query_enabled,
+        )
+        return Agent(
+            model=model,
+            id=agent_id,
+            name=name,
+            description=system_prompt or 'You are a helpful AI assistant.',
+            # 普通对话注入数据 agent 工作流指令;应用模式用应用自己的 prompt(instructions=[]),避免人设被盖
+            instructions=_DATA_AGENT_INSTRUCTIONS if instructions is None else instructions,
+            db=storage,
+            user_id=str(user_id),
+            session_id=session_id,
+            add_history_to_context=add_history,
+            num_history_runs=num_history,
+            tools=tools,
+            markdown=True,
+        )
+
+    @classmethod
+    def _make_model(cls, model_config: AiModelModel, temperature: float) -> Any:
+        """按模型配置造 agno 模型对象(含 Anthropic 禁并行工具调用的网关修复)。"""
         # api_key 由调用方解密(DB 模型)或本就明文(环境变量兜底模型)后传入
         model = AiUtil.get_model_from_factory(
             provider=model_config.provider,
@@ -226,14 +254,22 @@ class AiChatService:
             rp = dict(getattr(model, 'request_params', None) or {})
             rp.setdefault('tool_choice', {'type': 'auto', 'disable_parallel_tool_use': True})
             model.request_params = rp
-        storage = AiUtil.get_storage_engine()
-        # 数据 agent 工具:探索(发现数据源/表结构/知识库) + 执行(沙箱跑 python 计算/取数)
-        # 如需关闭,去掉 tools 参数即可
+        return model
+
+    @classmethod
+    def _assemble_tools(
+        cls, artifacts: list | None, ui_actions: list | None, extra_tools: list | None,
+        builtin_codes: list | None, kb_tool: Any,
+        datasource_scope: list | None, datasource_query_enabled: bool,
+    ) -> list:
+        """装配工具列表(内置工具集 + 知识库工具 + 已连接的 MCP 工具)。供单 agent 与 Team leader/成员共用。
+
+        builtin_codes=None → 全挂(普通对话);否则按所选挂(应用/成员)。code = toolkit 名。
+        """
         from module_ai.tools.data_agent_tools import DataAgentTools  # noqa: PLC0415
         from module_ai.tools.sandbox_code_tools import SandboxCodeTools  # noqa: PLC0415
         from module_ai.tools.task_agent_tools import TaskAgentTools  # noqa: PLC0415
 
-        # 内置工具集(code = toolkit 名)。builtin_codes=None → 全挂(普通对话);否则按所选挂(应用)。
         builtin_map = {
             'data_explore': lambda: DataAgentTools(allowed_codes=datasource_scope),
             'sandbox_code': lambda: SandboxCodeTools(artifacts=artifacts, allowed_codes=datasource_scope,
@@ -245,20 +281,48 @@ class AiChatService:
         if kb_tool is not None:
             tools.append(kb_tool)
         tools.extend(extra_tools or [])
+        return tools
 
-        return Agent(
+    @classmethod
+    def _build_team(
+        cls, members: list, leader_extra_tools: list,
+        model_config: AiModelModel, temperature: float, system_prompt: str | None,
+        session_id: str, add_history: bool, num_history: int,
+        artifacts: list, ui_actions: list,
+    ) -> Any:
+        """构建多 agent Team:协调者(leader)+ 成员(被引用的应用 agent)。
+
+        leader 保留普通对话的全部内置工具(可自答也可委派);成员各自携带其应用配置的能力。
+        stream_member_events=True 使成员的流式事件上抛,前端可实时看到成员干活并按成员归属展示。
+        """
+        from agno.team import Team  # noqa: PLC0415
+
+        model = cls._make_model(model_config, temperature)
+        storage = AiUtil.get_storage_engine()
+        leader_tools = cls._assemble_tools(
+            artifacts=artifacts, ui_actions=ui_actions, extra_tools=leader_extra_tools,
+            builtin_codes=None, kb_tool=None, datasource_scope=None, datasource_query_enabled=True,
+        )
+        instructions = [*_DATA_AGENT_INSTRUCTIONS,
+                        '你是协调者:既可直接回答,也可把子任务委派给团队成员(每个成员是某领域的专家助手)。',
+                        '当用户需求落在某成员专长时,用 delegate_task_to_member 委派给合适成员;'
+                        '涉及多个成员时分别委派,最后综合各成员结果给出完整回答。']
+        if (model_config.provider or '').lower() == 'anthropic':
+            pass  # leader/成员模型已各自在 _make_model 里禁用并行工具调用
+        return Team(
             model=model,
-            id='chat-agent',
+            name='主助手',
+            members=members,
+            tools=leader_tools,
             description=system_prompt or 'You are a helpful AI assistant.',
-            # 普通对话注入数据 agent 工作流指令;应用模式用应用自己的 prompt(instructions=[]),避免人设被盖
-            instructions=_DATA_AGENT_INSTRUCTIONS if instructions is None else instructions,
+            instructions=instructions,
             db=storage,
-            user_id=str(user_id),
             session_id=session_id,
             add_history_to_context=add_history,
             num_history_runs=num_history,
-            tools=tools,
             markdown=True,
+            stream_member_events=True,
+            respond_directly=False,
         )
 
     @classmethod
@@ -364,26 +428,40 @@ class AiChatService:
                 content = None
                 reasoning = None
 
-                if chunk.event == RunEvent.run_started and chunk.run_id:
+                # 事件归一:Team 的 leader 事件值带 "Team" 前缀(TeamRunContent…),成员(普通 Agent)事件不带。
+                # 去前缀后按 RunEvent 值比对,使 Team 与单 Agent 共用同一套处理。
+                ev = chunk.event
+                ev_str = ev.value if hasattr(ev, 'value') else str(ev)
+                base = ev_str[4:] if ev_str.startswith('Team') else ev_str
+                # 成员归属:非 Team 前缀且带 agent_name 的事件来自某成员(多 agent 时),用于前端"谁在说"标签;
+                # 单 agent 模式 leader 无 name → agent_name 为空,不影响既有行为。
+                member = None if ev_str.startswith('Team') else getattr(chunk, 'agent_name', None)
+
+                def _with_member(d: dict) -> dict:
+                    if member:
+                        d['agentName'] = member
+                    return d
+
+                if base == RunEvent.run_started.value and chunk.run_id:
                     yield json.dumps({'run_id': chunk.run_id, 'type': 'run_info'}) + '\n'
 
                 # 工具调用过程(可观测):转发 start/end/error,前端渲染"执行过程"时间线
                 tl = getattr(chunk, 'tool', None)
                 if tl is not None:
-                    if chunk.event == RunEvent.tool_call_started:
-                        yield json.dumps({'type': 'tool', 'phase': 'start', 'id': tl.tool_call_id,
-                                          'name': tl.tool_name, 'args': _short_args(tl.tool_args)},
+                    if base == RunEvent.tool_call_started.value:
+                        yield json.dumps(_with_member({'type': 'tool', 'phase': 'start', 'id': tl.tool_call_id,
+                                          'name': tl.tool_name, 'args': _short_args(tl.tool_args)}),
                                          ensure_ascii=False) + '\n'
-                    elif chunk.event == RunEvent.tool_call_completed:
-                        yield json.dumps({'type': 'tool', 'phase': 'end', 'id': tl.tool_call_id,
-                                          'name': tl.tool_name, 'result': _short(tl.result, 300)},
+                    elif base == RunEvent.tool_call_completed.value:
+                        yield json.dumps(_with_member({'type': 'tool', 'phase': 'end', 'id': tl.tool_call_id,
+                                          'name': tl.tool_name, 'result': _short(tl.result, 300)}),
                                          ensure_ascii=False) + '\n'
-                    elif chunk.event == RunEvent.tool_call_error:
-                        yield json.dumps({'type': 'tool', 'phase': 'error', 'id': tl.tool_call_id,
-                                          'name': tl.tool_name, 'error': _short(tl.tool_call_error or tl.result, 300)},
+                    elif base == RunEvent.tool_call_error.value:
+                        yield json.dumps(_with_member({'type': 'tool', 'phase': 'error', 'id': tl.tool_call_id,
+                                          'name': tl.tool_name, 'error': _short(tl.tool_call_error or tl.result, 300)}),
                                          ensure_ascii=False) + '\n'
 
-                if chunk.event == RunEvent.run_content:
+                if base == RunEvent.run_content.value:
                     content = chunk.content
                     if hasattr(chunk, 'reasoning_content') and chunk.reasoning_content:
                         reasoning = chunk.reasoning_content
@@ -392,7 +470,8 @@ class AiChatService:
                     full_reasoning += reasoning
                     yield json.dumps({'content': reasoning, 'type': 'reasoning'}) + '\n'
 
-                if chunk.event == RunEvent.run_completed and chunk.metrics:
+                # 仅在最外层 Team/Agent 完成时报指标(成员完成不报,避免多次)
+                if base == RunEvent.run_completed.value and not member and getattr(chunk, 'metrics', None):
                     yield (
                         json.dumps(
                             {'metrics': CamelCaseUtil.transform_result(chunk.metrics.to_dict()), 'type': 'metrics'}
@@ -402,7 +481,8 @@ class AiChatService:
 
                 if content:
                     full_response += content
-                    yield json.dumps({'content': content, 'type': 'content'}) + '\n'
+                    yield json.dumps(_with_member({'content': content, 'type': 'content'}),
+                                      ensure_ascii=False) + '\n'
 
                 # 增量排空结构化产物(图表/表格):工具产出后即推给前端渲染
                 while emitted < len(arts):
@@ -491,9 +571,15 @@ class AiChatService:
                 from common.context import RequestContext  # noqa: PLC0415
                 from module_rag.agent_tools import make_kb_tool  # noqa: PLC0415
                 kb_tool = make_kb_tool(dataset_ids=dsids, tenant_id=RequestContext.get_effective_tenant_id())
-        else:
+        member_specs: list[dict] = []  # 多 agent:引用的应用作为 Team 成员的装配规格
+        if not app_cfg:
             # 普通对话:MCP 工具来自用户对话设置
             mcp_configs = await cls._load_mcp_configs(query_db, user_config)
+            # 多 agent:用户在对话设置里引用的应用 → 解析成 Team 成员
+            for aid in cls._load_agent_app_ids(user_config):
+                spec = await cls._resolve_app_agent_spec(query_db, aid, user_id, session_id, temperature)
+                if spec:
+                    member_specs.append(spec)
 
         artifacts: list = []  # 工具(沙箱)产出的图表/表格收集器,经 _stream_agent 推给前端渲染
         ui_actions: list = []  # 任务提议(确认表单)收集器,经 _stream_agent 推给前端渲染成卡片
@@ -510,29 +596,61 @@ class AiChatService:
             session_id=session_id, artifacts=artifacts, ui_actions=ui_actions,
         )
 
-        if not mcp_configs:
-            # 无 MCP:原直连路径(保持既有行为不变)
-            agent = cls._build_agent(artifacts=artifacts, ui_actions=ui_actions, **build_kwargs)
-            async for chunk in cls._stream_agent(agent=agent, **stream_kwargs):
+        # MCP 汇聚:主对话自身 + 所有成员应用的 MCP 配置,按 code 去重后一次性连接,再按 code 分发。
+        # (MCP 连接须在同一 task 的 cancel scope 内,不能在成员运行中途现连)
+        leader_mcp_codes = {c['code'] for c in mcp_configs}
+        all_mcp_configs: list[dict] = list(mcp_configs)
+        for spec in member_specs:
+            all_mcp_configs += spec['mcp_configs']
+        seen_codes: set = set()
+        deduped_mcp: list[dict] = []
+        for c in all_mcp_configs:
+            if c['code'] in seen_codes:
+                continue
+            seen_codes.add(c['code'])
+            deduped_mcp.append(c)
+        all_mcp_configs = deduped_mcp
+
+        def _runnable(extra_tools: list | None):
+            """按已连接的 MCP 工具(带 _ezdata_code)装配可运行对象:无成员→单 Agent;有成员→Team。"""
+            extra_tools = extra_tools or []
+            if not member_specs:
+                return cls._build_agent(artifacts=artifacts, ui_actions=ui_actions,
+                                        extra_tools=extra_tools, **build_kwargs)
+            by = lambda codes: [t for t in extra_tools if getattr(t, '_ezdata_code', None) in codes]  # noqa: E731
+            members = [
+                cls._build_agent(artifacts=artifacts, ui_actions=ui_actions,
+                                 extra_tools=by({c['code'] for c in spec['mcp_configs']}), **spec['build_kwargs'])
+                for spec in member_specs
+            ]
+            return cls._build_team(
+                members=members, leader_extra_tools=by(leader_mcp_codes),
+                model_config=model_config, temperature=temperature, system_prompt=system_prompt,
+                session_id=session_id, add_history=add_history, num_history=num_history,
+                artifacts=artifacts, ui_actions=ui_actions,
+            )
+
+        if not all_mcp_configs:
+            # 无 MCP:直连路径(单 agent 保持既有行为不变;有成员则直接组 Team)
+            async for chunk in cls._stream_agent(agent=_runnable([]), **stream_kwargs):
                 yield chunk
             return
 
-        # 有 MCP:在独立 worker task 内连 MCP + 跑 agent,队列桥接给本生成器。
+        # 有 MCP:在独立 worker task 内连 MCP + 跑 agent/Team,队列桥接给本生成器。
         # MCPTools 基于 anyio cancel scope,其进入/退出必须在同一 task;放进 worker 可避免与
         # 请求 DB 会话/生成器收尾跨 task 冲突("exit cancel scope in a different task")。
         queue: asyncio.Queue = asyncio.Queue(maxsize=256)
         sentinel = object()
 
         async def _run_with_tools(extra_tools: list) -> None:
-            agent = cls._build_agent(artifacts=artifacts, ui_actions=ui_actions,
-                                     extra_tools=extra_tools, **build_kwargs)
-            async for chunk in cls._stream_agent(agent=agent, **stream_kwargs):
+            async for chunk in cls._stream_agent(agent=_runnable(extra_tools), **stream_kwargs):
                 await queue.put(chunk)
 
         async def _worker() -> None:
             try:
-                logger.info(f'[MCP worker] 启动,选中 {len(mcp_configs)} 个 MCP 工具')
-                await cls._with_mcp_tools(mcp_configs, [], _run_with_tools)
+                logger.info(f'[MCP worker] 启动,选中 {len(all_mcp_configs)} 个 MCP 工具,'
+                            f'{len(member_specs)} 个成员 agent')
+                await cls._with_mcp_tools(all_mcp_configs, [], _run_with_tools)
                 logger.info('[MCP worker] 正常结束')
             except Exception as e:  # noqa: BLE001
                 logger.exception(f'[MCP worker] 异常: {e}')
@@ -570,6 +688,66 @@ class AiChatService:
                     await task
                 except BaseException:  # noqa: BLE001 worker 取消时在自身 task 内收尾 MCP 连接
                     pass
+
+    @classmethod
+    def _load_agent_app_ids(cls, user_config: AiChatConfigModel) -> list[int]:
+        """解析用户对话配置里「引用的应用 agent」CSV id 列表(空则不启用多 agent)。"""
+        raw = (getattr(user_config, 'agent_app_ids', None) or '').strip()
+        if not raw:
+            return []
+        out: list[int] = []
+        for x in raw.split(','):
+            x = x.strip()
+            if x.isdigit():
+                out.append(int(x))
+        return out
+
+    @classmethod
+    async def _resolve_app_agent_spec(
+        cls, query_db: AsyncSession, app_id: int, user_id: int, session_id: str, default_temperature: float,
+    ) -> dict | None:
+        """把一个应用(ai_app)配置解析成"建成员 Agent 所需的 build_kwargs + 该应用的 mcp_configs"。
+
+        与 chat_services 应用模式分支同源(模型/人设/工具/数据源范围/知识库),供 Team 成员复用。
+        成员不加载会话历史(add_history=False),历史由 Team 统一注入。返回 None 表示应用不存在。
+        """
+        from module_ai.service.ai_app_service import AiAppService  # noqa: PLC0415
+        from module_ai.service.ai_tool_service import AiToolService  # noqa: PLC0415
+
+        app_cfg = await AiAppService.get_app_config(query_db, app_id)
+        if not app_cfg:
+            return None
+        system_prompt = (app_cfg.get('prompt') or '').strip() or None
+        m = app_cfg.get('model') or {}
+        model_config = await cls._resolve_chat_model_config(query_db, m.get('modelId') or 0)
+        temperature = m['temperature'] if m.get('temperature') is not None else default_temperature
+        if m.get('maxTokens'):
+            model_config.max_tokens = m['maxTokens']
+        resolved = await AiToolService.resolve_app_tools(query_db, app_cfg.get('toolIds') or [])
+        # 同应用模式:task_propose 透传,sandbox_code 始终挂(绘图/计算),data_explore 由数据源选择控制
+        builtin_codes = [c for c in resolved['builtin_codes'] if c == 'task_propose'] + ['sandbox_code']
+        mcp_configs = resolved['mcp_configs']
+        ds_codes = app_cfg.get('datasourceCodes') or []
+        datasource_scope = None
+        datasource_query_enabled = bool(ds_codes)
+        if ds_codes:
+            builtin_codes = builtin_codes + ['data_explore']
+            datasource_scope = ds_codes
+        kb_tool = None
+        dsids = app_cfg.get('datasetIds') or []
+        if dsids:
+            from common.context import RequestContext  # noqa: PLC0415
+            from module_rag.agent_tools import make_kb_tool  # noqa: PLC0415
+            kb_tool = make_kb_tool(dataset_ids=dsids, tenant_id=RequestContext.get_effective_tenant_id())
+        build_kwargs = dict(
+            model_config=model_config, temperature=temperature, system_prompt=system_prompt,
+            user_id=user_id, session_id=f'{session_id}-m{app_id}', add_history=False, num_history=0,
+            builtin_codes=builtin_codes, kb_tool=kb_tool, instructions=[],
+            datasource_scope=datasource_scope, datasource_query_enabled=datasource_query_enabled,
+            name=app_cfg.get('_name') or f'应用{app_id}',
+            agent_id=f'app-{app_id}',  # 成员需唯一 id,否则 Team 无法按 member_id 区分路由
+        )
+        return {'build_kwargs': build_kwargs, 'mcp_configs': mcp_configs}
 
     @classmethod
     async def _load_mcp_configs(cls, query_db: AsyncSession, user_config: AiChatConfigModel) -> list[dict]:
@@ -614,6 +792,7 @@ class AiChatService:
         try:
             async with MCPTools(**kwargs) as t:
                 logger.info(f"MCP 工具已连接: {cfg['code']} ({len(getattr(t, 'functions', None) or {})} 个方法)")
+                t._ezdata_code = cfg['code']  # 标记来源 code,便于多 agent 时按应用分发
                 await cls._with_mcp_tools(rest, [*connected, t], cb)
         except Exception as e:  # noqa: BLE001 连不上不阻断,跳过该工具继续其余
             logger.warning(f"MCP 工具连接失败,跳过 {cfg['code']}: {e}")
