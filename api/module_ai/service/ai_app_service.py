@@ -13,7 +13,7 @@ from utils.common_util import CamelCaseUtil
 
 _DEFAULT_CONFIG: dict = {
     'prompt': '', 'prologue': '', 'presetQuestions': [], 'quickCommands': [],
-    'toolIds': [], 'datasetIds': [], 'datasourceCodes': [],
+    'toolIds': [], 'datasetIds': [], 'datasourceCodes': [], 'enableMemory': False,
     'model': {'modelId': 0, 'temperature': None, 'maxTokens': None},
 }
 

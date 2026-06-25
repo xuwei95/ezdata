@@ -567,7 +567,7 @@ class AiChatService:
             from module_ai.service.ai_app_service import AiAppService  # noqa: PLC0415
             app_cfg = await AiAppService.get_app_config(query_db, chat_req.app_id)
         if app_cfg:
-            enable_memory = False  # 应用为共享配置,不启用按用户的长期记忆(避免人设/记忆串扰)
+            enable_memory = bool(app_cfg.get('enableMemory'))  # 应用自带的长期记忆开关(仍按 user_id 隔离)
             app_instructions = []  # 应用模式:仅用应用 prompt 作系统提示,不叠加数据 agent 工作流指令
             if (app_cfg.get('prompt') or '').strip():
                 system_prompt = app_cfg['prompt']

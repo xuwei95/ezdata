@@ -90,6 +90,10 @@
               <el-option v-for="d in datasetOptions" :key="d.id" :label="d.name" :value="d.id" />
             </el-select>
           </el-form-item>
+          <el-form-item label="长期记忆">
+            <el-switch v-model="cfg.enableMemory" />
+            <span style="margin-left: 8px; font-size: 12px; color: var(--el-text-color-secondary)">跨会话记住用户偏好/事实(按用户隔离)</span>
+          </el-form-item>
 
         </el-form>
       </el-scrollbar>
@@ -153,7 +157,7 @@ const router = useRouter();
 const apiBase = import.meta.env.VITE_APP_BASE_API || "";
 
 const form = reactive({ appId: route.params.appId ? Number(route.params.appId) : null, name: "", description: "", status: "0" });
-const cfg = reactive({ prompt: "", prologue: "", presetQuestions: [], quickCommands: [], toolIds: [], datasetIds: [], datasourceCodes: [], model: { modelId: 0, temperature: null, maxTokens: null } });
+const cfg = reactive({ prompt: "", prologue: "", presetQuestions: [], quickCommands: [], toolIds: [], datasetIds: [], datasourceCodes: [], enableMemory: false, model: { modelId: 0, temperature: null, maxTokens: null } });
 const pgVisible = ref(false);
 const saving = ref(false);
 const toolOptions = ref([]);

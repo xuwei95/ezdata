@@ -268,8 +268,8 @@ insert into sys_menu values(115,  '表单构建', 3,   '1', 'build',            
 insert into sys_menu values(116,  '代码生成', 3,   '2', 'gen',                 'tool/gen/index',                    '', '', 1, 0, 'C', '0', '0', 'tool:gen:list',                    'code',          'admin', current_timestamp, '', null, '代码生成菜单');
 insert into sys_menu values(117,  '系统接口', 3,   '3', 'swagger',             'tool/swagger/index',                '', '', 1, 0, 'C', '0', '0', 'tool:swagger:list',                'swagger',       'admin', current_timestamp, '', null, '系统接口菜单');
 insert into sys_menu values(119,  'AI 对话', 4,   '1', 'chat',                'ai/chat/index',                     '', '', 1, 0, 'C', '0', '0', 'ai:chat:list',                     'wechat',        'admin', current_timestamp, '', null, 'AI 对话菜单');
-insert into sys_menu values(118,  '模型管理', 4,   '2', 'model',               'ai/model/index',                    '', '', 1, 0, 'C', '0', '0', 'ai:model:list',                    'form',          'admin', current_timestamp, '', null, '模型管理菜单');
-insert into sys_menu values(121,  '工具管理', 4,   '3', 'tool',                'ai/tool/index',                     '', 'AiTool', 1, 0, 'C', '0', '0', 'ai:tool:list',                     'tool',          'admin', current_timestamp, '', null, '工具管理菜单');
+insert into sys_menu values(118,  '模型管理', 4,   '3', 'model',               'ai/model/index',                    '', '', 1, 0, 'C', '0', '0', 'ai:model:list',                    'form',          'admin', current_timestamp, '', null, '模型管理菜单');
+insert into sys_menu values(121,  '工具管理', 4,   '4', 'tool',                'ai/tool/index',                     '', 'AiTool', 1, 0, 'C', '0', '0', 'ai:tool:list',                     'tool',          'admin', current_timestamp, '', null, '工具管理菜单');
 -- 三级菜单
 insert into sys_menu values(500,  '操作日志', 108, '1', 'operlog',    'monitor/operlog/index',    '', '', 1, 0, 'C', '0', '0', 'monitor:operlog:list',    'form',          'admin', current_timestamp, '', null, '操作日志菜单');
 insert into sys_menu values(501,  '登录日志', 108, '2', 'logininfor', 'monitor/logininfor/index', '', '', 1, 0, 'C', '0', '0', 'monitor:logininfor:list', 'logininfor',    'admin', current_timestamp, '', null, '登录日志菜单');
@@ -356,7 +356,7 @@ insert into sys_menu values(1065, '工具查询', 121, '1', '#', '', '', '', 1, 
 insert into sys_menu values(1066, '工具新增', 121, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:tool:add',                '#', 'admin', current_timestamp, '', null, '');
 insert into sys_menu values(1067, '工具修改', 121, '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:tool:edit',               '#', 'admin', current_timestamp, '', null, '');
 insert into sys_menu values(1068, '工具删除', 121, '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:tool:remove',             '#', 'admin', current_timestamp, '', null, '');
-insert into sys_menu values(122,  '应用管理', 4,   '4', 'app',                 'ai/app/index',                      '', 'AiApp', 1, 0, 'C', '0', '0', 'ai:app:list',                      'menu',          'admin', current_timestamp, '', null, 'AI应用管理菜单');
+insert into sys_menu values(122,  '应用管理', 4,   '2', 'app',                 'ai/app/index',                      '', 'AiApp', 1, 0, 'C', '0', '0', 'ai:app:list',                      'component',     'admin', current_timestamp, '', null, 'AI应用管理菜单');
 insert into sys_menu values(1069, '应用查询', 122, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:app:query',               '#', 'admin', current_timestamp, '', null, '');
 insert into sys_menu values(1070, '应用新增', 122, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:app:add',                 '#', 'admin', current_timestamp, '', null, '');
 insert into sys_menu values(1071, '应用修改', 122, '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:app:edit',                '#', 'admin', current_timestamp, '', null, '');
