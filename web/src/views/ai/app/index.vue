@@ -16,21 +16,40 @@
           <div class="app-avatar"><el-icon><Cpu /></el-icon></div>
           <div class="app-meta">
             <div class="app-name">{{ app.name }}</div>
-            <el-tag size="small" :type="app.status === '0' ? 'success' : 'info'">
-              {{ app.status === "0" ? "已发布" : "草稿" }}
-            </el-tag>
+            <el-switch
+              v-model="app.status"
+              active-value="0"
+              inactive-value="1"
+              inline-prompt
+              active-text="发布"
+              inactive-text="草稿"
+              size="small"
+              @click.stop
+              @change="handlePublish(app)"
+            />
           </div>
         </div>
         <div class="app-desc">{{ app.description || "暂无描述" }}</div>
         <div class="app-card-foot" @click.stop>
-          <el-button type="primary" link icon="ChatDotRound" @click="goChat(app)">进入对话</el-button>
+          <el-tooltip content="进入对话" placement="top">
+            <el-button type="primary" link icon="ChatDotRound" @click="goChat(app)" />
+          </el-tooltip>
           <span style="flex: 1"></span>
-          <el-button type="primary" link icon="Edit" @click="handleEdit(app)" v-hasPermi="['ai:app:edit']">编辑</el-button>
-          <el-button type="danger" link icon="Delete" @click="handleDelete(app)" v-hasPermi="['ai:app:remove']">删除</el-button>
+          <el-tooltip content="API Key" placement="top">
+            <el-button type="primary" link icon="Key" @click="openTokens(app)" v-hasPermi="['ai:app:edit']" />
+          </el-tooltip>
+          <el-tooltip content="编辑" placement="top">
+            <el-button type="primary" link icon="Edit" @click="handleEdit(app)" v-hasPermi="['ai:app:edit']" />
+          </el-tooltip>
+          <el-tooltip content="删除" placement="top">
+            <el-button type="danger" link icon="Delete" @click="handleDelete(app)" v-hasPermi="['ai:app:remove']" />
+          </el-tooltip>
         </div>
       </div>
       <el-empty v-if="!loading && appList.length === 0" description="暂无应用,点「新建应用」创建" style="width: 100%" />
     </div>
+
+    <TokenDialog v-model:visible="tokenOpen" :app-id="tokenAppId" />
 
     <pagination
       v-show="total > 0"
@@ -46,7 +65,8 @@
 <script setup name="AiApp">
 import { ref, reactive } from "vue";
 import { useRouter } from "vue-router";
-import { listApp, delApp } from "@/api/ai/app";
+import { listApp, delApp, updateApp } from "@/api/ai/app";
+import TokenDialog from "./components/TokenDialog.vue";
 
 const { proxy } = getCurrentInstance();
 const router = useRouter();
@@ -54,7 +74,21 @@ const router = useRouter();
 const appList = ref([]);
 const total = ref(0);
 const loading = ref(true);
+const tokenOpen = ref(false);
+const tokenAppId = ref(null);
 const queryParams = reactive({ pageNum: 1, pageSize: 12, keyword: undefined });
+
+function openTokens(app) {
+  tokenAppId.value = app.appId;
+  tokenOpen.value = true;
+}
+function handlePublish(app) {
+  updateApp({ appId: app.appId, name: app.name, status: app.status })
+    .then(() => proxy.$modal.msgSuccess(app.status === "0" ? "已发布" : "已转草稿"))
+    .catch(() => {
+      app.status = app.status === "0" ? "1" : "0";
+    });
+}
 
 function getList() {
   loading.value = true;

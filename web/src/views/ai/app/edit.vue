@@ -9,24 +9,12 @@
       </div>
       <el-scrollbar class="ae-left-body">
         <el-form :model="form" label-width="86px">
-          <el-row :gutter="12">
-            <el-col :span="14">
-              <el-form-item label="应用名称" required>
-                <el-input v-model="form.name" placeholder="如:数据分析助手" />
-              </el-form-item>
-            </el-col>
-            <el-col :span="10">
-              <el-form-item label="状态">
-                <el-radio-group v-model="form.status">
-                  <el-radio value="0">发布</el-radio>
-                  <el-radio value="1">草稿</el-radio>
-                </el-radio-group>
-              </el-form-item>
-            </el-col>
-            <el-col :span="24">
-              <el-form-item label="应用描述"><el-input v-model="form.description" placeholder="一句话介绍" /></el-form-item>
-            </el-col>
-          </el-row>
+          <el-form-item label="应用名称" required>
+            <el-input v-model="form.name" placeholder="如:数据分析助手" />
+          </el-form-item>
+          <el-form-item label="应用描述">
+            <el-input v-model="form.description" placeholder="一句话介绍" />
+          </el-form-item>
 
           <el-divider content-position="left">人设与开场</el-divider>
           <el-form-item label="系统提示词">
@@ -76,40 +64,27 @@
             </el-select>
           </el-form-item>
 
-          <el-divider content-position="left">模型参数</el-divider>
-          <el-row :gutter="12">
-            <el-col :span="10">
-              <el-form-item label="模型">
-                <el-select v-model="cfg.model.modelId" style="width: 100%">
-                  <el-option v-for="m in modelOptions" :key="m.modelId" :label="m.modelName || m.modelCode" :value="m.modelId" />
-                </el-select>
-              </el-form-item>
-            </el-col>
-            <el-col :span="7">
-              <el-form-item label="温度"><el-input-number v-model="cfg.model.temperature" :min="0" :max="2" :step="0.1" :precision="1" style="width: 100%" /></el-form-item>
-            </el-col>
-            <el-col :span="7">
-              <el-form-item label="最大输出"><el-input-number v-model="cfg.model.maxTokens" :min="0" :step="1000" style="width: 100%" placeholder="默认" /></el-form-item>
-            </el-col>
-          </el-row>
-
-          <template v-if="form.appId">
-            <el-divider content-position="left">对外 API Key</el-divider>
-            <el-button size="small" type="primary" icon="Plus" :loading="tokenLoading" @click="genToken">生成 API Key</el-button>
-            <el-table :data="tokens" size="small" style="margin-top: 8px" empty-text="暂无 API Key">
-              <el-table-column label="名称" prop="name" width="110" show-overflow-tooltip />
-              <el-table-column label="API Key" prop="token" show-overflow-tooltip>
-                <template #default="{ row }">
-                  <span style="font-family: monospace; font-size: 12px">{{ row.token }}</span>
-                  <el-button link type="primary" size="small" @click="copy(row.token)">复制</el-button>
+          <el-divider content-position="left">模型</el-divider>
+          <el-form-item label="模型">
+            <div style="display: flex; gap: 8px; width: 100%">
+              <el-select v-model="cfg.model.modelId" style="flex: 1" placeholder="选择模型">
+                <el-option v-for="m in modelOptions" :key="m.modelId" :label="m.modelName || m.modelCode" :value="m.modelId" />
+              </el-select>
+              <el-popover trigger="click" :width="270" placement="bottom-end">
+                <template #reference>
+                  <el-button icon="Setting">设置</el-button>
                 </template>
-              </el-table-column>
-              <el-table-column label="操作" width="60">
-                <template #default="{ row }"><el-button link type="danger" size="small" @click="removeToken(row.id)">删除</el-button></template>
-              </el-table-column>
-            </el-table>
-            <div class="ae-api-hint">POST {{ apiBase }}/ai/app/api/chat,Header「X-API-Key: 上面的 key」,body {"message":"你好"}</div>
-          </template>
+                <el-form label-width="72px" style="margin: 0">
+                  <el-form-item label="温度" style="margin-bottom: 10px">
+                    <el-input-number v-model="cfg.model.temperature" :min="0" :max="2" :step="0.1" :precision="1" style="width: 100%" placeholder="默认" />
+                  </el-form-item>
+                  <el-form-item label="最大输出" style="margin-bottom: 0">
+                    <el-input-number v-model="cfg.model.maxTokens" :min="0" :step="1000" style="width: 100%" placeholder="默认" />
+                  </el-form-item>
+                </el-form>
+              </el-popover>
+            </div>
+          </el-form-item>
         </el-form>
       </el-scrollbar>
     </div>
@@ -154,7 +129,6 @@ import { getApp, addApp, updateApp, generatePrompt } from "@/api/ai/app";
 import { listTool } from "@/api/ai/tool";
 import { listModelAll } from "@/api/ai/model";
 import { listDataset } from "@/api/rag";
-import { listToken, addToken, delToken } from "@/api/apitoken/token";
 import { getToken } from "@/utils/auth";
 import { v4 as uuidv4 } from "uuid";
 
@@ -170,8 +144,6 @@ const generating = ref(false);
 const toolOptions = ref([]);
 const modelOptions = ref([]);
 const datasetOptions = ref([]);
-const tokens = ref([]);
-const tokenLoading = ref(false);
 
 // 右侧调试对话
 const messages = ref([]);
@@ -195,7 +167,6 @@ onMounted(async () => {
     Object.assign(form, { name: d.name, description: d.description, status: d.status || "0" });
     Object.assign(cfg, { ...cfg, ...(d.config || {}) });
     if (!cfg.model) cfg.model = { modelId: 0 };
-    loadTokens();
   }
 });
 
@@ -220,7 +191,6 @@ function save() {
       if (!form.appId && res.data?.appId) {
         form.appId = res.data.appId;
         router.replace("/ai/app/edit/" + res.data.appId);
-        loadTokens();
       }
     })
     .finally(() => (saving.value = false));
@@ -234,25 +204,6 @@ function doGenerate() {
       ElMessage.success("已生成");
     })
     .finally(() => (generating.value = false));
-}
-
-// APIKey(复用通用 api_token:token_type=ai_app, ref_id=appId)
-function loadTokens() {
-  if (!form.appId) return;
-  listToken({ tokenType: "ai_app", refId: String(form.appId), pageNum: 1, pageSize: 50 }).then((res) => (tokens.value = res.rows || []));
-}
-function genToken() {
-  tokenLoading.value = true;
-  addToken({ tokenType: "ai_app", refId: String(form.appId), name: "key" + (tokens.value.length + 1) })
-    .then(() => loadTokens())
-    .finally(() => (tokenLoading.value = false));
-}
-function removeToken(id) {
-  delToken(id).then(() => loadTokens());
-}
-function copy(t) {
-  navigator.clipboard?.writeText(t);
-  ElMessage.success("已复制");
 }
 
 function newChat() {
