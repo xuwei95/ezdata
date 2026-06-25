@@ -206,9 +206,17 @@ function toggleBlk(i) {
 }
 
 // pyecharts render_embed() 已是含 echarts 公网 CDN 的完整 html 页面(勿再包一层)。
-// 仅向其中注入 CSS + resize 脚本:把固定 900×500 的图表容器改成 100%、随 iframe 宽度自适应。
+// 1) 把 echarts CDN(assets.pyecharts.org,受限网络常不可达,图表画不出)改为同源本地副本
+//    /echarts.min.js(public/),并保留 CDN 作 onerror 兜底,离线/在线都能渲染;
+// 2) 注入 CSS + resize 脚本:把固定 900×500 容器改成 100%、随 iframe 宽度自适应。
 function fitChart(html) {
   if (!html) return html;
+  const localEcharts = window.location.origin + "/echarts.min.js";
+  // 把 echarts 的 <script src=CDN> 换成本地源 + CDN 兜底(其余 pyecharts 扩展脚本保持原样)
+  html = html.replace(
+    /<script\s+type="text\/javascript"\s+src="(https?:\/\/[^"]*\/echarts\.min\.js)"><\/script>/i,
+    `<script type="text/javascript" src="${localEcharts}" onerror="this.onerror=null;var s=document.createElement('script');s.src='$1';document.head.appendChild(s);"><\/script>`,
+  );
   const css =
     "<style>html,body{height:100%;margin:0;overflow:hidden}" +
     ".chart-container{width:100%!important;height:100%!important}</style>";
