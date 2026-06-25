@@ -11,7 +11,7 @@
     </el-form>
 
     <div v-loading="loading" class="app-grid">
-      <div v-for="app in appList" :key="app.appId" class="app-card" @click="goChat(app)">
+      <div v-for="app in appList" :key="app.appId" class="app-card" @click="openDetail(app)">
         <div class="app-card-head">
           <div class="app-avatar"><el-icon><Cpu /></el-icon></div>
           <div class="app-meta">
@@ -50,6 +50,7 @@
     </div>
 
     <TokenDialog v-model:visible="tokenOpen" :app-id="tokenAppId" />
+    <AppDetailDialog v-model:visible="detailOpen" :app-id="detailAppId" @edit="handleEditById" @chat="goChatById" />
 
     <pagination
       v-show="total > 0"
@@ -67,6 +68,7 @@ import { ref, reactive } from "vue";
 import { useRouter } from "vue-router";
 import { listApp, delApp, updateApp } from "@/api/ai/app";
 import TokenDialog from "./components/TokenDialog.vue";
+import AppDetailDialog from "./components/AppDetailDialog.vue";
 
 const { proxy } = getCurrentInstance();
 const router = useRouter();
@@ -76,7 +78,14 @@ const total = ref(0);
 const loading = ref(true);
 const tokenOpen = ref(false);
 const tokenAppId = ref(null);
+const detailOpen = ref(false);
+const detailAppId = ref(null);
 const queryParams = reactive({ pageNum: 1, pageSize: 12, keyword: undefined });
+
+function openDetail(app) {
+  detailAppId.value = app.appId;
+  detailOpen.value = true;
+}
 
 function openTokens(app) {
   tokenAppId.value = app.appId;
@@ -105,6 +114,12 @@ function handleAdd() {
 }
 function handleEdit(app) {
   router.push("/ai/app/edit/" + app.appId);
+}
+function handleEditById(appId) {
+  router.push("/ai/app/edit/" + appId);
+}
+function goChatById(appId) {
+  router.push("/ai/app/chat/" + appId);
 }
 function handleDelete(app) {
   proxy.$modal
