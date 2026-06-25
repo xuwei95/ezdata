@@ -40,7 +40,6 @@
       @pagination="getList"
     />
 
-    <AppEditDialog v-model:visible="editOpen" :app-id="editAppId" @success="getList" />
   </div>
 </template>
 
@@ -48,7 +47,6 @@
 import { ref, reactive } from "vue";
 import { useRouter } from "vue-router";
 import { listApp, delApp } from "@/api/ai/app";
-import AppEditDialog from "./components/AppEditDialog.vue";
 
 const { proxy } = getCurrentInstance();
 const router = useRouter();
@@ -56,8 +54,6 @@ const router = useRouter();
 const appList = ref([]);
 const total = ref(0);
 const loading = ref(true);
-const editOpen = ref(false);
-const editAppId = ref(null);
 const queryParams = reactive({ pageNum: 1, pageSize: 12, keyword: undefined });
 
 function getList() {
@@ -71,12 +67,10 @@ function getList() {
 }
 
 function handleAdd() {
-  editAppId.value = null;
-  editOpen.value = true;
+  router.push("/ai/app/edit");
 }
 function handleEdit(app) {
-  editAppId.value = app.appId;
-  editOpen.value = true;
+  router.push("/ai/app/edit/" + app.appId);
 }
 function handleDelete(app) {
   proxy.$modal

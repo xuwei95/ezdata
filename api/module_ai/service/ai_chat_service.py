@@ -421,7 +421,8 @@ class AiChatService:
 
     @classmethod
     async def chat_services(
-        cls, query_db: AsyncSession, chat_req: AiChatRequestModel, user_id: int
+        cls, query_db: AsyncSession, chat_req: AiChatRequestModel, user_id: int,
+        app_config_override: dict | None = None,
     ) -> AsyncGenerator[str, None]:
         """
         流式对话
@@ -449,7 +450,9 @@ class AiChatService:
         kb_tool = None
         mcp_configs: list[dict] = []
         app_cfg = None
-        if getattr(chat_req, 'app_id', None):
+        if app_config_override is not None:
+            app_cfg = app_config_override  # 调试:用前端草稿配置(免保存)
+        elif getattr(chat_req, 'app_id', None):
             from module_ai.service.ai_app_service import AiAppService  # noqa: PLC0415
             app_cfg = await AiAppService.get_app_config(query_db, chat_req.app_id)
         if app_cfg:

@@ -1138,26 +1138,7 @@ create index ix_ai_app_tenant_id on ai_app (tenant_id);
 comment on table ai_app is 'AI应用表';
 comment on column ai_app.config is '应用配置JSON(prompt/绑定工具知识库/参数等)';
 
--- ----------------------------
--- AI应用对外 API Key 表
--- ----------------------------
-drop table if exists ai_app_token;
-create table ai_app_token (
-  token_id          bigserial       not null,
-  app_id            bigint          not null,
-  api_key           varchar(64)     not null,
-  name              varchar(100)    default null,
-  status            char(1)         default '0',
-  expire_time       timestamp(0),
-  create_by         varchar(64)     default '',
-  create_time       timestamp(0),
-  tenant_id         bigint,
-  primary key (token_id)
-);
-create index ix_ai_app_token_tenant_id on ai_app_token (tenant_id);
-create index ix_ai_app_token_api_key on ai_app_token (api_key);
-create index ix_ai_app_token_app_id on ai_app_token (app_id);
-comment on table ai_app_token is 'AI应用APIKey表';
+-- (应用对外 APIKey 复用通用 api_token 表:token_type='ai_app', ref_id=应用ID)
 
 -- ----------------------------
 -- 21、AI对话配置表

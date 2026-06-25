@@ -59,22 +59,14 @@ class PromptGenerateReq(BaseModel):
     model_id: int | None = Field(default=0, description='用于生成的模型ID(默认env兜底)')
 
 
-class TokenCreateReq(BaseModel):
-    """创建应用 APIKey 请求"""
+class AppDebugReq(BaseModel):
+    """应用调试对话请求(用草稿 config,免先保存)"""
 
     model_config = ConfigDict(alias_generator=to_camel)
 
-    app_id: int = Field(description='应用ID')
-    name: str | None = Field(default=None, description='名称/用途')
-
-
-class TokenStatusReq(BaseModel):
-    """APIKey 启停请求"""
-
-    model_config = ConfigDict(alias_generator=to_camel)
-
-    token_id: int = Field(description='主键')
-    status: Literal['0', '1'] = Field(description='0启用 1停用')
+    config: dict | None = Field(default=None, description='草稿应用配置(prompt/toolIds/datasetIds/model 等)')
+    message: str = Field(description='用户消息')
+    session_id: str | None = Field(default=None, description='会话ID')
 
 
 class ApiChatReq(BaseModel):

@@ -113,77 +113,21 @@ class AiAppService:
             return None
         return {**_DEFAULT_CONFIG, **_loads(obj.config), '_name': obj.name}
 
-    # ---------- 对外 APIKey ----------
-    @classmethod
-    async def list_tokens_services(cls, query_db: AsyncSession, app_id: int) -> list[dict]:
-        from sqlalchemy import select  # noqa: PLC0415
-
-        from module_ai.entity.do.ai_app_token_do import AiAppToken  # noqa: PLC0415
-
-        rows = (await query_db.execute(
-            select(AiAppToken).where(AiAppToken.app_id == app_id).order_by(AiAppToken.create_time.desc())
-        )).scalars().all()
-        return [CamelCaseUtil.transform_result(r) for r in rows]
-
-    @classmethod
-    async def create_token_services(cls, query_db: AsyncSession, app_id: int, name: str, operator: str) -> dict:
-        import uuid  # noqa: PLC0415
-        from datetime import datetime  # noqa: PLC0415
-
-        from module_ai.entity.do.ai_app_token_do import AiAppToken  # noqa: PLC0415
-
-        api_key = 'app-' + uuid.uuid4().hex
-        try:
-            obj = AiAppToken(app_id=app_id, api_key=api_key, name=name or '', status='0',
-                             create_by=operator, create_time=datetime.now())
-            query_db.add(obj)
-            await query_db.flush()
-            tid = obj.token_id
-            await query_db.commit()
-            return {'tokenId': tid, 'apiKey': api_key}
-        except Exception as e:
-            await query_db.rollback()
-            raise e
-
-    @classmethod
-    async def delete_token_services(cls, query_db: AsyncSession, token_id: int) -> CrudResponseModel:
-        from sqlalchemy import delete  # noqa: PLC0415
-
-        from module_ai.entity.do.ai_app_token_do import AiAppToken  # noqa: PLC0415
-
-        await query_db.execute(delete(AiAppToken).where(AiAppToken.token_id == token_id))
-        await query_db.commit()
-        return CrudResponseModel(is_success=True, message='删除成功')
-
-    @classmethod
-    async def set_token_status_services(cls, query_db: AsyncSession, token_id: int, status: str) -> CrudResponseModel:
-        from sqlalchemy import update  # noqa: PLC0415
-
-        from module_ai.entity.do.ai_app_token_do import AiAppToken  # noqa: PLC0415
-
-        await query_db.execute(update(AiAppToken).where(AiAppToken.token_id == token_id).values(status=status))
-        await query_db.commit()
-        return CrudResponseModel(is_success=True, message='操作成功')
-
     @classmethod
     async def resolve_token(cls, query_db: AsyncSession, api_key: str) -> dict | None:
-        """校验 apikey:存在+启用+未过期 → 返回 {app_id, tenant_id, create_by};否则 None。"""
+        """校验应用 apikey(复用通用 api_token 表,token_type='ai_app'):有效 → {app_id, tenant_id};否则 None。"""
         from datetime import datetime  # noqa: PLC0415
 
-        from sqlalchemy import select  # noqa: PLC0415
-
-        from module_ai.entity.do.ai_app_token_do import AiAppToken  # noqa: PLC0415
+        from module_apitoken.dao.api_token_dao import ApiTokenDao  # noqa: PLC0415
 
         if not api_key:
             return None
-        t = (await query_db.execute(
-            select(AiAppToken).where(AiAppToken.api_key == api_key)
-        )).scalars().first()
-        if not t or t.status != '0':
+        tk = await ApiTokenDao.get_by_token(query_db, api_key)
+        if not tk or tk.status != 1 or tk.token_type != 'ai_app' or not tk.ref_id:
             return None
-        if t.expire_time and t.expire_time < datetime.now():
+        if tk.expire_time and tk.expire_time < datetime.now():
             return None
-        return {'app_id': t.app_id, 'tenant_id': t.tenant_id, 'create_by': t.create_by}
+        return {'app_id': int(tk.ref_id), 'tenant_id': tk.tenant_id}
 
     @classmethod
     async def generate_prompt_services(cls, query_db: AsyncSession, requirement: str, model_id: int) -> str:

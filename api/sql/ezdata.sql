@@ -861,25 +861,7 @@ create table ai_app (
   key ix_ai_app_tenant_id (tenant_id)
 ) engine=innodb auto_increment=1 comment = 'AI应用表';
 
--- ----------------------------
--- AI应用对外 API Key 表
--- ----------------------------
-drop table if exists ai_app_token;
-create table ai_app_token (
-  token_id          bigint(20)      not null auto_increment    comment '主键',
-  app_id            bigint(20)      not null                   comment '所属应用ID',
-  api_key           varchar(64)     not null                   comment 'API Key',
-  name              varchar(100)    default null               comment '名称/用途',
-  status            char(1)         default '0'                comment '状态: 0启用 1停用',
-  expire_time       datetime                                   comment '过期时间(空=永久)',
-  create_by         varchar(64)     default ''                 comment '创建者',
-  create_time       datetime                                   comment '创建时间',
-  tenant_id         bigint(20)                                 comment '租户ID(顶级部门)',
-  primary key (token_id),
-  key ix_ai_app_token_tenant_id (tenant_id),
-  key ix_ai_app_token_api_key (api_key),
-  key ix_ai_app_token_app_id (app_id)
-) engine=innodb auto_increment=1 comment = 'AI应用APIKey表';
+-- (应用对外 APIKey 复用通用 api_token 表:token_type='ai_app', ref_id=应用ID)
 
 
 -- ----------------------------

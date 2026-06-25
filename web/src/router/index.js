@@ -172,6 +172,20 @@ export const dynamicRoutes = [
         meta: { title: '应用对话', activeMenu: '/ai/app' }
       }
     ]
+  },
+  {
+    path: '/ai/app/edit',
+    component: Layout,
+    hidden: true,
+    permissions: ['ai:app:list'],
+    children: [
+      {
+        path: ':appId(\\d+)?',
+        component: () => import('@/views/ai/app/edit'),
+        name: 'AiAppEdit',
+        meta: { title: '应用配置', activeMenu: '/ai/app' }
+      }
+    ]
   }
 ]
 

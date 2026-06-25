@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Annotated
 
 from fastapi import Path, Query, Request, Response
+from fastapi.responses import StreamingResponse
 from pydantic_validation_decorator import ValidateFields
 from sqlalchemy import ColumnElement
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,10 +20,9 @@ from module_ai.entity.do.ai_app_do import AiApp
 from module_ai.entity.vo.ai_app_vo import (
     AiAppModel,
     AiAppPageQueryModel,
+    AppDebugReq,
     DeleteAiAppModel,
     PromptGenerateReq,
-    TokenCreateReq,
-    TokenStatusReq,
 )
 from module_ai.service.ai_app_service import AiAppService
 from utils.log_util import logger
@@ -73,58 +73,23 @@ async def generate_prompt(
     return ResponseUtil.success(data={'prompt': prompt})
 
 
-@ai_app_controller.get(
-    '/token/list', summary='应用APIKey列表', response_model=DataResponseModel,
+@ai_app_controller.post(
+    '/debug', summary='应用调试对话(用草稿配置,免保存)', response_class=StreamingResponse,
     dependencies=[UserInterfaceAuthDependency('ai:app:query')],
 )
-async def list_app_tokens(
+async def debug_chat(
     request: Request,
-    appId: Annotated[int, Query(description='应用ID')],  # noqa: N803
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
-) -> Response:
-    return ResponseUtil.success(data=await AiAppService.list_tokens_services(query_db, appId))
-
-
-@ai_app_controller.post(
-    '/token', summary='生成应用APIKey', response_model=DataResponseModel,
-    dependencies=[UserInterfaceAuthDependency('ai:app:edit')],
-)
-@Log(title='AI应用管理', business_type=BusinessType.INSERT)
-async def create_app_token(
-    request: Request,
-    req: TokenCreateReq,
+    req: AppDebugReq,
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
-    data = await AiAppService.create_token_services(query_db, req.app_id, req.name or '', current_user.user.user_name)
-    return ResponseUtil.success(data=data, msg='生成成功')
+    from module_ai.entity.vo.ai_chat_vo import AiChatRequestModel  # noqa: PLC0415
+    from module_ai.service.ai_chat_service import AiChatService  # noqa: PLC0415
 
-
-@ai_app_controller.put(
-    '/token/status', summary='应用APIKey启停', response_model=ResponseBaseModel,
-    dependencies=[UserInterfaceAuthDependency('ai:app:edit')],
-)
-async def set_app_token_status(
-    request: Request,
-    req: TokenStatusReq,
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
-) -> Response:
-    r = await AiAppService.set_token_status_services(query_db, req.token_id, req.status)
-    return ResponseUtil.success(msg=r.message)
-
-
-@ai_app_controller.delete(
-    '/token/{token_id}', summary='删除应用APIKey', response_model=ResponseBaseModel,
-    dependencies=[UserInterfaceAuthDependency('ai:app:edit')],
-)
-@Log(title='AI应用管理', business_type=BusinessType.DELETE)
-async def delete_app_token(
-    request: Request,
-    token_id: Annotated[int, Path(description='APIKey主键')],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
-) -> Response:
-    r = await AiAppService.delete_token_services(query_db, token_id)
-    return ResponseUtil.success(msg=r.message)
+    user_id = current_user.user.user_id if current_user and current_user.user else 1
+    chat_req = AiChatRequestModel(modelId=0, message=req.message, sessionId=req.session_id)
+    stream = AiChatService.chat_services(query_db, chat_req, user_id, app_config_override=req.config or {})
+    return StreamingResponse(content=stream, media_type='text/event-stream')
 
 
 @ai_app_controller.post(
