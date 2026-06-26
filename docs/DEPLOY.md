@@ -88,7 +88,7 @@ docker compose -f docker-compose.pg.yml up -d --build
 | Scheduler | 进程内(无端口) | 进程内 |
 | Sandbox | 8003(容器内网) | 不部署 |
 
-**默认登录**:`admin` / `admin123`(另有演示用户 `niangao`)。
+**默认登录**:`admin` / `admin123`(另有测试用户 `test`)。
 
 **默认中间件口令**(dev / prod compose 已统一为 `ezdata123456`,仅供本地 / 内网):
 
