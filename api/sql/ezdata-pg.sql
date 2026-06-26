@@ -1399,16 +1399,6 @@ insert into task_template values ('3', '动态代码任务', 'DynamicTask', '', 
     return "执行成功"', '', '[{"field":"message","label":"消息内容","component":"text","required":false,"default":"hello dynamic"}]', 1, 1, 'admin', current_timestamp, '', null, '动态代码模板：run(params, logger) 在模板上维护，任务只填参数');
 insert into task_template values ('4', '数据集成任务', 'DataIntegrationTask', '', 1, 1, null, 'DataIntegrationTask', '', 1, 1, 'admin', current_timestamp, '', null, '内置组件: 数据集成 ETL(抽取-转换-装载),支持抽取预览调试');
 
--- 开箱即用演示数据:AKShare + 内置 ES 两个数据源 + 一个数据集成任务(AKShare→ES,手动触发)
-insert into data_source (id, name, code, source_type, family, config, secrets, status, remark, create_by, create_time, tenant_id) values
-('seed-akshare-cn', 'AKShare 财经数据', 'akshare_cn', 'akshare', 'api', '{}', null, 'ok', '免 key 财经数据接口(演示;表=接口函数名)', 'admin', current_timestamp, 100),
-('seed-demo-es', '演示-Elasticsearch', 'demo_es', 'elasticsearch', 'search', '{"hosts": "http://ezdata-es-dev:9200"}', null, 'ok', '内置 ES(演示,可作 ETL 目标 / 数据服务)', 'admin', current_timestamp, 100);
-
-insert into task (id, template_code, task_type, run_type, name, params, status, built_in, trigger_type, crontab, priority, retry, countdown, run_queue, create_by, create_time, remark, tenant_id) values
-('seed-di-akshare-es', 'DataIntegrationTask', 1, 1, 'A股日线→ES(演示)',
- '{"extract":{"datasource_code":"akshare_cn","tables":["stock_zh_a_daily"],"object":"","native":{"func":"stock_zh_a_daily","params":{"symbol":"sh600519","adjust":"qfq"}}},"transform":{"enabled":false,"code":""},"load":{"datasource_code":"demo_es","table":"demo_stock_daily","mode":"replace","dataset":"public","format":"csv"}}',
- 1, 0, 1, null, 1, 0, 60, 'default', 'admin', current_timestamp, '演示:从 AKShare 取贵州茅台(sh600519)前复权日线,写入 ES 索引 demo_stock_daily(手动触发,点执行即可)', 100);
-
 -- ----------------------------
 -- 任务调度模块菜单/权限
 -- ----------------------------
@@ -1748,3 +1738,14 @@ update task set tenant_id=100;           update task_instance set tenant_id=100;
 update alert_strategy set tenant_id=100; update alert_record set tenant_id=100;
 update ai_models set tenant_id=100;      update ai_chat_config set tenant_id=100;
 update sys_user set tenant_id=100;       update sys_dept set tenant_id=100;       update sys_notice set tenant_id=100;  update sys_job set tenant_id=100;
+
+-- 开箱即用演示数据(放最后:此时 data_source/task 表及 tenant_id 列均已就绪)
+insert into data_source (id, name, code, source_type, family, config, secrets, status, remark, create_by, create_time, tenant_id) values
+('seed-akshare-cn', 'AKShare 财经数据', 'akshare_cn', 'akshare', 'api', '{}', null, 'ok', '免 key 财经数据接口(演示;表=接口函数名)', 'admin', current_timestamp, 100),
+('seed-demo-es', '演示-Elasticsearch', 'demo_es', 'elasticsearch', 'search', '{"hosts": "http://ezdata-es-dev:9200"}', null, 'ok', '内置 ES(演示,可作 ETL 目标 / 数据服务)', 'admin', current_timestamp, 100);
+
+insert into task (id, template_code, task_type, run_type, name, params, status, built_in, trigger_type, crontab, priority, retry, countdown, run_queue, create_by, create_time, remark, tenant_id) values
+('seed-di-akshare-es', 'DataIntegrationTask', 1, 1, 'A股日线→ES(演示)',
+ '{"extract":{"datasource_code":"akshare_cn","tables":["stock_zh_a_daily"],"object":"","native":{"func":"stock_zh_a_daily","params":{"symbol":"sh600519","adjust":"qfq"}}},"transform":{"enabled":false,"code":""},"load":{"datasource_code":"demo_es","table":"demo_stock_daily","mode":"replace","dataset":"public","format":"csv"}}',
+ 1, 0, 1, null, 1, 0, 60, 'default', 'admin', current_timestamp, '演示:从 AKShare 取贵州茅台(sh600519)前复权日线,写入 ES 索引 demo_stock_daily(手动触发,点执行即可)', 100);
+
