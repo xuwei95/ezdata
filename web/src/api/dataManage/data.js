@@ -70,10 +70,11 @@ export function getSampleQuery(id) {
 
 // ---------------- ETL 调试 ----------------
 export function previewEtl(data) {
-  return request({ url: '/data/etl/preview', method: 'post', data })
+  // 代码取数/爬虫预览可能较慢,超时放到 300s(与后端沙箱超时一致)
+  return request({ url: '/data/etl/preview', method: 'post', data, timeout: 300000 })
 }
 export function testLoadEtl(data) {
-  return request({ url: '/data/etl/test-load', method: 'post', data })
+  return request({ url: '/data/etl/test-load', method: 'post', data, timeout: 300000 })
 }
 export function aiQueryEtl(data) {
   return request({ url: '/data/etl/ai-query', method: 'post', data })

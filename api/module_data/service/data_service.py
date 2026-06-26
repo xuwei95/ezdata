@@ -466,7 +466,8 @@ class EtlService:
             if not ds:
                 raise ServiceException(message=f'数据源不存在: {c}')
             dsmap[c] = {'source_type': ds.source_type, 'config': ds.config or {}, 'secrets': _decrypt_secrets(ds)}
-        res = await run_in_threadpool(sandbox_client.run_python_extract, code, dsmap, 'result')
+        # 代码取数/爬虫预览较慢,沙箱超时放到 300s(与前端一致)
+        res = await run_in_threadpool(sandbox_client.run_python_extract, code, dsmap, 'result', 300)
         if not res.get('success'):
             raise ServiceException(message=f'代码取数失败:{short_err(res.get("error") or "未知错误")}')
         rows = res.get('result')
