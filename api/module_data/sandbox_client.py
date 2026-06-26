@@ -73,6 +73,17 @@ def run_python_data(code: str, datasource: dict, variable_to_return: str | None 
                                   'variable_to_return': variable_to_return, 'timeout': t}, t + 50)
 
 
+def run_python_extract(code: str, datasources: dict | None = None, variable_to_return: str | None = 'result',
+                       timeout: int | None = None) -> dict[str, Any]:
+    """运行代码取数/爬虫(沙箱注入 get_handler(code))。datasources={code:{source_type,config,secrets(明文)}}。
+
+    code 产出 result(list[dict]);可用 get_handler(code) 取某数据源 handler。返回 {success, result, stdout, error}。
+    """
+    t = int(timeout or SandboxConfig.sandbox_timeout)
+    return _post('/python/extract', {'code': code, 'datasources': datasources or {},
+                                     'variable_to_return': variable_to_return, 'timeout': t}, t + 50)
+
+
 def execute_task(template_code: str, params: dict, runner_type: int = 1, runner_code: str | None = None,
                  datasources: dict | None = None, task_uuid: str | None = None,
                  timeout: int | None = None) -> dict[str, Any]:

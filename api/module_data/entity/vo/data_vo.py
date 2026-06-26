@@ -120,11 +120,15 @@ class EtlPreviewReq(BaseModel):
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
-    datasource_code: str = Field(description='源数据源编码')
+    datasource_code: str | None = Field(default=None, description='源数据源编码(代码取数时可空)')
     native: Any = Field(default=None, description='原生查询(批量源:SQL 串 / DSL dict)')
     object_name: str | None = Field(default=None, description='表/主题(流式源过滤)')
     transform_code: str | None = Field(default=None, description='逐行转换 transform(row),预览转换后形态')
     limit: int = Field(default=50, description='预览条数(强制上限 200;流式源固定抽 1 条)')
+    # 代码取数(沙箱预览):mode=code 时用 code 跑出 result(list[dict]),datasource_codes 为代码可用的源
+    mode: str | None = Field(default=None, description='抽取方式 datasource(默认)/ code 代码取数')
+    code: str | None = Field(default=None, description='代码取数:产出 result(list[dict]) 的 Python')
+    datasource_codes: list[str] | None = Field(default=None, description='代码取数:get_handler 可用的数据源编码')
 
 
 class EtlTestLoadReq(BaseModel):
@@ -157,6 +161,15 @@ class EtlAiTransformReq(BaseModel):
 
     question: str = Field(description='自然语言需求')
     columns: list[str] | None = Field(default=None, description='可用字段名(来自预览)')
+
+
+class EtlAiExtractReq(BaseModel):
+    """ETL AI 生成取数代码:自然语言 → 产出 result(list[dict]) 的 Python(爬虫/任意取数)。"""
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    question: str = Field(description='自然语言需求(要抓什么数据)')
+    datasource_codes: list[str] | None = Field(default=None, description='代码里可用 get_handler 的数据源编码')
 
 
 class DeleteReq(BaseModel):

@@ -92,6 +92,33 @@ def _compile_transform(code: str):
     return fn
 
 
+# 代码取数(爬虫/任意取数)单次最多产出行数,防 OOM/撑爆装载;超出截断
+_EXTRACT_ROW_CAP = 200000
+
+
+def _coerce_records(data: Any) -> list[dict]:
+    """把用户代码产出的 result 归一为 list[dict]:支持 list[dict]/DataFrame/单 dict/可迭代。"""
+    if data is None:
+        raise ValueError('代码取数未产出结果:请把结果(list[dict])赋值给变量 result')
+    try:
+        import pandas as pd  # noqa: PLC0415
+
+        if isinstance(data, pd.DataFrame):
+            return data.to_dict('records')
+    except ImportError:
+        pass
+    if isinstance(data, dict):
+        return [data]
+    if not isinstance(data, list):
+        try:
+            data = list(data)  # 生成器 / 其它可迭代
+        except TypeError:
+            raise ValueError(f'result 必须是 list[dict](或 DataFrame),实际为 {type(data).__name__}') from None
+    if data and not isinstance(data[0], dict):
+        raise ValueError('result 的元素必须是 dict(每行一条记录)')
+    return data
+
+
 @register_runner('DataIntegrationTask')
 class DataIntegrationRunner(BaseRunner):
     """抽取 -> 转换 -> 装载。"""
@@ -112,6 +139,14 @@ class DataIntegrationRunner(BaseRunner):
         transform = self.params.get('transform') or {}
         load = self.params.get('load') or {}
 
+        fn = None
+        if transform.get('enabled') and (transform.get('code') or '').strip():
+            fn = _compile_transform(transform['code'])
+
+        # 代码取数:用户写 Python 产出 result(list[dict]),worker 进程内执行(可访问任意外网,写爬虫)
+        if (extract.get('mode') or '') == 'code':
+            return self._run_code_extract(extract, load, fn)
+
         src_code = extract.get('datasource_code')
         native = extract.get('native')
         obj = (extract.get('object') or '').strip() or None
@@ -125,10 +160,6 @@ class DataIntegrationRunner(BaseRunner):
         dst = _build_handler(self._resolve_datasource(dst_code))
         if not dst.has(Capability.WRITE):
             raise ValueError(f'目标数据源 {dst.name} 不支持写入(WRITE)')
-
-        fn = None
-        if transform.get('enabled') and (transform.get('code') or '').strip():
-            fn = _compile_transform(transform['code'])
 
         # 流式源(无 READ):有界一批 / 长驻消费
         if not src.has(Capability.READ) and src.has(Capability.STREAM):
@@ -172,6 +203,51 @@ class DataIntegrationRunner(BaseRunner):
         info = self._load(dst, src_code, table, data, load)
         self.logger.info(str(info)[:500])
         return f'ETL 完成: {src_code} -> {dst_code}.{table} ({len(data)} 行)'
+
+    def _run_code_extract(self, extract: dict, load: dict, fn: Any) -> Any:
+        """代码取数:在 worker 进程内执行用户 Python,取变量 result(list[dict])→ 可选转换 → 装载。
+
+        - 不强制源数据源;可用 get_handler(code) 按需取某数据源 handler(.query()/.extract());
+          仅选 1 个授权源时另注入 handler 别名。print() 即日志。
+        - 与 transform 同为 worker 进程内 exec(同一信任模型);调试预览走沙箱(见 EtlService.preview)。
+        """
+        from module_data.handlers import Capability  # noqa: PLC0415
+
+        code = (extract.get('code') or '').strip()
+        if not code:
+            raise ValueError('代码取数需提供 extract.code')
+        dst_code = load.get('datasource_code')
+        table = load.get('table')
+        if not (dst_code and table):
+            raise ValueError('代码取数需 load.datasource_code 与 load.table')
+        allowed = list(extract.get('datasource_codes') or [])
+
+        dst = _build_handler(self._resolve_datasource(dst_code))
+        if not dst.has(Capability.WRITE):
+            raise ValueError(f'目标数据源 {dst.name} 不支持写入(WRITE)')
+
+        def get_handler(ds_code: str) -> Any:
+            if allowed and ds_code not in allowed:
+                raise ValueError(f'数据源未在「可用数据源」中授权: {ds_code}')
+            return _build_handler(self._resolve_datasource(ds_code))
+
+        ns: dict[str, Any] = {'get_handler': get_handler, 'logger': self.logger,
+                              'log': self.logger.info, 'result': None}
+        if len(allowed) == 1:
+            ns['handler'] = get_handler(allowed[0])
+        self.logger.info('执行代码取数(worker 进程内)…')
+        exec(compile(code, '<etl-extract>', 'exec'), ns)  # noqa: S102 worker 信任模型,同 transform
+        data = _coerce_records(ns.get('result'))
+        if len(data) > _EXTRACT_ROW_CAP:
+            self.logger.info(f'代码取数 {len(data)} 行,超上限 {_EXTRACT_ROW_CAP},已截断')
+            data = data[:_EXTRACT_ROW_CAP]
+        if fn:
+            self.logger.info('应用逐行转换 transform(row)')
+            data = [fn(dict(r)) for r in data]
+        self.logger.info(f'代码取数 {len(data)} 条')
+        info = self._load(dst, 'code', table, data, load)
+        self.logger.info(str(info)[:500])
+        return f'ETL 完成(代码取数): -> {dst_code}.{table} ({len(data)} 行)'
 
     def _run_stream(self, src: Any, dst: Any, src_code: str, dst_code: str, table: str,
                     obj: str | None, extract: dict, load: dict, fn: Any) -> Any:

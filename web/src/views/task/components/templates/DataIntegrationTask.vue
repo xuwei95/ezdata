@@ -5,21 +5,65 @@
       <el-col :span="13">
         <el-divider content-position="left">抽取(源)</el-divider>
         <el-form label-width="84px">
-          <el-form-item label="源数据源" required>
+          <el-form-item label="抽取方式">
+            <el-radio-group v-model="model.extract.mode">
+              <el-radio value="datasource">数据源</el-radio>
+              <el-radio value="code">代码取数</el-radio>
+            </el-radio-group>
+          </el-form-item>
+
+          <!-- 代码取数:写 Python 产出 result(list[dict]),可爬虫/调任意接口/多源拼装 -->
+          <template v-if="isCode">
+            <el-form-item label="可用数据源">
+              <el-select v-model="model.extract.datasource_codes" multiple filterable clearable
+                placeholder="可选:代码里用 get_handler(编码) 访问这些数据源;留空=纯爬虫" style="width: 100%">
+                <el-option v-for="s in sources" :key="s.code" :label="`${s.name} (${s.sourceType})`" :value="s.code" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="取数代码" required>
+              <div style="width: 100%">
+                <div class="bar">
+                  <span class="muted">把结果赋给 result(list[dict]);可用 requests/bs4;get_handler(编码) 取数据源</span>
+                  <el-button size="small" icon="MagicStick" @click="aie.open = !aie.open">AI 生成代码</el-button>
+                </div>
+                <code-editor v-model="model.extract.code" language="python" height="220px"
+                  placeholder="import requests\nresult = []\n..." />
+                <div v-if="aie.open" class="ai-panel">
+                  <el-input v-model="aie.question" type="textarea" :rows="2"
+                    placeholder="描述要抓什么数据,如:抓取 xxx 接口的 a、b 字段" />
+                  <div class="bar" style="margin-top: 6px">
+                    <el-button size="small" type="primary" icon="MagicStick" :loading="aie.loading" @click="genExtract">
+                      {{ aie.output ? '重新生成' : '生成' }}</el-button>
+                    <span class="muted">生成结果见下方,确认后再采用</span>
+                  </div>
+                  <pre v-if="aie.output" class="ai-out">{{ aie.output }}<span v-if="aie.loading" class="cursor">▋</span></pre>
+                  <div v-if="aie.output" class="bar">
+                    <el-button size="small" type="success" icon="Check" :disabled="aie.loading" @click="applyExtract">采用到代码</el-button>
+                    <el-button size="small" @click="aie.output = ''">清空</el-button>
+                  </div>
+                </div>
+                <div class="muted" style="margin-top: 6px">
+                  预览在沙箱执行(出网受域名白名单限制);正式任务在 worker 运行,可访问任意站点。
+                </div>
+              </div>
+            </el-form-item>
+          </template>
+
+          <el-form-item v-if="!isCode" label="源数据源" required>
             <el-select v-model="model.extract.datasource_code" filterable placeholder="选择源数据源" style="width: 100%"
               @change="onSrcChange">
               <el-option v-for="s in sources" :key="s.code" :label="`${s.name} (${s.sourceType})`" :value="s.code" />
             </el-select>
           </el-form-item>
           <!-- 流式源:单选要消费的表/主题 -->
-          <el-form-item label="表/主题" required v-if="srcIsStream">
+          <el-form-item label="表/主题" required v-if="!isCode && srcIsStream">
             <el-select v-model="model.extract.object" filterable clearable placeholder="要消费的表/主题"
               style="width: 100%" :loading="objLoading">
               <el-option v-for="t in objects" :key="t" :label="t" :value="t" />
             </el-select>
           </el-form-item>
           <!-- 批量源:多选相关表 -->
-          <el-form-item label="相关表" v-else>
+          <el-form-item label="相关表" v-if="!isCode && !srcIsStream">
             <el-select v-model="model.extract.tables" multiple filterable clearable collapse-tags
               placeholder="选 1 张=预填查询并作目标表;多张=喂 AI 连表;不选=全库结构给 AI"
               style="width: 100%" :loading="objLoading" @change="onTablesChange">
@@ -28,7 +72,7 @@
           </el-form-item>
 
           <!-- 批量源:原生查询 -->
-          <el-form-item label="原生查询" required v-if="!srcIsStream">
+          <el-form-item label="原生查询" required v-if="!isCode && !srcIsStream">
             <div style="width: 100%">
               <div class="bar">
                 <span class="muted">{{ srcFamily === 'api' ? '接口调用:函数名 + 参数(JSON)' : '原生 SQL / DSL' }}</span>
@@ -56,7 +100,7 @@
           </el-form-item>
 
           <!-- 流式源:逐条消费,有界/持续 -->
-          <el-form-item label="最大条数" v-else>
+          <el-form-item label="最大条数" v-if="!isCode && srcIsStream">
             <el-input-number v-model="model.extract.max_events" :min="0" :step="100" controls-position="right"
               style="width: 160px" />
             <span class="muted" style="margin-left: 10px">0 = 持续消费(任务常驻),&gt;0 = 读这一批后结束</span>
@@ -211,11 +255,25 @@ const previewJson = computed(() => JSON.stringify(previewRows.value, null, 2))
 
 const STREAM_FAMILIES = ['cdc', 'stream']
 
+const DEFAULT_EXTRACT_CODE = `import requests
+
+# 把抓取/整理到的数据组织成 list[dict] 赋值给 result(每个 dict 一行)
+result = []
+# 示例:抓 JSON 接口
+# resp = requests.get('https://example.com/api', timeout=20)
+# for it in resp.json().get('data', []):
+#     result.append({'id': it['id'], 'name': it['name']})
+# 也可取数据源:rows = get_handler('demo_mysql').query('select * from t limit 100')
+`
+
 const model = reactive({
-  extract: { datasource_code: '', object: '', tables: [], native: '', max_events: 100 },
+  extract: { mode: 'datasource', datasource_code: '', object: '', tables: [], native: '', max_events: 100,
+             code: '', datasource_codes: [] },
   transform: { enabled: false, code: DEFAULT_TRANSFORM },
   load: { datasource_code: '', table: '', mode: 'append', dataset: 'public', format: 'csv' }
 })
+
+const isCode = computed(() => model.extract.mode === 'code')
 
 const srcIsStream = computed(() => {
   const s = sources.value.find((x) => x.code === model.extract.datasource_code)
@@ -276,6 +334,9 @@ function initParams() {
   const p = props.taskParams || {}
   if (p.extract) {
     Object.assign(model.extract, p.extract)
+    model.extract.mode = p.extract.mode || 'datasource'
+    model.extract.code = p.extract.code || ''
+    model.extract.datasource_codes = Array.isArray(p.extract.datasource_codes) ? p.extract.datasource_codes : []
     // DSL 源 native 为 dict,文本框需字符串 → 转 JSON 文本,避免显示 [object Object]
     model.extract.native = nativeToText(p.extract.native)
     // 还原多选(老数据可能只存了单个 object)
@@ -305,7 +366,13 @@ watch(() => props.taskParams, initParams, { deep: true })
 // ---- AI 流式生成(生成→下方流式打印→确认采用)----
 const aiq = reactive({ open: false, question: '', output: '', loading: false })
 const ait = reactive({ open: false, question: '', output: '', loading: false })
+const aie = reactive({ open: false, question: '', output: '', loading: false })  // 代码取数 AI 生成
 const AI_BASE = import.meta.env.VITE_APP_BASE_API || ''
+
+// 切到代码取数且代码空白 → 给默认模板,降低上手门槛
+watch(() => model.extract.mode, (m) => {
+  if (m === 'code' && !(model.extract.code || '').trim()) model.extract.code = DEFAULT_EXTRACT_CODE
+})
 
 function stripFence(t) {
   let s = (t || '').trim()
@@ -368,16 +435,42 @@ function applyTransform() {
   ElMessage.success('已采用到转换代码')
 }
 
+async function genExtract() {
+  if (!aie.question.trim()) { ElMessage.warning('请描述要抓取的数据'); return }
+  aie.output = ''; aie.loading = true
+  try {
+    await streamAi('/data/etl/ai-extract/stream',
+      { question: aie.question, datasourceCodes: model.extract.datasource_codes },
+      (c) => { aie.output += c })
+  } catch (e) {
+    ElMessage.error('生成失败: ' + e.message)
+  } finally {
+    aie.loading = false
+  }
+}
+function applyExtract() {
+  model.extract.code = stripFence(aie.output)
+  aie.open = false
+  ElMessage.success('已采用到取数代码')
+}
+
 async function doPreview() {
-  if (!model.extract.datasource_code) { ElMessage.warning('请选择源数据源'); return }
-  if (!srcIsStream.value && !(model.extract.native || '').trim()) {
+  if (isCode.value && !(model.extract.code || '').trim()) { ElMessage.warning('请填写取数代码'); return }
+  if (!isCode.value && !model.extract.datasource_code) { ElMessage.warning('请选择源数据源'); return }
+  if (!isCode.value && !srcIsStream.value && !(model.extract.native || '').trim()) {
     ElMessage.warning('请填写原生查询')
     return
   }
-  if (srcIsStream.value && !model.extract.object) { ElMessage.warning('请选择要消费的表/主题'); return }
+  if (!isCode.value && srcIsStream.value && !model.extract.object) { ElMessage.warning('请选择要消费的表/主题'); return }
   previewLoading.value = true
   try {
-    const res = await previewEtl({
+    const res = await previewEtl(isCode.value ? {
+      mode: 'code',
+      code: model.extract.code,
+      datasourceCodes: model.extract.datasource_codes,
+      transformCode: model.transform.enabled ? model.transform.code : null,
+      limit: previewLimit
+    } : {
       datasourceCode: model.extract.datasource_code,
       native: srcIsStream.value ? null : nativeFromText(model.extract.native),
       objectName: model.extract.object || null,
@@ -418,6 +511,25 @@ async function doTestLoad() {
 
 // 由父级提交时调用:校验并返回任务参数
 function genTaskParams() {
+  // 代码取数:不需源数据源,产出 result(list[dict])在 worker 跑
+  if (isCode.value) {
+    if (!(model.extract.code || '').trim()) return { error: '请填写取数代码' }
+    if (!model.load.datasource_code) return { error: '请选择目标数据源' }
+    const t = (model.load.table || '').trim()
+    if (!t) return { error: '请填写目标表' }
+    return {
+      params: {
+        extract: { mode: 'code', code: model.extract.code,
+                   datasource_codes: model.extract.datasource_codes || [] },
+        transform: { enabled: !!model.transform.enabled, code: model.transform.enabled ? model.transform.code : '' },
+        load: {
+          datasource_code: model.load.datasource_code, table: t,
+          mode: model.load.mode || 'append', dataset: model.load.dataset || 'public',
+          format: model.load.format || 'csv'
+        }
+      }
+    }
+  }
   if (!model.extract.datasource_code) return { error: '请选择源数据源' }
   if (srcIsStream.value) {
     if (!model.extract.object) return { error: '流式源请选择要消费的表/主题' }

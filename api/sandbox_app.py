@@ -199,7 +199,7 @@ def _dispatch(kind: str, payload: dict) -> dict:
     """执行任务,返回 {success, result, output, logs, error}。在子进程内调用。"""
     if kind == 'transform':
         return _run_transform(payload.get('code') or '', payload.get('rows') or [])
-    if kind in ('pyrun', 'pydata'):
+    if kind in ('pyrun', 'pydata', 'pyextract'):
         return _run_pycode(kind, payload)
 
     logger = _SandboxLogger(_make_log_writer(payload.get('logger_config') or {}),
@@ -234,6 +234,7 @@ _ALLOWED_MODULES = {
     'statistics', 'string', 'uuid', 'hashlib', 'base64', 'textwrap', 'functools', 'operator',
     'pandas', 'numpy', 'pyecharts',
     'akshare', 'requests', 'ccxt',  # 联网取数:出网受 egress 代理域名白名单约束
+    'bs4', 'lxml', 'urllib',        # 代码取数/爬虫:HTML 解析 + URL 处理(网络仍受 egress 约束)
 }
 _BLOCKED_BUILTINS = {
     'open', 'eval', 'exec', 'compile', 'input', 'breakpoint', 'exit', 'quit', 'help',
@@ -310,6 +311,25 @@ def _run_pycode(kind: str, payload: dict) -> dict:
             g['handler'] = create_handler(ds.get('source_type'), ds.get('config') or {}, ds.get('secrets') or {},
                                           cache=False)  # 沙箱 fork 子进程用完即死,不缓
             g['datasource'] = g['handler']  # 别名
+        except Exception as e:  # noqa: BLE001
+            return {'success': False, 'error': f'数据源连接失败: {type(e).__name__}: {e}',
+                    'stdout': '', 'result': None}
+    if kind == 'pyextract':
+        # 代码取数:注入 get_handler(code) 从预解密注入的 datasources map 建 handler(仅限注入的源)
+        dsmap = payload.get('datasources') or {}
+        try:
+            from module_data.handlers import create_handler
+
+            def _get_handler(code: str) -> Any:
+                ds = dsmap.get(code)
+                if not ds:
+                    raise ValueError(f'数据源未授权或未注入: {code}')
+                return create_handler(ds.get('source_type'), ds.get('config') or {}, ds.get('secrets') or {},
+                                      cache=False)
+
+            g['get_handler'] = _get_handler
+            if len(dsmap) == 1:
+                g['handler'] = _get_handler(next(iter(dsmap)))  # 仅 1 个源时给 handler 别名
         except Exception as e:  # noqa: BLE001
             return {'success': False, 'error': f'数据源连接失败: {type(e).__name__}: {e}',
                     'stdout': '', 'result': None}
@@ -437,6 +457,13 @@ class PyDataReq(BaseModel):
     timeout: int = 60
 
 
+class PyExtractReq(BaseModel):
+    code: str
+    datasources: dict = {}                # {code: {source_type, config, secrets(明文 dict)}};get_handler 据此建连
+    variable_to_return: str | None = 'result'
+    timeout: int = 60
+
+
 @app.get('/health')
 async def health() -> dict:
     return {'status': 'ok', 'fork': _HAS_FORK}
@@ -473,6 +500,14 @@ async def python_data(req: PyDataReq, authorization: str = Header(default='')) -
     _auth(authorization)
     payload = {'code': req.code, 'datasource': req.datasource, 'variable_to_return': req.variable_to_return}
     return await run_in_threadpool(_execute_with_timeout, 'pydata', payload, req.timeout)
+
+
+@app.post('/python/extract')
+async def python_extract(req: PyExtractReq, authorization: str = Header(default='')) -> dict:
+    """代码取数(爬虫/任意取数):注入 get_handler(code),code 产出 result(list[dict])。"""
+    _auth(authorization)
+    payload = {'code': req.code, 'datasources': req.datasources, 'variable_to_return': req.variable_to_return}
+    return await run_in_threadpool(_execute_with_timeout, 'pyextract', payload, req.timeout)
 
 
 def main() -> None:

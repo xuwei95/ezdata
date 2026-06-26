@@ -409,7 +409,9 @@ class EtlService:
 
     @classmethod
     async def preview(cls, db: AsyncSession, req: Any) -> dict:
-        """批量源按原生查询取样本;流式源抽 1 条事件。均支持逐行转换。"""
+        """批量源按原生查询取样本;流式源抽 1 条事件;代码取数走沙箱跑 result。均支持逐行转换。"""
+        if (getattr(req, 'mode', None) or '') == 'code':
+            return await cls._preview_code(db, req)
         ds = await DataSourceDao.get_by_code(db, req.datasource_code)
         if not ds:
             raise ServiceException(message='数据源不存在')
@@ -440,6 +442,44 @@ class EtlService:
         transform_log = ''
         if (req.transform_code or '').strip():
             transformed, transform_log = await run_in_threadpool(cls._apply_transform, req.transform_code, rows)
+        cols = list((transformed or rows)[0].keys()) if (transformed or rows) else []
+        return {'records': rows, 'transformed': transformed, 'columns': cols,
+                'total': len(rows), 'transformLog': transform_log}
+
+    @classmethod
+    async def _preview_code(cls, db: AsyncSession, req: Any) -> dict:
+        """代码取数预览:在沙箱跑用户代码产出 result(list[dict]),取样本。
+
+        正式任务在 worker 跑(可访问任意外网);预览在沙箱(出网受白名单约束、隔离),用于安全调试。
+        """
+        from module_data import sandbox_client  # noqa: PLC0415
+
+        code = (req.code or '').strip()
+        if not code:
+            raise ServiceException(message='请填写取数代码(把结果赋值给 result)')
+        if not sandbox_client.enabled():
+            raise ServiceException(message='沙箱未启用,无法预览代码取数(保存后正式任务仍可在 worker 运行)')
+        # 预解密所选数据源(沙箱无凭据,连接随请求注入,仅限所选源)
+        dsmap: dict[str, dict] = {}
+        for c in (req.datasource_codes or []):
+            ds = await DataSourceDao.get_by_code(db, c)
+            if not ds:
+                raise ServiceException(message=f'数据源不存在: {c}')
+            dsmap[c] = {'source_type': ds.source_type, 'config': ds.config or {}, 'secrets': _decrypt_secrets(ds)}
+        res = await run_in_threadpool(sandbox_client.run_python_extract, code, dsmap, 'result')
+        if not res.get('success'):
+            raise ServiceException(message=f'代码取数失败:{short_err(res.get("error") or "未知错误")}')
+        rows = res.get('result')
+        if isinstance(rows, dict) and 'value' in rows:  # 沙箱把 DataFrame 归一成 {type,value}
+            rows = rows.get('value')
+        if not isinstance(rows, list):
+            raise ServiceException(message='代码未产出 list[dict]:请把结果赋值给变量 result')
+        rows = rows[: min(int(req.limit or 50), 200)]
+        transformed = None
+        transform_log = res.get('stdout') or ''
+        if (req.transform_code or '').strip():
+            transformed, tlog = await run_in_threadpool(cls._apply_transform, req.transform_code, rows)
+            transform_log = (transform_log + '\n' + tlog).strip() if tlog else transform_log
         cols = list((transformed or rows)[0].keys()) if (transformed or rows) else []
         return {'records': rows, 'transformed': transformed, 'columns': cols,
                 'total': len(rows), 'transformLog': transform_log}
@@ -637,6 +677,24 @@ class EtlService:
             f'你是 Python 数据处理专家。{cols}'
             f'请根据需求写一个函数 `def transform(row):`,入参 row 是一条记录(dict),返回处理后的 dict。'
             f'只输出函数代码本身(不要注释外的解释、不要 markdown 代码块):\n需求:{req.question}'
+        )
+        cfg = await _ai_resolve_cfg(db)
+        return cfg, prompt
+
+    @classmethod
+    async def prep_extract_code(cls, db: AsyncSession, req: Any) -> tuple[dict, str]:
+        """AI 生成取数代码(爬虫/任意取数):自然语言 → 产出 result(list[dict])的 Python。"""
+        codes = [c for c in (getattr(req, 'datasource_codes', None) or []) if c]
+        srcs = (f'可用数据源(用 get_handler("编码") 取连接,有 .query()/.extract() 等只读取数方法):'
+                f'{", ".join(codes)}\n') if codes else ''
+        prompt = (
+            '你是 Python 数据抓取/取数专家。请根据需求写一段 Python 代码,把抓取/整理到的数据'
+            '组织成 list[dict](每个 dict 是一行记录),并赋值给变量 `result`。\n'
+            '可用库:requests(HTTP 请求)、bs4 的 BeautifulSoup(HTML 解析)、lxml、json、re、'
+            'pandas、numpy、datetime 等;可用 print() 打印进度(即日志)。'
+            '不要文件/系统/子进程操作,不要 markdown 代码块,只输出可直接运行的 Python 代码本身。\n'
+            f'{srcs}'
+            f'需求:{req.question}'
         )
         cfg = await _ai_resolve_cfg(db)
         return cfg, prompt

@@ -16,6 +16,7 @@ from module_data.entity.vo.data_vo import (
     DataModelVo,
     DataSourceQuery,
     DataSourceVo,
+    EtlAiExtractReq,
     EtlAiQueryReq,
     EtlAiTransformReq,
     EtlPreviewReq,
@@ -214,3 +215,11 @@ async def etl_ai_query_stream(req: EtlAiQueryReq, db: Annotated[AsyncSession, DB
 async def etl_ai_transform_stream(req: EtlAiTransformReq, db: Annotated[AsyncSession, DBSessionDependency()]) -> StreamingResponse:
     cfg, prompt = await EtlService.prep_transform(db, req)
     return StreamingResponse(_ai_stream(cfg, prompt), media_type='text/plain; charset=utf-8')
+
+
+@data_controller.post('/etl/ai-extract/stream', summary='ETL AI 生成取数代码(流式)', dependencies=[UserInterfaceAuthDependency('data:etl')])
+async def etl_ai_extract_stream(req: EtlAiExtractReq, db: Annotated[AsyncSession, DBSessionDependency()]) -> StreamingResponse:
+    cfg, prompt = await EtlService.prep_extract_code(db, req)
+    # text/event-stream:gzip 中间件不压缩该类型,避免流式被缓冲(同提示词生成)
+    return StreamingResponse(_ai_stream(cfg, prompt), media_type='text/event-stream',
+                             headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})

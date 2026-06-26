@@ -22,6 +22,7 @@ openpyxl==3.1.5
 pypdf>=4.3  # unstructured 会拉 6.x
 python-docx==1.1.2
 beautifulsoup4==4.12.3
+lxml==5.3.0  # bs4 解析后端 / 代码取数(爬虫)HTML 解析
 # 语义切分(Agno semantic chunking 依赖)
 chonkie==1.6.8
 # Agno 高级 readers/markdown 切分
