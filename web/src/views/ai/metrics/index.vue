@@ -76,16 +76,17 @@ function renderTrend(series) {
   if (!trendChart) trendChart = echarts.init(trendRef.value);
   trendChart.setOption({
     tooltip: { trigger: "axis" },
-    legend: { data: ["Token", "轮次"], right: 10 },
-    grid: { left: 50, right: 50, top: 30, bottom: 30 },
+    legend: { data: ["Token", "轮次"], top: 0 },
+    // containLabel:true 让网格自适应坐标轴标签宽度,避免左侧大数字被截断
+    grid: { left: 8, right: 8, top: 36, bottom: 24, containLabel: true },
     xAxis: { type: "category", data: series.map((s) => s.date) },
     yAxis: [
-      { type: "value", name: "Token" },
-      { type: "value", name: "轮次" },
+      { type: "value", name: "Token", axisLabel: { formatter: (v) => fmt(v) } },
+      { type: "value", name: "轮次", minInterval: 1, splitLine: { show: false } },
     ],
     series: [
       { name: "Token", type: "line", smooth: true, areaStyle: {}, data: series.map((s) => s.tokens) },
-      { name: "轮次", type: "bar", yAxisIndex: 1, data: series.map((s) => s.runs) },
+      { name: "轮次", type: "bar", yAxisIndex: 1, barMaxWidth: 28, data: series.map((s) => s.runs) },
     ],
   });
 }
