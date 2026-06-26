@@ -1,191 +1,222 @@
-# ezdata 部署方案（旧结构 × 新模板 结合）
+# ezdata 部署指南
 
-> 适用分支：`v2.0`（RuoYi-Vue3-FastAPI 模板基底，已 rebrand 为 ezdata、目录重构为 `api/web/tests`）
-> 制定日期：2026-06-16
-> 决策基线：① Scheduler **进程内**；② Sandbox **暂不保留**；③ ES + MinIO **纳入项目 compose**；④ 弃用 supervisord 胖镜像，采用容器-per-service。
-
----
-
-## 1. 背景：两套部署模型
-
-### 旧 ezdata（master）
-- **单胖镜像** `ezdata123/ezdata`（miniconda3），装下 Flask web / scheduler / celery / sandbox / MindsDB+handlers / ETL。
-- **supervisord + env 开关**：`init.sh` 启 supervisord → 跑 `init_system.py`(建库/迁移) → 按 `run_web/run_scheduler/run_worker/run_flower/run_sandbox` 选择性启动进程。
-- **同镜像按角色起多容器**：`master`(web+worker) / `scheduler`(scheduler+flower)。
-- **中间件**：MySQL + Redis + MinIO + Elasticsearch + nginx。
-- **产物**：`api/docker-compose.yml`、`deploy/docker/*`、`deploy/kubernetes/`(Helm)。
-- 端口：8001 web / 8002 scheduler / 5555 flower / 9001 supervisor / 9200 ES / 9000·19001 MinIO。
-
-### 新模板（v2.0）
-- **纤巧镜像** `python:3.10`，按库分 `Dockerfile.my/pg/dev`；前端多阶段 node→nginx。
-- **容器-per-service，无 supervisord**：backend(uvicorn `ruoyi app run`) / worker(celery) / frontend(nginx)。
-- **Scheduler 进程内**（lifespan→APScheduler，`server.py` 已有启动锁选主）。
-- compose 仅 MySQL + Redis；**无 ES / MinIO / worker(prod) / flower / sandbox**。
-- 端口：9099 backend / 12580 frontend / 13306 mysql / 16379 redis。
+> 适用分支:`v2.0`。本文反映**当前实际部署形态**(容器-per-service,无 supervisord;Scheduler 进程内;ES8 + MinIO 已纳入 compose;调试层沙箱已就位)。
+> 一句话:开发用 `docker-compose.dev.yml` 一键起;生产用 `docker-compose.my.yml`(MySQL)或 `docker-compose.pg.yml`(PostgreSQL)。
 
 ---
 
-## 2. 目标部署架构（结合后）
+## 1. 架构概览
 
-**骨架沿用新模板**（容器-per-service + 纤巧镜像 + alembic + CLI 启动），在其上补齐 ezdata 必需件：
+容器-per-service,纤巧镜像(`python:3.10` / `node:18`),后端单进程内跑 FastAPI + APScheduler(启动锁选主,多副本时只一个实例调度),Celery worker 独立容器执行任务。
 
 ```
-                         ┌─────────────┐
-        :12580  ───────► │  frontend   │  nginx (Element Plus 构建产物)
-                         └──────┬──────┘
-                                │ /dev-api 反代
-                         ┌──────▼──────┐
-        :9099   ───────► │   backend   │  uvicorn(FastAPI) + 进程内 APScheduler
-                         └──┬───┬───┬──┘
-            ┌───────────────┘   │   └───────────────┐
-     ┌──────▼──────┐     ┌──────▼──────┐     ┌───────▼───────┐
-     │   worker    │     │    redis    │     │     mysql     │
-     │  (celery)   │     │ broker/cache│     │   主数据库     │
-     └─────────────┘     └─────────────┘     └───────────────┘
-            │
-   ┌────────┴─────────┐
-   ▼                  ▼
-┌──────────┐   ┌────────────────┐
-│  minio   │   │ elasticsearch  │   ← ezdata 必需中间件（日志/RAG 向量/对象存储）
-└──────────┘   └────────────────┘
+        :12580 ──► frontend (nginx / vite)
+                       │ 反代 /dev-api
+        :9099  ──► backend (uvicorn FastAPI + 进程内 APScheduler)
+                  ┌────┼─────────┬───────────┐
+              worker  redis     mysql/pg     ├── elasticsearch  (任务日志 + RAG 向量库 + ES 数据服务,一套三用)
+             (celery) broker   主数据库       └── minio          (对象存储,S3 协议)
 
-[暂不部署] scheduler 独立容器（已并入 backend 进程内）、flower、sandbox
+仅 dev:  sandbox(调试态代码执行,无状态隔离容器) ── egress-proxy(出网域名白名单)
 ```
 
----
+| service | 镜像/构建 | 作用 | dev | prod(my/pg) |
+|---|---|---|:--:|:--:|
+| frontend | `web/Dockerfile`(node→nginx)/ vite | 前端 | ✅ | ✅ |
+| backend | `api/Dockerfile.dev` / `.my` / `.pg` | API + 进程内调度 | ✅ | ✅ |
+| worker | 复用 backend 镜像 | Celery 任务执行 | ✅ | ✅ |
+| mysql / postgres | `mysql:8.0` / `postgres:14` | 主库 | ✅ | ✅ |
+| redis | `redis:latest` | broker / 缓存 / 验证码 | ✅ | ✅ |
+| elasticsearch | `elasticsearch:8.13.4` | 日志 + 向量库 + 数据服务 | ✅ | ✅ |
+| minio + minio-init | `minio/minio` + `minio/mc` | 对象存储 + 建桶 | ✅ | ✅ |
+| sandbox | 复用 backend 镜像 | 调试态代码执行(隔离) | ✅ | ❌ |
+| egress-proxy | tinyproxy | 沙箱出网白名单 | ✅ | ❌ |
 
-## 3. 服务清单
-
-| service | 镜像/构建 | 启动命令 | 端口(宿主:容器) | 依赖 |
-|---|---|---|---|---|
-| **frontend** | `web/Dockerfile`(node→nginx) | `nginx -g 'daemon off;'` | 12580:80 | backend |
-| **backend** | `api/Dockerfile.my`(+MindsDB/ETL) | `ruoyi app run --env=dockermy`（含进程内 APScheduler） | 19099:9099 | mysql, redis, es, minio |
-| **worker** | 复用 backend 镜像 | `celery -A config.celery_app worker -Q default --autoscale=4,1` | — | mysql, redis, es, minio |
-| **mysql** | `mysql:8.0` | — | 13306:3306 | — |
-| **redis** | `redis:latest` | — | 16379:6379 | — |
-| **elasticsearch** | `elasticsearch:7.17.x` | single-node | 9200:9200 | — |
-| **minio** | `minio/minio` | `server /data --console-address :19001` | 9000:9000 / 19001:19001 | — |
-| ~~scheduler~~ | — | 已并入 backend（进程内 APScheduler，启动锁选主） | — | — |
-| ~~flower~~ | 复用 backend 镜像 | `celery -A config.celery_app flower`（可选，后置） | (5555) | redis |
-| ~~sandbox~~ | — | 暂不保留（需代码执行能力时再加独立隔离容器） | — | — |
-
-> prod 的 `docker-compose.my.yml`/`.pg.yml` 目前缺 **worker / es / minio**，本方案要补齐；dev 已有 worker，补 es/minio。
+> **沙箱**:`SANDBOX_ENABLED` 默认关。dev compose 已开并部署沙箱+egress;prod 默认不部署沙箱,调试态代码回落到本地真实执行(详见 [9.4](#94-调试态代码执行))。
 
 ---
 
-## 4. 镜像构建改造点（backend）
+## 2. 快速开始 —— 开发
 
-模板 `Dockerfile.my`（`python:3.10` + `pip install -r requirements.txt`）需补：
+```bash
+# 1) 准备环境变量(必需:.env.dev 被 git 忽略,缺失会让后端回退到默认库名连不上)
+cp api/.env.dev.example api/.env.dev
 
-```dockerfile
-FROM python:3.10
-WORKDIR /app
-COPY . .
-RUN pip install --no-cache-dir -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
-# ── ezdata 增量 ──
-# 1) MindsDB handler 依赖（内嵌 MindsDB）
-ARG MINDSDB_HANDLERS="elasticsearch,clickhouse,influxdb,mongodb,mssql"
-ENV MINDSDB_HANDLERS=${MINDSDB_HANDLERS}
-RUN python install_handlers.py || echo "部分 handler 安装失败，继续"
-# 2) ETL 引擎依赖
-RUN pip install --no-cache-dir -r etl/requirements.txt
-EXPOSE 9099
-CMD ["ruoyi", "app", "run", "--env=dockermy"]
+# 2) 一键起(backend + worker + frontend + mysql + redis + es + minio + sandbox + egress)
+docker compose -f docker-compose.dev.yml up -d
+
+# 看日志 / 停止 / 彻底清库重来
+docker compose -f docker-compose.dev.yml logs -f ezdata-backend-dev
+docker compose -f docker-compose.dev.yml down          # 停,保留数据卷
+docker compose -f docker-compose.dev.yml down -v       # 停,并清空所有数据卷(全新初始化用)
 ```
 
-注意：
-- **base 选型**：先尝试保留 `python:3.10`；若 MindsDB/数据科学依赖出现 conda-only 包，再回退 `continuumio/miniconda3`。
-- **运行时 pip upgrade 弃用**：旧 `upgrade_packages=akshare,ccxt` 改为在 `requirements.txt`/`etl/requirements.txt` **钉版本**。
-- worker 复用同一镜像，仅启动命令不同。
+- 源码 `./api`、`./web` 挂载进容器:改 `.py` 触发后端热重载(`--reload`,Windows 已开 `WATCHFILES_FORCE_POLLING`),改 `.vue/.js` 触发前端 HMR。
+- 首次起 MySQL 容器会自动导入 `api/sql/ezdata.sql`(空库时执行),MinIO init 容器自动建 `ezdata` 桶。
+- 访问前端 `http://localhost:12580`,用 **`admin` / `admin123`** 登录。
 
 ---
 
-## 5. 中间件纳入 compose（ES + MinIO）
+## 3. 快速开始 —— 生产
 
-从旧 `deploy/docker/middleware-compose.yml` 搬入，对齐网络与健康检查：
+生产应用口令烤进镜像的 `.env.docker{my,pg}`(`ruoyi app run --env=dockermy/pg`),compose 仅覆盖中间件 host 为服务名。
 
-```yaml
-  elasticsearch:
-    image: elasticsearch:7.17.13          # 与 requirements 的 client 7.17.x 对齐
-    environment:
-      - discovery.type=single-node
-      - bootstrap.memory_lock=true
-      - ES_JAVA_OPTS=-Xms512m -Xmx512m
-      - http.cors.enabled=true
-      - http.cors.allow-origin=*
-    ports: ["9200:9200"]
-    volumes: [es-data:/usr/share/elasticsearch/data]
-    networks: [ezdata-network]
+```bash
+# MySQL 版
+docker compose -f docker-compose.my.yml up -d --build
 
-  minio:
-    image: minio/minio
-    environment:
-      MINIO_ROOT_USER: minio
-      MINIO_ROOT_PASSWORD: <改我>
-    command: server /data --console-address ":19001"
-    ports: ["9000:9000", "19001:19001"]
-    volumes: [minio-data:/data]
-    networks: [ezdata-network]
+# PostgreSQL 版
+docker compose -f docker-compose.pg.yml up -d --build
 ```
 
-backend/worker 的 `depends_on` 增加 `elasticsearch`、`minio`；`.env.docker*` 补 ES/MinIO 连接配置（host 用 compose 服务名）。
+- 前端 `http://<宿主>:12580`,后端 `http://<宿主>:19099`(注意 prod 后端宿主端口是 **19099**)。
+- 首启同样自动导入 `api/sql/ezdata.sql` / `ezdata-pg.sql` + 建 MinIO 桶。
+- **上线前务必**:① 改默认口令(见 [10](#10-安全加固));② 把 `STORAGE_PUBLIC_ENDPOINT` 改成浏览器可达的真实域名/宿主 IP;③ 填好 `JWT_SECRET_KEY`、LLM/embedding 的 API Key。
 
 ---
 
-## 6. 配置与初始化
+## 4. 端口 & 默认账号口令
 
-- **配置**：沿用模板 pydantic `--env=dockermy` → `.env.dockermy`；DB/Redis/ES/MinIO host 在 compose 用服务名覆盖（`load_dotenv` 不覆盖已存在环境变量）。
-- **建库迁移**：用模板 **alembic**（CLI 启动时迁移），把旧 `migrations/versions/0001_init_schema`、`0002_seed_data` 并入 `api/alembic/versions/`；初始数据可继续用 `api/sql/*.sql` 挂 initdb 作种子。
-- **对象存储/ES 初始化**：参考旧 `init_system.py` 的 S3 bucket 检查、ES 索引创建，迁到模板 CLI 的启动钩子。
-
----
-
-## 7. compose 文件规划
-
-| 文件 | 用途 | 服务集合 |
+| 用途 | dev(宿主) | prod(宿主) |
 |---|---|---|
-| `docker-compose.dev.yml` | 本地开发热更新 | backend(uvicorn --reload) + worker + frontend(vite) + mysql + redis + **es + minio(新增)** |
-| `docker-compose.my.yml` | 生产(MySQL) | frontend + backend + **worker(新增)** + mysql + redis + **es + minio(新增)** |
-| `docker-compose.pg.yml` | 生产(PostgreSQL) | 同上，DB 换 postgres |
-| `tests/docker-compose.test.*.yml` | e2e | 维持模板现状，按需加 es/minio |
-
-> 可选：把 es/minio 拆到独立 `docker-compose.middleware.yml`，生产用 `-f` 叠加，便于外部已有中间件时省略。
-
----
-
-## 8. K8s / Helm（后置阶段）
-
-- 保留并改造旧 `deploy/kubernetes/ezdata` Helm chart：
-  - 工作负载从 `master/scheduler` 改为 **backend / worker / frontend**（scheduler 进程内，无独立 Deployment）。
-  - 依赖子 chart 保留 bitnami `mysql/redis/minio` + elastic `elasticsearch`。
-  - backend 多副本时依赖 `server.py` 启动锁保证 APScheduler 单实例调度。
-
----
-
-## 9. 落地待办清单
-
-- [ ] backend `Dockerfile.my`/`.pg` 补 `install_handlers.py` + `etl/requirements.txt`（必要时换 miniconda base）
-- [ ] `docker-compose.my.yml`/`.pg.yml` 补 `worker` service（复用 backend 镜像）
-- [ ] 三套 compose 补 `elasticsearch` + `minio` service 与 volume，backend/worker `depends_on` 跟进
-- [ ] `.env.dockermy`/`.env.dockerpg`/`.env.dev` 补 ES/MinIO 连接配置
-- [ ] 旧 migrations 并入 alembic；启动迁移流程打通
-- [ ] `init_system.py` 的 ES 索引/S3 bucket 初始化迁到模板 CLI 启动钩子
-- [ ] requirements 钉死 akshare/ccxt 等版本（弃运行时 upgrade）
-- [ ] （后置）flower 可选 service；（后置）sandbox 独立隔离容器；（后置）Helm chart 改造
-
----
-
-## 附录：端口对照（统一走模板方案）
-
-| 用途 | 旧 ezdata | 新(本方案) |
-|---|---|---|
-| 后端 API | 8001 | 9099（prod 19099） |
-| 前端 | 80 | 12580 |
-| Scheduler | 8002(独立) | 进程内(无端口) |
-| Flower | 5555 | 5555(可选) |
-| MySQL | 3306 | 13306 |
-| Redis | 6379 | 16379 |
+| 后端 API | 9099 | **19099** |
+| 前端 | 12580 | 12580 |
+| MySQL / PG | 13306 / 15432 | 13306 / 15432 |
+| Redis | 16379 | 16379 |
 | Elasticsearch | 9200 | 9200 |
-| MinIO | 9000 / 19001 | 9000 / 19001 |
-| Supervisor web | 9001 | 弃用 |
-| Sandbox | 8001(独立) | 暂不部署 |
+| MinIO API / 控制台 | 9000 / 19001 | 9000 / 19001 |
+| Scheduler | 进程内(无端口) | 进程内 |
+| Sandbox | 8003(容器内网) | 不部署 |
+
+**默认登录**:`admin` / `admin123`(另有演示用户 `niangao`)。
+
+**默认中间件口令**(dev / prod compose 已统一为 `ezdata123456`,仅供本地 / 内网):
+
+| 组件 | 用户名 | 口令 |
+|---|---|---|
+| MySQL | `root` | `ezdata123456` |
+| PostgreSQL | `postgres` | `ezdata123456` |
+| Redis | — | `ezdata123456` |
+| MinIO | `minio` | `ezdata123456` |
+| Elasticsearch | `elastic` | `ezdata123456` |
+
+> ⚠️ 这是一套已知弱口令,**只适合本地 / 隔离内网**。对外部署见 [10](#10-安全加固)。
+
+---
+
+## 5. 配置
+
+- 后端按 `APP_ENV` 加载 `api/.env.<APP_ENV>`:dev=`.env.dev`,prod=`.env.dockermy`/`.env.dockerpg`(由 `Dockerfile.my/.pg` 的 `--env=` 指定)。
+- **compose 的 `environment:` 优先于 `.env`**(`load_dotenv` 不覆盖已存在环境变量)。dev compose 用它把 `.env.dev` 里指向 `127.0.0.1` 的连接覆盖成服务名,并注入统一口令 / ES·RAG 鉴权。
+- `.env.dev` 被 git 忽略(只跟踪 `.env.dev.example`);`.env.dockermy`/`.env.dockerpg`/`.env.prod` 被跟踪。**不要把真实密钥提交进仓库**。
+
+关键变量:
+
+| 变量 | 含义 |
+|---|---|
+| `DB_TYPE` / `DB_HOST` / `DB_DATABASE` / `DB_USERNAME` / `DB_PASSWORD` | 主库连接 |
+| `REDIS_HOST` / `REDIS_PASSWORD` / `REDIS_DATABASE` | Redis(broker / 缓存);Celery broker URL 自动带密 |
+| `TASK_LOG_TYPE=es` + `TASK_ES_HOSTS` / `TASK_ES_USERNAME` / `TASK_ES_PASSWORD` | 任务日志写 ES |
+| `RAG_VECTOR_BACKEND` / `RAG_VECTOR_HOSTS` / `RAG_VECTOR_USER` / `RAG_VECTOR_PASSWORD` | RAG 向量库(hosts 留空回退 `TASK_ES_HOSTS`,**但账号不回退,需单独给**) |
+| `STORAGE_TYPE=s3` + `S3_ENDPOINT` / `S3_BUCKET_NAME` / `S3_ACCESS_KEY` / `S3_SECRET_KEY` / `STORAGE_PUBLIC_ENDPOINT` | 对象存储(MinIO) |
+| `EMBEDDING_TYPE` / `EMBEDDING_MODEL` / `DASHSCOPE_API_KEY` | 知识库 embedding |
+| `JWT_SECRET_KEY` | 令牌签名(prod 必填) |
+| `SANDBOX_ENABLED` / `SANDBOX_API_URL` / `SANDBOX_BEARER_KEY` | 调试态代码执行沙箱 |
+
+---
+
+## 6. 数据初始化 & 演示数据
+
+- **建库**:首次启动 DB 容器,把 `api/sql/ezdata.sql`(MySQL)/ `ezdata-pg.sql`(PG)挂到 `/docker-entrypoint-initdb.d`,空库时自动导入(表 / 菜单 / 用户 / 字典 / 配置 / 角色全套种子)。
+- **开箱即用演示数据**(种子末尾):
+  - 数据源 `akshare_cn`(AKShare 财经,api 族,免 key)
+  - 数据源 `demo_es`(内置 ES,search 族;config 已带 `elastic/ezdata123456`)
+  - 数据集成任务「A股日线→ES」(手动触发,抓贵州茅台前复权日线写入 ES 索引 `demo_stock_daily`)
+- **运行时表**:`ai_sessions` 等由 agno 在首次对话时惰性建,无需预建。
+
+> 非容器部署时,手动把对应 `.sql` 导入你的库即可。
+
+---
+
+## 7. 中间件要点
+
+- **Elasticsearch 8**:开了 `xpack.security`(用户 `elastic`),并 `xpack.security.http.ssl.enabled=false` 保持**明文 HTTP + basic auth**(免证书,适合内网)。`ELASTIC_PASSWORD` **仅在数据目录为空(首次初始化)时生效**;改已存在集群的密码要 `down -v` 清卷或进容器跑 `elasticsearch-reset-password`。
+- **Redis**:`--requirepass ezdata123456`,健康检查与 Celery broker 均带密。
+- **MinIO**:`minio-init` 一次性容器建 `ezdata` 桶并设匿名下载;改了 root 口令后该容器的 `mc alias` 口令需同步(compose 已同步)。
+- **数据源 `demo_es` 的口令**放在 `config`(明文)而非加密 `secrets`——这样静态 SQL 种子即可直连加密 ES。运行无碍;但在 UI 编辑该数据源时密码框会显示为空(handler 仍能连)。生产可在 UI 重填一次密码存进加密 secrets。
+
+---
+
+## 8. 本地(非容器)开发
+
+前置:Python ≥ 3.10、Node ≥ 18,外部已有 MySQL/PG + Redis + ES8 +(可选)MinIO。
+
+```bash
+# 后端
+cd api
+pip install -r requirements.txt          # 基础
+pip install -r requirements-data.txt     # ETL / 连接器(dlt 等)
+pip install -r requirements-pg.txt       # 用 PG 时
+pip install -r requirements-storage.txt  # 用对象存储时
+cp .env.dev.example .env.dev             # 改 DB/Redis/ES 等为本机地址,导入 sql/ezdata.sql
+python app.py                            # 起 FastAPI(host/port/reload 读 .env)
+
+# Celery worker(另开一个终端,任务调度执行层)
+celery -A config.celery_app worker -Q default --autoscale=4,1 --loglevel=INFO
+
+# 前端
+cd web
+npm install
+npm run dev                              # vite,默认 12580
+```
+
+> Scheduler 在后端进程内(APScheduler),无需单独起;flower / sandbox 按需另起。
+
+---
+
+## 9. 运维
+
+### 9.1 全新初始化(清库重来)
+`docker compose -f docker-compose.dev.yml down -v` 清空 mysql/es/minio 数据卷,再 `up -d` 即重新导入 SQL 种子 + 建桶 + 初始化 ES。
+
+### 9.2 改口令
+统一改某个口令时:① 改 compose 对应服务的 root 口令;② 改 `.env.dev`(或 `.env.docker*`)里应用侧连接口令;③ ES/MySQL 等已初始化的需 `down -v` 或用各自的 reset 工具;④ 重启 backend + worker。
+
+### 9.3 升级源码
+dev 源码挂载,改完代码后端自动 reload;worker 需 `docker restart ezdata-worker-dev`。prod 改完 `docker compose -f docker-compose.my.yml up -d --build` 重建镜像。
+
+### 9.4 调试态代码执行
+平台「调试 / 预览」态的代码(ETL 代码取数、AI 图表等)在沙箱执行(子进程隔离 + 超时/内存 + import 白名单 + 出网域名白名单)。dev 已部署沙箱;**prod 默认 `SANDBOX_ENABLED` 关,调试态回落到 worker/后端本地真实执行**。正式任务恒走 worker。
+
+---
+
+## 10. 安全加固(对外部署)
+
+默认 `ezdata123456` 仅供本地/内网。公网或多人环境务必:
+
+- **改强口令**:各中间件用独立强口令;改 `admin` 初始密码。
+- **不写死在仓库**:把 compose 里的口令改成 `${MYSQL_ROOT_PASSWORD}` 等占位,值放部署机的 `.env` / secret 管理,不提交。
+- **填 `JWT_SECRET_KEY`**:prod 用足够随机的值。
+- **收敛暴露面**:数据库 / Redis / ES / MinIO 端口不对公网开放,只暴露前端(和必要的后端 API)。
+- **ES TLS**:如需链路加密,改 `xpack.security.http.ssl.enabled=true` 并配证书,客户端 hosts 改 `https://`。
+- **沙箱**:启用代码取数/AI 代码执行的环境务必部署独立沙箱 + egress 白名单,不要让其裸跑在 worker。
+
+---
+
+## 11. 故障排查
+
+| 现象 | 原因 / 处理 |
+|---|---|
+| 后端起不来、连 `ruoyi-fastapi` 之类的库 | 没 `cp .env.dev.example .env.dev`,回退到默认库名。补上再重启。 |
+| ES 改了 `ELASTIC_PASSWORD` 但仍旧密码 | 该变量只在 ES 数据目录为空时生效。`down -v` 清卷,或进容器 `elasticsearch-reset-password`。 |
+| 控制台 / 用量统计页报 `ai_sessions doesn't exist` | 全新环境未对话过,该表尚未由 agno 建。已做空值兜底;发一条对话即建表。 |
+| `down -v` 时报 `network ... has active endpoints` | Docker 残留端点。`docker network prune -f`;仍不行重启 Docker。不影响下次 `up`。 |
+| 前端能开但接口 401/跨域 | 检查 nginx 反代(prod `web/bin/nginx.docker*.conf`)/ vite 代理目标(dev `VITE_DEV_PROXY_TARGET`)。 |
+| worker 不执行任务 | 看 `ezdata-worker-dev` 日志是否 Redis `NOAUTH/WRONGPASS`(口令不一致)或队列名不在 `CELERY_QUEUES`。 |
+
+---
+
+## 附录:后置 / 可选
+
+- **flower**(Celery 监控):复用 backend 镜像 `celery -A config.celery_app flower`,默认 5555,按需另加 service。
+- **K8s / Helm**:工作负载按 backend / worker / frontend 拆分(scheduler 进程内,无独立 Deployment);依赖 mysql/redis/minio/es 子 chart;backend 多副本靠 `server.py` 启动锁保证调度单实例。
