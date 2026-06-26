@@ -43,18 +43,23 @@ services:
       # 覆盖 .env.dev 中指向 127.0.0.1 的连接，改为 compose 服务名（load_dotenv 不覆盖已存在的环境变量）
       - DB_HOST=ezdata-mysql-dev
       - DB_PORT=3306
-      - DB_PASSWORD=root
+      - DB_PASSWORD=ezdata123456
       - REDIS_HOST=ezdata-redis-dev
       - REDIS_PORT=6379
+      - REDIS_PASSWORD=ezdata123456
       # 任务日志 → ES；对象存储 → MinIO（dev compose 内服务名）
       - TASK_LOG_TYPE=es
       - TASK_ES_HOSTS=http://ezdata-es-dev:9200
+      - TASK_ES_USERNAME=elastic
+      - TASK_ES_PASSWORD=ezdata123456
+      - RAG_VECTOR_USER=elastic
+      - RAG_VECTOR_PASSWORD=ezdata123456
       - STORAGE_TYPE=s3
       - S3_ENDPOINT=http://ezdata-minio-dev:9000
       - STORAGE_PUBLIC_ENDPOINT=http://localhost:9000
       - S3_BUCKET_NAME=ezdata
       - S3_ACCESS_KEY=minio
-      - S3_SECRET_KEY=minio123456
+      - S3_SECRET_KEY=ezdata123456
       - S3_ADDRESS_STYLE=path
       # Windows 主机 bind mount 文件事件传不进容器，强制轮询以保证 --reload 生效
       - WATCHFILES_FORCE_POLLING=true
@@ -102,18 +107,23 @@ services:
       - APP_ENV=dev
       - DB_HOST=ezdata-mysql-dev
       - DB_PORT=3306
-      - DB_PASSWORD=root
+      - DB_PASSWORD=ezdata123456
       - REDIS_HOST=ezdata-redis-dev
       - REDIS_PORT=6379
+      - REDIS_PASSWORD=ezdata123456
       # 任务日志 → ES；对象存储 → MinIO（与后端一致）
       - TASK_LOG_TYPE=es
       - TASK_ES_HOSTS=http://ezdata-es-dev:9200
+      - TASK_ES_USERNAME=elastic
+      - TASK_ES_PASSWORD=ezdata123456
+      - RAG_VECTOR_USER=elastic
+      - RAG_VECTOR_PASSWORD=ezdata123456
       - STORAGE_TYPE=s3
       - S3_ENDPOINT=http://ezdata-minio-dev:9000
       - STORAGE_PUBLIC_ENDPOINT=http://localhost:9000
       - S3_BUCKET_NAME=ezdata
       - S3_ACCESS_KEY=minio
-      - S3_SECRET_KEY=minio123456
+      - S3_SECRET_KEY=ezdata123456
       - S3_ADDRESS_STYLE=path
       # 调试层代码沙箱(同后端)
       - SANDBOX_ENABLED=true
@@ -217,7 +227,7 @@ services:
     image: mysql:8.0
     container_name: ezdata-mysql-dev
     environment:
-      MYSQL_ROOT_PASSWORD: root
+      MYSQL_ROOT_PASSWORD: ezdata123456
       MYSQL_DATABASE: ezdata       # 与 .env.dev 的 DB_DATABASE 一致
     ports:
       - "13306:3306"
@@ -230,7 +240,7 @@ services:
       - ezdata-dev-network
       - ezdata-sandbox-net                # 沙箱经内网取内部数据源
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pezdata123456"]
       interval: 5s
       timeout: 10s
       retries: 30
@@ -239,12 +249,13 @@ services:
   ezdata-redis-dev:
     image: redis:latest
     container_name: ezdata-redis-dev
+    command: redis-server --requirepass ezdata123456
     ports:
       - "16379:6379"
     networks:
       - ezdata-dev-network
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "ezdata123456", "ping"]
       interval: 5s
       timeout: 10s
       retries: 30
@@ -255,7 +266,9 @@ services:
     container_name: ezdata-es-dev
     environment:
       - discovery.type=single-node
-      - xpack.security.enabled=false
+      - xpack.security.enabled=true               # 开启 basic auth(用户 elastic)
+      - xpack.security.http.ssl.enabled=false     # 保持明文 HTTP,只加账号密码(免证书);dev/内网用
+      - ELASTIC_PASSWORD=ezdata123456             # 仅在数据目录为空(首次初始化)时生效
       - ES_JAVA_OPTS=-Xms512m -Xmx512m
     ports:
       - "9200:9200"
@@ -271,7 +284,7 @@ services:
     container_name: ezdata-minio-dev
     environment:
       MINIO_ROOT_USER: minio
-      MINIO_ROOT_PASSWORD: minio123456
+      MINIO_ROOT_PASSWORD: ezdata123456
     command: server /data --console-address ":19001"
     ports:
       - "9000:9000"
@@ -288,7 +301,7 @@ services:
     depends_on:
       - ezdata-minio-dev
     entrypoint: >
-      /bin/sh -c "until mc alias set m http://ezdata-minio-dev:9000 minio minio123456; do echo waiting-for-minio; sleep 2; done;
+      /bin/sh -c "until mc alias set m http://ezdata-minio-dev:9000 minio ezdata123456; do echo waiting-for-minio; sleep 2; done;
                   mc mb -p m/ezdata;
                   mc anonymous set download m/ezdata;
                   exit 0"

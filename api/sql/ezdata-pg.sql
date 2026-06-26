@@ -1742,7 +1742,7 @@ update sys_user set tenant_id=100;       update sys_dept set tenant_id=100;     
 -- 开箱即用演示数据(放最后:此时 data_source/task 表及 tenant_id 列均已就绪)
 insert into data_source (id, name, code, source_type, family, config, secrets, status, remark, create_by, create_time, tenant_id) values
 ('seed-akshare-cn', 'AKShare 财经数据', 'akshare_cn', 'akshare', 'api', '{}', null, 'ok', '免 key 财经数据接口(演示;表=接口函数名)', 'admin', current_timestamp, 100),
-('seed-demo-es', '演示-Elasticsearch', 'demo_es', 'elasticsearch', 'search', '{"hosts": "http://ezdata-es-dev:9200"}', null, 'ok', '内置 ES(演示,可作 ETL 目标 / 数据服务)', 'admin', current_timestamp, 100);
+('seed-demo-es', '演示-Elasticsearch', 'demo_es', 'elasticsearch', 'search', '{"hosts": "http://ezdata-es-dev:9200", "user": "elastic", "password": "ezdata123456"}', null, 'ok', '内置 ES(演示,可作 ETL 目标 / 数据服务;账号 elastic/ezdata123456)', 'admin', current_timestamp, 100);
 
 insert into task (id, template_code, task_type, run_type, name, params, status, built_in, trigger_type, crontab, priority, retry, countdown, run_queue, create_by, create_time, remark, tenant_id) values
 ('seed-di-akshare-es', 'DataIntegrationTask', 1, 1, 'A股日线→ES(演示)',
