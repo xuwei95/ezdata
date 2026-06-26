@@ -17,7 +17,7 @@
               worker  redis     mysql/pg     ├── elasticsearch  (任务日志 + RAG 向量库 + ES 数据服务,一套三用)
              (celery) broker   主数据库       └── minio          (对象存储,S3 协议)
 
-仅 dev:  sandbox(调试态代码执行,无状态隔离容器) ── egress-proxy(出网域名白名单)
+dev/prod: sandbox(调试态代码执行,无状态隔离容器) ── egress-proxy(出网域名白名单)
 ```
 
 | service | 镜像/构建 | 作用 | dev | prod(my/pg) |
@@ -29,10 +29,10 @@
 | redis | `redis:latest` | broker / 缓存 / 验证码 | ✅ | ✅ |
 | elasticsearch | `elasticsearch:8.13.4` | 日志 + 向量库 + 数据服务 | ✅ | ✅ |
 | minio + minio-init | `minio/minio` + `minio/mc` | 对象存储 + 建桶 | ✅ | ✅ |
-| sandbox | 复用 backend 镜像 | 调试态代码执行(隔离) | ✅ | ❌ |
-| egress-proxy | tinyproxy | 沙箱出网白名单 | ✅ | ❌ |
+| sandbox | 复用 backend 镜像 | 调试态代码执行(隔离) | ✅ | ✅ |
+| egress-proxy | tinyproxy | 沙箱出网白名单 | ✅ | ✅ |
 
-> **沙箱**:`SANDBOX_ENABLED` 默认关。dev compose 已开并部署沙箱+egress;prod 默认不部署沙箱,调试态代码回落到本地真实执行(详见 [9.4](#94-调试态代码执行))。
+> **沙箱**:三套 compose(dev / my / pg)均已部署沙箱 + egress 并 `SANDBOX_ENABLED=true`。沙箱跑在内网专用网络(`internal=true`,无直连公网),出网只经 egress-proxy 的域名白名单。非容器 / 自定义部署若未起沙箱,把 `SANDBOX_ENABLED` 置空即回落本地真实执行(详见 [9.4](#94-调试态代码执行))。
 
 ---
 
@@ -86,7 +86,7 @@ docker compose -f docker-compose.pg.yml up -d --build
 | Elasticsearch | 9200 | 9200 |
 | MinIO API / 控制台 | 9000 / 19001 | 9000 / 19001 |
 | Scheduler | 进程内(无端口) | 进程内 |
-| Sandbox | 8003(容器内网) | 不部署 |
+| Sandbox | 8003(容器内网) | 8003(容器内网) |
 
 **默认登录**:`admin` / `admin123`(另有测试用户 `test`)。
 
@@ -186,7 +186,7 @@ npm run dev                              # vite,默认 12580
 dev 源码挂载,改完代码后端自动 reload;worker 需 `docker restart ezdata-worker-dev`。prod 改完 `docker compose -f docker-compose.my.yml up -d --build` 重建镜像。
 
 ### 9.4 调试态代码执行
-平台「调试 / 预览」态的代码(ETL 代码取数、AI 图表等)在沙箱执行(子进程隔离 + 超时/内存 + import 白名单 + 出网域名白名单)。dev 已部署沙箱;**prod 默认 `SANDBOX_ENABLED` 关,调试态回落到 worker/后端本地真实执行**。正式任务恒走 worker。
+平台「调试 / 预览」态的代码(ETL 代码取数、AI 图表等)在沙箱执行(子进程隔离 + 超时/内存 + import 白名单 + 出网域名白名单)。**dev / my / pg 三套 compose 均已部署沙箱并 `SANDBOX_ENABLED=true`**;沙箱出网域名白名单由 egress-proxy 的 `SANDBOX_EGRESS_ALLOW` 控制(默认财经/行情域名,按需增删)。非容器或自定义部署若未起沙箱,置空 `SANDBOX_ENABLED` 即回落 worker/后端本地真实执行。正式任务恒走 worker。
 
 ---
 
@@ -199,7 +199,7 @@ dev 源码挂载,改完代码后端自动 reload;worker 需 `docker restart ezda
 - **填 `JWT_SECRET_KEY`**:prod 用足够随机的值。
 - **收敛暴露面**:数据库 / Redis / ES / MinIO 端口不对公网开放,只暴露前端(和必要的后端 API)。
 - **ES TLS**:如需链路加密,改 `xpack.security.http.ssl.enabled=true` 并配证书,客户端 hosts 改 `https://`。
-- **沙箱**:启用代码取数/AI 代码执行的环境务必部署独立沙箱 + egress 白名单,不要让其裸跑在 worker。
+- **沙箱**:三套 compose 已默认部署独立沙箱 + egress 白名单(代码取数/AI 代码执行不裸跑在 worker)。上线务必改 `SANDBOX_BEARER_KEY`(默认 `ezdata-sandbox-prod-key`),并按需收紧 `SANDBOX_EGRESS_ALLOW` 出网域名白名单。
 
 ---
 

@@ -35,6 +35,7 @@ services:
         condition: service_started
     networks:
       - ezdata-network
+      - ezdata-sandbox-net                # 调用 internal 网里的调试沙箱
 
   # Celery Worker（任务执行层，复用后端镜像）
   ezdata-worker-my:
@@ -55,6 +56,57 @@ services:
         condition: service_started
     networks:
       - ezdata-network
+      - ezdata-sandbox-net                # 调用 internal 网里的调试沙箱
+
+  # ---------------- 代码执行沙箱（调试层:无状态远程执行器） ----------------
+  # 复用后端镜像（代码已烤进镜像）。平台「运行代码」的调试态在此执行,正式态仍 worker 直跑。
+  #   - env 仅 SANDBOX_*,不内置任何 DB/JWT/数据源凭据;执行所需的一切随每次请求注入,用完即弃
+  #   - 仅接 internal 网(无直连公网,出网经 egress-proxy);非 root + drop 所有 caps + 超时/内存上限
+  ezdata-sandbox:
+    build:
+      context: ./api
+      dockerfile: Dockerfile.my
+    image: ezdata-backend-my:latest
+    container_name: ezdata-sandbox
+    working_dir: /app
+    command: uvicorn sandbox_app:app --host 0.0.0.0 --port 8003
+    environment:
+      - SANDBOX_PORT=8003
+      - SANDBOX_BEARER_KEY=ezdata-sandbox-prod-key   # 与 backend/worker(.env.dockermy)一致
+      - PYTHONDONTWRITEBYTECODE=1
+      # 禁用 RLIMIT_AS(限的是虚拟地址空间,pandas/numpy 的 .so mmap 远超 RSS);真实内存由 mem_limit 兜底
+      - SANDBOX_MEM_LIMIT_BYTES=0
+      # 出网只能经 egress 代理(域名白名单);内部服务走 NO_PROXY 直连内网
+      - HTTP_PROXY=http://ezdata-egress-proxy:8888
+      - HTTPS_PROXY=http://ezdata-egress-proxy:8888
+      - http_proxy=http://ezdata-egress-proxy:8888
+      - https_proxy=http://ezdata-egress-proxy:8888
+      - NO_PROXY=localhost,127.0.0.1,ezdata-mysql,ezdata-es,ezdata-minio,ezdata-redis,ezdata-backend-my,ezdata-worker-my
+      - no_proxy=localhost,127.0.0.1,ezdata-mysql,ezdata-es,ezdata-minio,ezdata-redis,ezdata-backend-my,ezdata-worker-my
+    networks:
+      - ezdata-sandbox-net                # 仅 internal 网:无直连公网,出网经 egress-proxy;内部服务亦在此网可达
+    tmpfs:
+      - /tmp                              # 临时可写(dlt pipeline 等)
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 2g
+
+  # ---------------- 沙箱出网代理（egress 白名单） ----------------
+  # 沙箱在 internal 网无直连公网,出网只能经此。tinyproxy 按 SANDBOX_EGRESS_ALLOW 做域名白名单:
+  #   *=全放行;逗号域名列表=仅放行这些域名(含子域)。双网卡:internal 面向沙箱,ezdata-network 借 NAT 出公网。
+  ezdata-egress-proxy:
+    build:
+      context: ./deploy/egress-proxy
+    image: ezdata-egress-proxy:latest
+    container_name: ezdata-egress-proxy
+    environment:
+      - SANDBOX_EGRESS_ALLOW=eastmoney.com,sinajs.cn,sina.com.cn,sse.com.cn,szse.cn,cninfo.com.cn,csindex.com.cn,hexun.com,jrj.com.cn,10jqka.com.cn,jin10.com,okx.com,gateio.ws,gate.io,kraken.com,kucoin.com
+    networks:
+      - ezdata-sandbox-net                # 面向沙箱(internal)
+      - ezdata-network                    # 借 NAT 出公网
 
   # MySQL服务
   ezdata-mysql:
@@ -70,6 +122,7 @@ services:
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_general_ci --skip-character-set-client-handshake=1
     networks:
       - ezdata-network
+      - ezdata-sandbox-net                # 沙箱经内网取内部数据源
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pezdata123456"]
       interval: 5s
@@ -107,6 +160,7 @@ services:
       - ezdata-es-data:/usr/share/elasticsearch/data
     networks:
       - ezdata-network
+      - ezdata-sandbox-net                # 沙箱经内网写任务日志 / 读 ES 数据源
 
   # MinIO（S3 兼容对象存储，STORAGE_TYPE=s3）
   ezdata-minio:
@@ -123,6 +177,7 @@ services:
       - ezdata-minio-data:/data
     networks:
       - ezdata-network
+      - ezdata-sandbox-net                # 沙箱经内网读写对象存储数据源
 
   # 一次性创建 bucket（MinIO 不会自动建桶；建好后退出）
   ezdata-minio-init:
@@ -142,6 +197,10 @@ networks:
   ezdata-network:
     name: ezdata-network
     driver: bridge
+  ezdata-sandbox-net:                      # 沙箱专用内网:internal=true 无 NAT/公网,出网只能经 egress-proxy
+    name: ezdata-sandbox-net
+    driver: bridge
+    internal: true
 
 # 数据卷
 volumes:
