@@ -32,15 +32,20 @@
 ## 🚀 快速开始(Docker)
 
 ```bash
-# 开发环境(MySQL + Redis + ES8 + MinIO + 后端 + worker + 前端,一键起)
+# 1) 准备环境变量(必需:.env.dev 被 git 忽略,缺失会导致后端回退到默认库名而连不上)
+cp api/.env.dev.example api/.env.dev
+
+# 2) 一键起开发环境(MySQL + Redis + ES8 + MinIO + 后端 + worker + 前端)
 docker compose -f docker-compose.dev.yml up -d
 
 # 生产参考:docker-compose.my.yml(MySQL) / docker-compose.pg.yml(PostgreSQL)
 ```
 
 - 前端默认 `http://localhost:12580`,后端 `http://localhost:9099`(Swagger:`/docs`)。
-- 初始化 SQL:`api/sql/ezdata.sql`(MySQL)/ `api/sql/ezdata-pg.sql`(PostgreSQL)。
-- 环境变量:复制 `api/.env.dev.example` 为 `api/.env.dev` 按需填写(数据库 / Redis / ES / 对象存储 / LLM / embedding 等)。
+- **默认登录**:`admin` / `admin123`。
+- **开箱即用演示数据**(首启自动导入):AKShare 财经数据源 + 内置 ES 数据源(`demo_es`)+ 一个数据集成任务「A股日线→ES」(手动触发即跑)。
+- **默认中间件口令**(dev / prod compose 已统一,仅供本地 / 内网):`ezdata123456` —— MySQL `root`、PostgreSQL `postgres`、Redis、MinIO `minio`、Elasticsearch `elastic`。⚠️ 正式对外部署务必改强口令或改用环境变量 / secret 注入。
+- 初始化 SQL:`api/sql/ezdata.sql`(MySQL)/ `api/sql/ezdata-pg.sql`(PostgreSQL),首次启动自动挂载导入。
 
 本地(非容器)开发见 [docs/DEPLOY.md](docs/DEPLOY.md)。
 
