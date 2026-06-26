@@ -10,7 +10,19 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
+
+
+def _empty_overview() -> dict[str, Any]:
+    """ai_sessions 尚未由 agno 建表(全新环境/未对话过)时的空结果。"""
+    return {
+        'totals': {
+            'sessions': 0, 'runs': 0, 'inputTokens': 0, 'outputTokens': 0,
+            'totalTokens': 0, 'avgDuration': 0, 'successRate': 0,
+        },
+        'series': [], 'byModel': [], 'byUser': [],
+    }
 
 
 class AiMetricsService:
@@ -19,7 +31,12 @@ class AiMetricsService:
     @classmethod
     async def overview(cls, db: AsyncSession, days: int = 7) -> dict[str, Any]:
         since = int(time.time()) - max(int(days or 7), 1) * 86400
-        res = await db.execute(text('SELECT user_id, runs FROM ai_sessions WHERE runs IS NOT NULL'))
+        # ai_sessions 由 agno 在首次对话时惰性建表;全新环境尚未对话则表不存在,返回空总览
+        try:
+            res = (await db.execute(text('SELECT user_id, runs FROM ai_sessions WHERE runs IS NOT NULL'))).all()
+        except SQLAlchemyError:
+            await db.rollback()
+            return _empty_overview()
 
         sessions = 0
         total_runs = 0
