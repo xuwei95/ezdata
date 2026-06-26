@@ -53,6 +53,7 @@ class TaskAgentTools(Toolkit):
         source_query: str,
         target_datasource_code: str,
         target_table: str,
+        source_object: str = '',
         write_mode: str = 'append',
         target_format: str = 'csv',
         transform_code: str = '',
@@ -61,14 +62,20 @@ class TaskAgentTools(Toolkit):
         """提议一个数据集成(ETL)任务:从源数据源取数 → 写入目标数据源,弹出确认表单给用户。
 
         当用户要求「把 A 同步/导入/抽取到 B」「定时同步数据」「建个数据管道」等数据集成需求时使用。
-        先用 list_datasources / get_table_schema 摸清源与目标的数据源编码、表名、字段,再调本工具。
-        本工具不会创建任务,只是把预填好的配置弹给用户确认。
+        **务必先用 get_table_schema 摸清源的表/函数/字段及其原生查询写法**(尤其:akshare/ccxt 的查询是
+        「函数名+参数」、Elasticsearch 是 DSL,都不是 SQL),再据此写 source_query。本工具只弹表单待用户确认。
 
         :param name: 任务名称(简短可读,如「订单同步到ES」)
         :param source_datasource_code: 源数据源编码
-        :param source_query: 取数语句。SQL 源写 SQL(如 SELECT * FROM orders);非 SQL 源按其规则
+        :param source_query: 取数语句,**按源类型用其原生写法**(写前先 get_table_schema 查清):
+            - SQL 源(mysql/pg/tdengine 等):只读 SELECT,如 `SELECT * FROM orders WHERE status='PAID'`
+            - 接口源 akshare/ccxt:JSON `{"func":"函数名","params":{...}}`,
+              如 `{"func":"stock_zh_a_daily","params":{"symbol":"sh600519","adjust":"qfq"}}`(无参则 params 写 {})
+            - Elasticsearch:JSON `{"index":"索引名","body":{"query":{...},"size":50}}`(聚合用 body.aggs 且 size:0)
+            - 其他非 SQL 源(Mongo/图/KV 等):用该源自身的查询语法/DSL(JSON 形式)
         :param target_datasource_code: 目标数据源编码
-        :param target_table: 目标表名 / 对象 key(文件源如 exports/orders.csv)
+        :param target_table: 目标表名 / 索引 / 对象 key(文件源如 exports/orders.csv)
+        :param source_object: 源端表名/索引/函数名(可选,用于表单预选与展示;SQL 源可留空,native 已含表名)
         :param write_mode: 写入模式 append 追加 / replace 覆盖 / merge 合并(默认 append)
         :param target_format: 目标为文件源时的格式 csv/json/jsonl(默认 csv)
         :param transform_code: 可选,逐行转换函数 def transform(row): ...(留空则不转换)
@@ -76,11 +83,13 @@ class TaskAgentTools(Toolkit):
         :return: 操作结果文本(已弹表单,等待用户确认)
         """
         tcode = (transform_code or '').strip()
+        src_obj = (source_object or '').strip()
         params = {
             'extract': {
                 'datasource_code': source_datasource_code,
                 'native': source_query,
-                'object': target_table,
+                'object': src_obj,
+                'tables': [src_obj] if src_obj else [],
             },
             'transform': {'enabled': bool(tcode), 'code': tcode or DEFAULT_TRANSFORM},
             'load': {
