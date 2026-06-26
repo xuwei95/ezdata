@@ -99,13 +99,16 @@ const statCards = computed(() => [
   { key: 'aiUse', label: 'AI 用量(7天)', value: fmtTok(aiTotals.value.totalTokens), icon: 'TrendCharts', color: '#1E9493',
     sub: `会话 ${aiTotals.value.sessions ?? 0} · 轮次 ${aiTotals.value.runs ?? 0}`, to: '/ai/metrics' },
 ])
+// 按平台菜单顺序排:数据管理 → AI管理(对话/应用/用量) → 知识库(库/召回) → 任务调度(普通/工作流)
 const quickNav = [
   { label: '数据管理', icon: 'Coin', color: '#409eff', to: '/data/manage' },
-  { label: '任务工作流', icon: 'Share', color: '#9b59b6', to: '/task/dag' },
+  { label: 'AI 对话', icon: 'ChatDotRound', color: '#f56c6c', to: '/ai/chat' },
+  { label: 'AI 应用', icon: 'Cpu', color: '#945FB9', to: '/ai/app' },
+  { label: '用量统计', icon: 'TrendCharts', color: '#1E9493', to: '/ai/metrics' },
   { label: '知识库', icon: 'Collection', color: '#1abc9c', to: '/rag/dataset' },
   { label: '召回测试', icon: 'Search', color: '#e6a23c', to: '/rag/retrieval' },
-  { label: 'AI 对话', icon: 'ChatDotRound', color: '#f56c6c', to: '/ai/chat' },
-  { label: '用量统计', icon: 'TrendCharts', color: '#1E9493', to: '/ai/metrics' },
+  { label: '任务调度', icon: 'AlarmClock', color: '#6F5EF9', to: '/task/info' },
+  { label: '任务工作流', icon: 'Share', color: '#9b59b6', to: '/task/dag' },
 ]
 
 function go(to) { if (to) router.push(to).catch(() => {}) }
