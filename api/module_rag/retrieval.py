@@ -12,6 +12,7 @@ from typing import Any
 from sqlalchemy import select
 
 from common.context import RequestContext
+from config.env import RagConfig
 from module_rag.entity.do.rag_do import RagChunk, RagDataset
 from module_rag.rerank import rerank as do_rerank
 from module_rag.runtime_util import build_embedding_client, build_store, md5
@@ -34,9 +35,24 @@ def retrieve(tenant_id: Any, query: str, dataset_ids: list[str], *, k: int = 5,
             RagChunk.chunk_type == 'qa', RagChunk.question_hash == md5(query),
             RagChunk.dataset_id.in_(dataset_ids))).scalars().first()
 
+        # 批量取数据集(避免逐个 select),按传入顺序处理
+        ds_map = {d.id: d for d in
+                  db.execute(select(RagDataset).where(RagDataset.id.in_(dataset_ids))).scalars().all()}
+
+        # query 向量按 embedding 配置(provider/model/dims)缓存:多库共用同一 embedding 时只向量化一次
+        vec_cache: dict[tuple, Any] = {}
+
+        def _qvec(ds: RagDataset) -> Any:
+            key = (ds.embedding_provider or RagConfig.embedding_type,
+                   ds.embedding_model or RagConfig.embedding_model,
+                   ds.embedding_dims or (RagConfig.embedding_dims or None))
+            if key not in vec_cache:
+                vec_cache[key] = build_embedding_client(ds).embed_query(query)
+            return vec_cache[key]
+
         all_hits: list[list[dict]] = []
         for ds_id in dataset_ids:
-            dataset = db.execute(select(RagDataset).where(RagDataset.id == ds_id)).scalars().first()
+            dataset = ds_map.get(ds_id)
             if dataset is None:
                 continue
             store = build_store(dataset)
@@ -45,7 +61,7 @@ def retrieve(tenant_id: Any, query: str, dataset_ids: list[str], *, k: int = 5,
             if retrieval_type == 'keyword':
                 hits = store.keyword_search(query, k * 2, filters=tenant_filter)
             else:
-                qvec = build_embedding_client(dataset).embed_query(query)
+                qvec = _qvec(dataset)
                 if retrieval_type == 'vector':
                     hits = store.vector_search(qvec, k * 2, filters=tenant_filter)
                     if score_threshold:  # 余弦相似度阈值

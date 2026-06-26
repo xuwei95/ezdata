@@ -99,13 +99,14 @@ def execute_task(task_id: str, instance_id: str, worker: str | None = None, retr
         logger.info(f'任务开始 task_id={task_id} 模板={template_code} worker={worker} 重试={retry_num}')
         logger.info(f'任务参数: {params}')
 
+        ctx = {'sandbox': True, 'task_id': task_id, 'instance_id': instance_id}
         if template.runner_type == 2:
-            runner = DynamicRunner(params, logger, context={'runner_code': template.runner_code, 'sandbox': True})
+            runner = DynamicRunner(params, logger, context={**ctx, 'runner_code': template.runner_code})
         else:
             runner_cls = get_runner(template_code)
             if runner_cls is None:
                 raise ValueError(f'未找到内置执行器: {template_code}')
-            runner = runner_cls(params, logger, context={'sandbox': True})
+            runner = runner_cls(params, logger, context=ctx)
 
         result = runner.run()
         result_summary = str(result)[:500] if result is not None else '执行成功'

@@ -161,6 +161,10 @@ class ElasticsearchHandler(Connector):
             if id_field and id_field in doc:
                 action['_id'] = doc[id_field]
             actions.append(action)
-        ok, errors = bulk(self.client, actions, stats_only=False)
+        # raise_on_error=False:自行收集 errors,部分失败时给出简洁可读的错误(成功/失败数+示例),
+        # 而非 helpers.bulk 默认抛出的超长 BulkIndexError;且避免"只报成功数"静默丢数。
+        ok, errors = bulk(self.client, actions, stats_only=False, raise_on_error=False)
         self.client.indices.refresh(index=table)
-        return {'written': ok, 'errors': errors}
+        if errors:
+            raise RuntimeError(f'ES 写入部分失败:成功 {ok} / 失败 {len(errors)};示例错误:{str(errors[0])[:300]}')
+        return {'written': ok, 'errors': []}

@@ -282,13 +282,17 @@ class DataIntegrationRunner(BaseRunner):
             total += len(buf)
         return f'流式消费结束: {src_code} -> {dst_code}.{table} ({total} 条)'
 
-    @staticmethod
-    def _load(dst: Any, src_code: str, table: str, data: list[dict], load: dict) -> Any:
-        """装载一批记录:对象存储序列化整写,其余走 dlt pipeline。"""
+    def _load(self, dst: Any, src_code: str, table: str, data: list[dict], load: dict) -> Any:
+        """装载一批记录:对象存储序列化整写,其余走 dlt pipeline。
+
+        pipeline_name 以 task_id 为唯一键:不同任务即使写同一目标表也用各自的 dlt pipeline 状态,
+        避免并发/多任务共用 pipeline 状态相互串扰;同一任务重跑沿用同名 pipeline(保留增量状态)。
+        """
         from module_data.etl_util import is_file_target, serialize_records  # noqa: PLC0415
 
         mode = load.get('mode') or 'append'
         dataset = load.get('dataset') or 'public'
         if is_file_target(getattr(dst, 'family', None)):
             return dst.write(serialize_records(data, load.get('format') or 'csv'), table, mode=mode)
-        return dst.write(data, table, mode=mode, dataset=dataset, pipeline_name=f'etl_{src_code}_{table}')
+        pname = f'etl_{self.context.get("task_id") or src_code}_{table}'
+        return dst.write(data, table, mode=mode, dataset=dataset, pipeline_name=pname)
