@@ -61,7 +61,7 @@ services:
     image: postgres:14
     container_name: ezdata-pg
     environment:
-      POSTGRES_PASSWORD: root
+      POSTGRES_PASSWORD: ezdata123456
       POSTGRES_DB: ezdata
       POSTGRES_INITDB_ARGS: --encoding=UTF8 --lc-collate=C --lc-ctype=C
     ports:
@@ -80,12 +80,13 @@ services:
   ezdata-redis:
     image: redis:latest
     container_name: ezdata-redis
+    command: redis-server --requirepass ezdata123456
     ports:
       - "16379:6379"
     networks:
       - ezdata-network
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "ezdata123456", "ping"]
       interval: 5s
       timeout: 10s
       retries: 30
@@ -96,7 +97,9 @@ services:
     container_name: ezdata-es
     environment:
       - discovery.type=single-node
-      - xpack.security.enabled=false
+      - xpack.security.enabled=true               # 开启 basic auth(用户 elastic)
+      - xpack.security.http.ssl.enabled=false     # 保持明文 HTTP,只加账号密码(免证书);内网部署用
+      - ELASTIC_PASSWORD=ezdata123456             # 仅在数据目录为空(首次初始化)时生效
       - ES_JAVA_OPTS=-Xms512m -Xmx512m
     ports:
       - "9200:9200"
@@ -111,7 +114,7 @@ services:
     container_name: ezdata-minio
     environment:
       MINIO_ROOT_USER: minio
-      MINIO_ROOT_PASSWORD: minio123456
+      MINIO_ROOT_PASSWORD: ezdata123456
     command: server /data --console-address ":19001"
     ports:
       - "9000:9000"
@@ -127,7 +130,7 @@ services:
     depends_on:
       - ezdata-minio
     entrypoint: >
-      /bin/sh -c "until mc alias set m http://ezdata-minio:9000 minio minio123456; do echo waiting-for-minio; sleep 2; done;
+      /bin/sh -c "until mc alias set m http://ezdata-minio:9000 minio ezdata123456; do echo waiting-for-minio; sleep 2; done;
                   mc mb -p m/ezdata;
                   mc anonymous set download m/ezdata;
                   exit 0"
