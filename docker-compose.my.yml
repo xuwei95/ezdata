@@ -36,6 +36,7 @@ services:
     networks:
       - ezdata-network
       - ezdata-sandbox-net                # 调用 internal 网里的调试沙箱
+    restart: unless-stopped               # 自愈:MySQL 首次 initdb 期 TCP 暂拒(healthcheck 走 socket 已绿)会让首连失败
 
   # Celery Worker（任务执行层，复用后端镜像）
   ezdata-worker-my:
@@ -45,6 +46,8 @@ services:
     image: ezdata-backend-my:latest
     container_name: ezdata-worker-my
     command: python -m celery -A config.celery_app worker -Q default --autoscale=4,1 --loglevel=INFO
+    environment:
+      - APP_ENV=dockermy                  # celery 不经 --env,须显式指定配置环境(否则回退 .env.dev → 连 127.0.0.1)
     depends_on:
       ezdata-mysql:
         condition: service_healthy
@@ -57,6 +60,7 @@ services:
     networks:
       - ezdata-network
       - ezdata-sandbox-net                # 调用 internal 网里的调试沙箱
+    restart: unless-stopped               # 自愈:MySQL 首次 initdb 期 TCP 暂拒(healthcheck 走 socket 已绿)会让首连失败
 
   # ---------------- 代码执行沙箱（调试层:无状态远程执行器） ----------------
   # 复用后端镜像（代码已烤进镜像）。平台「运行代码」的调试态在此执行,正式态仍 worker 直跑。

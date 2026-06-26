@@ -546,8 +546,9 @@ class GetConfig:
             parser.add_argument('--env', type=str, default='', help='运行环境')
             # 解析命令行参数
             args, _ = parser.parse_known_args()
-            # 设置环境变量，如果未设置命令行参数，默认APP_ENV为dev
-            os.environ['APP_ENV'] = args.env if args.env else 'dev'
+            # 优先级：--env 命令行 > 已存在的 APP_ENV 环境变量(如 compose 注入) > 默认 dev。
+            # celery worker 不经 --env,靠 compose 的 APP_ENV 指定配置环境,故不能无条件覆盖为 dev。
+            os.environ['APP_ENV'] = args.env or os.environ.get('APP_ENV') or 'dev'
         # 读取运行环境
         run_env = os.environ.get('APP_ENV', '')
         # 运行环境未指定时默认加载.env.dev

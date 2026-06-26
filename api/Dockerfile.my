@@ -5,7 +5,9 @@ WORKDIR /app
 COPY . .
 
 # 安装依赖
-RUN pip install --no-cache-dir -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+RUN pip install --no-cache-dir -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/
+# 数据集成(ETL)依赖:DataIntegrationTask / 连接器 extract·write / 沙箱代码取数所需(dlt、akshare 等)
+RUN pip install --no-cache-dir -r requirements-data.txt -i https://mirrors.aliyun.com/pypi/simple/
 
 # 暴露端口
 EXPOSE 9099

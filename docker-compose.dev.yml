@@ -275,8 +275,10 @@ services:
     volumes:
       - ezdata-es-dev-data:/usr/share/elasticsearch/data
     networks:
-      - ezdata-dev-network
-      - ezdata-sandbox-net                # 沙箱经内网写任务日志
+      ezdata-dev-network:
+        aliases: [ezdata-es]              # demo_es 种子用中性名 ezdata-es(与 prod 一致),dev 经别名解析
+      ezdata-sandbox-net:                 # 沙箱经内网写任务日志
+        aliases: [ezdata-es]
 
   # ---------------- MinIO（对象存储，STORAGE_TYPE=s3） ----------------
   ezdata-minio-dev:

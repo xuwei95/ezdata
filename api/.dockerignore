@@ -1,0 +1,23 @@
+# 构建上下文排除:避免把本地开发配置/缓存/密钥烤进生产镜像
+# 关键:.env.dev 是本地(127.0.0.1)配置且 git 忽略,绝不能进镜像(否则 APP_ENV 未设时会被误加载)
+.env.dev
+.env
+*.env.local
+
+# Python 缓存 / 虚拟环境
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# 版本控制 / IDE
+.git/
+.gitignore
+.idea/
+.vscode/
+
+# dlt 本地状态、日志
+/var/dlt/
+*.log

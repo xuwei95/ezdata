@@ -11,8 +11,8 @@ RUN npm config set registry https://registry.npmmirror.com
 # 安装依赖
 RUN npm install
 
-# 执行docker构建命令
-RUN npm run build:docker
+# 执行docker构建命令(放大 node 堆,避免 vite 构建 OOM:V8 默认上限在大型项目会 Aborted/core dumped)
+RUN NODE_OPTIONS=--max-old-space-size=4096 npm run build:docker
 
 # 运行阶段
 FROM nginx:latest
