@@ -504,11 +504,48 @@ class EtlService:
 
     @classmethod
     def _query_prompt(cls, handler: Any, object_names: list[str] | None, question: str) -> str:
+        # api 族(akshare/ccxt 等):原生查询是"接口函数调用",不是 SQL,需单独提示词
+        if getattr(handler, 'family', '') == 'api':
+            return cls._api_query_prompt(handler, object_names, question)
         schema_ctx = cls._schema_context(handler, object_names)
         return (
             f'你是 {handler.name} 数据库的查询专家。{schema_ctx}'
             f'请根据下面的自然语言需求,写一条**只读**抽取查询(可按需连表 join;单条语句、不要注释、不要 markdown 代码块)。'
             f'只输出查询本身:\n需求:{question}'
+        )
+
+    @classmethod
+    def _api_query_prompt(cls, handler: Any, object_names: list[str] | None, question: str) -> str:
+        """api 族(akshare/ccxt)取数提示词:其"查询"是调用一个数据接口函数,需输出 {func, params} JSON。"""
+        labels = handler.table_labels() if hasattr(handler, 'table_labels') else {}
+        names = [n for n in (object_names or []) if n]
+        if not names:  # 没选函数:给出白名单里前若干个候选,让模型自行挑选
+            try:
+                names = [t for t in handler.list_tables()][: cls.SCHEMA_TABLE_CAP]
+            except Exception:  # noqa: BLE001
+                names = list(labels.keys())[: cls.SCHEMA_TABLE_CAP]
+        blocks: list[str] = []
+        for t in names:
+            desc = labels.get(t, '')
+            doc = ''
+            if hasattr(handler, 'describe'):
+                try:
+                    doc = (handler.describe(t) or '').strip()
+                except Exception:  # noqa: BLE001
+                    doc = ''
+            block = f'- {t}' + (f':{desc}' if desc else '')
+            if doc:
+                block += '\n' + '\n'.join('    ' + ln for ln in doc.splitlines()[:30])
+            blocks.append(block)
+        funcs = '\n'.join(blocks) or '(无可用接口信息)'
+        return (
+            f'你是 {handler.name} 接口数据源的取数专家。该数据源的"原生查询"**不是 SQL**,'
+            f'而是调用一个数据接口函数(函数名 + 参数)。\n'
+            f'可用接口函数及其参数说明:\n{funcs}\n\n'
+            f'请根据下面的需求,选最合适的函数并填好参数。**只输出一行 JSON 对象**'
+            f'(不要 SQL、不要注释、不要 markdown 代码块):\n'
+            f'{{"func": "函数名", "params": {{"参数名": "值"}}}}\n'
+            f'无参数时 params 写 {{}}。参数取值参考上面的函数说明。\n需求:{question}'
         )
 
     @classmethod
