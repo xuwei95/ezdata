@@ -2,7 +2,7 @@
   <div class="dash" v-loading="loading">
     <!-- 概览统计卡 -->
     <el-row :gutter="16">
-      <el-col :span="8" v-for="c in statCards" :key="c.key">
+      <el-col :span="6" v-for="c in statCards" :key="c.key">
         <el-card shadow="hover" class="stat" :body-style="{ padding: '16px' }" @click="go(c.to)">
           <div class="stat-row">
             <el-icon class="stat-ico" :style="{ background: c.color + '1f', color: c.color }"><component :is="c.icon" /></el-icon>
@@ -16,17 +16,7 @@
       </el-col>
     </el-row>
 
-    <!-- 快捷入口 -->
-    <el-card shadow="never" header="快捷入口" class="mt16">
-      <div class="quick">
-        <div class="quick-item" v-for="q in quickNav" :key="q.to" @click="go(q.to)">
-          <el-icon :style="{ color: q.color }"><component :is="q.icon" /></el-icon>
-          <span>{{ q.label }}</span>
-        </div>
-      </div>
-    </el-card>
-
-    <!-- 任务趋势 + 状态 -->
+    <!-- 任务趋势 + 快捷入口 -->
     <el-row :gutter="16" class="mt16">
       <el-col :span="16">
         <el-card shadow="never" header="任务运行趋势(近 7 天)">
@@ -34,21 +24,29 @@
         </el-card>
       </el-col>
       <el-col :span="8">
-        <el-card shadow="never" header="任务实例状态(近 7 天)">
-          <div ref="taskStatusRef" class="chart"></div>
+        <el-card shadow="never" header="快捷入口">
+          <div class="quick">
+            <div class="quick-item" v-for="q in quickNav" :key="q.to" @click="go(q.to)">
+              <el-icon :style="{ color: q.color }"><component :is="q.icon" /></el-icon>
+              <span>{{ q.label }}</span>
+            </div>
+          </div>
         </el-card>
       </el-col>
     </el-row>
 
-    <!-- AI 用量趋势 + 资产分布 -->
+    <!-- 任务状态 + AI 用量趋势 + 资产分布 -->
     <el-row :gutter="16" class="mt16">
-      <el-col :span="8">
+      <el-col :span="6">
+        <el-card shadow="never" header="任务状态(近 7 天)"><div ref="taskStatusRef" class="chart sm"></div></el-card>
+      </el-col>
+      <el-col :span="6">
         <el-card shadow="never" header="AI 用量趋势(近 7 天)"><div ref="aiUsageRef" class="chart sm"></div></el-card>
       </el-col>
-      <el-col :span="8">
+      <el-col :span="6">
         <el-card shadow="never" header="数据源 · 族分布"><div ref="familyRef" class="chart sm"></div></el-card>
       </el-col>
-      <el-col :span="8">
+      <el-col :span="6">
         <el-card shadow="never" header="知识库文档 · 训练状态"><div ref="ragRef" class="chart sm"></div></el-card>
       </el-col>
     </el-row>
@@ -92,6 +90,8 @@ function fmtTok(n) {
   return String(n)
 }
 const statCards = computed(() => [
+  { key: 'ds', label: '数据源', value: cards.value.dataSources ?? 0, icon: 'Coin', color: '#5B8FF9',
+    sub: `数据模型 ${cards.value.dataModels ?? 0}`, to: '/data/manage' },
   { key: 'task', label: '任务', value: (cards.value.tasks ?? 0) + (cards.value.dags ?? 0), icon: 'AlarmClock', color: '#6F5EF9',
     sub: `调度 ${cards.value.tasks ?? 0} · 工作流 ${cards.value.dags ?? 0}`, to: '/task/info' },
   { key: 'aiApp', label: 'AI 应用', value: cards.value.aiApps ?? 0, icon: 'Cpu', color: '#945FB9',
