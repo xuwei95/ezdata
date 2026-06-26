@@ -8,7 +8,10 @@ from typing import Any
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from module_ai.entity.do.ai_app_do import AiApp
 from module_ai.entity.do.ai_model_do import AiModels
+from module_ai.entity.do.ai_tool_do import AiTool
+from module_ai.service.ai_metrics_service import AiMetricsService
 from module_data.entity.do.data_do import DataModel, DataSource
 from module_rag.entity.do.rag_do import RagChunk, RagDataset, RagDocument
 from module_task_schedule.entity.do.task_do import Task, TaskInstance
@@ -42,7 +45,12 @@ class DashboardService:
             'documents': await cnt(RagDocument),
             'chunks': await cnt(RagChunk),
             'aiModels': await cnt(AiModels),
+            'aiApps': await cnt(AiApp),
+            'aiTools': await cnt(AiTool),
         }
+
+        # AI 用量(复用 LLMOps 聚合):近 7 天 token/会话 + 趋势序列
+        ai_usage = await AiMetricsService.overview(db, 7)
 
         source_family = await dist(DataSource.family)
         source_type = await dist(DataSource.source_type)
@@ -81,6 +89,7 @@ class DashboardService:
             'cards': cards, 'sourceFamily': source_family, 'sourceType': source_type,
             'ragDocStatus': rag_doc_status, 'taskStatus': task_status,
             'taskTrend': task_trend, 'recentRuns': recent_runs,
+            'aiUsage': {'totals': ai_usage.get('totals') or {}, 'series': ai_usage.get('series') or []},
         }
 
     @staticmethod
