@@ -502,21 +502,25 @@ class EtlService:
         cfg = await _ai_resolve_cfg(db)
         return cfg, prompt
 
+    # native 为 SQL 文本的源族(出 SELECT);其余非 api 源统一走"原生查询"(各用各自查询语法)
+    _SQL_FAMILIES = {'rdbms', 'timeseries'}
+
     @classmethod
     def _query_prompt(cls, handler: Any, object_names: list[str] | None, question: str) -> str:
-        # api 族(akshare/ccxt 等):原生查询是"接口函数调用",不是 SQL,需单独提示词
         family = getattr(handler, 'family', '')
+        # api 族(akshare/ccxt 等):原生查询是"接口函数调用",出 {func, params} JSON
         if family == 'api':
             return cls._api_query_prompt(handler, object_names, question)
-        # search 族(Elasticsearch 等):原生查询是 DSL JSON({index, body}),不是 SQL
-        if family == 'search' or handler.name == 'elasticsearch':
-            return cls._es_query_prompt(handler, object_names, question)
-        schema_ctx = cls._schema_context(handler, object_names)
-        return (
-            f'你是 {handler.name} 数据库的查询专家。{schema_ctx}'
-            f'请根据下面的自然语言需求,写一条**只读**抽取查询(可按需连表 join;单条语句、不要注释、不要 markdown 代码块)。'
-            f'只输出查询本身:\n需求:{question}'
-        )
+        # SQL 文本族(mysql/pg/tdengine…):出只读 SELECT
+        if family in cls._SQL_FAMILIES:
+            schema_ctx = cls._schema_context(handler, object_names)
+            return (
+                f'你是 {handler.name} 数据库的查询专家。{schema_ctx}'
+                f'请根据下面的自然语言需求,写一条**只读**抽取查询(可按需连表 join;单条语句、不要注释、不要 markdown 代码块)。'
+                f'只输出查询本身:\n需求:{question}'
+            )
+        # 其余非 SQL 源(ES/Mongo/图/KV/向量…):统一"原生查询",让模型用该源自身的查询语法/DSL
+        return cls._native_query_prompt(handler, object_names, question)
 
     @classmethod
     def _api_query_prompt(cls, handler: Any, object_names: list[str] | None, question: str) -> str:
@@ -553,18 +557,27 @@ class EtlService:
         )
 
     @classmethod
-    def _es_query_prompt(cls, handler: Any, object_names: list[str] | None, question: str) -> str:
-        """search 族(Elasticsearch)取数提示词:其"查询"是 {index, body:<DSL>} 的 JSON,不是 SQL。"""
+    def _native_query_prompt(cls, handler: Any, object_names: list[str] | None, question: str) -> str:
+        """非 SQL/非 api 源(ES/Mongo/图/KV 等)的统一"原生查询"提示词。
+
+        不为每种源写一套:只声明数据源类型 + 字段 + 该源原生查询的样例结构(handler.sample_query 自描述),
+        让模型用该源自身的查询语法/DSL 编写——模型本就知道各系统的查询语言,明确要求即可。
+        """
+        schema_ctx = cls._schema_context(handler, object_names)
         names = [n for n in (object_names or []) if n]
-        idx = names[0] if names else '<索引名>'
-        schema_ctx = cls._schema_context(handler, object_names)  # ES 的字段映射(get_columns)
+        example = ''
+        if names and hasattr(handler, 'sample_query'):
+            try:
+                sq = handler.sample_query(names[0], 50)
+                example = f'该数据源原生查询的结构形如(请在此基础上按需求改写):\n{json.dumps(sq, ensure_ascii=False)}\n'
+            except Exception:  # noqa: BLE001
+                example = ''
         return (
-            f'你是 Elasticsearch 查询专家。{schema_ctx}'
-            f'该数据源的"原生查询"**不是 SQL**,而是 Elasticsearch 查询 DSL。'
-            f'请根据下面的需求,返回一条**只读检索** DSL 的 JSON,形如 '
-            f'{{"index":"{idx}","body":{{"query":{{...}},"size":50}}}}'
-            f'(需聚合统计时可用 body.aggs,并把 size 设为 0)。'
-            f'**只输出 JSON 本身**(不要 SQL、不要注释、不要 markdown 代码块):\n需求:{question}'
+            f'你是 {handler.name} 数据查询专家。{schema_ctx}'
+            f'该数据源的"原生查询"**不是 SQL**,请用 {handler.name} 自身的查询语法/DSL 编写。\n'
+            f'{example}'
+            f'请根据下面的需求写一条**只读**查询,**只输出查询本身**'
+            f'(按该源语法,通常是 JSON/DSL;不要 SQL、不要注释、不要 markdown 代码块):\n需求:{question}'
         )
 
     @classmethod
