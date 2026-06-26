@@ -1,10 +1,7 @@
 services:
   # 前端服务
   ezdata-frontend:
-    build:
-      context: ./web
-      dockerfile: Dockerfile
-    image: ezdata-frontend:latest
+    image: ezdata123/ezdata_web:2.0.0
     container_name: ezdata-frontend
     ports:
       - "12580:80"
@@ -17,10 +14,7 @@ services:
 
   # 后端服务（PostgreSQL版本）
   ezdata-backend-pg:
-    build:
-      context: ./api
-      dockerfile: Dockerfile.pg
-    image: ezdata-backend-pg:latest
+    image: ezdata123/ezdata:2.0.0-pg
     container_name: ezdata-backend-pg
     ports:
       - "19099:9099"
@@ -40,10 +34,7 @@ services:
 
   # Celery Worker（任务执行层，复用后端镜像）
   ezdata-worker-pg:
-    build:
-      context: ./api
-      dockerfile: Dockerfile.pg
-    image: ezdata-backend-pg:latest
+    image: ezdata123/ezdata:2.0.0-pg
     container_name: ezdata-worker-pg
     command: python -m celery -A config.celery_app worker -Q default --autoscale=4,1 --loglevel=INFO
     environment:
@@ -67,10 +58,7 @@ services:
   #   - env 仅 SANDBOX_*,不内置任何 DB/JWT/数据源凭据;执行所需的一切随每次请求注入,用完即弃
   #   - 仅接 internal 网(无直连公网,出网经 egress-proxy);非 root + drop 所有 caps + 超时/内存上限
   ezdata-sandbox:
-    build:
-      context: ./api
-      dockerfile: Dockerfile.pg
-    image: ezdata-backend-pg:latest
+    image: ezdata123/ezdata:2.0.0-pg
     container_name: ezdata-sandbox
     working_dir: /app
     command: uvicorn sandbox_app:app --host 0.0.0.0 --port 8003
