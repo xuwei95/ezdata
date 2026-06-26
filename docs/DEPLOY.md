@@ -69,7 +69,7 @@ docker compose -f docker-compose.my.yml up -d --build
 docker compose -f docker-compose.pg.yml up -d --build
 ```
 
-- 前端 `http://<宿主>:12580`,后端 `http://<宿主>:19099`(注意 prod 后端宿主端口是 **19099**)。
+- 前端 `http://<宿主>`(prod 映射宿主 **80** 端口),后端 `http://<宿主>:19099`(注意 prod 后端宿主端口是 **19099**)。
 - 首启同样自动导入 `api/sql/ezdata.sql` / `ezdata-pg.sql` + 建 MinIO 桶。
 - **上线前务必**:① 改默认口令(见 [10](#10-安全加固));② 把 `STORAGE_PUBLIC_ENDPOINT` 改成浏览器可达的真实域名/宿主 IP;③ 填好 `JWT_SECRET_KEY`、LLM/embedding 的 API Key。
 
@@ -80,7 +80,7 @@ docker compose -f docker-compose.pg.yml up -d --build
 | 用途 | dev(宿主) | prod(宿主) |
 |---|---|---|
 | 后端 API | 9099 | **19099** |
-| 前端 | 12580 | 12580 |
+| 前端 | 12580 | 80 |
 | MySQL / PG | 13306 / 15432 | 13306 / 15432 |
 | Redis | 16379 | 16379 |
 | Elasticsearch | 9200 | 9200 |
