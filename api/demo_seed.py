@@ -23,12 +23,64 @@ ES = 'demo_es'
 AK = 'akshare_cn'
 CCXT = 'ccxt_okx'
 
+# 中文字段 → 英文/缩写(覆盖各 akshare 接口落地到 ES 的全部中文列;新浪日线/ccxt 本就是英文,不在表中的键原样保留)。
+_RENAME = {
+    # 通用行情
+    '序号': 'seq', '排名': 'rank', '代码': 'code', '名称': 'name', '股票代码': 'code', '股票简称': 'name',
+    '最新价': 'price', '涨跌幅': 'change_pct', '涨跌额': 'change', '成交量': 'volume', '成交额': 'amount',
+    '振幅': 'amplitude', '最高': 'high', '最低': 'low', '今开': 'open', '昨收': 'pre_close',
+    '收盘价': 'close', '最高价': 'high', '最低价': 'low', '量比': 'volume_ratio', '换手率': 'turnover_rate',
+    '市盈率-动态': 'pe_ttm', '市净率': 'pb', '总市值': 'market_cap', '流通市值': 'float_market_cap',
+    '涨速': 'change_speed', '5分钟涨跌': 'change_5min', '60日涨跌幅': 'change_60d', '年初至今涨跌幅': 'change_ytd',
+    '所属行业': 'industry',
+    # 涨停池
+    '封板资金': 'seal_amount', '首次封板时间': 'first_seal_time', '最后封板时间': 'last_seal_time',
+    '涨停统计': 'zt_stat', '炸板次数': 'break_count', '连板数': 'boards',
+    # 概念/行业板块
+    '板块': 'board', '板块名称': 'board_name', '板块代码': 'board_code', '上涨家数': 'up_count', '下跌家数': 'down_count',
+    '领涨股票': 'lead_stock', '领涨股票-涨跌幅': 'lead_stock_change_pct', '领涨股': 'lead_stock',
+    '领涨股-最新价': 'lead_stock_price', '领涨股-涨跌幅': 'lead_stock_change_pct',
+    '净流入': 'net_inflow', '均价': 'avg_price', '总成交量': 'total_volume', '总成交额': 'total_amount',
+    '概念名称': 'concept_name', '驱动事件': 'driver_event', '龙头股': 'leader_stock', '成分股数量': 'cons_count',
+    # 技术选股
+    '前期高点': 'prev_high', '前期高点日期': 'prev_high_date', '累计换手率': 'cum_turnover_rate',
+    '连涨天数': 'up_days', '连续涨跌幅': 'consec_change_pct',
+    # 新股
+    '上市日期': 'list_date', '中签号': 'lucky_number', '中签率（%）': 'winning_rate_pct', '中签率': 'winning_rate',
+    '中签缴款日期': 'payment_date', '发行价格': 'issue_price', '发行市盈率': 'issue_pe', '发行总数（万股）': 'issue_total_wan',
+    '打新收益（元）': 'ipo_profit_yuan', '申购上限（万股）': 'subscribe_limit_wan', '申购代码': 'subscribe_code',
+    '申购日期': 'subscribe_date', '网上发行（万股）': 'online_issue_wan', '行业市盈率': 'industry_pe',
+    '连板天数': 'boards_days', '顶格申购需配市值（万元）': 'max_subscribe_mktcap_wan', '首日最高涨幅': 'first_day_max_gain',
+    # 可转债
+    '中签公布日': 'winning_announce_date', '债券代码': 'bond_code', '债券简称': 'bond_name', '到期时间': 'maturity_date',
+    '原股东配售码': 'shareholder_code', '实际发行量': 'actual_issue', '正股代码': 'stock_code', '正股简称': 'stock_name',
+    '每股获配额': 'per_share_alloc', '计划发行量': 'planned_issue', '转股价格': 'convert_price',
+    # 宏观
+    '月份': 'month', '当月': 'month_val', '当月同比增长': 'month_yoy', '累计': 'cum',
+    '全国-当月': 'national_month', '全国-同比增长': 'national_yoy', '全国-环比增长': 'national_mom', '全国-累计': 'national_cum',
+    '城市-当月': 'urban_month', '城市-同比增长': 'urban_yoy', '城市-环比增长': 'urban_mom', '城市-累计': 'urban_cum',
+    '农村-当月': 'rural_month', '农村-同比增长': 'rural_yoy', '农村-环比增长': 'rural_mom', '农村-累计': 'rural_cum',
+    '制造业-指数': 'mfg_index', '制造业-同比增长': 'mfg_yoy', '非制造业-指数': 'nonmfg_index', '非制造业-同比增长': 'nonmfg_yoy',
+    '流通中的现金(M0)-数量(亿元)': 'm0_amount_yi', '流通中的现金(M0)-同比增长': 'm0_yoy', '流通中的现金(M0)-环比增长': 'm0_mom',
+    '货币(M1)-数量(亿元)': 'm1_amount_yi', '货币(M1)-同比增长': 'm1_yoy', '货币(M1)-环比增长': 'm1_mom',
+    '货币和准货币(M2)-数量(亿元)': 'm2_amount_yi', '货币和准货币(M2)-同比增长': 'm2_yoy', '货币和准货币(M2)-环比增长': 'm2_mom',
+    # 新闻 / 日期
+    '关键词': 'keyword', '新闻标题': 'title', '新闻内容': 'content', '发布时间': 'publish_time',
+    '文章来源': 'source', '新闻链接': 'url', '日期': 'date',
+}
+# 共享转换:把中文列名改成英文(未命中的键原样保留)。dict 内联,自包含,供 runner 编译 transform.code。
+_TRANSFORM = (
+    'def transform(row):\n'
+    '    RENAME = ' + repr(_RENAME) + '\n'
+    '    return {RENAME.get(k, k): v for k, v in row.items()}'
+)
+
 
 def load(idx: str) -> dict:
     return {'datasource_code': ES, 'table': idx, 'mode': 'replace', 'dataset': 'public', 'format': 'csv'}
 
 
-def native(func: str, params: dict | None, idx: str, transform: str = '') -> str:
+def native(func: str, params: dict | None, idx: str, transform: str = _TRANSFORM) -> str:
     stmt = {'func': func}
     if params:
         stmt['params'] = params
@@ -39,10 +91,10 @@ def native(func: str, params: dict | None, idx: str, transform: str = '') -> str
     }, ensure_ascii=False)
 
 
-def code(ds: str, src: str, idx: str) -> str:
+def code(ds: str, src: str, idx: str, transform: str = _TRANSFORM) -> str:
     return json.dumps({
         'extract': {'mode': 'code', 'datasource_codes': [ds], 'code': src},
-        'transform': {'enabled': False, 'code': ''},
+        'transform': {'enabled': bool(transform), 'code': transform},
         'load': load(idx),
     }, ensure_ascii=False)
 
@@ -154,7 +206,7 @@ APP_PROMPT = """# 角色
 也可用 `akshare_cn`/`ccxt_okx` 实时取最新数据。
 
 ## 工作流程
-1. 先用 get_table_schema 查相关索引的字段(中文字段如 涨跌幅/所属行业,加密货币为英文 close/symbol)。
+1. 先用 get_table_schema 查相关索引的字段(字段均为英文/缩写,如 code/name/price/change_pct/volume/amount/turnover_rate/industry/board_name;日线 date/open/close/high/low/volume)。
 2. 用 run_datasource_query 对 demo_es 写 ES DSL 取数或聚合(query/aggs);需要实时数据再查 akshare_cn/ccxt_okx。
 3. 在沙箱用 pandas 计算、用 pyecharts 绘图(图表会内联展示给用户)。
 4. 给出简明结论 + 图/表。
