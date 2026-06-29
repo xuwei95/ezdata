@@ -11,7 +11,8 @@ from common.annotation.cache_annotation import ApiCache, ApiCacheEvict
 from common.annotation.log_annotation import Log
 from common.annotation.rate_limit_annotation import ApiRateLimit, ApiRateLimitPreset
 from common.aspect.db_seesion import DBSessionDependency
-from common.context import tenant_bypass
+from common.context import RequestContext, tenant_bypass
+from module_admin.dao.user_tenant_dao import UserTenantDao
 from common.aspect.pre_auth import CurrentUserDependency
 from common.constant import ApiGroup, ApiNamespace
 from common.enums import BusinessType, RedisInitKeyConfig
@@ -20,7 +21,7 @@ from common.vo import CrudResponseModel, DataResponseModel, DynamicResponseModel
 from config.env import AppConfig, GithubSsoConfig, JwtConfig
 from exceptions.exception import ServiceException
 from module_admin.entity.vo.login_vo import LoginToken, RouterModel, Token, UserLogin, UserRegister
-from module_admin.entity.vo.user_vo import CurrentUserModel, EditUserModel
+from module_admin.entity.vo.user_vo import CurrentUserModel, EditUserModel, SwitchTenantModel, TenantOptionModel
 from module_admin.service.login_service import CustomOAuth2PasswordRequestForm, LoginService, oauth2_scheme
 from module_admin.service.oauth_service import GithubOauthService, gen_state
 from module_admin.service.user_service import UserService
@@ -58,6 +59,9 @@ async def login(
     result = await LoginService.authenticate_user(request, query_db, user)
     access_token_expires = timedelta(minutes=JwtConfig.jwt_expire_minutes)
     session_id = str(uuid.uuid4())
+    # 多租户:登录默认激活租户(成员表 is_default;无则 None,由 get_current_user 兜底解析)
+    with tenant_bypass():
+        active_tenant_id = await UserTenantDao.get_default_tenant(query_db, result[0].user_id)
     access_token = await LoginService.create_access_token(
         data={
             'user_id': str(result[0].user_id),
@@ -65,6 +69,7 @@ async def login(
             'dept_name': result[1].dept_name if result[1] else None,
             'session_id': session_id,
             'login_info': user.login_info,
+            'tenant_id': active_tenant_id,
         },
         expires_delta=access_token_expires,
     )
@@ -104,8 +109,25 @@ async def login(
 )
 @ApiCache(namespace=ApiNamespace.LOGIN_USER_INFO)
 async def get_login_user_info(
-    request: Request, current_user: Annotated[CurrentUserModel, CurrentUserDependency()]
+    request: Request,
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
+    # 多租户:附当前激活租户 + 可切换租户列表(admin 见全部顶级部门,普通用户见其成员)
+    is_admin = bool(current_user.user and current_user.user.admin)
+    if is_admin:
+        depts = await UserTenantDao.list_top_depts(query_db)
+        current_user.tenant_list = [TenantOptionModel(tenantId=d[0], tenantName=d[1], isDefault=False) for d in depts]
+        current_user.current_tenant_id = None
+    else:
+        memberships = await UserTenantDao.list_by_user(query_db, current_user.user.user_id)
+        default_map = {m.tenant_id: m.is_default for m in memberships}
+        depts = await UserTenantDao.list_top_depts(query_db, list(default_map.keys()))
+        current_user.tenant_list = [
+            TenantOptionModel(tenantId=d[0], tenantName=d[1], isDefault=bool(default_map.get(d[0])))
+            for d in depts
+        ]
+        current_user.current_tenant_id = RequestContext.get_current_tenant_id()
     logger.info('获取成功')
 
     return ResponseUtil.success(model_content=current_user)
@@ -199,6 +221,54 @@ async def logout(request: Request, token: Annotated[str | None, Depends(oauth2_s
     return ResponseUtil.success(msg='退出成功')
 
 
+@login_controller.post(
+    '/switchTenant',
+    summary='切换当前激活租户',
+    description='校验成员资格后重签 token(激活租户随之改变)',
+    response_model=ResponseBaseModel,
+)
+@ApiCacheEvict(namespaces=ApiGroup.LOGIN_SUCCESS_MUTATION)
+async def switch_tenant(
+    request: Request,
+    req: SwitchTenantModel,
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
+) -> Response:
+    """切换激活租户:校验当前用户是目标租户成员(超管放行任意顶级部门)→ 重签 token。"""
+    user_id = current_user.user.user_id
+    is_admin = bool(current_user.user and current_user.user.admin)
+    with tenant_bypass():
+        if is_admin:
+            top_ids = {d[0] for d in await UserTenantDao.list_top_depts(query_db)}
+            allowed = req.tenant_id in top_ids
+        else:
+            allowed = await UserTenantDao.is_member(query_db, user_id, req.tenant_id)
+    if not allowed:
+        return ResponseUtil.forbidden(msg='无权切换到该租户')
+
+    session_id = str(uuid.uuid4())
+    access_token = await LoginService.create_access_token(
+        data={
+            'user_id': str(user_id),
+            'user_name': current_user.user.user_name,
+            'dept_name': None,
+            'session_id': session_id,
+            'login_info': 'switch-tenant',
+            'tenant_id': req.tenant_id,
+        },
+        expires_delta=timedelta(minutes=JwtConfig.jwt_expire_minutes),
+    )
+    redis = request.app.state.redis
+    key_suffix = session_id if AppConfig.app_same_time_login else str(user_id)
+    await redis.set(
+        f'{RedisInitKeyConfig.ACCESS_TOKEN.key}:{key_suffix}',
+        access_token,
+        ex=timedelta(minutes=JwtConfig.jwt_redis_expire_minutes),
+    )
+    logger.info(f'用户 {user_id} 切换激活租户 -> {req.tenant_id}')
+    return ResponseUtil.success(msg='切换成功', dict_content={'token': access_token})
+
+
 async def _issue_token_for_user(request: Request, user) -> str:  # noqa: ANN001
     """为已解析的用户签发 JWT 并写入 Redis 会话(复用账密登录的会话机制)。"""
     session_id = str(uuid.uuid4())
@@ -209,6 +279,8 @@ async def _issue_token_for_user(request: Request, user) -> str:  # noqa: ANN001
             'dept_name': None,
             'session_id': session_id,
             'login_info': 'GitHub SSO',
+            # SSO 用户新建即有一条 home 租户成员,直接作激活租户;get_current_user 会再校验
+            'tenant_id': getattr(user, 'tenant_id', None),
         },
         expires_delta=timedelta(minutes=JwtConfig.jwt_expire_minutes),
     )

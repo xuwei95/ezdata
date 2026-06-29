@@ -17,6 +17,8 @@ from module_data.handlers.base import Capability, Column, Connector, ConnectResu
 # 常用接口白名单 —— **全部实测稳定**(2026-06 探测):东财(em)实时/全市场 push2 快照高频必限流
 # (RemoteDisconnected),已全部剔除;一律用新浪(sina)历史接口(取最新一行即最新交易日价)。
 # 仅保留 2 个非 push2、实测稳定的东财接口(基金净值/个股新闻,新浪无对应)。value 给 AI 选函数 + 参数。
+# 例外:2026-06-29 实测补入 2 个"当日快照"接口(涨停池 stock_zt_pool_em·datacenter / 市场活跃度
+# stock_market_activity_legu·乐咕),非 push2、低频抓当天稳定不限流,但均无历史(详见 value 标注)。
 # 实时币价不在此(akshare crypto_* 已冻结)→ 用 CCXT 交易所连接器(source_type=ccxt)。
 _COMMON_FUNCS: dict[str, str] = {
     # —— A股(新浪 / 东财)——
@@ -57,6 +59,9 @@ _COMMON_FUNCS: dict[str, str] = {
     # —— 龙虎榜 / 解禁 / 交易所总貌 ——
     'stock_restricted_release_queue_sina': '个股限售解禁批次(新浪;symbol 如 600519;解禁日期/数量/流通市值)',
     'stock_sse_summary': '上交所市场总貌(无参;主板/科创板 股票数/市值/换手等)',
+    # —— 涨停池 / 市场情绪(2026-06-29 实测稳定不限流;均为"当日快照",无历史)——
+    'stock_zt_pool_em': '涨停板行情(东财;date 如 20260626,**只有最近一个交易日**有数据,更早日期返回空;不传 date 默认今天、收盘出数前为空;返回 代码/名称/涨跌幅/最新价/成交额/流通市值/封板资金/首末封板时间/炸板次数/连板数/行业)',
+    'stock_market_activity_legu': '市场活跃度·涨跌家数(乐咕legu,无参;仅当下快照无历史,item-value 两列:上涨/下跌/涨停/跌停/活跃度等)',
     # —— 新闻 ——
     'stock_news_em': '个股新闻(东财·稳;symbol 如 600519)',
     'stock_info_global_sina': '新浪全球财经快讯(无参;最新 20 条 时间+内容)',

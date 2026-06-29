@@ -7,32 +7,58 @@
 
 ## 1. 架构概览
 
-容器-per-service,纤巧镜像(`python:3.10` / `node:18`),后端单进程内跑 FastAPI + APScheduler(启动锁选主,多副本时只一个实例调度),Celery worker 独立容器执行任务。
+容器-per-service,纤巧镜像(`python:3.10` / `node:18`),后端单进程内跑 FastAPI + APScheduler(启动锁选主,多副本时只一个实例调度),Celery worker 独立容器执行任务。生产 my/pg 二合一为**单个 `docker-compose.yml`**,配置由**同目录单份 `.env`** 统一驱动(见 [5. 配置](#5-配置))。
 
 ```
-        :12580 ──► frontend (nginx / vite)
-                       │ 反代 /dev-api
-        :9099  ──► backend (uvicorn FastAPI + 进程内 APScheduler)
-                  ┌────┼─────────┬───────────┐
-              worker  redis     mysql/pg     ├── elasticsearch  (任务日志 + RAG 向量库 + ES 数据服务,一套三用)
-             (celery) broker   主数据库       └── minio          (对象存储,S3 协议)
+                              宿主 :80                                 :19099
+                                │                                        │
+  浏览器 ───────────────►  ezdata-frontend (nginx + Vue 静态)             │(后端直连调试口,可不暴露)
+                                │  location /       → SPA                 │
+                                │  location /api/   → 反代后端(剥 /api)  │
+                                ▼                                        ▼
+                          ezdata-backend (uvicorn FastAPI + 进程内 APScheduler 选主)
+                                │
+            ┌───────────┬───────┼──────────────┬──────────────────┐
+            ▼           ▼       ▼              ▼                  ▼
+       ezdata-mysql  ezdata-  ezdata-es    ezdata-minio       ezdata-worker (celery)
+       /-pg(主库,   redis    (任务日志 +    (S3 对象存储,      复用后端镜像,执行
+        命名卷持久) broker/   RAG 向量库 +   命名卷持久)         DataIntegration/Python/DAG
+                    缓存/     ES 数据服务,                       任务,租户随任务带入)
+                    验证码     一套三用,卷持久)
 
-dev/prod: sandbox(调试态代码执行,无状态隔离容器) ── egress-proxy(出网域名白名单)
+   调试态「运行代码 / AI 取数」─► ezdata-sandbox(无状态隔离执行器,仅 internal 网)
+                                       │ 出网仅经
+                                       ▼
+                                ezdata-egress-proxy(tinyproxy 域名白名单)
+
+   ezdata-db-backup(DB 定时备份 sidecar,默认在 compose 里注释关闭,见 10.1)
 ```
 
-| service | 镜像/构建 | 作用 | dev | prod(my/pg) |
+**两张网络(隔离关键)**:
+
+| 网络 | 类型 | 成员 |
+|---|---|---|
+| `ezdata-network` | bridge(有 NAT/公网) | frontend / backend / worker / mysql / redis / es / minio / egress-proxy |
+| `ezdata-sandbox-net` | **`internal=true`(无直连公网)** | sandbox / egress-proxy / backend·worker(调沙箱)/ mysql·es·minio(供沙箱经内网取数) |
+
+沙箱只在 internal 网、自身无公网,出网必经 egress-proxy 域名白名单(`SANDBOX_EGRESS_ALLOW`),且 `cap_drop ALL + no-new-privileges + pids/mem 限额`;不内置任何 DB/JWT 凭据,执行所需随请求注入、用完即弃。
+
+| service | 镜像/构建 | 作用 | dev | prod |
 |---|---|---|:--:|:--:|
-| frontend | `web/Dockerfile`(node→nginx)/ vite | 前端 | ✅ | ✅ |
+| frontend | `web/Dockerfile`(node→nginx)/ vite | 前端 + 反代 `/api` | ✅ | ✅ |
 | backend | `api/Dockerfile.dev` / `.my` / `.pg` | API + 进程内调度 | ✅ | ✅ |
 | worker | 复用 backend 镜像 | Celery 任务执行 | ✅ | ✅ |
-| mysql / postgres | `mysql:8.0` / `postgres:14` | 主库 | ✅ | ✅ |
-| redis | `redis:latest` | broker / 缓存 / 验证码 | ✅ | ✅ |
-| elasticsearch | `elasticsearch:8.13.4` | 日志 + 向量库 + 数据服务 | ✅ | ✅ |
-| minio + minio-init | `minio/minio` + `minio/mc` | 对象存储 + 建桶 | ✅ | ✅ |
+| mysql / postgres | `mysql:8.0` / `postgres:14` | 主库(命名卷持久) | ✅ | ✅ |
+| redis | `redis:latest` | broker / 缓存 / 验证码 / 选主锁 / 日志流 | ✅ | ✅ |
+| elasticsearch | `elasticsearch:8.13.4` | 日志 + 向量库 + 数据服务(卷持久) | ✅ | ✅ |
+| minio + minio-init | `minio/minio` + `minio/mc` | 对象存储 + 建桶(卷持久) | ✅ | ✅ |
 | sandbox | 复用 backend 镜像 | 调试态代码执行(隔离) | ✅ | ✅ |
 | egress-proxy | tinyproxy | 沙箱出网白名单 | ✅ | ✅ |
+| db-backup | 复用 DB 镜像 | DB 定时备份(**默认关闭**) | — | 可选 |
 
-> **沙箱**:三套 compose(dev / my / pg)均已部署沙箱 + egress 并 `SANDBOX_ENABLED=true`。沙箱跑在内网专用网络(`internal=true`,无直连公网),出网只经 egress-proxy 的域名白名单。非容器 / 自定义部署若未起沙箱,把 `SANDBOX_ENABLED` 置空即回落本地真实执行(详见 [9.4](#94-调试态代码执行))。
+> **沙箱**:dev compose 与生产 `docker-compose.yml`(my / pg)均已部署沙箱 + egress 并 `SANDBOX_ENABLED=true`。非容器 / 自定义部署若未起沙箱,把 `SANDBOX_ENABLED` 置空即回落本地真实执行(详见 [9.4](#94-调试态代码执行))。
+>
+> **API 前缀**:生产经 nginx `/api/` 反代到后端(`APP_ROOT_PATH=/api`、前端 `VITE_APP_BASE_API=/api`);dev 走 `/dev-api`。GitHub SSO 回调即 `http://<host>/api/oauth/github/callback`。
 
 ---
 
@@ -106,9 +132,13 @@ docker compose --env-file .env.pg up -d --build
 
 ## 5. 配置
 
-- 后端按 `APP_ENV` 加载 `api/.env.<APP_ENV>`:dev=`.env.dev`,prod=`.env.dockermy`/`.env.dockerpg`(由 `Dockerfile.my/.pg` 的 `--env=` 指定)。
-- **compose 的 `environment:` 优先于 `.env`**(`load_dotenv` 不覆盖已存在环境变量)。dev compose 用它把 `.env.dev` 里指向 `127.0.0.1` 的连接覆盖成服务名,并注入统一口令 / ES·RAG 鉴权。
-- `.env.dev` 被 git 忽略(只跟踪 `.env.dev.example`);`.env.dockermy`/`.env.dockerpg`/`.env.prod` 被跟踪。**不要把真实密钥提交进仓库**。
+**两层 + 单文件**:
+
+- **应用层**:后端按 `APP_ENV` 加载镜像内 `api/.env.<APP_ENV>`(dev=`.env.dev`,prod=`.env.dockermy`/`.env.dockerpg`,由 `Dockerfile.my/.pg` 的 `--env=` 指定),作为缺省兜底。
+- **单份 `.env` 覆盖**:与 `docker-compose.yml` 同目录的 `.env` 既做 compose 插值(镜像/端口/容器名/基础设施口令),又经 backend/worker 的 `env_file` 注入容器 → **其值覆盖镜像内 `.env.<env>`**(因 `load_dotenv` 不覆盖已存在环境变量,即 compose 注入优先)。故改口令/密钥只需改这一份;`env_file` 为 `required:false`,不建 `.env` 也能零配置起。
+- 宿主端口用 `*_HOST_PORT`(如 `DB_HOST_PORT`),与应用连接端口(`DB_PORT=3306` 等)分开,避免单文件注入时撞名。
+- **Secrets 不入库**:`.env`、`api/.env.dev`、`api/.env.dockermy`/`.dockerpg`/`.prod`、`docker-compose.override.yml` 均 git 忽略,仓库只跟踪脱敏的 `.example`。强随机密钥用 `python deploy/gen-secrets.py --env dockermy` 一键生成(同时写对齐的 `.env` 与 `api/.env.dockermy`)。**勿提交真实密钥**。
+- 跨命名但须同值:ES(`ELASTIC_PASSWORD`=`TASK_ES_PASSWORD`=`RAG_VECTOR_PASSWORD`)、MinIO(`MINIO_ROOT_USER`=`S3_ACCESS_KEY`,`MINIO_ROOT_PASSWORD`=`S3_SECRET_KEY`)——详见根目录 `.env.example`。
 
 关键变量:
 
@@ -121,20 +151,36 @@ docker compose --env-file .env.pg up -d --build
 | `STORAGE_TYPE=s3` + `S3_ENDPOINT` / `S3_BUCKET_NAME` / `S3_ACCESS_KEY` / `S3_SECRET_KEY` / `STORAGE_PUBLIC_ENDPOINT` | 对象存储(MinIO) |
 | `EMBEDDING_TYPE` / `EMBEDDING_MODEL` / `DASHSCOPE_API_KEY` | 知识库 embedding |
 | `JWT_SECRET_KEY` | 令牌签名(prod 必填) |
+| `DATA_ENCRYPT_KEY` | 库内数据源/AI 凭据 AES 加密(与 JWT 分离;留空回退由 JWT 派生,兼容旧密文) |
 | `SANDBOX_ENABLED` / `SANDBOX_API_URL` / `SANDBOX_BEARER_KEY` | 调试态代码执行沙箱 |
+| `GITHUB_SSO_ENABLED` / `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` / `GITHUB_REDIRECT_URI` | GitHub SSO 登录(回调 `…/api/oauth/github/callback`,详见 [10.2](#102-github-sso-登录)) |
 
 ---
 
 ## 6. 数据初始化 & 演示数据
 
 - **建库**:首次启动 DB 容器,把 `api/sql/ezdata.sql`(MySQL)/ `ezdata-pg.sql`(PG)挂到 `/docker-entrypoint-initdb.d`,空库时自动导入(表 / 菜单 / 用户 / 字典 / 配置 / 角色全套种子)。
-- **开箱即用演示数据**(种子末尾):
-  - 数据源 `akshare_cn`(AKShare 财经,api 族,免 key)
-  - 数据源 `demo_es`(内置 ES,search 族;config 已带 `elastic/ezdata123456`)
-  - 数据集成任务「A股日线→ES」(手动触发,抓贵州茅台前复权日线写入 ES 索引 `demo_stock_daily`)
+- **默认是干净的空项目**:种子只含平台基础数据,不含任何演示数据源 / 任务。
 - **运行时表**:`ai_sessions` 等由 agno 在首次对话时惰性建,无需预建。
 
-> 非容器部署时,手动把对应 `.sql` 导入你的库即可。
+### 6.1 可选:加载财经演示数据(akshare/ccxt → ES + AI 分析助手)
+
+想要一套开箱即用的财经 demo,**服务起来后手动跑一次脚本即可**(无需改源码 / 重建镜像):
+
+```bash
+# 在仓库根目录执行(脚本经 stdin 喂入容器,镜像里无需有此文件)
+docker exec -i ezdata-backend-my python - < api/demo_seed.py
+```
+
+它会(幂等,可重复跑;**只影响 demo 命名空间,不碰用户/权限/其他数据**):
+
+- 建 3 个数据源:`akshare_cn`(免 key 财经)、`ccxt_okx`(加密货币公开行情)、`demo_es`(内置 ES)
+- 建 16 个数据集成任务 + 16 个数据模型(A股行情/财务/涨停/概念板块及成分股/技术选股/宏观/新闻/币圈),并**派发到 Celery 异步执行**,约 2-3 分钟把数据填进 `demo_es` 的 `fin_*` 索引
+- 建 1 个 AI 应用「财经数据分析助手」(app_id=9001,已绑数据源 + 取数/绘图工具)
+
+> **要让 AI 助手能对话出图,需先配大模型**:设环境变量 `LLM_TYPE` / `LLM_MODEL` / `LLM_API_KEY`(应用 `model.modelId=0` 走此兜底),或在「AI 模型管理」启用一个对话模型。数据 ETL 与查询不依赖大模型。
+
+> 非容器部署时,手动把对应 `.sql` 导入你的库;演示数据同样跑 `python demo_seed.py`(在 api 目录、加载好应用 env 后)。
 
 ---
 

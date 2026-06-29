@@ -583,10 +583,9 @@ class GetConfig:
         if 'alembic' in sys.argv[0] or any('alembic' in arg for arg in sys.argv):
             ini_config = configparser.ConfigParser()
             ini_config.read('alembic.ini', encoding='utf-8')
-            if 'settings' in ini_config:
-                # 获取env选项
-                env_value = ini_config['settings'].get('env')
-                os.environ['APP_ENV'] = env_value if env_value else 'dev'
+            env_value = ini_config['settings'].get('env') if 'settings' in ini_config else None
+            # 优先级:已存在的 APP_ENV 环境变量(如容器内 `APP_ENV=dockermy alembic ...`) > alembic.ini [settings].env > dev
+            os.environ['APP_ENV'] = os.environ.get('APP_ENV') or env_value or 'dev'
         elif 'uvicorn' in sys.argv[0]:
             # 使用uvicorn启动时，命令行参数需要按照uvicorn的文档进行配置，无法自定义参数
             pass

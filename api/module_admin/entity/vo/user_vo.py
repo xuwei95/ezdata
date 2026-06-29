@@ -128,12 +128,42 @@ class UserInfoModel(UserModel):
     role: list[RoleModel | None] | None = Field(default=[], description='角色信息')
 
 
+class UserTenantModel(BaseModel):
+    """用户-租户成员模型"""
+
+    model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)
+
+    user_id: int | None = Field(default=None, description='用户ID')
+    tenant_id: int | None = Field(default=None, description='租户ID(顶级部门)')
+    is_default: bool = Field(default=False, description='是否默认激活租户')
+
+
+class TenantOptionModel(BaseModel):
+    """租户选项(= 顶级部门),供切换器 / 分配下拉"""
+
+    model_config = ConfigDict(alias_generator=to_camel)
+
+    tenant_id: int = Field(description='租户ID(顶级部门)')
+    tenant_name: str | None = Field(default=None, description='租户名称(部门名)')
+    is_default: bool = Field(default=False, description='是否当前用户的默认租户')
+
+
+class SwitchTenantModel(BaseModel):
+    """切换激活租户请求"""
+
+    model_config = ConfigDict(alias_generator=to_camel)
+
+    tenant_id: int = Field(description='目标租户ID(顶级部门)')
+
+
 class CurrentUserModel(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel)
 
     permissions: list = Field(description='权限信息')
     roles: list = Field(description='角色信息')
     user: UserInfoModel | None = Field(description='用户信息')
+    current_tenant_id: int | None = Field(default=None, description='当前激活租户ID')
+    tenant_list: list[TenantOptionModel] = Field(default=[], description='我可切换的租户列表')
     is_default_modify_pwd: bool = Field(default=False, description='是否初始密码修改提醒')
     is_password_expired: bool = Field(default=False, description='密码是否过期提醒')
 
@@ -150,6 +180,8 @@ class UserDetailModel(BaseModel):
     posts: list[PostModel | None] = Field(description='岗位信息')
     role_ids: list | None = Field(default=None, description='角色ID信息')
     roles: list[RoleModel | None] = Field(description='角色信息')
+    tenant_ids: list | None = Field(default=None, description='该用户当前所属租户ID列表')
+    tenants: list = Field(default=[], description='可选租户(顶级部门)选项')
 
 
 class UserProfileModel(BaseModel):
@@ -201,6 +233,7 @@ class AddUserModel(UserModel):
 
     role_ids: list | None = Field(default=[], description='角色ID信息')
     post_ids: list | None = Field(default=[], description='岗位ID信息')
+    tenant_ids: list | None = Field(default=None, description='所属租户ID列表(None=不改成员;多租户)')
     type: str | None = Field(default=None, description='操作类型')
 
 

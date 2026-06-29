@@ -32,6 +32,34 @@ async def _start_background_tasks(app: FastAPI) -> None:
     app.state.log_aggregator_task = asyncio.create_task(LogAggregatorService.consume_stream(app.state.redis))
 
 
+async def _backfill_user_tenants() -> None:
+    """存量用户 → sys_user_tenant 默认成员(幂等):仅对从无成员记录的用户,按其 user.tenant_id 补一条默认。"""
+    from sqlalchemy import select  # noqa: PLC0415
+
+    from config.database import AsyncSessionLocal  # noqa: PLC0415
+    from module_admin.dao.user_tenant_dao import UserTenantDao  # noqa: PLC0415
+    from module_admin.entity.do.user_do import SysUser  # noqa: PLC0415
+    from module_admin.entity.do.user_tenant_do import SysUserTenant  # noqa: PLC0415
+
+    async with AsyncSessionLocal() as db:
+        users = (
+            await db.execute(
+                select(SysUser.user_id, SysUser.tenant_id).where(
+                    SysUser.tenant_id.is_not(None), SysUser.del_flag == '0'
+                )
+            )
+        ).all()
+        existing = set((await db.execute(select(SysUserTenant.user_id))).scalars().all())
+        added = 0
+        for uid, tid in users:
+            if uid not in existing and tid is not None:
+                await UserTenantDao.add_if_absent(db, uid, tid, is_default=True)
+                added += 1
+        if added:
+            await db.commit()
+        logger.info(f'用户-租户成员回填: 新增 {added} 条')
+
+
 async def _stop_background_tasks(app: FastAPI) -> None:
     """
     停止应用后台任务并释放资源
@@ -95,6 +123,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         # 启动初始化无登录用户/无租户上下文,系统级访问多租户表需显式放行(配合租户默认拒绝)
         with tenant_system():
             await init_create_table()
+            await _backfill_user_tenants()
             await RedisUtil.check_redis_connection(app.state.redis, log_enabled=startup_log_enabled)
             await RedisUtil.init_sys_dict(app.state.redis)
             await RedisUtil.init_sys_config(app.state.redis)

@@ -311,92 +311,67 @@ create table sys_role_menu (
 -- ----------------------------
 -- 初始化-角色和菜单关联表数据
 -- ----------------------------
-insert into sys_role_menu values ('2', '1');
-insert into sys_role_menu values ('2', '2');
-insert into sys_role_menu values ('2', '3');
 insert into sys_role_menu values ('2', '4');
-insert into sys_role_menu values ('2', '100');
-insert into sys_role_menu values ('2', '101');
-insert into sys_role_menu values ('2', '102');
-insert into sys_role_menu values ('2', '103');
-insert into sys_role_menu values ('2', '104');
-insert into sys_role_menu values ('2', '105');
-insert into sys_role_menu values ('2', '106');
-insert into sys_role_menu values ('2', '107');
-insert into sys_role_menu values ('2', '108');
-insert into sys_role_menu values ('2', '109');
-insert into sys_role_menu values ('2', '110');
-insert into sys_role_menu values ('2', '111');
-insert into sys_role_menu values ('2', '112');
-insert into sys_role_menu values ('2', '113');
-insert into sys_role_menu values ('2', '114');
-insert into sys_role_menu values ('2', '120');
-insert into sys_role_menu values ('2', '115');
-insert into sys_role_menu values ('2', '116');
-insert into sys_role_menu values ('2', '117');
-insert into sys_role_menu values ('2', '500');
-insert into sys_role_menu values ('2', '501');
-insert into sys_role_menu values ('2', '1000');
-insert into sys_role_menu values ('2', '1001');
-insert into sys_role_menu values ('2', '1002');
-insert into sys_role_menu values ('2', '1003');
-insert into sys_role_menu values ('2', '1004');
-insert into sys_role_menu values ('2', '1005');
-insert into sys_role_menu values ('2', '1006');
-insert into sys_role_menu values ('2', '1007');
-insert into sys_role_menu values ('2', '1008');
-insert into sys_role_menu values ('2', '1009');
-insert into sys_role_menu values ('2', '1010');
-insert into sys_role_menu values ('2', '1011');
-insert into sys_role_menu values ('2', '1012');
-insert into sys_role_menu values ('2', '1013');
-insert into sys_role_menu values ('2', '1014');
-insert into sys_role_menu values ('2', '1015');
-insert into sys_role_menu values ('2', '1016');
-insert into sys_role_menu values ('2', '1017');
-insert into sys_role_menu values ('2', '1018');
-insert into sys_role_menu values ('2', '1019');
-insert into sys_role_menu values ('2', '1020');
-insert into sys_role_menu values ('2', '1021');
-insert into sys_role_menu values ('2', '1022');
-insert into sys_role_menu values ('2', '1023');
-insert into sys_role_menu values ('2', '1024');
-insert into sys_role_menu values ('2', '1025');
-insert into sys_role_menu values ('2', '1026');
-insert into sys_role_menu values ('2', '1027');
-insert into sys_role_menu values ('2', '1028');
-insert into sys_role_menu values ('2', '1029');
-insert into sys_role_menu values ('2', '1030');
-insert into sys_role_menu values ('2', '1031');
-insert into sys_role_menu values ('2', '1032');
-insert into sys_role_menu values ('2', '1033');
-insert into sys_role_menu values ('2', '1034');
-insert into sys_role_menu values ('2', '1035');
-insert into sys_role_menu values ('2', '1036');
-insert into sys_role_menu values ('2', '1037');
-insert into sys_role_menu values ('2', '1038');
-insert into sys_role_menu values ('2', '1039');
-insert into sys_role_menu values ('2', '1040');
-insert into sys_role_menu values ('2', '1041');
-insert into sys_role_menu values ('2', '1042');
-insert into sys_role_menu values ('2', '1043');
-insert into sys_role_menu values ('2', '1044');
-insert into sys_role_menu values ('2', '1045');
-insert into sys_role_menu values ('2', '1046');
-insert into sys_role_menu values ('2', '1047');
-insert into sys_role_menu values ('2', '1048');
-insert into sys_role_menu values ('2', '1049');
-insert into sys_role_menu values ('2', '1050');
-insert into sys_role_menu values ('2', '1051');
-insert into sys_role_menu values ('2', '1052');
-insert into sys_role_menu values ('2', '1053');
-insert into sys_role_menu values ('2', '1054');
-insert into sys_role_menu values ('2', '1055');
-insert into sys_role_menu values ('2', '1056');
-insert into sys_role_menu values ('2', '1057');
-insert into sys_role_menu values ('2', '1058');
-insert into sys_role_menu values ('2', '1059');
-insert into sys_role_menu values ('2', '1060');
+insert into sys_role_menu values ('2', '119');
+insert into sys_role_menu values ('2', '122');
+insert into sys_role_menu values ('2', '123');
+insert into sys_role_menu values ('2', '1069');
+insert into sys_role_menu values ('2', '1070');
+insert into sys_role_menu values ('2', '1071');
+insert into sys_role_menu values ('2', '1072');
+insert into sys_role_menu values ('2', '2100');
+insert into sys_role_menu values ('2', '2101');
+insert into sys_role_menu values ('2', '2102');
+insert into sys_role_menu values ('2', '2103');
+insert into sys_role_menu values ('2', '2110');
+insert into sys_role_menu values ('2', '2111');
+insert into sys_role_menu values ('2', '2112');
+insert into sys_role_menu values ('2', '2113');
+insert into sys_role_menu values ('2', '2114');
+insert into sys_role_menu values ('2', '2115');
+insert into sys_role_menu values ('2', '2120');
+insert into sys_role_menu values ('2', '2121');
+insert into sys_role_menu values ('2', '2122');
+insert into sys_role_menu values ('2', '2123');
+insert into sys_role_menu values ('2', '2130');
+insert into sys_role_menu values ('2', '2131');
+insert into sys_role_menu values ('2', '2132');
+insert into sys_role_menu values ('2', '2140');
+insert into sys_role_menu values ('2', '2141');
+insert into sys_role_menu values ('2', '2142');
+insert into sys_role_menu values ('2', '2143');
+insert into sys_role_menu values ('2', '2200');
+insert into sys_role_menu values ('2', '2201');
+insert into sys_role_menu values ('2', '2202');
+insert into sys_role_menu values ('2', '2210');
+insert into sys_role_menu values ('2', '2211');
+insert into sys_role_menu values ('2', '2212');
+insert into sys_role_menu values ('2', '2213');
+insert into sys_role_menu values ('2', '2220');
+insert into sys_role_menu values ('2', '2221');
+insert into sys_role_menu values ('2', '2222');
+insert into sys_role_menu values ('2', '2300');
+insert into sys_role_menu values ('2', '2301');
+insert into sys_role_menu values ('2', '2310');
+insert into sys_role_menu values ('2', '2311');
+insert into sys_role_menu values ('2', '2312');
+insert into sys_role_menu values ('2', '2313');
+insert into sys_role_menu values ('2', '2314');
+insert into sys_role_menu values ('2', '2315');
+insert into sys_role_menu values ('2', '2316');
+insert into sys_role_menu values ('2', '2317');
+insert into sys_role_menu values ('2', '2318');
+insert into sys_role_menu values ('2', '2319');
+insert into sys_role_menu values ('2', '2320');
+insert into sys_role_menu values ('2', '2321');
+insert into sys_role_menu values ('2', '2322');
+insert into sys_role_menu values ('2', '2323');
+insert into sys_role_menu values ('2', '2400');
+insert into sys_role_menu values ('2', '2401');
+insert into sys_role_menu values ('2', '2402');
+insert into sys_role_menu values ('2', '2410');
+insert into sys_role_menu values ('2', '2411');
+insert into sys_role_menu values ('2', '2412');
 
 -- ----------------------------
 -- 8、角色和部门关联表  角色1-N部门
@@ -1357,15 +1332,7 @@ update ai_models set tenant_id=100;      update ai_chat_config set tenant_id=100
 update sys_user set tenant_id=100;       update sys_dept set tenant_id=100;       update sys_notice set tenant_id=100;  update sys_job set tenant_id=100;
 
 -- ----------------------------
--- 开箱即用演示数据(放最后:此时 data_source/task 表及 tenant_id 列均已就绪)
--- AKShare + 内置 ES 两个数据源 + 一个数据集成任务(AKShare→ES,手动触发,自包含无需外部凭证)
+-- 演示数据已抽离:默认空项目。需要财经 demo(数据源/任务/模型/AI应用 + 填充 ES)时,服务启动后手动跑:
+--   docker exec -i ezdata-backend-my python - < api/demo_seed.py
 -- ----------------------------
-insert into data_source (id, name, code, source_type, family, config, secrets, status, remark, create_by, create_time, tenant_id) values
-('seed-akshare-cn', 'AKShare 财经数据', 'akshare_cn', 'akshare', 'api', '{}', null, 'ok', '免 key 财经数据接口(演示;表=接口函数名)', 'admin', sysdate(), 100),
-('seed-demo-es', '演示-Elasticsearch', 'demo_es', 'elasticsearch', 'search', '{"hosts": "http://ezdata-es:9200", "user": "elastic", "password": "ezdata123456"}', null, 'ok', '内置 ES(演示,可作 ETL 目标 / 数据服务;账号 elastic/ezdata123456)', 'admin', sysdate(), 100);
-
-insert into task (id, template_code, task_type, run_type, name, params, status, built_in, trigger_type, crontab, priority, retry, countdown, run_queue, create_by, create_time, remark, tenant_id) values
-('seed-di-akshare-es', 'DataIntegrationTask', 1, 1, 'A股日线→ES(演示)',
- '{"extract":{"datasource_code":"akshare_cn","tables":["stock_zh_a_daily"],"object":"","native":{"func":"stock_zh_a_daily","params":{"symbol":"sh600519","adjust":"qfq"}}},"transform":{"enabled":false,"code":""},"load":{"datasource_code":"demo_es","table":"demo_stock_daily","mode":"replace","dataset":"public","format":"csv"}}',
- 1, 0, 1, null, 1, 0, 60, 'default', 'admin', sysdate(), '演示:从 AKShare 取贵州茅台(sh600519)前复权日线,写入 ES 索引 demo_stock_daily(手动触发,点执行即可)', 100);
 

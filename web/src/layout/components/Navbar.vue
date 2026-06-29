@@ -34,6 +34,31 @@
         </el-tooltip>
       </template>
 
+      <el-dropdown
+        v-if="userStore.tenants && userStore.tenants.length > 1"
+        @command="handleTenantSwitch"
+        class="right-menu-item hover-effect tenant-dropdown"
+        trigger="hover"
+      >
+        <div class="tenant-switch">
+          <span class="tenant-icon">🏢</span>
+          <span class="tenant-name">{{ currentTenantName }}</span>
+          <span class="tenant-arrow">▾</span>
+        </div>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item
+              v-for="t in userStore.tenants"
+              :key="t.tenantId"
+              :command="t.tenantId"
+              :disabled="t.tenantId === userStore.currentTenantId"
+            >
+              {{ t.tenantName }}<span v-if="t.tenantId === userStore.currentTenantId"> (当前)</span>
+            </el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
+
       <el-dropdown @command="handleCommand" class="avatar-container right-menu-item hover-effect" trigger="hover">
         <div class="avatar-wrapper">
           <img :src="userStore.avatar" class="user-avatar" />
@@ -58,6 +83,7 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import Breadcrumb from '@/components/Breadcrumb'
 import TopNav from '@/components/TopNav'
@@ -76,6 +102,26 @@ import useSettingsStore from '@/store/modules/settings'
 const appStore = useAppStore()
 const userStore = useUserStore()
 const settingsStore = useSettingsStore()
+
+const currentTenantName = computed(() => {
+  const ts = userStore.tenants || []
+  const cur = ts.find(t => t.tenantId === userStore.currentTenantId)
+  if (cur) return cur.tenantName
+  // 无当前激活租户(如超管)时,退到默认/第一个,始终显示真实租户名
+  const def = ts.find(t => t.isDefault) || ts[0]
+  return def ? def.tenantName : ''
+})
+
+function handleTenantSwitch(tenantId) {
+  if (tenantId === userStore.currentTenantId) return
+  ElMessageBox.confirm('切换租户将刷新页面，确定切换吗？', '提示', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'warning'
+  }).then(() => {
+    userStore.switchTenant(tenantId)
+  }).catch(() => {})
+}
 
 function toggleSideBar() {
   appStore.toggleSideBar()
@@ -243,9 +289,46 @@ async function toggleTheme(event) {
 
         svg {
           transition: transform 0.3s;
-          
+
           &:hover {
             transform: scale(1.15);
+          }
+        }
+      }
+
+      &.tenant-dropdown {
+        display: flex;
+        align-items: center;
+
+        .tenant-switch {
+          display: flex;
+          align-items: center;
+          height: 50px;
+          padding: 0 4px;
+          font-size: 14px;
+          color: #5a5e66;
+          cursor: pointer;
+
+          .tenant-icon {
+            font-size: 15px;
+            margin-right: 5px;
+            line-height: 1;
+          }
+
+          .tenant-name {
+            max-width: 160px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-weight: 500;
+            line-height: 1.5;
+          }
+
+          .tenant-arrow {
+            margin-left: 4px;
+            font-size: 12px;
+            color: #909399;
+            line-height: 1;
           }
         }
       }

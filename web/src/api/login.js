@@ -48,6 +48,15 @@ export function logout() {
   })
 }
 
+// 切换当前激活租户(返回新 token)
+export function switchTenant(tenantId) {
+  return request({
+    url: '/switchTenant',
+    method: 'post',
+    data: { tenantId }
+  })
+}
+
 // 获取验证码
 export function getCodeImg() {
   return request({

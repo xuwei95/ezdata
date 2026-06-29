@@ -188,6 +188,16 @@ class UserService:
             if page_object.post_ids:
                 for post in page_object.post_ids:
                     await UserDao.add_user_post_dao(query_db, UserPostModel(userId=user_id, postId=post))
+            # 多租户成员:显式 tenant_ids 优先,否则按 home 租户建一条默认成员
+            from module_admin.dao.user_tenant_dao import UserTenantDao  # noqa: PLC0415
+
+            tenant_ids = getattr(page_object, 'tenant_ids', None)
+            if tenant_ids:
+                await UserTenantDao.replace_user_tenants(
+                    query_db, user_id, tenant_ids, default_tenant_id=add_result.tenant_id
+                )
+            elif add_result.tenant_id is not None:
+                await UserTenantDao.add_if_absent(query_db, user_id, add_result.tenant_id, is_default=True)
             await query_db.commit()
             return CrudResponseModel(is_success=True, message='新增成功')
         except Exception as e:
@@ -245,6 +255,14 @@ class UserService:
                             await UserDao.add_user_post_dao(
                                 query_db, UserPostModel(userId=page_object.user_id, postId=post)
                             )
+                    # 多租户成员:传了 tenant_ids 才同步(清空重建);默认租户取用户 home(user.tenant_id)或首个
+                    if page_object.tenant_ids is not None:
+                        from module_admin.dao.user_tenant_dao import UserTenantDao  # noqa: PLC0415
+
+                        home_tid = getattr(user_info.data, 'tenant_id', None)
+                        await UserTenantDao.replace_user_tenants(
+                            query_db, page_object.user_id, page_object.tenant_ids, default_tenant_id=home_tid
+                        )
                 await query_db.commit()
                 return CrudResponseModel(is_success=True, message='更新成功')
             except Exception as e:
@@ -291,14 +309,21 @@ class UserService:
         :param user_id: 用户id
         :return: 用户id对应的信息
         """
+        from module_admin.dao.user_tenant_dao import UserTenantDao  # noqa: PLC0415
+
         posts = await PostService.get_post_list_services(query_db, PostPageQueryModel(), is_page=False)
         roles = await RoleService.get_role_select_option_services(query_db)
+        # 可选租户(顶级部门)选项,供"所属租户"多选;跨租户读,DAO 内部 bypass
+        tenants = [
+            {'tenantId': d[0], 'tenantName': d[1]} for d in await UserTenantDao.list_top_depts(query_db)
+        ]
         if user_id != '':
             query_user = await UserDao.get_user_detail_by_id(query_db, user_id=user_id)
             post_ids = ','.join([str(row.post_id) for row in query_user.get('user_post_info')])
             post_ids_list = [row.post_id for row in query_user.get('user_post_info')]
             role_ids = ','.join([str(row.role_id) for row in query_user.get('user_role_info')])
             role_ids_list = [row.role_id for row in query_user.get('user_role_info')]
+            tenant_ids_list = [m.tenant_id for m in await UserTenantDao.list_by_user(query_db, int(user_id))]
 
             return UserDetailModel(
                 data=UserInfoModel(
@@ -312,9 +337,11 @@ class UserService:
                 posts=posts,
                 roleIds=role_ids_list,
                 roles=roles,
+                tenantIds=tenant_ids_list,
+                tenants=tenants,
             )
 
-        return UserDetailModel(posts=posts, roles=roles)
+        return UserDetailModel(posts=posts, roles=roles, tenants=tenants)
 
     @classmethod
     async def user_profile_services(cls, query_db: AsyncSession, user_id: int) -> UserProfileModel:

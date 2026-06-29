@@ -1,6 +1,6 @@
 import router from '@/router'
 import { ElMessageBox } from 'element-plus'
-import { login, logout, getInfo } from '@/api/login'
+import { login, logout, getInfo, switchTenant } from '@/api/login'
 import { getToken, setToken, removeToken } from '@/utils/auth'
 import { isHttp, isEmpty } from "@/utils/validate"
 import defAva from '@/assets/images/profile.jpg'
@@ -15,7 +15,9 @@ const useUserStore = defineStore(
       nickName: '',
       avatar: '',
       roles: [],
-      permissions: []
+      permissions: [],
+      currentTenantId: null,   // 当前激活租户
+      tenants: []              // 可切换租户列表 [{tenantId, tenantName, isDefault}]
     }),
     actions: {
       // 登录
@@ -53,6 +55,9 @@ const useUserStore = defineStore(
             this.name = user.userName
             this.nickName = user.nickName
             this.avatar = avatar
+            // 多租户:当前激活租户 + 可切换列表
+            this.currentTenantId = res.currentTenantId
+            this.tenants = res.tenantList || []
             /* 初始密码提示 */
             if(res.isDefaultModifyPwd) {
               ElMessageBox.confirm('您的密码还是初始密码，请修改密码！',  '安全提示', {  confirmButtonText: '确定',  cancelButtonText: '取消',  type: 'warning' }).then(() => {
@@ -66,6 +71,19 @@ const useUserStore = defineStore(
               }).catch(() => {})
             }
             resolve(res)
+          }).catch(error => {
+            reject(error)
+          })
+        })
+      },
+      // 切换激活租户:重签 token → 写入 → 整页刷新(最简可靠,重新拉权限/路由/数据)
+      switchTenant(tenantId) {
+        return new Promise((resolve, reject) => {
+          switchTenant(tenantId).then(res => {
+            setToken(res.token)
+            this.token = res.token
+            window.location.reload()
+            resolve()
           }).catch(error => {
             reject(error)
           })

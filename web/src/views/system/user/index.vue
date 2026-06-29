@@ -431,6 +431,20 @@
         </el-row>
         <el-row>
           <el-col :span="24">
+            <el-form-item label="所属租户">
+              <el-select v-model="form.tenantIds" multiple placeholder="不选则默认归其部门所属租户" style="width: 100%">
+                <el-option
+                  v-for="item in tenantOptions"
+                  :key="item.tenantId"
+                  :label="item.tenantName"
+                  :value="item.tenantId"
+                ></el-option>
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row>
+          <el-col :span="24">
             <el-form-item label="备注">
               <el-input
                 v-model="form.remark"
@@ -540,6 +554,7 @@ const enabledDeptOptions = ref(undefined);
 const initPassword = ref(undefined);
 const postOptions = ref([]);
 const roleOptions = ref([]);
+const tenantOptions = ref([]);
 /*** 用户导入参数 */
 const upload = reactive({
   // 是否显示弹出层（用户导入）
@@ -836,6 +851,7 @@ function reset() {
     remark: undefined,
     postIds: [],
     roleIds: [],
+    tenantIds: [],
   };
   proxy.resetForm("userRef");
 }
@@ -850,6 +866,7 @@ function handleAdd() {
   getUser().then((response) => {
     postOptions.value = response.posts;
     roleOptions.value = response.roles;
+    tenantOptions.value = response.tenants || [];
     open.value = true;
     title.value = "添加用户";
     form.value.password = initPassword.value;
@@ -863,8 +880,10 @@ function handleUpdate(row) {
     form.value = response.data;
     postOptions.value = response.posts;
     roleOptions.value = response.roles;
+    tenantOptions.value = response.tenants || [];
     form.value.postIds = response.postIds;
     form.value.roleIds = response.roleIds;
+    form.value.tenantIds = response.tenantIds || [];
     open.value = true;
     title.value = "修改用户";
     form.value.password = undefined;
