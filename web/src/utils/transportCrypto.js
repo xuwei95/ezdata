@@ -244,13 +244,26 @@ function cloneRequestValue(value) {
   if (value === undefined || value === null) {
     return value
   }
+  if (typeof value !== 'object') {
+    return value
+  }
+  // FormData / Blob / File 等本就不该被快照重写(multipart 不参与加密),原样返回避免克隆报错
+  if (typeof FormData !== 'undefined' && value instanceof FormData) {
+    return value
+  }
   if (typeof globalThis.structuredClone === 'function') {
-    return globalThis.structuredClone(value)
+    try {
+      return globalThis.structuredClone(value)
+    } catch (error) {
+      // 含函数 / 类实例 / AbortSignal / Vue 响应式代理等不可结构化克隆的值时,回退到 JSON 克隆
+    }
   }
-  if (typeof value === 'object') {
+  try {
     return JSON.parse(JSON.stringify(value))
+  } catch (error) {
+    // 仍失败(循环引用、不可序列化等)则退化为原引用:快照仅用于重试恢复,best-effort 即可
+    return value
   }
-  return value
 }
 
 /**
