@@ -12,10 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from common.context import tenant_bypass
 from config.env import GithubSsoConfig
 from exceptions.exception import ServiceException
-from module_admin.dao.role_dao import RoleDao
 from module_admin.dao.user_dao import UserDao
 from module_admin.entity.do.user_oauth_do import SysUserOauth
-from module_admin.entity.vo.role_vo import RoleModel
 from module_admin.entity.vo.user_vo import AddUserModel, UserModel
 from module_admin.service.user_service import UserService
 from utils.log_util import logger
@@ -24,6 +22,10 @@ from utils.pwd_util import PwdUtil
 GITHUB_AUTHORIZE = 'https://github.com/login/oauth/authorize'
 GITHUB_TOKEN = 'https://github.com/login/oauth/access_token'
 GITHUB_API = 'https://api.github.com'
+
+# OAuth 默认租户名(租户=顶级部门)。未匹配到既有用户租户的 OAuth 新用户都挂到这个租户;
+# 不预先初始化,首个 OAuth 自动建号时懒建。
+OAUTH_TENANT_DEPT_NAME = 'OAuth租户'
 
 
 class GithubOauthService:
@@ -145,8 +147,35 @@ class GithubOauthService:
             return SimpleNamespace(user_id=snap.user_id, user_name=snap.user_name, tenant_id=snap.tenant_id)
 
     @classmethod
+    async def _resolve_oauth_tenant_dept(cls, db: AsyncSession) -> int:
+        """解析(懒建)OAuth 默认租户 = 一个顶级部门(parent_id=0, ancestors='0', tenant_id=自身dept_id)。
+
+        不预先初始化:首个 OAuth 自动建号时创建;之后所有未匹配既有用户租户的 OAuth 用户都落到这里。
+        调用方已在 tenant_bypass 内(无登录上下文)。
+        """
+        from module_admin.entity.do.dept_do import SysDept  # noqa: PLC0415
+
+        dept = (
+            await db.execute(
+                select(SysDept).where(
+                    SysDept.parent_id == 0, SysDept.dept_name == OAUTH_TENANT_DEPT_NAME, SysDept.del_flag == '0'
+                )
+            )
+        ).scalars().first()
+        if dept:
+            return dept.dept_id
+        dept = SysDept(parent_id=0, ancestors='0', dept_name=OAUTH_TENANT_DEPT_NAME, order_num=999,
+                       status='0', tenant_id=0, create_by='oauth', create_time=datetime.now())
+        db.add(dept)
+        await db.flush()  # 取自增 dept_id
+        dept.tenant_id = dept.dept_id  # 顶级部门:tenant_id = 自身 dept_id
+        await db.flush()
+        logger.info(f'懒建 OAuth 默认租户(顶级部门 dept_id={dept.dept_id})')
+        return dept.dept_id
+
+    @classmethod
     async def _provision_user(cls, db: AsyncSession, profile: dict) -> tuple[int, int | None]:
-        """按默认角色/部门新建用户(决定租户),返回 (user_id, tenant_id)。"""
+        """按默认角色(普通用户)+ OAuth 默认租户新建用户,返回 (user_id, tenant_id)。"""
         from module_admin.entity.do.user_do import SysUser  # noqa: PLC0415
 
         # 生成唯一登录名
@@ -155,11 +184,17 @@ class GithubOauthService:
         if await UserDao.get_user_by_name(db, user_name):
             user_name = f'{base}_{profile["open_id"]}'
 
-        # 默认角色 roleKey → role_id
+        # 默认角色(普通用户)roleKey → role_id。直接按 role_key 查 SysRole:
+        # 不要用 RoleDao.get_role_by_info(RoleModel(role_key=...)) —— RoleModel 字段别名为 roleKey,
+        # 用 role_key= 传参会落空,导致 WHERE 不带 role_key 过滤而返回任意角色(实测命中 admin=0菜单→空菜单)。
         role_ids: list[int] = []
         role_key = (GithubSsoConfig.github_sso_default_role_key or '').strip()
         if role_key:
-            role = await RoleDao.get_role_by_info(db, RoleModel(role_key=role_key))
+            from module_admin.entity.do.role_do import SysRole  # noqa: PLC0415
+
+            role = (
+                await db.execute(select(SysRole).where(SysRole.role_key == role_key, SysRole.del_flag == '0'))
+            ).scalars().first()
             if role:
                 role_ids = [role.role_id]
 
@@ -168,7 +203,8 @@ class GithubOauthService:
             nickName=profile.get('name') or user_name,
             email=profile.get('email'),
             password=PwdUtil.get_password_hash(secrets.token_urlsafe(24)),  # 随机占位,SSO 用户走第三方登录
-            deptId=GithubSsoConfig.github_sso_default_dept_id or None,
+            deptId=await cls._resolve_oauth_tenant_dept(db),  # OAuth 默认租户(懒建的顶级部门)
+
             avatar=profile.get('avatar') or '',
             status='0',
             sex='2',
