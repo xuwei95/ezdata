@@ -17,6 +17,9 @@ current_user: ContextVar[CurrentUserModel | None] = ContextVar('current_user', d
 current_tenant_id: ContextVar[int | None] = ContextVar('current_tenant_id', default=None)
 # 多租户：是否绕过租户过滤(超管/平台/Worker 引导加载用)。True 时不注入租户条件
 current_tenant_bypass: ContextVar[bool] = ContextVar('current_tenant_bypass', default=False)
+# 是否处于 HTTP 请求作用域(由 get_db 依赖标记)。仅在请求作用域内对“空租户”默认拒绝;
+# 后台(Celery/APScheduler 用独立同步会话,不经 get_db)保持宽松,允许按主键引导加载任务后再设租户。
+current_in_request: ContextVar[bool] = ContextVar('current_in_request', default=False)
 
 
 class RequestContext:
@@ -92,6 +95,21 @@ class RequestContext:
         return current_tenant_id.get()
 
     @staticmethod
+    def is_tenant_bypassed() -> bool:
+        """是否处于租户绕过(超管/系统/bootstrap)上下文。用于区分'放行'与'未设置'。"""
+        return current_tenant_bypass.get()
+
+    @staticmethod
+    def mark_request_scope() -> None:
+        """标记当前处于 HTTP 请求作用域(由 get_db 依赖调用)。"""
+        current_in_request.set(True)
+
+    @staticmethod
+    def is_request_scope() -> bool:
+        """是否处于 HTTP 请求作用域(决定空租户是默认拒绝还是宽松放行)。"""
+        return current_in_request.get()
+
+    @staticmethod
     def reset_current_tenant_id(token: Token) -> None:
         """重置当前租户ID"""
         current_tenant_id.reset(token)
@@ -128,6 +146,7 @@ class RequestContext:
         current_user.set(None)
         current_tenant_id.set(None)
         current_tenant_bypass.set(False)
+        current_in_request.set(False)
 
 
 @contextmanager
@@ -143,3 +162,15 @@ def tenant_bypass():
         yield
     finally:
         current_tenant_bypass.reset(token)
+
+
+@contextmanager
+def tenant_system():
+    """系统/启动期(无登录用户、无租户)合法的全局访问放行。
+
+    语义同 tenant_bypass,但用于标注'这是系统级而非用户级'的调用点(启动初始化、
+    引导加载等),与租户默认拒绝(空租户 → 拒绝)配套:凡确需在无租户上下文下访问
+    多租户表的系统路径,显式用本管理器放行。
+    """
+    with tenant_bypass():
+        yield

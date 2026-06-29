@@ -47,9 +47,12 @@ async def app_api_chat(
     )
     # 外部调用无租户中间件:用 token 的租户开启上下文,使应用/工具/知识库查询正确隔离
     tenant_id = token.get('tenant_id')
+    # 租户默认拒绝:无租户绑定的 Key 一律拒绝(不再无上下文放行)
+    if tenant_id is None:
+        return ResponseUtil.failure(msg='API Key 未绑定租户,禁止访问')
 
     async def _stream():
-        tok = RequestContext.set_current_tenant_id(tenant_id) if tenant_id is not None else None
+        tok = RequestContext.set_current_tenant_id(tenant_id)
         try:
             async for chunk in AiChatService.chat_services(query_db, req, 0):
                 yield chunk

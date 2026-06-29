@@ -5,6 +5,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from common.context import tenant_bypass
 from common.vo import CrudResponseModel
 from exceptions.exception import ServiceException
 from module_apitoken.dao.api_token_dao import ApiTokenDao
@@ -47,19 +48,29 @@ class ApiTokenService:
             raise e
 
     @classmethod
-    async def validate(cls, db: AsyncSession, apikey: str, token_type: str, ref_id: str | None = None) -> None:
+    async def validate(cls, db: AsyncSession, apikey: str, token_type: str, ref_id: str | None = None) -> 'ApiToken':
         """校验 apikey:存在、启用、类型匹配、未过期、资源范围匹配。失败抛 ServiceException。
 
+        返回命中的 ApiToken(调用方可据 tk.tenant_id 建立租户上下文)。
         任意业务模块(数据接口 / agent 对话 / ...)均可调用本方法做 apikey 鉴权。
         """
         if not apikey:
             raise ServiceException(message='缺少 apikey')
-        tk = await ApiTokenDao.get_by_token(db, apikey)
+        # token 本身是全局唯一凭据,按值跨租户查找(ApiToken 为多租户表,默认拒绝下需放行)
+        with tenant_bypass():
+            tk = await ApiTokenDao.get_by_token(db, apikey)
         if not tk or tk.status != 1:
             raise ServiceException(message='无效 apikey')
         if tk.token_type != token_type:
             raise ServiceException(message=f'apikey 类型不匹配(需 {token_type})')
         if tk.expire_time and tk.expire_time < datetime.now():
             raise ServiceException(message='apikey 已过期')
-        if tk.ref_id and ref_id and tk.ref_id != ref_id:
+        # 对外数据接口强制资源绑定:token 必须绑定 ref_id 且与请求资源一致(堵 IDOR/越权全库)
+        if token_type == 'data_api':
+            if not tk.ref_id:
+                raise ServiceException(message='apikey 未绑定资源(ref_id),禁止访问')
+            if ref_id and tk.ref_id != ref_id:
+                raise ServiceException(message='apikey 无权访问该资源')
+        elif tk.ref_id and ref_id and tk.ref_id != ref_id:
             raise ServiceException(message='apikey 无权访问该资源')
+        return tk

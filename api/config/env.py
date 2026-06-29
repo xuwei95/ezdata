@@ -42,6 +42,20 @@ class JwtSettings(BaseSettings):
     jwt_redis_expire_minutes: int = 1440
 
 
+class SecuritySettings(BaseSettings):
+    """
+    静态数据加密配置(库内数据源/AI 凭据的 AES 加密)。
+
+    与 JWT 签名密钥分离:data_encrypt_key 配置后作为主密钥(标准 Fernet key,
+    44 字符 urlsafe-base64);为空时回退到由 jwt_secret_key 派生的旧密钥,保证
+    存量密文平滑可解(见 utils/crypto_util.py 的 MultiFernet 兼容逻辑)。
+    用 `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`
+    或 deploy/gen-secrets.sh 生成。
+    """
+
+    data_encrypt_key: str = ''
+
+
 class DataBaseSettings(BaseSettings):
     """
     数据库配置
@@ -182,6 +196,30 @@ class TransportCryptoSettings(BaseSettings):
         '/openapi.json,/docs,/docs/oauth2-redirect,/redoc,'
         '/transport/crypto/frontend-config,/transport/crypto/public-key,/common/download,/common/download/resource'
     )
+
+
+class GithubSsoSettings(BaseSettings):
+    """
+    GitHub SSO 单点登录配置。
+
+    首登策略:据 GitHub open_id 查 sys_user_oauth → 命中即登录;否则按邮箱匹配既有用户绑定;
+    再否则,若 github_sso_auto_create 开启则按默认角色/部门自动建号(决定租户),否则拒绝。
+    """
+
+    github_sso_enabled: bool = False
+    github_client_id: str = ''
+    github_client_secret: str = ''
+    # 后端回调绝对地址,须与 GitHub OAuth App 的 Authorization callback URL 一致
+    # (nginx 把 /api/ 反代到后端,故带 /api 前缀)
+    github_redirect_uri: str = 'http://localhost/api/oauth/github/callback'
+    # 登录成功后回跳的前端地址(带 token / error 参数)
+    github_sso_frontend_url: str = 'http://localhost/sso-callback'
+    # 可选:仅允许该 GitHub 组织成员登录(留空不限制)
+    github_allowed_org: str = ''
+    # 首登自动建号 + 默认角色 roleKey / 默认部门 deptId(决定租户归属)
+    github_sso_auto_create: bool = True
+    github_sso_default_role_key: str = 'common'
+    github_sso_default_dept_id: int = 100
 
 
 class GenSettings:
@@ -466,6 +504,18 @@ class GetConfig:
         # 实例化Jwt配置模型
         return JwtSettings()
 
+    def get_security_config(self) -> SecuritySettings:
+        """
+        获取静态数据加密配置
+        """
+        return SecuritySettings()
+
+    def get_github_sso_config(self) -> GithubSsoSettings:
+        """
+        获取 GitHub SSO 配置
+        """
+        return GithubSsoSettings()
+
     def get_database_config(self) -> DataBaseSettings:
         """
         获取数据库配置
@@ -566,6 +616,10 @@ get_config = GetConfig()
 AppConfig = get_config.get_app_config()
 # Jwt配置
 JwtConfig = get_config.get_jwt_config()
+# 静态数据加密配置
+SecurityConfig = get_config.get_security_config()
+# GitHub SSO 配置
+GithubSsoConfig = get_config.get_github_sso_config()
 # 数据库配置
 DataBaseConfig = get_config.get_database_config()
 # Redis配置

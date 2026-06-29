@@ -56,6 +56,12 @@
           <router-link class="link-type" :to="'/register'">立即注册</router-link>
         </div>
       </el-form-item>
+      <el-divider style="margin: 4px 0 16px;">或</el-divider>
+      <el-form-item style="width:100%;">
+        <el-button size="large" style="width:100%;" @click.prevent="handleGithubLogin">
+          使用 GitHub 登录
+        </el-button>
+      </el-form-item>
     </el-form>
     <!--  底部  -->
     <div class="el-login-footer">
@@ -138,6 +144,11 @@ function handleLogin() {
       });
     }
   });
+}
+
+function handleGithubLogin() {
+  // 整页跳转到后端 GitHub 授权入口(由后端 302 到 GitHub),回调后带 token 回跳 /sso-callback
+  window.location.href = `${import.meta.env.VITE_APP_BASE_API}/oauth/github/authorize`;
 }
 
 function getCode() {

@@ -5,20 +5,24 @@ from typing import Annotated
 import jwt
 from fastapi import Depends, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.responses import RedirectResponse
 
 from common.annotation.cache_annotation import ApiCache, ApiCacheEvict
 from common.annotation.log_annotation import Log
 from common.annotation.rate_limit_annotation import ApiRateLimit, ApiRateLimitPreset
 from common.aspect.db_seesion import DBSessionDependency
+from common.context import tenant_bypass
 from common.aspect.pre_auth import CurrentUserDependency
 from common.constant import ApiGroup, ApiNamespace
 from common.enums import BusinessType, RedisInitKeyConfig
 from common.router import APIRouterPro
 from common.vo import CrudResponseModel, DataResponseModel, DynamicResponseModel, ResponseBaseModel
-from config.env import AppConfig, JwtConfig
+from config.env import AppConfig, GithubSsoConfig, JwtConfig
+from exceptions.exception import ServiceException
 from module_admin.entity.vo.login_vo import LoginToken, RouterModel, Token, UserLogin, UserRegister
 from module_admin.entity.vo.user_vo import CurrentUserModel, EditUserModel
 from module_admin.service.login_service import CustomOAuth2PasswordRequestForm, LoginService, oauth2_scheme
+from module_admin.service.oauth_service import GithubOauthService, gen_state
 from module_admin.service.user_service import UserService
 from utils.log_util import logger
 from utils.response_util import ResponseUtil
@@ -77,9 +81,12 @@ async def login(
             access_token,
             ex=timedelta(minutes=JwtConfig.jwt_redis_expire_minutes),
         )
-    await UserService.edit_user_services(
-        query_db, EditUserModel(userId=result[0].user_id, loginDate=datetime.now(), type='status')
-    )
+    # 登录回写(更新登录时间)发生在租户上下文建立之前(登录态尚未鉴权),且会级联读取该用户的
+    # 岗位/角色等多租户表;在租户默认拒绝下需显式放行(此为登录引导,操作的就是当前认证用户自身)。
+    with tenant_bypass():
+        await UserService.edit_user_services(
+            query_db, EditUserModel(userId=result[0].user_id, loginDate=datetime.now(), type='status')
+        )
     logger.info('登录成功')
     # 判断请求是否来自于api文档，如果是返回指定格式的结果，用于修复api文档认证成功后token显示undefined的bug
     request_from_swagger = request.headers.get('referer').endswith('docs') if request.headers.get('referer') else False
@@ -190,3 +197,69 @@ async def logout(request: Request, token: Annotated[str | None, Depends(oauth2_s
     logger.info('退出成功')
 
     return ResponseUtil.success(msg='退出成功')
+
+
+async def _issue_token_for_user(request: Request, user) -> str:  # noqa: ANN001
+    """为已解析的用户签发 JWT 并写入 Redis 会话(复用账密登录的会话机制)。"""
+    session_id = str(uuid.uuid4())
+    access_token = await LoginService.create_access_token(
+        data={
+            'user_id': str(user.user_id),
+            'user_name': user.user_name,
+            'dept_name': None,
+            'session_id': session_id,
+            'login_info': 'GitHub SSO',
+        },
+        expires_delta=timedelta(minutes=JwtConfig.jwt_expire_minutes),
+    )
+    redis = request.app.state.redis
+    key_suffix = session_id if AppConfig.app_same_time_login else str(user.user_id)
+    await redis.set(
+        f'{RedisInitKeyConfig.ACCESS_TOKEN.key}:{key_suffix}',
+        access_token,
+        ex=timedelta(minutes=JwtConfig.jwt_redis_expire_minutes),
+    )
+    return access_token
+
+
+@login_controller.get('/oauth/github/authorize', summary='GitHub 授权跳转')
+async def github_authorize(request: Request) -> Response:
+    """生成 state(防 CSRF)并 302 跳转到 GitHub 授权页。"""
+    if not GithubSsoConfig.github_sso_enabled:
+        return ResponseUtil.failure(msg='GitHub 登录未启用')
+    state = gen_state()
+    await request.app.state.redis.set(f'oauth:github:state:{state}', '1', ex=600)
+    return RedirectResponse(GithubOauthService.authorize_url(state))
+
+
+@login_controller.get('/oauth/github/callback', summary='GitHub 回调')
+async def github_callback(
+    request: Request,
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
+    code: str = '',
+    state: str = '',
+) -> Response:
+    """校验 state → 换取资料 → 解析/建号 → 签发 token → 回跳前端(带 token 或 error)。"""
+    frontend = GithubSsoConfig.github_sso_frontend_url
+    sep = '&' if '?' in frontend else '?'
+    try:
+        if not GithubSsoConfig.github_sso_enabled:
+            raise ServiceException(message='GitHub 登录未启用')
+        if not code or not state:
+            raise ServiceException(message='缺少 code 或 state')
+        state_key = f'oauth:github:state:{state}'
+        if not await request.app.state.redis.get(state_key):
+            raise ServiceException(message='state 无效或已过期')
+        await request.app.state.redis.delete(state_key)
+
+        profile = await GithubOauthService.fetch_profile(code)
+        user = await GithubOauthService.resolve_or_provision(query_db, profile)
+        token = await _issue_token_for_user(request, user)
+        logger.info(f'GitHub SSO 登录成功: user_id={user.user_id}')
+        return RedirectResponse(f'{frontend}{sep}token={token}')
+    except Exception as e:  # noqa: BLE001
+        from urllib.parse import quote  # noqa: PLC0415
+
+        msg = getattr(e, 'message', None) or str(e)
+        logger.warning(f'GitHub SSO 失败: {msg}')
+        return RedirectResponse(f'{frontend}{sep}error={quote(msg)}')

@@ -63,8 +63,8 @@ TRANSPORT_CRYPTO_MAX_GET_URL_LENGTH=4096
 
 当前项目的 Docker 部署使用：
 
-- `docker-compose.my.yml` + `Dockerfile.my`
-- `docker-compose.pg.yml` + `Dockerfile.pg`
+- `docker-compose.yml`(默认 MySQL,`Dockerfile.my`)
+- `docker-compose.yml --env-file .env.pg`(PostgreSQL,`Dockerfile.pg`)
 
 后端容器启动命令分别是：
 

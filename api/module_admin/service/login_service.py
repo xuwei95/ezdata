@@ -11,7 +11,7 @@ from sqlalchemy import Row
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.constant import CommonConstant, MenuConstant
-from common.context import RequestContext
+from common.context import RequestContext, tenant_bypass
 from common.enums import RedisInitKeyConfig
 from common.vo import CrudResponseModel
 from config.env import AppConfig, JwtConfig
@@ -102,7 +102,9 @@ class LoginService:
             pass
         else:
             await cls.__check_login_captcha(request, login_user)
-        user = await login_by_account(query_db, login_user.user_name)
+        # 登录鉴别发生在租户上下文建立之前,需跨租户按账号查用户(默认拒绝下显式放行)
+        with tenant_bypass():
+            user = await login_by_account(query_db, login_user.user_name)
         if not user:
             logger.warning('用户不存在')
             raise LoginException(data='', message='用户不存在')
@@ -218,7 +220,9 @@ class LoginService:
         except InvalidTokenError as e:
             logger.warning('用户token已失效，请重新登录')
             raise AuthException(data='', message='用户token已失效，请重新登录') from e
-        query_user = await UserDao.get_user_by_id(query_db, user_id=token_data.user_id)
+        # JWT 鉴权在租户上下文建立之前(下方据用户部门解析租户),需跨租户按 id 取用户,显式放行
+        with tenant_bypass():
+            query_user = await UserDao.get_user_by_id(query_db, user_id=token_data.user_id)
         if query_user.get('user_basic_info') is None:
             logger.warning('用户token不合法')
             raise AuthException(data='', message='用户token不合法')
@@ -477,7 +481,9 @@ class LoginService:
                     password=PwdUtil.get_password_hash(user_register.password),
                     pwdUpdateDate=datetime.now(),
                 )
-                result = await UserService.add_user_services(query_db, add_user)
+                # 注册为未登录上下文(无租户),用户名/邮箱唯一性需跨租户校验,显式放行
+                with tenant_bypass():
+                    result = await UserService.add_user_services(query_db, add_user)
                 return result
             raise ServiceException(message='注册程序已关闭，禁止注册')
         raise ServiceException(message='两次输入的密码不一致')

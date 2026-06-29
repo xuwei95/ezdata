@@ -107,6 +107,10 @@ celerybeat.pid
 # Environments
 .env
 .env.dev
+# 生产/部署 env 含真实密钥(JWT/数据加密/传输RSA/各口令),不入库;用 .example 模板 + deploy/gen-secrets.sh 生成
+api/.env.prod
+api/.env.dockermy
+api/.env.dockerpg
 .venv
 env/
 venv/

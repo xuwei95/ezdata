@@ -142,9 +142,17 @@ def _tenant_filter_orm_execute(orm_execute_state) -> None:  # noqa: ANN001
     ):
         return
     from common.context import RequestContext
+    from exceptions.exception import PermissionException
 
-    tenant_id = RequestContext.get_effective_tenant_id()
+    # 三态:bypass(超管/系统/bootstrap)→ 放行不过滤;有租户 → 过滤;无租户 → 见下
+    if RequestContext.is_tenant_bypassed():
+        return
+    tenant_id = RequestContext.get_current_tenant_id()
     if tenant_id is None:
+        # 空租户:仅在 HTTP 请求作用域内默认拒绝(堵 无部门用户/对外API 看全库);
+        # 后台(Celery/调度,独立同步会话)保持宽松,允许按主键引导加载任务后再设租户。
+        if RequestContext.is_request_scope():
+            raise PermissionException(data='', message='缺少租户上下文,拒绝访问')
         return
     orm_execute_state.statement = orm_execute_state.statement.options(
         with_loader_criteria(

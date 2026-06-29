@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from common.constant import LockConstant
+from common.context import tenant_system
 from common.router import auto_register_routers
 from config.env import AppConfig
 from config.get_db import close_async_engine, init_create_table
@@ -91,10 +92,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         if startup_log_enabled:
             worship()
         TransportKeyProvider.validate_runtime_configuration()
-        await init_create_table()
-        await RedisUtil.check_redis_connection(app.state.redis, log_enabled=startup_log_enabled)
-        await RedisUtil.init_sys_dict(app.state.redis)
-        await RedisUtil.init_sys_config(app.state.redis)
+        # 启动初始化无登录用户/无租户上下文,系统级访问多租户表需显式放行(配合租户默认拒绝)
+        with tenant_system():
+            await init_create_table()
+            await RedisUtil.check_redis_connection(app.state.redis, log_enabled=startup_log_enabled)
+            await RedisUtil.init_sys_dict(app.state.redis)
+            await RedisUtil.init_sys_config(app.state.redis)
         await _start_background_tasks(app)
 
     if startup_log_enabled:

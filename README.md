@@ -27,7 +27,7 @@
 | 后端 | FastAPI · SQLAlchemy 2.0(async) · Pydantic v2 |
 | 任务 | Celery · APScheduler · dlt |
 | AI / RAG | Agno · DashScope/OpenAI embedding · chonkie · unstructured |
-| 存储 | MySQL 8 / PostgreSQL · Redis · **Elasticsearch 8(日志 + 向量库 + 数据服务一套三用)** · MinIO/S3 |
+| 存储 | MySQL 8 / PostgreSQL · Redis · **Elasticsearch 8** · MinIO/S3 |
 
 ## 🚀 快速开始(Docker)
 
@@ -38,7 +38,7 @@ cp api/.env.dev.example api/.env.dev
 # 2) 一键起开发环境(MySQL + Redis + ES8 + MinIO + 后端 + worker + 前端)
 docker compose -f docker-compose.dev.yml up -d
 
-# 生产参考:docker-compose.my.yml(MySQL) / docker-compose.pg.yml(PostgreSQL)
+# 生产参考:docker-compose.yml(默认 MySQL;PostgreSQL 加 --env-file .env.pg)
 ```
 
 - 前端默认 `http://localhost:12580`,后端 `http://localhost:9099`(Swagger:`/docs`)。

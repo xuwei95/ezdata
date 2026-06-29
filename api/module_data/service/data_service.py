@@ -737,12 +737,17 @@ class OpenDataService:
     async def public_query(cls, db: AsyncSession, model_code: str, params: dict) -> dict:
         from sqlalchemy import select  # noqa: PLC0415
 
+        from common.context import RequestContext  # noqa: PLC0415
         from module_apitoken.service.api_token_service import ApiTokenService  # noqa: PLC0415
         from module_data.entity.do.data_do import DataModel as DataModelDO  # noqa: PLC0415
         from module_data.query import parse_query_params  # noqa: PLC0415
 
         apikey = params.get('apikey') or params.get('api_key')
-        await ApiTokenService.validate(db, apikey, 'data_api', model_code)
+        tk = await ApiTokenService.validate(db, apikey, 'data_api', model_code)
+        # 对外接口无登录上下文:据 token 绑定的租户建立租户上下文,后续模型/数据源查询被租户隔离
+        if tk.tenant_id is None:
+            raise ServiceException(message='apikey 未绑定租户,禁止访问')
+        RequestContext.set_current_tenant_id(tk.tenant_id)
 
         m = (await db.execute(select(DataModelDO).where(DataModelDO.code == model_code))).scalars().first()
         if not m:
