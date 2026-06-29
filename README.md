@@ -9,6 +9,10 @@
   <img alt="es" src="https://img.shields.io/badge/Elasticsearch-8-005571">
 </p>
 
+<p align="center">
+  🌐 在线演示:<a href="http://124.220.57.72/"><b>http://124.220.57.72/</b></a>
+</p>
+
 > ezdata 是一个 AI 原生的数据平台:统一接入异构数据源,做 ETL 集成与任务编排,沉淀数据源专属知识库(RAG),并把知识喂给 AI 取数/分析。基于 [RuoYi-Vue3-FastAPI](https://github.com/insistence/RuoYi-Vue3-FastAPI) 重构(RBAC + 多租户 + 数据权限开箱即用)。
 
 ## ✨ 核心能力
