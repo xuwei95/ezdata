@@ -170,6 +170,12 @@ class AiUtil:
             client_params = dict(params.get('client_params') or {})
             client_params.setdefault('base_url', base_url)
             params['client_params'] = client_params
+        if provider == 'SiliconFlow':
+            # SiliconFlow(及其上的 DeepSeek 等)流式时每个块都重复带 usage,agno 默认(collect_metrics_on_completion=False)
+            # 逐块累加 usage,会把 token 放大成「真实值 × 流式块数」(一句话被记成几十万)。
+            # 设为 True 改为仅在收尾块(finish_reason)采集一次;SiliconFlow 收尾块带完整 usage,结果正确。
+            # 注意:不要对标准 OpenAI 开启——其 usage 在 choices 为空的独立末块里,开了会漏采。
+            params.setdefault('collect_metrics_on_completion', True)
         model_class = cls._resolve_provider_class(provider)
         if model_class is None:
             # 未知提供商，回退到OpenAI

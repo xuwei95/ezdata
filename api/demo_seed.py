@@ -165,24 +165,32 @@ for c in ['600519','300750','000651']:
 log('news rows=%d' % len(result))
 """
 
-# (task_id, 名称, params_json, 索引, 业务名)
+# 定时策略(参照老项目节奏)。cron 为 6 段 Quartz:秒 分 时 日 月 周;日/周用 ? 占位。
+# 注意:该 cron 适配器对"星期范围"有坑(会被当成 week-of-year),故一律用"每天 * * ?"形态。
+CRON_CLOSE = '0 0 16 * * ?'    # 收盘后日更(快照/涨停/板块/日线)
+CRON_DAWN = '0 30 0 * * ?'     # 凌晨日更(概念成分/解析/技术选股)
+CRON_4H = '0 0 */4 * * ?'      # 每4小时(币圈 24h 交易)
+CRON_HOUR = '0 0 * * * ?'      # 每小时(新闻)
+CRON_MONTH = '0 0 2 1 * ?'     # 每月1号 02:00(宏观,月度数据)
+
+# (task_id, 名称, params_json, 索引, 业务名, cron)  cron='' 即单次手动(trigger_type=1)
 TASKS = [
-    ('demo_fin_spot', 'A股全市场快照→ES', native('stock_zh_a_spot_em', None, 'fin_stock_spot'), 'fin_stock_spot', 'A股全市场快照'),
-    ('demo_fin_zt', '涨停池(当日)→ES', native('stock_zt_pool_em', {'date': '20260629'}, 'fin_zt_pool'), 'fin_zt_pool', '涨停池'),
-    ('demo_fin_act', '市场活跃度→ES', native('stock_market_activity_legu', None, 'fin_market_activity', TF_STR_VALUE), 'fin_market_activity', '市场活跃度'),
-    ('demo_fin_cptboard', '概念板块快照→ES', native('stock_board_concept_name_em', None, 'fin_concept_board'), 'fin_concept_board', '概念板块快照'),
-    ('demo_fin_indsum', '行业板块一览→ES', native('stock_board_industry_summary_ths', None, 'fin_industry_summary'), 'fin_industry_summary', '行业板块一览'),
-    ('demo_fin_cptsum', '概念板块解析→ES', native('stock_board_concept_summary_ths', None, 'fin_concept_summary'), 'fin_concept_summary', '概念解析(驱动事件/龙头)'),
-    ('demo_fin_cxg', '技术选股创新高→ES', native('stock_rank_cxg_ths', {'symbol': '创月新高'}, 'fin_cxg'), 'fin_cxg', '技术选股·创新高'),
-    ('demo_fin_lxsz', '技术选股连涨→ES', native('stock_rank_lxsz_ths', None, 'fin_lxsz'), 'fin_lxsz', '技术选股·连续上涨'),
-    ('demo_fin_ipo', '新股申购→ES', native('stock_ipo_ths', {'symbol': '全部A股'}, 'fin_ipo'), 'fin_ipo', '新股申购与中签'),
-    ('demo_fin_cb', '可转债数据→ES', native('bond_zh_cov_info_ths', None, 'fin_cb'), 'fin_cb', '可转债数据中心'),
-    ('demo_fin_daily', '多股日线→ES', code(AK, C_STOCK_DAILY, 'fin_stock_daily'), 'fin_stock_daily', '多只个股日线'),
-    ('demo_fin_index', '主要指数日线→ES', code(AK, C_INDEX_DAILY, 'fin_index_daily'), 'fin_index_daily', '主要指数日线'),
-    ('demo_fin_cptcons', '概念成分股→ES', code(AK, C_CONCEPT_CONS, 'fin_concept_cons'), 'fin_concept_cons', '概念→成分股'),
-    ('demo_fin_btc', '多币种日线→ES', code(CCXT, C_CRYPTO_DAILY, 'fin_crypto_daily'), 'fin_crypto_daily', '多币种日线'),
-    ('demo_fin_macro', '宏观经济→ES', code(AK, C_MACRO, 'fin_macro'), 'fin_macro', '宏观经济(CPI/PPI/PMI/货币)'),
-    ('demo_fin_news', '个股新闻→ES', code(AK, C_NEWS, 'fin_news'), 'fin_news', '个股新闻'),
+    ('demo_fin_spot', 'A股全市场快照→ES', native('stock_zh_a_spot_em', None, 'fin_stock_spot'), 'fin_stock_spot', 'A股全市场快照', CRON_CLOSE),
+    ('demo_fin_zt', '涨停池(当日)→ES', native('stock_zt_pool_em', None, 'fin_zt_pool'), 'fin_zt_pool', '涨停池', CRON_CLOSE),
+    ('demo_fin_act', '市场活跃度→ES', native('stock_market_activity_legu', None, 'fin_market_activity', TF_STR_VALUE), 'fin_market_activity', '市场活跃度', CRON_CLOSE),
+    ('demo_fin_cptboard', '概念板块快照→ES', native('stock_board_concept_name_em', None, 'fin_concept_board'), 'fin_concept_board', '概念板块快照', CRON_CLOSE),
+    ('demo_fin_indsum', '行业板块一览→ES', native('stock_board_industry_summary_ths', None, 'fin_industry_summary'), 'fin_industry_summary', '行业板块一览', CRON_CLOSE),
+    ('demo_fin_cptsum', '概念板块解析→ES', native('stock_board_concept_summary_ths', None, 'fin_concept_summary'), 'fin_concept_summary', '概念解析(驱动事件/龙头)', CRON_DAWN),
+    ('demo_fin_cxg', '技术选股创新高→ES', native('stock_rank_cxg_ths', {'symbol': '创月新高'}, 'fin_cxg'), 'fin_cxg', '技术选股·创新高', CRON_DAWN),
+    ('demo_fin_lxsz', '技术选股连涨→ES', native('stock_rank_lxsz_ths', None, 'fin_lxsz'), 'fin_lxsz', '技术选股·连续上涨', CRON_DAWN),
+    ('demo_fin_ipo', '新股申购→ES', native('stock_ipo_ths', {'symbol': '全部A股'}, 'fin_ipo'), 'fin_ipo', '新股申购与中签', ''),
+    ('demo_fin_cb', '可转债数据→ES', native('bond_zh_cov_info_ths', None, 'fin_cb'), 'fin_cb', '可转债数据中心', ''),
+    ('demo_fin_daily', '多股日线→ES', code(AK, C_STOCK_DAILY, 'fin_stock_daily'), 'fin_stock_daily', '多只个股日线', CRON_CLOSE),
+    ('demo_fin_index', '主要指数日线→ES', code(AK, C_INDEX_DAILY, 'fin_index_daily'), 'fin_index_daily', '主要指数日线', CRON_CLOSE),
+    ('demo_fin_cptcons', '概念成分股→ES', code(AK, C_CONCEPT_CONS, 'fin_concept_cons'), 'fin_concept_cons', '概念→成分股', CRON_DAWN),
+    ('demo_fin_btc', '多币种日线→ES', code(CCXT, C_CRYPTO_DAILY, 'fin_crypto_daily'), 'fin_crypto_daily', '多币种日线', CRON_4H),
+    ('demo_fin_macro', '宏观经济→ES', code(AK, C_MACRO, 'fin_macro'), 'fin_macro', '宏观经济(CPI/PPI/PMI/货币)', CRON_MONTH),
+    ('demo_fin_news', '个股新闻→ES', code(AK, C_NEWS, 'fin_news'), 'fin_news', '个股新闻', CRON_HOUR),
 ]
 
 # 数据源(自包含:不依赖 ezdata.sql 的 demo 段)。(id, name, code, source_type, family, config_dict)
@@ -230,10 +238,16 @@ APP_CONFIG = {
     'enableMemory': False, 'model': {'modelId': 0, 'temperature': None, 'maxTokens': None},
 }
 
+# 定时任务联动:APScheduler 从 sys_job 表加载调度(invoke_target=dispatch.run_task, job_args=task_id),
+# task.trigger_type=2 + crontab,task.job_id 指向 sys_job。仅插 task 不建 sys_job 不会真触发。
+_INVOKE = 'module_task_schedule.dispatch.run_task'
+
 _DS_SQL = text("""INSERT INTO data_source (id,name,code,source_type,family,config,secrets,status,remark,create_by,create_time,tenant_id)
 VALUES (:id,:name,:code,:stype,:family,:config,NULL,'ok',:remark,'admin',:now,:tenant)""")
-_TASK_SQL = text("""INSERT INTO task (id,template_code,task_type,run_type,name,params,status,built_in,trigger_type,priority,retry,countdown,run_queue,create_by,create_time,remark,tenant_id)
-VALUES (:id,'DataIntegrationTask',1,1,:name,:params,1,0,1,1,0,60,'default','admin',:now,:remark,:tenant)""")
+_TASK_SQL = text("""INSERT INTO task (id,template_code,task_type,run_type,name,params,status,built_in,trigger_type,crontab,priority,retry,countdown,run_queue,create_by,create_time,remark,tenant_id)
+VALUES (:id,'DataIntegrationTask',1,1,:name,:params,1,0,:trigger,:crontab,1,0,60,'default','admin',:now,:remark,:tenant)""")
+_JOB_SQL = text("""INSERT INTO sys_job (job_name,job_group,job_executor,invoke_target,job_args,cron_expression,misfire_policy,concurrent,status,create_by,create_time,tenant_id)
+VALUES (:jn,'default','default',:inv,:args,:cron,'2','1','0','admin',:now,:tenant)""")
 _MODEL_SQL = text("""INSERT INTO data_model (id,name,code,datasource_code,kind,object_name,auth,status,remark,create_by,create_time,tenant_id)
 VALUES (:id,:name,:code,:ds,'index',:obj,'query,extract,api',1,:remark,'admin',:now,:tenant)""")
 _APP_SQL = text("""INSERT INTO ai_app (app_id,name,description,app_type,status,config,user_id,create_by,create_time,tenant_id)
@@ -249,9 +263,16 @@ def seed_metadata() -> int:
             db.execute(text('DELETE FROM data_source WHERE id=:id'), {'id': sid})
             db.execute(_DS_SQL, {'id': sid, 'name': name, 'code': dcode, 'stype': stype, 'family': family,
                                  'config': json.dumps(cfg), 'remark': '演示数据源', 'now': now, 'tenant': TENANT})
-        for tid, name, params, idx, label in TASKS:
+        for tid, name, params, idx, label, cron in TASKS:
+            jn = 'TASK_' + tid
             db.execute(text('DELETE FROM task WHERE id=:id'), {'id': tid})
-            db.execute(_TASK_SQL, {'id': tid, 'name': name, 'params': params, 'remark': label, 'now': now, 'tenant': TENANT})
+            db.execute(text('DELETE FROM sys_job WHERE job_name=:jn'), {'jn': jn})  # 清旧调度(幂等)
+            trigger = 2 if cron else 1  # 1单次 2定时
+            db.execute(_TASK_SQL, {'id': tid, 'name': name, 'params': params, 'trigger': trigger,
+                                   'crontab': cron, 'remark': label, 'now': now, 'tenant': TENANT})
+            if cron:  # 建 sys_job 并回填 task.job_id,APScheduler 才会真正按 cron 触发
+                r = db.execute(_JOB_SQL, {'jn': jn, 'inv': _INVOKE, 'args': tid, 'cron': cron, 'now': now, 'tenant': TENANT})
+                db.execute(text('UPDATE task SET job_id=:jid WHERE id=:tid'), {'jid': r.lastrowid, 'tid': tid})
             dm = 'dm_' + idx
             db.execute(text('DELETE FROM data_model WHERE id=:id'), {'id': dm})
             db.execute(_MODEL_SQL, {'id': dm, 'name': label, 'code': idx, 'ds': ES, 'obj': idx,
@@ -282,9 +303,11 @@ def dispatch_demo_tasks() -> int:
 def seed_demo() -> None:
     """整体初始化:播种元数据 + 派发 ETL 到 Celery 填充 ES。幂等(按固定 demo id 先删后插),可重复执行。"""
     n = seed_metadata()
-    print(f'OK: 数据源 {len(DATASOURCES)} + 任务 {n} + 数据模型 {n} + AI应用 1(app_id={APP_ID}) 已写入')
+    scheduled = sum(1 for t in TASKS if t[5])
+    print(f'OK: 数据源 {len(DATASOURCES)} + 任务 {n}(其中定时 {scheduled} 个/单次 {n - scheduled} 个) + 数据模型 {n} + AI应用 1(app_id={APP_ID}) 已写入')
     m = dispatch_demo_tasks()
-    print(f'已派发 {m} 个 ETL 任务到 Celery,worker 后台取数填充 ES(约 2-3 分钟)')
+    print(f'已派发 {m} 个 ETL 任务到 Celery 立即灌一次 ES(约 2-3 分钟)')
+    print('定时调度需重启后端激活:docker restart ezdata-backend-my(启动时 init_system_scheduler 读 sys_job)')
 
 
 if __name__ == '__main__':
