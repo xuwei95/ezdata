@@ -95,6 +95,11 @@
             <el-switch v-model="cfg.enableMemory" />
             <span style="margin-left: 8px; font-size: 12px; color: var(--el-text-color-secondary)">跨会话记住用户偏好/事实(按用户隔离)</span>
           </el-form-item>
+          <el-form-item label="上下文历史">
+            <el-switch v-model="cfg.addHistory" />
+            <el-input-number v-if="cfg.addHistory" v-model="cfg.numHistoryRuns" :min="1" :max="50" :step="1" controls-position="right" style="margin-left: 8px; width: 120px" />
+            <span style="margin-left: 8px; font-size: 12px; color: var(--el-text-color-secondary)">本会话携带最近 N 轮历史(关闭则每次单轮无上下文)</span>
+          </el-form-item>
 
         </el-form>
       </el-scrollbar>
@@ -158,7 +163,7 @@ const router = useRouter();
 const apiBase = import.meta.env.VITE_APP_BASE_API || "";
 
 const form = reactive({ appId: route.params.appId ? Number(route.params.appId) : null, name: "", description: "", status: "0" });
-const cfg = reactive({ prompt: "", prologue: "", presetQuestions: [], quickCommands: [], toolIds: [], datasetIds: [], datasourceCodes: [], enableMemory: false, model: { modelId: 0, temperature: null, maxTokens: null } });
+const cfg = reactive({ prompt: "", prologue: "", presetQuestions: [], quickCommands: [], toolIds: [], datasetIds: [], datasourceCodes: [], enableMemory: false, addHistory: true, numHistoryRuns: 10, model: { modelId: 0, temperature: null, maxTokens: null } });
 // 只读态:点卡片进入(view=1)只看配置不可改,右侧仍可对话;点「编辑」切换为可编辑
 const readonly = ref(route.query.view === "1");
 const pgVisible = ref(false);

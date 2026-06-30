@@ -163,12 +163,20 @@ class _SandboxLogger:
 
 
 def _jsonable(v: Any) -> Any:
-    """规整执行结果:不可 JSON 序列化的对象转字符串,避免响应序列化失败。"""
+    """规整执行结果:不可 JSON 序列化的对象转字符串,避免响应序列化失败。
+
+    关键:含 date/Decimal/numpy 等的 list[dict] 不能整体 str() 化(否则 list 变成一个大字符串,
+    取数预览/agent 会判定"未产出 list[dict]")。用 json_safe **递归保结构、只转无法序列化的叶子**。
+    """
     try:
         json.dumps(v)
         return v
     except (TypeError, ValueError):
-        return str(v)
+        try:
+            from module_data.etl_util import json_safe
+            return json_safe(v)
+        except Exception:  # noqa: BLE001 兜底:实在不行才整体 str()
+            return str(v)
 
 
 # ---------------------------------------------------------------------------
@@ -302,7 +310,12 @@ def _run_pycode(kind: str, payload: dict) -> dict:
     var = payload.get('variable_to_return')
     if not code.strip():
         return {'success': False, 'error': 'code 为空', 'stdout': '', 'result': None}
-    g: dict[str, Any] = {'__builtins__': _safe_builtins()}
+    # 注入 logger(签名兼容 worker 的 TaskLogger)+ log 别名,使沙箱内代码可用 logger.info/log(...)——
+    # 与 worker 的 code-extract 执行环境(注入 logger/log)对齐,避免"预览/agent 走沙箱时 NameError"。
+    # 有 logger_config 时直写后端日志(同任务日志流);无则仅收集到 lines 并随响应返回。
+    cfg = payload.get('logger_config') or {}
+    logger = _SandboxLogger(_make_log_writer(cfg), cfg.get('task_uuid') or 'sandbox')
+    g: dict[str, Any] = {'__builtins__': _safe_builtins(), 'logger': logger, 'log': logger.info}
     if kind == 'pydata':
         ds = payload.get('datasource') or {}
         try:
@@ -338,9 +351,12 @@ def _run_pycode(kind: str, payload: dict) -> dict:
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stdout):
             exec(compile(code, '<sandbox-pycode>', 'exec'), g)  # noqa: S102 受限 builtins + 容器边界
         result = _normalize_result(g.get(var)) if var else None
-        return {'success': True, 'result': result, 'stdout': stdout.getvalue(), 'error': None}
+        logger.close()
+        return {'success': True, 'result': result, 'stdout': stdout.getvalue(), 'logs': logger.lines, 'error': None}
     except Exception as e:  # noqa: BLE001
-        return {'success': False, 'error': f'{type(e).__name__}: {e}', 'stdout': stdout.getvalue(), 'result': None}
+        logger.close()
+        return {'success': False, 'error': f'{type(e).__name__}: {e}', 'stdout': stdout.getvalue(),
+                'logs': logger.lines, 'result': None}
 
 
 def _run_transform(code: str, rows: list) -> dict:

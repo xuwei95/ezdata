@@ -15,14 +15,14 @@ from module_data.handlers.base import Capability, Column, Connector, ConnectResu
 
 # 常用接口白名单(给 list_tables / agent 用,避免全量 ~1400 个函数撑爆上下文)。
 # 常用接口白名单 —— **全部实测稳定**(2026-06 探测):东财(em)实时/全市场 push2 快照高频必限流
-# (RemoteDisconnected),已全部剔除;一律用新浪(sina)历史接口(取最新一行即最新交易日价)。
+# (RemoteDisconnected),已全部剔除;全市场实时快照用新浪 stock_zh_a_spot,个股/指数历史用新浪日线(取最新一行即最新交易日价)。
 # 仅保留 2 个非 push2、实测稳定的东财接口(基金净值/个股新闻,新浪无对应)。value 给 AI 选函数 + 参数。
 # 例外:2026-06-29 实测补入 2 个"当日快照"接口(涨停池 stock_zt_pool_em·datacenter / 市场活跃度
 # stock_market_activity_legu·乐咕),非 push2、低频抓当天稳定不限流,但均无历史(详见 value 标注)。
 # 实时币价不在此(akshare crypto_* 已冻结)→ 用 CCXT 交易所连接器(source_type=ccxt)。
 _COMMON_FUNCS: dict[str, str] = {
-    # —— A股(新浪 / 东财)——
-    'stock_zh_a_spot_em': '沪深京A股实时行情(东财·无参;返回全部A股 代码/名称/最新价/涨跌幅/成交量 等,适合每日抓取全市场价格快照)',
+    # —— A股(新浪)——
+    'stock_zh_a_spot': 'A股全市场实时快照(新浪·无参;返回全部A股 代码/名称/最新价/涨跌额/涨跌幅/买卖盘/昨收今开/最高最低/成交量额;比东财 push2(stock_zh_a_spot_em)稳定、不易限流,首选;注:无换手率/市盈率/市值)',
     'stock_zh_a_daily': 'A股历史日线(新浪;symbol 带前缀如 sh600519/sz000001,adjust qfq/hfq/"";取最新一行=最新交易日价)',
     'stock_zh_a_minute': 'A股分时K线(新浪;symbol 如 sh600519,period 1/5/15/30/60 分钟,adjust)',
     # —— 财务(新浪)——
@@ -208,25 +208,35 @@ class AKShareHandler(Connector):
             records = records[: int(limit)]
         return records
 
-    @staticmethod
-    def _call_with_retry(fn: Any, call_params: dict, attempts: int = 5) -> Any:
-        """akshare 后端源站(东财/新浪等)常瞬时断连,对连接类错误做退避重试。"""
+    # akshare 内部多数 requests 调用不带超时,源站(尤其东财)挂起时 socket 会永久阻塞,
+    # 在 Celery worker 里会卡死整个 fork 槽、阻塞队列。用进程级 socket 默认超时给每次读/连兜底:
+    # 单次 socket 操作超过此秒数即抛 timeout(非整体下载上限,大响应仍可分多次读),由下方重试接住。
+    _SOCKET_TIMEOUT = 30
+
+    @classmethod
+    def _call_with_retry(cls, fn: Any, call_params: dict, attempts: int = 5) -> Any:
+        """akshare 后端源站(东财/新浪等)常瞬时断连/挂起,对连接类错误做退避重试,并加 socket 超时防永久 hang。"""
+        import socket
         import time
 
         last = None
         for i in range(attempts):
+            prev_timeout = socket.getdefaulttimeout()
+            socket.setdefaulttimeout(cls._SOCKET_TIMEOUT)  # 仅影响本次调用内新建的 socket
             try:
                 return fn(**call_params)
-            except (ConnectionError, TimeoutError) as e:  # requests.ConnectionError 继承自内置 ConnectionError
+            except (ConnectionError, TimeoutError) as e:  # requests.ConnectionError / socket.timeout(py3.10=TimeoutError)
                 last = e
                 time.sleep(1.5 * (i + 1))
-            except Exception as e:  # noqa: BLE001  其余(含解析异常)看是否连接类
+            except Exception as e:  # noqa: BLE001  其余(含解析异常)看是否连接/超时类
                 msg = str(e).lower()
-                if any(k in msg for k in ('connection', 'timeout', 'remotedisconnected', 'aborted', 'reset')):
+                if any(k in msg for k in ('connection', 'timeout', 'timed out', 'remotedisconnected', 'aborted', 'reset')):
                     last = e
                     time.sleep(1.5 * (i + 1))
                     continue
                 raise
+            finally:
+                socket.setdefaulttimeout(prev_timeout)  # 还原,避免影响后续 ES 装载等其它 socket
         raise last if last is not None else RuntimeError('akshare 调用失败')
 
     # ---------- 抽取(dlt 写路径)----------

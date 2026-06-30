@@ -140,7 +140,9 @@ def _summarize(result: Any) -> str:
             return f'已生成图表(html,{len(str(val))} 字符),将展示给用户。'
         if t == 'dataframe':
             rows = val if isinstance(val, list) else []
-            return f'数据表格 {len(rows)} 行。前 3 行预览:\n{_preview(rows[:3])}'
+            cols = ', '.join(map(str, rows[0].keys())) if rows and isinstance(rows[0], dict) else ''
+            head = f'数据表格 {len(rows)} 行' + (f',字段: {cols}' if cols else '')
+            return f'{head}。前 8 行预览:\n{_preview(rows[:8], 1200)}'
         if t == 'string':
             return f'结论: {val}'
         return f'结果({t}): {_preview(val)}'

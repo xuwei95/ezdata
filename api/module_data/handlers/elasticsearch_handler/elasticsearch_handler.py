@@ -93,7 +93,15 @@ class ElasticsearchHandler(Connector):
     def get_columns(self, table: str) -> list[Column]:
         mapping = self.client.indices.get_mapping(index=table)
         props = next(iter(mapping.values()))['mappings'].get('properties', {})
-        return [Column(name=k, type=v.get('type', 'object')) for k, v in props.items()]
+        cols: list[Column] = []
+        for k, v in props.items():
+            cols.append(Column(name=k, type=v.get('type', 'object')))
+            # text 字段常带 keyword 子字段:terms 聚合/精确匹配/排序须用 `字段.keyword`,
+            # 显式暴露出来,否则调用方(含 AI agent)对文本字段聚合会报错或聚到分词 token 上。
+            sub = (v.get('fields') or {})
+            if isinstance(sub.get('keyword'), dict):
+                cols.append(Column(name=f'{k}.keyword', type='keyword'))
+        return cols
 
     def sample_query(self, table: str, limit: int = 100) -> dict:
         return {'index': table, 'body': {'query': {'match_all': {}}, 'size': limit}}
@@ -161,6 +169,13 @@ class ElasticsearchHandler(Connector):
             if id_field and id_field in doc:
                 action['_id'] = doc[id_field]
             actions.append(action)
+        if not actions:
+            # 无数据(如盘前/非交易日的"当日快照"接口返回空):不 bulk;确保索引存在(空索引),
+            # 否则 replace 已删旧索引、append 又从未建索引 → 后续 refresh/查询会 404。
+            if not self.client.indices.exists(index=table):
+                self.client.indices.create(index=table)
+            self.client.indices.refresh(index=table)
+            return {'written': 0, 'errors': []}
         # raise_on_error=False:自行收集 errors,部分失败时给出简洁可读的错误(成功/失败数+示例),
         # 而非 helpers.bulk 默认抛出的超长 BulkIndexError;且避免"只报成功数"静默丢数。
         ok, errors = bulk(self.client, actions, stats_only=False, raise_on_error=False)

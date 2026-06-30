@@ -6,6 +6,46 @@ import json
 import re
 from typing import Any
 
+
+def json_safe(v: Any) -> Any:
+    """把记录里的非 JSON 原生类型转成可序列化值(回前端/接口前用),否则 FastAPI 序列化会报
+    'Object of type date is not JSON serializable'。处理 date/datetime/time→isoformat、Decimal→float、
+    bytes→str、numpy·pandas 标量→原生、NaN/Inf→None,其余兜底 str()。"""
+    import datetime as _dt
+    import math as _math
+    from decimal import Decimal as _Dec
+
+    if v is None or isinstance(v, (str, bool, int)):
+        return v
+    if isinstance(v, float):
+        return None if (_math.isnan(v) or _math.isinf(v)) else v
+    if isinstance(v, (_dt.datetime, _dt.date, _dt.time)):  # pandas.Timestamp 也属 datetime
+        return v.isoformat()
+    if isinstance(v, _Dec):
+        return float(v)
+    if isinstance(v, (bytes, bytearray)):
+        return bytes(v).decode('utf-8', 'replace')
+    if isinstance(v, dict):
+        return {str(k): json_safe(x) for k, x in v.items()}
+    if isinstance(v, (list, tuple, set)):
+        return [json_safe(x) for x in v]
+    if hasattr(v, 'item'):  # numpy / pandas 标量 → 原生
+        try:
+            return json_safe(v.item())
+        except Exception:  # noqa: BLE001
+            pass
+    if hasattr(v, 'isoformat'):
+        try:
+            return v.isoformat()
+        except Exception:  # noqa: BLE001
+            pass
+    return str(v)
+
+
+def json_safe_rows(rows: Any) -> Any:
+    """list[dict] 记录整体转 JSON 安全;非 list(如 None)原样返回。"""
+    return [json_safe(r) for r in rows] if isinstance(rows, list) else rows
+
 # 只读语句起始关键字白名单
 _SQL_READONLY_START = re.compile(r'^\s*(select|with|show|explain|desc|describe)\b', re.IGNORECASE)
 # 写入/DDL/危险关键字黑名单(以词边界匹配,避免误伤普通子串)

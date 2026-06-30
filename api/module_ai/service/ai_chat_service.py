@@ -68,6 +68,11 @@ _DATA_AGENT_INSTRUCTIONS: list[str] = [
     '   - 仅当没有可用解法时,才用 run_datasource_query 自行编写取数代码。',
     '3. 取数/计算成功后正常作答;无需主动声称“已存入知识库”(由用户点“收藏到知识库”决定)。',
     '即:能复用知识库里已验证的解法时,绝不重复造轮子。',
+    '取数注意(尤其 Elasticsearch 源):'
+    '① 对文本字段做 terms 聚合/精确匹配/排序,务必用带 .keyword 的子字段(如 industry.keyword),'
+    'get_table_schema 已会列出可用的 .keyword 字段,直接用列出的名字,别对 text 主字段聚合(会报错或聚到分词上);'
+    '② 取时间序列/明细(如个股日线)务必显式写足 size(如 size:300),ES 默认只回 10 条,否则图表/结论会残缺;'
+    '③ 需要 Top-N 时在沙箱代码里排序切片(sorted(...)[:N])后再产出,不要依赖结果摘要去“目测”前几名。',
 ]
 
 
@@ -568,6 +573,9 @@ class AiChatService:
             app_cfg = await AiAppService.get_app_config(query_db, chat_req.app_id)
         if app_cfg:
             enable_memory = bool(app_cfg.get('enableMemory'))  # 应用自带的长期记忆开关(仍按 user_id 隔离)
+            # 应用自带的上下文历史配置:覆盖调用者对话设置,使同一应用对所有用户/对外API行为一致
+            add_history = bool(app_cfg.get('addHistory', True))
+            num_history = int(app_cfg.get('numHistoryRuns') or 10)
             app_instructions = []  # 应用模式:仅用应用 prompt 作系统提示,不叠加数据 agent 工作流指令
             if (app_cfg.get('prompt') or '').strip():
                 system_prompt = app_cfg['prompt']
