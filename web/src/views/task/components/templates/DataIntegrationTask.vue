@@ -186,8 +186,8 @@
         <div class="muted" style="margin: 6px 0">
           {{ srcIsStream ? '流式源抽 1 条事件预览' : `取前 ${previewLimit} 条样本` }};嵌套对象以 JSON 显示,可点「原始JSON」查看完整结构。
         </div>
-        <vxe-table :data="previewRows" border height="460" size="mini" :column-config="{ resizable: true }"
-          :loading="previewLoading">
+        <vxe-table :key="previewTab + '|' + previewCols.join(',')" :data="previewRows" border height="460" size="mini"
+          :column-config="{ resizable: true }" :loading="previewLoading">
           <vxe-column type="seq" width="50" fixed="left" />
           <vxe-column v-for="c in previewCols" :key="c" :field="c" :title="c" :width="150" show-overflow>
             <template #default="{ row }">{{ fmtCell(row[c]) }}</template>
@@ -227,7 +227,6 @@ const loadLoading = ref(false)
 const previewLimit = 50
 const previewRowsRaw = ref([])
 const previewRowsTransformed = ref([])
-const previewCols = ref([])
 const previewTab = ref('raw')
 const jsonDlg = ref(false)
 
@@ -292,6 +291,15 @@ const hasTransformed = computed(() => previewRowsTransformed.value.length > 0)
 const previewRows = computed(() =>
   previewTab.value === 'transformed' && hasTransformed.value ? previewRowsTransformed.value : previewRowsRaw.value
 )
+// 列名取并集(行可能稀疏);转换后行的键已改名,必须随当前视图重新推导,
+// 否则沿用抽取时的原始列 → 与转换后行的字段对不上 → 表格空白(切换前后表的 bug)。
+const colsOf = (rows) => {
+  const s = new Set()
+  ;(rows || []).slice(0, 50).forEach((r) => r && typeof r === 'object' && Object.keys(r).forEach((k) => s.add(k)))
+  return [...s]
+}
+const previewCols = computed(() => colsOf(previewRows.value))  // 表格显示:跟随 原始/转换后
+const rawCols = computed(() => colsOf(previewRowsRaw.value))   // 写 transform 用:始终原始输入字段
 
 async function loadSources() {
   const res = await listSource({ pageNum: 1, pageSize: 200 })
@@ -421,7 +429,7 @@ async function genTransform() {
   ait.output = ''; ait.loading = true
   try {
     await streamAi('/data/etl/ai-transform/stream',
-      { question: ait.question, columns: previewCols.value },
+      { question: ait.question, columns: rawCols.value },
       (c) => { ait.output += c })
   } catch (e) {
     ElMessage.error('生成失败: ' + e.message)
@@ -480,7 +488,6 @@ async function doPreview() {
     const d = res.data || {}
     previewRowsRaw.value = d.records || []
     previewRowsTransformed.value = d.transformed || []
-    previewCols.value = d.columns || []
     previewTab.value = hasTransformed.value ? 'transformed' : 'raw'
     ElMessage.success(`预览 ${previewRowsRaw.value.length} 条`)
   } finally {

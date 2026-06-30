@@ -29,7 +29,7 @@ function goLogin() {
   router.replace("/login");
 }
 
-onMounted(async () => {
+onMounted(() => {
   const token = route.query.token;
   const err = route.query.error;
   if (err) {
@@ -40,15 +40,12 @@ onMounted(async () => {
     error.value = "缺少登录凭证";
     return;
   }
-  // 写入 token 并拉取用户信息后进入首页(复用账密登录后的会话流程)
+  // 只写入 token 后进首页,getInfo + 动态路由生成交给全局守卫(permission.js),与账密登录一致。
+  // 切勿在此提前调用 getInfo:那会填充 userStore.roles,导致守卫(roles.length===0 才生成路由)
+  // 误判“路由已生成”而跳过 generateRoutes,结果菜单/侧边栏全空。
   setToken(token);
   userStore.token = token;
-  try {
-    await userStore.getInfo();
-    router.replace("/");
-  } catch (e) {
-    error.value = "获取用户信息失败，请重试";
-  }
+  router.replace("/");
 });
 </script>
 

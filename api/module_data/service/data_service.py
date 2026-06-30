@@ -19,7 +19,14 @@ from module_data.entity.vo.data_vo import (
     SearchReq,
     TestConnReq,
 )
-from module_data.etl_util import assert_readonly_sql, is_file_target, serialize_records, short_err, stream_statement
+from module_data.etl_util import (
+    assert_readonly_sql,
+    is_file_target,
+    json_safe_rows,
+    serialize_records,
+    short_err,
+    stream_statement,
+)
 from module_data.handlers import Capability, connection_schema, create_handler, get_handler_cls, list_source_types
 from module_data.query import OPERATORS
 from utils.crypto_util import CryptoUtil
@@ -251,7 +258,26 @@ class DataModelService:
         m = await DataModelDao.get_by_id(db, m_id)
         if not m:
             raise ServiceException(message='数据模型不存在')
-        return DataModelVo.model_validate(m)
+        vo = DataModelVo.model_validate(m)
+        # 字段是 introspect 缓存:种子直插的模型 / 建模时底表还没数据(如 ES 索引当时为空)会留空。
+        # 留空则按 数据源+object_name 实时取一次字段并回填缓存,使字段表格不再空(ES/SQL 通用)。
+        if not vo.fields and m.datasource_code and m.object_name:
+            cols = None
+            try:
+                ds = await DataSourceDao.get_by_code(db, m.datasource_code)
+                if ds:
+                    handler = _handler_from_ds(ds)
+                    cols = await run_in_threadpool(handler.get_columns, m.object_name)
+            except Exception:  # noqa: BLE001  源不可达/索引不存在等:不阻断详情,字段保持空
+                cols = None
+            if cols:
+                vo.fields = [{'name': c.name, 'type': c.type, 'nullable': c.nullable, 'comment': c.comment} for c in cols]
+                try:  # 回填缓存,下次直接读库;失败不影响本次返回
+                    await DataModelDao.edit(db, m_id, {'fields': vo.fields})
+                    await db.commit()
+                except Exception:  # noqa: BLE001
+                    await db.rollback()
+        return vo
 
     @classmethod
     async def add(cls, db: AsyncSession, vo: DataModelVo, operator: str) -> CrudResponseModel:
@@ -331,7 +357,7 @@ class DataQueryService:
                 raise ServiceException(message=f'{handler.name} 不支持条件查询,请用原生查询')
             res = await run_in_threadpool(handler.search, m.object_name, req.filters, 1, req.limit or 5000)
             records = res['records']
-        return {'records': records, 'total': len(records)}
+        return {'records': json_safe_rows(records), 'total': len(records)}
 
     @classmethod
     async def sample_query(cls, db: AsyncSession, m_id: str) -> dict:
@@ -372,7 +398,7 @@ class DataQueryService:
         if not sql.lower().lstrip().startswith('select'):
             raise ServiceException(message=f'AI 生成的不是只读查询,已拦截:{sql[:100]}')
         records = await run_in_threadpool(handler.query, sql, None, limit)
-        return {'query': sql, 'records': records, 'total': len(records)}
+        return {'query': sql, 'records': json_safe_rows(records), 'total': len(records)}
 
     @classmethod
     async def prep_ai_query(cls, db: AsyncSession, m_id: str, question: str) -> tuple[dict, str]:
@@ -401,7 +427,10 @@ class DataQueryService:
         if not handler.has(Capability.GEN_API):
             raise ServiceException(message=f'{handler.name} 不支持分页接口')
         cls._check_fields(m, req.filters)
-        return await run_in_threadpool(handler.search, m.object_name, req.filters, req.page, req.pagesize)
+        res = await run_in_threadpool(handler.search, m.object_name, req.filters, req.page, req.pagesize)
+        if isinstance(res, dict) and 'records' in res:
+            res['records'] = json_safe_rows(res['records'])
+        return res
 
 
 class EtlService:
@@ -443,7 +472,7 @@ class EtlService:
         if (req.transform_code or '').strip():
             transformed, transform_log = await run_in_threadpool(cls._apply_transform, req.transform_code, rows)
         cols = list((transformed or rows)[0].keys()) if (transformed or rows) else []
-        return {'records': rows, 'transformed': transformed, 'columns': cols,
+        return {'records': json_safe_rows(rows), 'transformed': json_safe_rows(transformed), 'columns': cols,
                 'total': len(rows), 'transformLog': transform_log}
 
     @classmethod
@@ -482,7 +511,7 @@ class EtlService:
             transformed, tlog = await run_in_threadpool(cls._apply_transform, req.transform_code, rows)
             transform_log = (transform_log + '\n' + tlog).strip() if tlog else transform_log
         cols = list((transformed or rows)[0].keys()) if (transformed or rows) else []
-        return {'records': rows, 'transformed': transformed, 'columns': cols,
+        return {'records': json_safe_rows(rows), 'transformed': json_safe_rows(transformed), 'columns': cols,
                 'total': len(rows), 'transformLog': transform_log}
 
     @classmethod

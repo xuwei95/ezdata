@@ -14,6 +14,7 @@ from utils.common_util import CamelCaseUtil
 _DEFAULT_CONFIG: dict = {
     'prompt': '', 'prologue': '', 'presetQuestions': [], 'quickCommands': [],
     'toolIds': [], 'datasetIds': [], 'datasourceCodes': [], 'enableMemory': False,
+    'addHistory': True, 'numHistoryRuns': 10,  # 应用自带的上下文历史开关/轮数(默认对齐原行为:开、10轮)
     'model': {'modelId': 0, 'temperature': None, 'maxTokens': None},
 }
 
