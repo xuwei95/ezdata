@@ -71,6 +71,16 @@ class TaskService:
             remark=task.remark,
         )
 
+    @staticmethod
+    def _validate_cron(crontab: str) -> None:
+        """校验 Cron 表达式合法(fail-fast):非法则直接拒绝,避免坏表达式落库后拖累调度器同步。"""
+        from config.get_scheduler import MyCronTrigger  # noqa: PLC0415
+
+        try:
+            MyCronTrigger.from_crontab(crontab)
+        except Exception as e:  # noqa: BLE001
+            raise ServiceException(message=f'Cron 表达式非法: {crontab}({e})') from e
+
     @classmethod
     async def _create_schedule(cls, query_db: AsyncSession, task: Task) -> int:
         """为定时任务创建 sys_job 调度记录，返回 sys_job 主键"""
@@ -111,6 +121,7 @@ class TaskService:
             if page_object.trigger_type == _TRIGGER_CRON:
                 if not page_object.crontab:
                     raise ServiceException(message='定时任务必须填写 Cron 表达式')
+                cls._validate_cron(page_object.crontab)
                 task.job_id = await cls._create_schedule(query_db, page_object)
             await query_db.commit()
             await cls._request_scheduler_sync()
@@ -134,6 +145,7 @@ class TaskService:
             if page_object.trigger_type == _TRIGGER_CRON:
                 if not page_object.crontab:
                     raise ServiceException(message='定时任务必须填写 Cron 表达式')
+                cls._validate_cron(page_object.crontab)
                 page_object.job_id = await cls._create_schedule(query_db, page_object)
             await TaskDao.edit_task_dao(query_db, page_object.model_dump(exclude_unset=True))
             await query_db.commit()

@@ -408,6 +408,13 @@ class SchedulerUtil:
         job_executor = job_info.job_executor
         if iscoroutinefunction(cls._import_function(job_info.invoke_target)):
             job_executor = 'default'
+        # cron 非法(如存量脏数据/直接改库)时,视作"配置不一致"→ 交由 _add_job_to_scheduler(自带 try/except)
+        # 处理并隔离记录,绝不让单条坏 cron 在此抛异常中断整轮同步。
+        try:
+            trigger_str = str(MyCronTrigger.from_crontab(job_info.cron_expression))
+        except Exception as e:  # noqa: BLE001
+            logger.error(f'❌ 任务 {job_info.job_name} 的 cron 非法,跳过同步: {job_info.cron_expression} ({e})')
+            return False
         expected = {
             'name': job_info.job_name,
             'executor': job_executor,
@@ -415,7 +422,7 @@ class SchedulerUtil:
             'misfire_grace_time': 1000000000000 if job_info.misfire_policy == '3' else None,
             'coalesce': job_info.misfire_policy == '2',
             'max_instances': 3 if job_info.concurrent == '0' else 1,
-            'trigger': str(MyCronTrigger.from_crontab(job_info.cron_expression)),
+            'trigger': trigger_str,
             'args': tuple(job_args) if job_args else None,
             'kwargs': job_kwargs if job_kwargs else None,
             'func': str(cls._import_function(job_info.invoke_target)),
