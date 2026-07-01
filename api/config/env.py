@@ -396,6 +396,8 @@ class AiSettings(BaseSettings):
     llm_api_key: str = ''
     llm_url: str = ''         # base_url(可空)
     llm_max_tokens: int = 128000
+    llm_reasoning: bool = False   # LLM_REASONING=true:兜底模型是"深度思考(带 think)"模型,放开推理内容展示
+    llm_support_images: bool = False  # LLM_SUPPORT_IMAGES=true:兜底模型支持图片输入(多模态)
 
     @property
     def enabled(self) -> bool:

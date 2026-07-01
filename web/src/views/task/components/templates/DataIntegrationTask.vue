@@ -156,10 +156,10 @@
             </el-radio-group>
           </el-form-item>
           <el-form-item label="写入模式" v-else>
-            <el-radio-group v-model="model.load.mode">
-              <el-radio value="append">追加</el-radio>
-              <el-radio value="replace">覆盖</el-radio>
-              <el-radio value="merge">合并</el-radio>
+            <el-radio-group v-model="model.load.mode" class="write-mode-group">
+              <el-radio value="append" style="display:flex;height:auto;align-items:baseline;margin:2px 0">追加<span class="muted" style="margin-left:8px">保留已有数据,新数据追加;数据带唯一键(如 _id)则同键幂等 upsert、重跑不重复</span></el-radio>
+              <el-radio value="replace" style="display:flex;height:auto;align-items:baseline;margin:2px 0">覆盖<span class="muted" style="margin-left:8px">先清空目标表/索引,再写入本次全量 —— 全量快照刷新</span></el-radio>
+              <el-radio value="merge" style="display:flex;height:auto;align-items:baseline;margin:2px 0">合并<span class="muted" style="margin-left:8px">按主键 upsert:同键更新、新键插入、其余保留(需数据带唯一键)</span></el-radio>
             </el-radio-group>
           </el-form-item>
         </el-form>

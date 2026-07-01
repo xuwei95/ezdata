@@ -28,6 +28,9 @@ beautifulsoup4==4.12.3
 lxml==5.3.0  # bs4 解析后端 / 代码取数(爬虫)HTML 解析
 # MCP 工具(agno.tools.mcp:MCPTools/MultiMCPTools 依赖)
 mcp==1.28.0
+# 内置工具:百度搜索(agno.tools.baidusearch:BaiduSearchTools 依赖;国内可达、免鉴权)
+baidusearch==1.0.3
+pycountry==24.6.1
 # 语义切分(Agno semantic chunking 依赖)
 chonkie==1.6.8
 # Agno 高级 readers/markdown 切分

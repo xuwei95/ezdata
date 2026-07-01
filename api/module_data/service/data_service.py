@@ -720,8 +720,11 @@ class EtlService:
         prompt = (
             '你是 Python 数据抓取/取数专家。请根据需求写一段 Python 代码,把抓取/整理到的数据'
             '组织成 list[dict](每个 dict 是一行记录),并赋值给变量 `result`。\n'
+            '【大量/分页抓取时用流式】若数据量大或需要翻页,优先反复调用 `emit(rows)`(rows 为 list[dict])'
+            '分批产出——平台会边抓边入库,单页失败不影响已抓批次、也不占大内存;用了 emit 就不必再设 result。'
+            '数据量小则直接把全部结果赋值给 `result` 即可(emit 与 result 二选一)。\n'
             '可用库:requests(HTTP 请求)、bs4 的 BeautifulSoup(HTML 解析)、lxml、json、re、'
-            'pandas、numpy、datetime 等;可用 print() 打印进度(即日志)。'
+            'pandas、numpy、datetime、time 等;可用 print() 打印进度(即日志)。'
             '不要文件/系统/子进程操作,不要 markdown 代码块,只输出可直接运行的 Python 代码本身。\n'
             f'{srcs}'
             f'需求:{req.question}'

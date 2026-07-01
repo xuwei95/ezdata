@@ -270,7 +270,10 @@ class TaskService:
 
         extract = params.get('extract') or {}
         load = params.get('load') or {}
+        # 原生抽取用 extract.datasource_code(单个);代码取数用 extract.datasource_codes(列表,get_handler 授权源)。
+        # 两者都要注入,否则沙箱里解析不到的数据源会回退查应用库(DB_HOST 缺省 127.0.0.1)→ "Can't connect to MySQL"。
         codes = {c for c in (extract.get('datasource_code'), load.get('datasource_code')) if c}
+        codes |= {c for c in (extract.get('datasource_codes') or []) if c}
         out: dict[str, Any] = {}
         for code in codes:
             ds = (await query_db.execute(select(DataSource).where(DataSource.code == code))).scalars().first()

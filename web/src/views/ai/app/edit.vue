@@ -77,7 +77,7 @@
             </div>
           </el-form-item>
           <el-form-item label="工具">
-            <el-select v-model="cfg.toolIds" multiple filterable clearable placeholder="选择可用工具(MCP/任务)" style="width: 100%">
+            <el-select v-model="cfg.toolIds" multiple filterable clearable placeholder="选择可用工具(MCP)" style="width: 100%">
               <el-option
                 v-for="t in selectableTools"
                 :key="t.toolId"
@@ -172,8 +172,8 @@ const toolOptions = ref([]);
 const modelOptions = ref([]);
 const datasetOptions = ref([]);
 const datasourceOptions = ref([]);
-// 工具多选只给 MCP + 任务提议;数据分析工具由「数据分析」数据源选择控制
-const selectableTools = computed(() => toolOptions.value.filter((t) => !["data_explore", "sandbox_code"].includes(t.code)));
+// 工具多选只给 MCP;内置数据/任务工具(data_explore/sandbox_code/task_propose)由平台按需自动挂,不在此选
+const selectableTools = computed(() => toolOptions.value.filter((t) => !["data_explore", "sandbox_code", "task_propose"].includes(t.code)));
 
 // 右侧调试对话
 const messages = ref([]);

@@ -299,6 +299,10 @@ def _normalize_result(v: Any) -> Any:
     return _jsonable(v)
 
 
+class _StopPreview(Exception):
+    """预览时 emit 收集够样本后抛出,提前中断用户代码抓取(避免全量分页拖慢预览)。"""
+
+
 def _run_pycode(kind: str, payload: dict) -> dict:
     """受限 exec 裸脚本(agent 代码工具),返回 {success, stdout, result, error}。
 
@@ -315,7 +319,30 @@ def _run_pycode(kind: str, payload: dict) -> dict:
     # 有 logger_config 时直写后端日志(同任务日志流);无则仅收集到 lines 并随响应返回。
     cfg = payload.get('logger_config') or {}
     logger = _SandboxLogger(_make_log_writer(cfg), cfg.get('task_uuid') or 'sandbox')
-    g: dict[str, Any] = {'__builtins__': _safe_builtins(), 'logger': logger, 'log': logger.info}
+    # emit(rows):与 worker code-extract 的流式分批一致的调用签名。预览不做真实装载,只收集前几批做样本展示。
+    # 关键:攒够 _EMIT_PREVIEW_CAP 行就**抛 _StopPreview 中断用户代码**——否则像全市场分页那样会把 70 页全抓完
+    # 才返回(预览卡很久)。预览只需头部样本,拿到就停、立即返回。worker 里的 emit 无此上限,仍抓全量。
+    _emit_buf: list[Any] = []
+    _EMIT_PREVIEW_CAP = 200
+
+    def _emit(rows: Any) -> int:
+        try:
+            if hasattr(rows, 'to_dict') and not isinstance(rows, dict):
+                rows = rows.to_dict('records')
+        except Exception:  # noqa: BLE001
+            pass
+        if isinstance(rows, dict):
+            rows = [rows]
+        n = 0
+        if isinstance(rows, (list, tuple)):
+            for r in rows:
+                _emit_buf.append(r)
+                n += 1
+                if len(_emit_buf) >= _EMIT_PREVIEW_CAP:
+                    raise _StopPreview  # 样本够了,中断抓取,立即返回预览
+        return n
+
+    g: dict[str, Any] = {'__builtins__': _safe_builtins(), 'logger': logger, 'log': logger.info, 'emit': _emit}
     if kind == 'pydata':
         ds = payload.get('datasource') or {}
         try:
@@ -349,8 +376,26 @@ def _run_pycode(kind: str, payload: dict) -> dict:
     stdout = io.StringIO()
     try:
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stdout):
-            exec(compile(code, '<sandbox-pycode>', 'exec'), g)  # noqa: S102 受限 builtins + 容器边界
-        result = _normalize_result(g.get(var)) if var else None
+            try:
+                exec(compile(code, '<sandbox-pycode>', 'exec'), g)  # noqa: S102 受限 builtins + 容器边界
+            except _StopPreview:  # emit 攒够样本主动中断:正常结束,用已收集的样本
+                pass
+        out_val = g.get(var) if var else None
+        if out_val is None and _emit_buf:  # 用了 emit 而未设 result:预览取 emit 收集的样本
+            out_val = _emit_buf
+        # result 是生成器(原生 yield 流式):预览时迭代出前 _EMIT_PREVIEW_CAP 行做样本,避免被 str 化
+        if (out_val is not None and not isinstance(out_val, (list, tuple, dict, str, bytes))
+                and not _is_dataframe(out_val) and hasattr(out_val, '__iter__')):
+            sample: list[Any] = []
+            for it in out_val:
+                if isinstance(it, dict):
+                    sample.append(it)
+                elif isinstance(it, (list, tuple)):
+                    sample.extend(it)
+                if len(sample) >= _EMIT_PREVIEW_CAP:
+                    break
+            out_val = sample
+        result = _normalize_result(out_val) if var else None
         logger.close()
         return {'success': True, 'result': result, 'stdout': stdout.getvalue(), 'logs': logger.lines, 'error': None}
     except Exception as e:  # noqa: BLE001

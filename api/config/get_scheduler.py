@@ -62,13 +62,19 @@ class MyCronTrigger(CronTrigger):
         else:
             day = values[3].replace('L', 'last')
         month = values[4]
-        if '?' in values[5] or 'L' in values[5]:
+        # 第6段是 Quartz 的"星期"(不是一年第几周)。原实现把它塞进 APScheduler 的 week(week-of-year)
+        # → 星期范围(如 MON-FRI)失效甚至报错。这里修正:非 ?/*/#/L 时映射到 day_of_week。
+        # 建议用名称(mon-fri / mon,wed);APScheduler 数字星期为 0=mon..6=sun(与 Quartz 数字不同),故优先用名称。
+        w5 = values[5]
+        if '?' in w5 or '*' in w5 or 'L' in w5:
             week = None
-        elif '#' in values[5]:
-            week = int(values[5].split('#')[1])
+            day_of_week = None
+        elif '#' in w5:  # 第 N 个星期几(APScheduler 无原生 #,退化为该星期几)
+            week = None
+            day_of_week = int(w5.split('#')[0]) - 1
         else:
-            week = values[5]
-        day_of_week = int(values[5].split('#')[0]) - 1 if '#' in values[5] else None
+            week = None
+            day_of_week = w5.lower()
         year = values[6] if len(values) == cls.CRON_EXPRESSION_LENGTH_MAX else None
         return cls(
             second=second,

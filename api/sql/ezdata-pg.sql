@@ -1086,7 +1086,8 @@ comment on column ai_tool.tenant_id is '租户ID(顶级部门)';
 insert into ai_tool (name,code,tool_type,description,args,status,built_in,create_by,create_time,update_by,update_time) values
 ('数据探索','data_explore','builtin','发现数据源、查表结构、检索数据源知识库(含收藏的取数解法)','{}','0','1','admin',now(),'admin',now()),
 ('沙箱执行','sandbox_code','builtin','在隔离沙箱里跑 Python 计算 / 对数据源取数,产出结论/表格/图表','{}','0','1','admin',now(),'admin',now()),
-('任务提议','task_propose','builtin','向用户弹出预填的任务确认表单(数据集成/Python/Shell)','{}','0','1','admin',now(),'admin',now());
+('任务提议','task_propose','builtin','向用户弹出预填的任务确认表单(数据集成/Python/Shell)','{}','0','1','admin',now(),'admin',now()),
+('百度搜索','baidu_search','builtin','用百度检索网页(免鉴权、国内可达);为对话/应用补充实时联网信息','{}','0','1','admin',now(),'admin',now());
 
 -- ----------------------------
 -- AI应用表

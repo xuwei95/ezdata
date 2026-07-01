@@ -165,9 +165,15 @@ class ElasticsearchHandler(Connector):
             self.client.indices.delete(index=table)
         actions = []
         for doc in data:
+            doc = dict(doc)
+            # 文档自带 _id(ETL transform 里算的 md5 等)→ 用作文档 _id 并从 _source 剔除
+            # (ES 保留字段,留在 _source 会报错);追加模式下同 _id 即幂等 upsert,重跑不重复。
+            conv_id = doc.pop('_id', None)
             action = {'_index': table, '_source': doc}
             if id_field and id_field in doc:
                 action['_id'] = doc[id_field]
+            elif conv_id not in (None, ''):
+                action['_id'] = conv_id
             actions.append(action)
         if not actions:
             # 无数据(如盘前/非交易日的"当日快照"接口返回空):不 bulk;确保索引存在(空索引),

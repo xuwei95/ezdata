@@ -174,7 +174,10 @@ async def model_ai_query_stream(
     m_id: Annotated[str, Path()], req: AiQueryReq, db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> StreamingResponse:
     cfg, prompt = await DataQueryService.prep_ai_query(db, m_id, req.question)
-    return StreamingResponse(_ai_stream(cfg, prompt), media_type='text/plain; charset=utf-8')
+    # text/event-stream:绕开 gzip 中间件对 text/plain 流式的缓冲(否则整段一次性吐出、非流式);
+    # X-Accel-Buffering:no:关掉 nginx 反代缓冲。与 AI 对话/取数代码生成一致。
+    return StreamingResponse(_ai_stream(cfg, prompt), media_type='text/event-stream',
+                             headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
 
 
 @data_controller.post('/model/{m_id}/search', summary='数据接口(分页)', dependencies=[UserInterfaceAuthDependency('data:api')])
@@ -208,13 +211,19 @@ async def etl_ai_transform(req: EtlAiTransformReq, db: Annotated[AsyncSession, D
 @data_controller.post('/etl/ai-query/stream', summary='ETL AI 生成原生查询(流式)', dependencies=[UserInterfaceAuthDependency('data:etl')])
 async def etl_ai_query_stream(req: EtlAiQueryReq, db: Annotated[AsyncSession, DBSessionDependency()]) -> StreamingResponse:
     cfg, prompt = await EtlService.prep_query(db, req)
-    return StreamingResponse(_ai_stream(cfg, prompt), media_type='text/plain; charset=utf-8')
+    # text/event-stream:绕开 gzip 中间件对 text/plain 流式的缓冲(否则整段一次性吐出、非流式);
+    # X-Accel-Buffering:no:关掉 nginx 反代缓冲。与 AI 对话/取数代码生成一致。
+    return StreamingResponse(_ai_stream(cfg, prompt), media_type='text/event-stream',
+                             headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
 
 
 @data_controller.post('/etl/ai-transform/stream', summary='ETL AI 生成转换函数(流式)', dependencies=[UserInterfaceAuthDependency('data:etl')])
 async def etl_ai_transform_stream(req: EtlAiTransformReq, db: Annotated[AsyncSession, DBSessionDependency()]) -> StreamingResponse:
     cfg, prompt = await EtlService.prep_transform(db, req)
-    return StreamingResponse(_ai_stream(cfg, prompt), media_type='text/plain; charset=utf-8')
+    # text/event-stream:绕开 gzip 中间件对 text/plain 流式的缓冲(否则整段一次性吐出、非流式);
+    # X-Accel-Buffering:no:关掉 nginx 反代缓冲。与 AI 对话/取数代码生成一致。
+    return StreamingResponse(_ai_stream(cfg, prompt), media_type='text/event-stream',
+                             headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
 
 
 @data_controller.post('/etl/ai-extract/stream', summary='ETL AI 生成取数代码(流式)', dependencies=[UserInterfaceAuthDependency('data:etl')])

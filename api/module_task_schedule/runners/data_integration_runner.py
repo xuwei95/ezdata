@@ -96,6 +96,15 @@ def _compile_transform(code: str):
 _EXTRACT_ROW_CAP = 200000
 
 
+def _is_dataframe(v: Any) -> bool:
+    try:
+        import pandas as pd  # noqa: PLC0415
+
+        return isinstance(v, pd.DataFrame)
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def _coerce_records(data: Any) -> list[dict]:
     """把用户代码产出的 result 归一为 list[dict]:支持 list[dict]/DataFrame/单 dict/可迭代。"""
     if data is None:
@@ -231,13 +240,69 @@ class DataIntegrationRunner(BaseRunner):
                 raise ValueError(f'数据源未在「可用数据源」中授权: {ds_code}')
             return _build_handler(self._resolve_datasource(ds_code))
 
+        # 流式分批装载:三种产出方式都支持,由平台边取边装(首批按配置 mode——如 replace 先清空目标,
+        # 后续批次一律 append),适合分页/大表——单批失败不拖垮已装批次,也不必把全量堆进内存。
+        #   ① emit(rows):反复调用,回调式;
+        #   ② result 赋成生成器(生成器函数产出,可 yield 单行 dict 或整批 list[dict])→ 原生 yield 流式;
+        #   ③ result 赋成 list/DataFrame/dict → 一次性装载(向后兼容)。
+        stream_state = {'total': 0, 'first': True}
+        _CHUNK = 500  # 生成器逐行 yield 时的攒批大小
+
+        def _load_batch(batch: list) -> int:
+            if fn:
+                batch = [fn(dict(r)) for r in batch]
+            remain = _EXTRACT_ROW_CAP - stream_state['total']
+            if remain <= 0 or not batch:
+                return 0
+            batch = batch[:remain]
+            m = (load.get('mode') or 'append') if stream_state['first'] else 'append'
+            self._load(dst, 'code', table, batch, {**load, 'mode': m})
+            stream_state['first'] = False
+            stream_state['total'] += len(batch)
+            self.logger.info(f'流式分批已装载 {stream_state["total"]} 条')
+            return len(batch)
+
+        emit_used = {'v': False}
+
+        def emit(rows: Any) -> int:
+            emit_used['v'] = True
+            return _load_batch(_coerce_records(rows if rows is not None else []))
+
         ns: dict[str, Any] = {'get_handler': get_handler, 'logger': self.logger,
-                              'log': self.logger.info, 'result': None}
+                              'log': self.logger.info, 'emit': emit, 'result': None}
         if len(allowed) == 1:
             ns['handler'] = get_handler(allowed[0])
         self.logger.info('执行代码取数(worker 进程内)…')
         exec(compile(code, '<etl-extract>', 'exec'), ns)  # noqa: S102 worker 信任模型,同 transform
-        data = _coerce_records(ns.get('result'))
+        res = ns.get('result')
+
+        def _empty_replace_guard() -> None:
+            if stream_state['total'] == 0 and (load.get('mode') or 'append') == 'replace':
+                self._load(dst, 'code', table, [], load)  # replace 但零产出 → 清空目标(建空表/索引)
+
+        # ① emit 已边取边装
+        if emit_used['v']:
+            _empty_replace_guard()
+            return f'ETL 完成(代码取数·流式分批): -> {dst_code}.{table} ({stream_state["total"]} 行)'
+        # ② result 是生成器/迭代器(排除 list/tuple/dict/str/bytes/DataFrame)→ 原生 yield 流式
+        if (res is not None and not isinstance(res, (list, tuple, dict, str, bytes))
+                and not _is_dataframe(res) and hasattr(res, '__iter__')):
+            buf: list[dict] = []
+            for item in res:
+                if item is None:
+                    continue
+                buf.extend(_coerce_records(item))  # yield 单行 dict → [dict];yield 整批 list → 原样
+                while len(buf) >= _CHUNK:
+                    _load_batch(buf[:_CHUNK]); buf = buf[_CHUNK:]
+                if stream_state['total'] >= _EXTRACT_ROW_CAP:
+                    self.logger.info(f'生成器流式已达上限 {_EXTRACT_ROW_CAP},停止')
+                    buf = []; break
+            if buf:
+                _load_batch(buf)
+            _empty_replace_guard()
+            return f'ETL 完成(代码取数·生成器流式): -> {dst_code}.{table} ({stream_state["total"]} 行)'
+        # ③ 一次性 result(list/DataFrame/dict)
+        data = _coerce_records(res)
         if len(data) > _EXTRACT_ROW_CAP:
             self.logger.info(f'代码取数 {len(data)} 行,超上限 {_EXTRACT_ROW_CAP},已截断')
             data = data[:_EXTRACT_ROW_CAP]

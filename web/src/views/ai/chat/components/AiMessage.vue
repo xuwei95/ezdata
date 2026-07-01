@@ -101,9 +101,9 @@
             </div>
           </template>
         </div>
-        <!-- 任务提议:可编辑的确认表单卡片(创建并运行 / 仅创建) -->
+        <!-- 任务提议/修改:可编辑的确认表单卡片(新建并运行/仅创建;或修改已有任务保存) -->
         <TaskProposalCard
-          v-else-if="b.type === 'ui_action' && b.action && b.action.kind === 'task_proposal'"
+          v-else-if="b.type === 'ui_action' && b.action && (b.action.kind === 'task_proposal' || b.action.kind === 'task_update_proposal')"
           :action="b.action"
         />
       </template>
