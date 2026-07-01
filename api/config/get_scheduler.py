@@ -1,6 +1,7 @@
 import asyncio
 import importlib
 import json
+import os
 from asyncio import iscoroutinefunction
 from collections.abc import Callable
 from datetime import datetime, timedelta
@@ -38,11 +39,42 @@ from utils.log_util import logger
 from utils.server_util import StartupUtil, WorkerIdUtil
 
 
+# 调度器时区:cron 表达式按此时区解释(默认 Asia/Shanghai;容器默认 UTC 会让"9-15 点"跑到 UTC 9-15=北京 17-23 点)。
+# 可用 SCHEDULER_TZ 环境变量覆盖。
+SCHEDULER_TZ = os.getenv('SCHEDULER_TZ') or 'Asia/Shanghai'
+
+
 # 重写Cron定时
 class MyCronTrigger(CronTrigger):
     CRON_EXPRESSION_LENGTH_MIN = 6
     CRON_EXPRESSION_LENGTH_MAX = 7
     WEEKDAY_COUNT = 5
+
+    @staticmethod
+    def _quartz_weekday_to_aps(w5: str) -> str:
+        """Quartz 星期(数字 1=周日..7=周六)→ APScheduler 数字(0=周一..6=周日)。
+
+        含字母(MON-FRI 等名称)则原样小写返回(APScheduler 直接认名称);
+        纯数字则按 (n-2)%7 逐个转换,保留范围(2-6→0-4)与列表(2,4,6→0,2,4)结构。
+        """
+        if any(c.isalpha() for c in w5):
+            return w5.lower()
+
+        def conv(n: str) -> str:
+            return str((int(n) - 2) % 7)
+
+        parts = []
+        for tok in w5.split(','):
+            tok = tok.strip()
+            if '/' in tok:  # 步进 base/step
+                base, step = tok.split('/', 1)
+                parts.append(f'{conv(base)}/{step}')
+            elif '-' in tok:  # 范围
+                a, b = tok.split('-', 1)
+                parts.append(f'{conv(a)}-{conv(b)}')
+            else:
+                parts.append(conv(tok))
+        return ','.join(parts)
 
     @classmethod
     def from_crontab(cls, expr: str, timezone: str | None = None) -> 'MyCronTrigger':
@@ -63,19 +95,23 @@ class MyCronTrigger(CronTrigger):
             day = values[3].replace('L', 'last')
         month = values[4]
         # 第6段是 Quartz 的"星期"(不是一年第几周)。原实现把它塞进 APScheduler 的 week(week-of-year)
-        # → 星期范围(如 MON-FRI)失效甚至报错。这里修正:非 ?/*/#/L 时映射到 day_of_week。
-        # 建议用名称(mon-fri / mon,wed);APScheduler 数字星期为 0=mon..6=sun(与 Quartz 数字不同),故优先用名称。
+        # → 星期范围失效甚至报错。这里修正:非 ?/*/#/L 时映射到 day_of_week。
+        # 关键:Quartz 数字星期 1=周日..7=周六,与 APScheduler 数字 0=周一..6=周日 不同——
+        # 前端 cron 组件产出的正是 Quartz 数字(周一到周五=2-6),必须转换,否则跑错天。
         w5 = values[5]
         if '?' in w5 or '*' in w5 or 'L' in w5:
             week = None
             day_of_week = None
-        elif '#' in w5:  # 第 N 个星期几(APScheduler 无原生 #,退化为该星期几)
+        elif '#' in w5:  # 第 N 个星期几(APScheduler 无原生 #,退化为该星期几;Quartz 数字→APS)
             week = None
-            day_of_week = int(w5.split('#')[0]) - 1
+            day_of_week = (int(w5.split('#')[0]) - 2) % 7
         else:
             week = None
-            day_of_week = w5.lower()
+            day_of_week = cls._quartz_weekday_to_aps(w5)
         year = values[6] if len(values) == cls.CRON_EXPRESSION_LENGTH_MAX else None
+        # 传对象式 trigger 时,APScheduler 不会用调度器默认时区覆盖 trigger 自身的时区,
+        # timezone=None 会退化成容器本地时区(UTC)→ 必须显式带上 SCHEDULER_TZ。
+        timezone = timezone or SCHEDULER_TZ
         return cls(
             second=second,
             minute=minute,
@@ -110,7 +146,7 @@ redis_config = {
     'db': RedisConfig.redis_database,
 }
 job_defaults = {'coalesce': False, 'max_instance': 1}
-scheduler = AsyncIOScheduler()
+scheduler = AsyncIOScheduler(timezone=SCHEDULER_TZ)
 
 
 class SchedulerUtil:
@@ -192,7 +228,7 @@ class SchedulerUtil:
             'redis': RedisJobStore(**redis_config),
         }
         executors = {'default': AsyncIOExecutor(), 'processpool': ProcessPoolExecutor(5)}
-        scheduler.configure(jobstores=job_stores, executors=executors, job_defaults=job_defaults)
+        scheduler.configure(jobstores=job_stores, executors=executors, job_defaults=job_defaults, timezone=SCHEDULER_TZ)
         cls._scheduler_configured = True
 
     @classmethod

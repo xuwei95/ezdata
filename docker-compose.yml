@@ -34,6 +34,7 @@ services:
         required: false
     environment:
       - APP_ENV=${APP_ENV:-dockermy}      # 后端镜像 CMD 已带 --env,此处仅为可覆盖性显式列出
+      - TZ=${TZ:-Asia/Shanghai}           # 容器时区=北京时间:调度/日志/时间戳统一(不设则 UTC,定时会错 8 小时)
     ports:
       - "${BACKEND_PORT:-19099}:9099"
     depends_on:
@@ -60,6 +61,7 @@ services:
         required: false
     environment:
       - APP_ENV=${APP_ENV:-dockermy}      # celery 不经 --env,须显式指定配置环境(否则回退 .env.dev → 连 127.0.0.1)
+      - TZ=${TZ:-Asia/Shanghai}
     depends_on:
       ezdata-db:
         condition: service_healthy
