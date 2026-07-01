@@ -73,7 +73,20 @@ _DATA_AGENT_INSTRUCTIONS: list[str] = [
     'get_table_schema 已会列出可用的 .keyword 字段,直接用列出的名字,别对 text 主字段聚合(会报错或聚到分词上);'
     '② 取时间序列/明细(如个股日线)务必显式写足 size(如 size:300),ES 默认只回 10 条,否则图表/结论会残缺;'
     '③ 需要 Top-N 时在沙箱代码里排序切片(sorted(...)[:N])后再产出,不要依赖结果摘要去“目测”前几名。',
+    '任务管理:用户要「改某个已有任务」(调定时频率、启用/停用、改名)时,先 find_tasks 按名字搜出 task_id,'
+    '再 propose_task_update 弹出预填的修改表单交用户确认;要新建任务才用 propose_* 系列。均只弹表单,不擅自落库。',
 ]
+
+# 用户可在「工具」下拉里自选、按需挂载的内置工具集 code(其余内置工具由平台按能力自动挂载:
+# data_explore/sandbox_code 由「数据分析」数据源选择控制,不在此白名单)。
+_PASSTHROUGH_BUILTIN = {'task_propose', 'baidu_search'}
+
+
+def _make_baidu_tools() -> Any:
+    """百度搜索工具集(懒加载:缺依赖时仅此工具不可用,不影响其它工具装配)。"""
+    from agno.tools.baidusearch import BaiduSearchTools  # noqa: PLC0415
+
+    return BaiduSearchTools()
 
 
 class AiChatService:
@@ -168,7 +181,10 @@ class AiChatService:
             return AiModelModel(
                 modelId=0, provider=AiConfig.provider, modelCode=AiConfig.llm_model,
                 apiKey=AiConfig.llm_api_key, baseUrl=AiConfig.llm_url or None,
-                maxTokens=AiConfig.llm_max_tokens, supportReasoning='N', supportImages='N',
+                maxTokens=AiConfig.llm_max_tokens,
+                # 兜底模型的推理/多模态能力由环境变量声明(LLM_REASONING / LLM_SUPPORT_IMAGES)
+                supportReasoning='Y' if AiConfig.llm_reasoning else 'N',
+                supportImages='Y' if AiConfig.llm_support_images else 'N',
             )
 
         ai_model = await AiModelDao.get_ai_model_detail_by_id(query_db, model_id)
@@ -301,6 +317,7 @@ class AiChatService:
             'sandbox_code': lambda: SandboxCodeTools(artifacts=artifacts, allowed_codes=datasource_scope,
                                                      enable_datasource=datasource_query_enabled),
             'task_propose': lambda: TaskAgentTools(ui_actions=ui_actions),
+            'baidu_search': _make_baidu_tools,  # 百度搜索(免鉴权、国内可达)
         }
         codes = list(builtin_map.keys()) if builtin_codes is None else [c for c in builtin_codes if c in builtin_map]
         tools: list = [builtin_map[c]() for c in codes]
@@ -588,9 +605,9 @@ class AiChatService:
                 model_config.max_tokens = m['maxTokens']
             from module_ai.service.ai_tool_service import AiToolService  # noqa: PLC0415
             resolved = await AiToolService.resolve_app_tools(query_db, app_cfg.get('toolIds') or [])
-            # 工具区只保留 task_propose;sandbox_code 始终挂(run_python_code 计算/绘图不碰数据源),
-            # 但取数(run_datasource_query)与数据探索(data_explore)由「数据分析」数据源选择控制。
-            builtin_codes = [c for c in resolved['builtin_codes'] if c == 'task_propose']
+            # 工具区透传用户自选内置工具(task_propose/baidu_search…);sandbox_code 始终挂
+            # (run_python_code 计算/绘图不碰数据源),但取数/数据探索由「数据分析」数据源选择控制。
+            builtin_codes = [c for c in resolved['builtin_codes'] if c in _PASSTHROUGH_BUILTIN]
             builtin_codes = builtin_codes + ['sandbox_code']
             mcp_configs = resolved['mcp_configs']
             ds_codes = app_cfg.get('datasourceCodes') or []
@@ -757,8 +774,8 @@ class AiChatService:
         if m.get('maxTokens'):
             model_config.max_tokens = m['maxTokens']
         resolved = await AiToolService.resolve_app_tools(query_db, app_cfg.get('toolIds') or [])
-        # 同应用模式:task_propose 透传,sandbox_code 始终挂(绘图/计算),data_explore 由数据源选择控制
-        builtin_codes = [c for c in resolved['builtin_codes'] if c == 'task_propose'] + ['sandbox_code']
+        # 同应用模式:自选内置工具透传,sandbox_code 始终挂(绘图/计算),data_explore 由数据源选择控制
+        builtin_codes = [c for c in resolved['builtin_codes'] if c in _PASSTHROUGH_BUILTIN] + ['sandbox_code']
         mcp_configs = resolved['mcp_configs']
         ds_codes = app_cfg.get('datasourceCodes') or []
         datasource_scope = None

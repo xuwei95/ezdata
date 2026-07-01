@@ -32,7 +32,7 @@ connection_args = OrderedDict(
     },
     host={
         'type': ARG_TYPE.STR,
-        'description': "主机名或 IP。本机请用 '127.0.0.1' 而非 'localhost'。",
+        'description': "主机名或 IP。Docker 部署:连平台内置库用服务名(如 'ezdata-mysql'),连宿主机的库用 'host.docker.internal';**切勿填 127.0.0.1/localhost**(那是容器自身,取数在沙箱/worker 里执行会连不上)。仅非容器的本机部署才用 127.0.0.1。",
         'required': True,
         'label': 'Host',
     },

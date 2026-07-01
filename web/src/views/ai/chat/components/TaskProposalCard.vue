@@ -2,8 +2,9 @@
   <div class="task-proposal" :class="{ 'is-created': created }">
     <div class="tp-head">
       <el-icon class="tp-icon"><Document /></el-icon>
-      <span class="tp-title">AI 任务建议</span>
-      <el-tag size="small" type="info" effect="plain">{{ tplLabel }}</el-tag>
+      <span class="tp-title">{{ isUpdate ? "AI 任务修改建议" : "AI 任务建议" }}</span>
+      <el-tag size="small" :type="isUpdate ? 'warning' : 'info'" effect="plain">{{ tplLabel }}</el-tag>
+      <el-tag v-if="isUpdate" size="small" type="warning" effect="light">修改已有</el-tag>
       <span v-if="action.summary" class="tp-summary">{{ action.summary }}</span>
     </div>
 
@@ -28,6 +29,12 @@
             </template>
           </el-input>
         </el-form-item>
+        <el-form-item v-if="isUpdate" label="状态">
+          <el-radio-group v-model="status">
+            <el-radio :value="1">启用</el-radio>
+            <el-radio :value="0">停用</el-radio>
+          </el-radio-group>
+        </el-form-item>
       </el-form>
 
       <el-dialog title="Cron表达式生成器" v-model="openCron" append-to-body destroy-on-close>
@@ -40,8 +47,8 @@
       </div>
 
       <div class="tp-actions">
-        <el-button type="primary" :loading="submitting" @click="confirm(true)">创建并运行</el-button>
-        <el-button :loading="submitting" @click="confirm(false)">仅创建</el-button>
+        <el-button type="primary" :loading="submitting" @click="confirm(true)">{{ isUpdate ? "保存并运行" : "创建并运行" }}</el-button>
+        <el-button :loading="submitting" @click="confirm(false)">{{ isUpdate ? "保存修改" : "仅创建" }}</el-button>
         <el-button text @click="dismissed = true" v-if="!dismissed">忽略</el-button>
       </div>
       <div v-if="dismissed" class="tp-dismissed">已忽略该建议</div>
@@ -49,7 +56,7 @@
 
     <div v-else class="tp-created">
       <el-icon class="tp-ok"><CircleCheckFilled /></el-icon>
-      <span>已创建任务「{{ name }}」{{ ranOnce ? '并触发运行' : '' }}</span>
+      <span>{{ isUpdate ? "已更新任务" : "已创建任务" }}「{{ name }}」{{ ranOnce ? '并触发运行' : '' }}</span>
       <el-button text type="primary" @click="goTask">去任务页查看</el-button>
     </div>
   </div>
@@ -60,7 +67,7 @@ import { computed, ref, markRaw } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Document, CircleCheckFilled } from '@element-plus/icons-vue'
-import { addTask, runTask } from '@/api/task/task'
+import { addTask, updateTask, runTask } from '@/api/task/task'
 import Crontab from '@/components/Crontab'
 import DataIntegrationTask from '../../../task/components/templates/DataIntegrationTask.vue'
 import PythonTask from '../../../task/components/templates/PythonTask.vue'
@@ -79,9 +86,12 @@ const TPL_MAP = {
 const tplComp = computed(() => (TPL_MAP[props.action.template_code] || {}).comp || null)
 const tplLabel = computed(() => (TPL_MAP[props.action.template_code] || {}).label || props.action.template_code)
 
+// 修改已有任务模式:action 带 task_id / kind=task_update_proposal → 走 updateTask
+const isUpdate = computed(() => props.action.kind === 'task_update_proposal' || !!props.action.task_id)
 const name = ref(props.action.name || '未命名任务')
 const triggerType = ref(props.action.trigger_type || 1)
 const crontab = ref(props.action.crontab || '')
+const status = ref(props.action.status === 0 ? 0 : 1)
 
 // Cron 表达式生成器
 const openCron = ref(false)
@@ -124,25 +134,33 @@ async function confirm(runAfter) {
       params: JSON.stringify(r.params || {}),
       taskType: 1,
       triggerType: triggerType.value,
+      // triggerType 必须与 crontab 一起提交:后端据此重建调度,漏传会丢掉定时
       crontab: triggerType.value === 2 ? crontab.value.trim() : '',
-      status: 1,
+      status: isUpdate.value ? status.value : 1,
     }
-    const res = await addTask(model)
-    const taskId = res && res.data && res.data.id
+    let taskId
+    if (isUpdate.value) {
+      model.id = props.action.task_id
+      await updateTask(model)
+      taskId = props.action.task_id
+    } else {
+      const res = await addTask(model)
+      taskId = res && res.data && res.data.id
+    }
     if (runAfter) {
       if (taskId) {
         await runTask(taskId)
         ranOnce.value = true
-        ElMessage.success('任务已创建并触发运行')
+        ElMessage.success(isUpdate.value ? '任务已更新并触发运行' : '任务已创建并触发运行')
       } else {
-        ElMessage.warning('任务已创建,但未取到任务ID,无法自动运行,请到任务页手动运行')
+        ElMessage.warning('已保存,但未取到任务ID,无法自动运行,请到任务页手动运行')
       }
     } else {
-      ElMessage.success('任务已创建')
+      ElMessage.success(isUpdate.value ? '任务已更新' : '任务已创建')
     }
     created.value = true
   } catch (e) {
-    ElMessage.error('创建失败: ' + (e?.message || e))
+    ElMessage.error((isUpdate.value ? '更新失败: ' : '创建失败: ') + (e?.message || e))
   } finally {
     submitting.value = false
   }

@@ -10,11 +10,76 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from agno.tools import Toolkit
 
 DEFAULT_TRANSFORM = 'def transform(row):\n    # row 为一条记录(dict),返回修改后的 dict\n    return row'
+
+# 模板编码 → 中文标签(用于列出任务时可读展示)
+_TPL_LABEL = {'DataIntegrationTask': '数据集成', 'PythonTask': 'Python 脚本', 'ShellTask': 'Shell 脚本'}
+
+
+def _effective_tenant_id() -> Any:
+    """当前请求的有效租户(拿不到则 None,不做租户过滤)。"""
+    try:
+        from common.context import RequestContext  # noqa: PLC0415
+
+        return RequestContext.get_effective_tenant_id()
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _search_tasks(keyword: str, limit: int) -> list[dict]:
+    """按名称模糊搜索任务(agent 进程内,复用任务模块的同步会话),租户内、按更新时间倒序。"""
+    from sqlalchemy import select  # noqa: PLC0415
+
+    from module_task_schedule.entity.do.task_do import Task  # noqa: PLC0415
+    from module_task_schedule.sync_db import get_sync_session_local  # noqa: PLC0415
+
+    db = get_sync_session_local()()
+    try:
+        stmt = select(Task.id, Task.name, Task.template_code, Task.trigger_type,
+                      Task.crontab, Task.status, Task.built_in)
+        kw = (keyword or '').strip()
+        if kw:
+            stmt = stmt.where(Task.name.like(f'%{kw}%'))
+        tid = _effective_tenant_id()
+        if tid is not None:
+            stmt = stmt.where(Task.tenant_id == tid)
+        stmt = stmt.order_by(Task.update_time.desc()).limit(max(1, min(limit or 10, 50)))
+        return [{'id': r[0], 'name': r[1], 'template_code': r[2], 'trigger_type': r[3],
+                 'crontab': r[4], 'status': r[5], 'built_in': r[6]} for r in db.execute(stmt).all()]
+    finally:
+        db.close()
+
+
+def _get_task(task_id: str) -> dict | None:
+    """取单个任务的完整配置(用于修改前回填表单)。"""
+    from sqlalchemy import select  # noqa: PLC0415
+
+    from module_task_schedule.entity.do.task_do import Task  # noqa: PLC0415
+    from module_task_schedule.sync_db import get_sync_session_local  # noqa: PLC0415
+
+    db = get_sync_session_local()()
+    try:
+        stmt = select(Task.id, Task.name, Task.template_code, Task.params, Task.trigger_type,
+                      Task.crontab, Task.status, Task.built_in)
+        tid = _effective_tenant_id()
+        if tid is not None:
+            stmt = stmt.where(Task.tenant_id == tid)
+        r = db.execute(stmt.where(Task.id == str(task_id))).first()
+        if not r:
+            return None
+        try:
+            params = json.loads(r[3]) if r[3] else {}
+        except (ValueError, TypeError):
+            params = {}
+        return {'id': r[0], 'name': r[1], 'template_code': r[2], 'params': params,
+                'trigger_type': r[4], 'crontab': r[5], 'status': r[6], 'built_in': r[7]}
+    finally:
+        db.close()
 
 
 class TaskAgentTools(Toolkit):
@@ -25,7 +90,8 @@ class TaskAgentTools(Toolkit):
         self.ui_actions: list = ui_actions if ui_actions is not None else []
         super().__init__(
             name='task_propose',
-            tools=[self.propose_data_integration_task, self.propose_python_task, self.propose_shell_task],
+            tools=[self.propose_data_integration_task, self.propose_python_task, self.propose_shell_task,
+                   self.find_tasks, self.propose_task_update],
             **kwargs,
         )
 
@@ -134,3 +200,91 @@ class TaskAgentTools(Toolkit):
         """
         params = {'run_type': 'code', 'code': command, 'file': '', 'run_params': run_params or ''}
         return self._push('ShellTask', name, params, schedule_cron, 'Shell 脚本任务')
+
+    # ---------- 查已有任务 ----------
+    def find_tasks(self, keyword: str = '', limit: int = 10) -> str:
+        """按名称模糊查找已有任务,返回任务列表(含 task_id、模板、触发方式、定时、状态)。
+
+        当用户想「改某个已有任务」——如调整定时频率、启用/停用、改名——但你还不知道其 task_id 时,
+        先用本工具按关键词搜出目标任务,拿到 task_id 后再调用 propose_task_update 弹出修改表单。
+
+        :param keyword: 任务名关键词(模糊匹配;留空则列最近更新的任务)
+        :param limit: 最多返回条数(默认 10,上限 50)
+        :return: 任务清单文本(每行含 task_id,供 propose_task_update 使用)
+        """
+        rows = _search_tasks(keyword, limit)
+        if not rows:
+            kw = (keyword or '').strip()
+            return f'未找到名称含「{kw}」的任务。' if kw else '当前没有任务。'
+        lines = [f'找到 {len(rows)} 个任务(用 propose_task_update(task_id=...) 修改):']
+        for i, r in enumerate(rows, 1):
+            tpl = _TPL_LABEL.get(r['template_code'], r['template_code'] or '?')
+            sched = f'定时({r["crontab"]})' if (r['trigger_type'] == 2 and r['crontab']) else '单次'
+            st = '启用' if r['status'] == 1 else '停用'
+            tag = ' [内置]' if r['built_in'] == 1 else ''
+            lines.append(f'{i}. [task_id={r["id"]}] {r["name"]} — {tpl} · {sched} · {st}{tag}')
+        return '\n'.join(lines)
+
+    # ---------- 修改已有任务(弹编辑表单)----------
+    def propose_task_update(
+        self, task_id: str, name: str = '', schedule_cron: str = '',
+        to_single_run: bool = False, status: str = '',
+    ) -> str:
+        """提议修改一个**已有任务**:载入其当前配置、应用你要改的项,弹出预填好的编辑表单给用户确认。
+
+        典型场景:「把 XX 任务定时调成 20 分钟一次」「暂停 XX 任务」「给 XX 任务改个名」。
+        本工具**不直接落库**,只弹表单(已带入该任务现有配置 + 你的改动),用户在表单上确认后才保存。
+        若不知道 task_id,先用 find_tasks 搜出来。只需传要改的项,其余留空表示保持不变。
+
+        :param task_id: 目标任务 id(来自 find_tasks)
+        :param name: 新任务名(留空=不改名)
+        :param schedule_cron: 新的定时 **6 段 Quartz cron**(秒 分 时 日 月 周);
+            例:每 20 分钟一次 `0 */20 * * * ?`;每天 8 点 `0 0 8 * * ?`;
+            工作日每 5 分钟 `0 */5 9-15 ? * MON-FRI`。留空=不改定时。
+        :param to_single_run: 置 True 表示改为「单次」任务(取消定时);与 schedule_cron 互斥
+        :param status: 'enable' 启用 / 'disable' 停用 / 留空=不改状态
+        :return: 操作结果文本(已弹修改表单,等待用户确认)
+        """
+        task = _get_task(task_id)
+        if not task:
+            return f'未找到 task_id={task_id} 的任务,请先用 find_tasks 确认正确的 task_id。'
+
+        cron = (schedule_cron or '').strip()
+        changes: list[str] = []
+        new_name = (name or '').strip() or task['name']
+        if name and name.strip() != task['name']:
+            changes.append(f'改名为「{new_name}」')
+
+        # 触发方式/定时
+        trigger_type = task['trigger_type'] or 1
+        crontab = task['crontab'] or ''
+        if to_single_run:
+            trigger_type, crontab = 1, ''
+            changes.append('改为单次运行(取消定时)')
+        elif cron:
+            trigger_type, crontab = 2, cron
+            changes.append(f'定时调整为 {cron}')
+
+        # 状态
+        new_status = task['status']
+        if status.lower() in ('enable', 'on', '1', '启用'):
+            new_status = 1
+            changes.append('启用')
+        elif status.lower() in ('disable', 'off', '0', '停用'):
+            new_status = 0
+            changes.append('停用')
+
+        self.ui_actions.append({
+            'kind': 'task_update_proposal',
+            'task_id': task['id'],
+            'template_code': task['template_code'],
+            'name': new_name,
+            'trigger_type': trigger_type,
+            'crontab': crontab,
+            'status': new_status,
+            'params': task['params'],
+            'summary': ';'.join(changes) if changes else '打开编辑表单',
+        })
+        chg = ';'.join(changes) if changes else '未指定改动(可在表单里手动调整)'
+        return (f'已向用户弹出「{new_name}」的任务修改确认表单({chg}),'
+                f'等待用户在表单上确认保存。请不要再自行改动该任务。')

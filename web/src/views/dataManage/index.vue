@@ -174,7 +174,6 @@ function reloadTree() {
 }
 
 async function onNodeClick(data) {
-  activeTab.value = 'info'
   if (data.nodeType === 'model') {
     // 拉最新模型详情(含 fields)
     const m = (await getModel(data.raw.id)).data
@@ -182,6 +181,12 @@ async function onNodeClick(data) {
   } else {
     current.value = { nodeType: 'source', raw: data.raw }
   }
+  // 保持当前 tab(切换模型时不跳回"基本信息");仅当该 tab 对新节点不可用时才回退 info
+  const st = current.value.sourceType || current.value.raw?.sourceType
+  const caps = capsOf(st)
+  const isModel = current.value.nodeType === 'model'
+  const tabOk = { info: true, rag: true, query: isModel && caps.includes('READ'), api: isModel && caps.includes('GEN_API') }
+  if (!tabOk[activeTab.value]) activeTab.value = 'info'
 }
 
 async function testConn(src) {
