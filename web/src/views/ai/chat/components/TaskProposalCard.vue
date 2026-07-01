@@ -38,7 +38,8 @@
       </el-form>
 
       <el-dialog title="Cron表达式生成器" v-model="openCron" append-to-body destroy-on-close>
-        <crontab @hide="openCron = false" @fill="crontabFill" :expression="expression"></crontab>
+        <!-- 必须用 PascalCase <Crontab>:本组件里有个同名 ref `crontab`,kebab 的 <crontab> 会被解析成那个 ref 而非组件 -->
+        <Crontab @hide="openCron = false" @fill="crontabFill" :expression="expression"></Crontab>
       </el-dialog>
 
       <div class="tp-body">
