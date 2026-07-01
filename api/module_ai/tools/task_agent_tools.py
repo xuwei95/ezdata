@@ -146,7 +146,7 @@ class TaskAgentTools(Toolkit):
         :param write_mode: 写入模式 append 追加 / replace 覆盖 / merge 合并(默认 append)
         :param target_format: 目标为文件源时的格式 csv/json/jsonl(默认 csv)
         :param transform_code: 可选,逐行转换函数 def transform(row): ...(留空则不转换)
-        :param schedule_cron: 可选,定时 cron 表达式(如 0 2 * * *);留空为单次任务
+        :param schedule_cron: 可选,定时 7 段 Quartz cron(秒 分 时 日 月 周 年,北京时区;步进0/N、星期数字周一到周五=2-6、年*);留空为单次
         :return: 操作结果文本(已弹表单,等待用户确认)
         """
         tcode = (transform_code or '').strip()
@@ -191,7 +191,7 @@ class TaskAgentTools(Toolkit):
         :param source_datasource_codes: 代码中允许 get_handler 访问的数据源编码(逗号分隔,可空)
         :param write_mode: append 追加 / replace 覆盖 / merge 合并(默认 append)
         :param target_format: 目标为文件源时的格式(默认 csv)
-        :param schedule_cron: 可选,定时 6 段 Quartz cron;留空为单次
+        :param schedule_cron: 可选,定时 7 段 Quartz cron(秒 分 时 日 月 周 年,北京时区;步进0/N、星期数字周一到周五=2-6、年*);留空为单次
         :return: 操作结果文本(已弹表单,等待用户确认)
         """
         codes = [c.strip() for c in (source_datasource_codes or '').split(',') if c.strip()]
@@ -214,7 +214,7 @@ class TaskAgentTools(Toolkit):
         :param name: 任务名称
         :param code: Python 代码,须包含 def run(params, logger): ... 入口
         :param run_params: 可选,运行参数(JSON 字符串)
-        :param schedule_cron: 可选,定时 cron 表达式;留空为单次任务
+        :param schedule_cron: 可选,定时 7 段 Quartz cron(秒 分 时 日 月 周 年,北京时区;步进0/N、星期数字周一到周五=2-6、年*);留空为单次
         :return: 操作结果文本(已弹表单,等待用户确认)
         """
         params = {'run_type': 'code', 'code': code, 'file': '', 'run_params': run_params or ''}
@@ -230,7 +230,7 @@ class TaskAgentTools(Toolkit):
         :param name: 任务名称
         :param command: Shell 脚本内容
         :param run_params: 可选,运行参数(JSON 字符串)
-        :param schedule_cron: 可选,定时 cron 表达式;留空为单次任务
+        :param schedule_cron: 可选,定时 7 段 Quartz cron(秒 分 时 日 月 周 年,北京时区;步进0/N、星期数字周一到周五=2-6、年*);留空为单次
         :return: 操作结果文本(已弹表单,等待用户确认)
         """
         params = {'run_type': 'code', 'code': command, 'file': '', 'run_params': run_params or ''}
@@ -315,9 +315,9 @@ class TaskAgentTools(Toolkit):
 
         :param task_id: 目标任务 id(来自 find_tasks)
         :param name: 新任务名(留空=不改名)
-        :param schedule_cron: 新的定时 **6 段 Quartz cron**(秒 分 时 日 月 周),北京时区;
-            **星期只用数字**(周日=1..周六=7,周一到周五=2-6,别用名称/0);定了星期则"日"写 ?。
-            例:每 20 分钟 `0 */20 * * * ?`;每天 8 点 `0 0 8 * * ?`;交易时段每 5 分钟 `0 */5 9-15 ? * 2-6`。留空=不改定时。
+        :param schedule_cron: 新的定时 **7 段 Quartz cron**(秒 分 时 日 月 周 年),北京时区,与前端组件一致:
+            步进用 `0/N` 不用 `*/N`;星期只用数字(周日=1..周六=7,周一到周五=2-6,别用名称/0);年写 `*`;定了星期则"日"写 ?。
+            例:每 20 分钟 `0 0/20 * * * ? *`;每天 8 点 `0 0 8 * * ? *`;交易时段每 5 分钟 `0 0/5 9-15 ? * 2-6 *`。留空=不改定时。
         :param to_single_run: 置 True 表示改为「单次」任务(取消定时);与 schedule_cron 互斥
         :param status: 'enable' 启用 / 'disable' 停用 / 留空=不改状态
         :return: 操作结果文本(已弹修改表单,等待用户确认)
