@@ -73,8 +73,9 @@ _DATA_AGENT_INSTRUCTIONS: list[str] = [
     'get_table_schema 已会列出可用的 .keyword 字段,直接用列出的名字,别对 text 主字段聚合(会报错或聚到分词上);'
     '② 取时间序列/明细(如个股日线)务必显式写足 size(如 size:300),ES 默认只回 10 条,否则图表/结论会残缺;'
     '③ 需要 Top-N 时在沙箱代码里排序切片(sorted(...)[:N])后再产出,不要依赖结果摘要去“目测”前几名。',
-    '任务管理:用户要「改某个已有任务」(调定时频率、启用/停用、改名)时,先 find_tasks 按名字搜出 task_id,'
-    '再 propose_task_update 弹出预填的修改表单交用户确认;要新建任务才用 propose_* 系列。均只弹表单,不擅自落库。',
+    '任务管理:用户要「改某个已有任务」(调定时频率、启用/停用、改名)→ 先 find_tasks 搜出 task_id,'
+    '再 propose_task_update 弹修改表单;要「复制/照某任务再建一个」→ find_tasks 拿 task_id 后用 propose_task_copy;'
+    '全新任务才用 propose_data_integration_task/python/shell。均只弹表单交用户确认,不擅自落库。',
 ]
 
 # 用户可在「工具」下拉里自选、按需挂载的内置工具集 code(其余内置工具由平台按能力自动挂载:

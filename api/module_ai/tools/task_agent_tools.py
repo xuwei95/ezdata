@@ -91,7 +91,7 @@ class TaskAgentTools(Toolkit):
         super().__init__(
             name='task_propose',
             tools=[self.propose_data_integration_task, self.propose_python_task, self.propose_shell_task,
-                   self.find_tasks, self.propose_task_update],
+                   self.find_tasks, self.propose_task_update, self.propose_task_copy],
             **kwargs,
         )
 
@@ -288,3 +288,33 @@ class TaskAgentTools(Toolkit):
         chg = ';'.join(changes) if changes else '未指定改动(可在表单里手动调整)'
         return (f'已向用户弹出「{new_name}」的任务修改确认表单({chg}),'
                 f'等待用户在表单上确认保存。请不要再自行改动该任务。')
+
+    # ---------- 复制已有任务(弹新建表单)----------
+    def propose_task_copy(
+        self, task_id: str, new_name: str = '', schedule_cron: str = '', to_single_run: bool = False,
+    ) -> str:
+        """复制一个**已有任务**:载入其完整配置作为**新任务**的初值,弹出预填好的新建确认表单。
+
+        典型场景:「照 XX 任务复制一个」「基于 XX 任务再建一个,改成每天跑」。
+        与 propose_task_update 的区别:这是**新建**(用户确认后 addTask,生成新任务、不动原任务);
+        propose_task_update 是原地改同一个任务。若不知道 task_id,先用 find_tasks 搜出来。
+
+        :param task_id: 被复制的源任务 id(来自 find_tasks)
+        :param new_name: 新任务名(留空则用「原名_副本」)
+        :param schedule_cron: 新任务的定时 6 段 Quartz cron(留空=沿用源任务的定时;每20分钟 `0 */20 * * * ?`)
+        :param to_single_run: 置 True 表示新任务为「单次」(忽略源任务的定时);与 schedule_cron 互斥
+        :return: 操作结果文本(已弹新建表单,等待用户确认创建)
+        """
+        task = _get_task(task_id)
+        if not task:
+            return f'未找到 task_id={task_id} 的任务,请先用 find_tasks 确认正确的 task_id。'
+        # 定时:默认沿用源任务;to_single_run 取消定时;或用传入 cron 覆盖
+        if to_single_run:
+            eff_cron = ''
+        elif (schedule_cron or '').strip():
+            eff_cron = schedule_cron.strip()
+        else:
+            eff_cron = task['crontab'] if (task['trigger_type'] == 2) else ''
+        name = (new_name or '').strip() or f'{task["name"]}_副本'
+        # 复用 _push:产出 kind=task_proposal 的「新建」提议(不带 task_id)→ 前端走 addTask 生成新任务
+        return self._push(task['template_code'], name, task['params'], eff_cron, f'复制自「{task["name"]}」')
