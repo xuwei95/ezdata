@@ -315,9 +315,9 @@ class TaskAgentTools(Toolkit):
 
         :param task_id: 目标任务 id(来自 find_tasks)
         :param name: 新任务名(留空=不改名)
-        :param schedule_cron: 新的定时 **6 段 Quartz cron**(秒 分 时 日 月 周);
-            例:每 20 分钟一次 `0 */20 * * * ?`;每天 8 点 `0 0 8 * * ?`;
-            工作日每 5 分钟 `0 */5 9-15 ? * MON-FRI`。留空=不改定时。
+        :param schedule_cron: 新的定时 **6 段 Quartz cron**(秒 分 时 日 月 周),北京时区;
+            **星期只用数字**(周日=1..周六=7,周一到周五=2-6,别用名称/0);定了星期则"日"写 ?。
+            例:每 20 分钟 `0 */20 * * * ?`;每天 8 点 `0 0 8 * * ?`;交易时段每 5 分钟 `0 */5 9-15 ? * 2-6`。留空=不改定时。
         :param to_single_run: 置 True 表示改为「单次」任务(取消定时);与 schedule_cron 互斥
         :param status: 'enable' 启用 / 'disable' 停用 / 留空=不改状态
         :return: 操作结果文本(已弹修改表单,等待用户确认)

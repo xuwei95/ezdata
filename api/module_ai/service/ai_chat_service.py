@@ -77,8 +77,8 @@ _DATA_AGENT_INSTRUCTIONS: list[str] = [
     '要「原样复制」→ find_tasks → propose_task_copy;要「照某任务改动代码/配置后新建」→ find_tasks → get_task_detail 看清其代码/配置 → 改好后用对应 '
     'propose_* 新建(代码取数用 propose_code_extract_task);全新任务直接用 propose_data_integration_task/code_extract/python/shell。均只弹表单交用户确认,不擅自落库。',
     '定时 cron 一律 6 段 Quartz(秒 分 时 日 月 周),时间按服务器时区 Asia/Shanghai(北京时间);'
-    '星期**优先用名称**(MON-FRI / SUN,最稳);若用数字则遵 Quartz 约定 1=周日..7=周六(即周一到周五=2-6,别用 0)。'
-    '例:每20分钟 `0 */20 * * * ?`;每天8点 `0 0 8 * * ?`;交易时段每5分钟 `0 */5 9-15 ? * MON-FRI`。',
+    '星期**只用数字**(与前端 cron 组件一致):Quartz 约定 **周日=1、周一=2 … 周六=7**,即**周一到周五=2-6**;不要用 MON-FRI 名称、不要用 0。'
+    '日/星期二选一:定了星期则"日"写 `?`。例:每20分钟 `0 */20 * * * ?`;每天8点 `0 0 8 * * ?`;交易时段(周一到周五 9-15点)每5分钟 `0 */5 9-15 ? * 2-6`。',
 ]
 
 # 用户可在「工具」下拉里自选、按需挂载的内置工具集 code(其余内置工具由平台按能力自动挂载:
