@@ -8,11 +8,12 @@
             <el-button type="primary" size="small" icon="Plus" @click="sourceModalRef.open()">新建数据源</el-button>
             <el-button size="small" icon="Refresh" circle @click="reloadTree" />
           </div>
+          <el-input v-model="filterText" size="small" clearable placeholder="搜索数据源 / 数据模型" prefix-icon="Search" class="tree-filter" />
           <el-tree ref="treeRef" :load="loadNode" lazy node-key="key" :props="{ label: 'label', isLeaf: 'isLeaf' }"
-            highlight-current @node-click="onNodeClick" class="src-tree">
+            highlight-current @node-click="onNodeClick" :filter-node-method="filterNode" class="src-tree">
             <template #default="{ data }">
               <span class="tree-node">
-                <el-icon v-if="data.nodeType === 'source'"><Coin /></el-icon>
+                <img v-if="data.nodeType === 'source'" :src="iconCache[data.raw && data.raw.sourceType] || DEFAULT_SOURCE_ICON" class="src-icon" />
                 <el-icon v-else><Grid /></el-icon>
                 <span class="label">{{ data.label }}</span>
                 <span v-if="data.nodeType === 'source'" class="dot" :class="data.status" />
@@ -122,7 +123,7 @@
 </template>
 
 <script setup name="DataManage">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Splitpanes, Pane } from 'splitpanes'
 import 'splitpanes/dist/splitpanes.css'
@@ -131,7 +132,7 @@ import DataQueryTab from './components/DataQueryTab.vue'
 import DataInterfaceTab from './components/DataInterfaceTab.vue'
 import KnowledgeBaseTab from './components/KnowledgeBaseTab.vue'
 import {
-  getSourceTypes, listSource, testSource, delSource, listTables, listColumns,
+  getSourceTypes, getSourceTypeIcon, listSource, testSource, delSource, listTables, listColumns,
   listModel, addModel, getModel, updateModel, delModel,
 } from '@/api/dataManage/data'
 
@@ -148,10 +149,35 @@ onMounted(async () => {
 
 const capsOf = (type) => capsMap.value[type] || []
 
+// 数据源图标:优先用 handler 自带品牌 SVG(icon.svg,按类型缓存);无则兜底一个通用"数据库"默认图标。
+const iconCache = reactive({}) // sourceType -> 品牌图标 dataURI('' 表示无品牌图标,走默认)
+// 默认数据源图标(通用数据库 svg):保证任何数据源都显示统一图标,不会空白
+const DEFAULT_SOURCE_ICON = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#79879c" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5"/><path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3"/></svg>')
+async function loadSourceIcon(type) {
+  if (!type || iconCache[type] !== undefined) return
+  iconCache[type] = '' // 占位,避免重复请求;'' → 模板用 DEFAULT_SOURCE_ICON 兜底
+  try {
+    const svg = (await getSourceTypeIcon(type)).data
+    if (svg && typeof svg === 'string' && svg.includes('<svg')) {
+      iconCache[type] = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg)
+    }
+  } catch (e) { /* 保持 '' → 走默认图标 */ }
+}
+
+// 树搜索:按名称过滤(懒加载树仅过滤已加载节点,展开数据源后其模型也参与过滤)
+const filterText = ref('')
+watch(filterText, (v) => treeRef.value && treeRef.value.filter(v))
+function filterNode(value, data) {
+  if (!value) return true
+  return (data.label || '').toLowerCase().includes(value.toLowerCase())
+}
+
 // 懒加载树:level0 = 数据源;source 节点 = 其数据模型
 async function loadNode(node, resolve) {
   if (node.level === 0) {
     const res = await listSource({ pageNum: 1, pageSize: 200 })
+    ;(res.rows || []).forEach((s) => loadSourceIcon(s.sourceType)) // 预取各源品牌图标
     return resolve((res.rows || []).map((s) => ({
       key: 's_' + s.id, label: s.name, nodeType: 'source', status: s.status, raw: s, isLeaf: false,
     })))
@@ -251,8 +277,11 @@ async function removeModel(m) {
 
 <style scoped lang="scss">
 .data-manage { padding: 10px; }
-.left-panel { height: 100%; border-right: 1px solid #ebeef5; padding-right: 6px; }
-.left-toolbar { display: flex; gap: 6px; padding: 6px 4px; }
+.left-panel { height: 100%; display: flex; flex-direction: column; box-sizing: border-box; border-right: 1px solid #ebeef5; padding-right: 6px; }
+.left-toolbar { flex-shrink: 0; display: flex; gap: 6px; padding: 6px 4px; }
+.tree-filter { flex-shrink: 0; margin: 0 4px 6px; }
+.src-tree { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; }
+.src-icon { width: 16px; height: 16px; object-fit: contain; vertical-align: middle; flex-shrink: 0; }
 .right-panel { padding: 0 12px; }
 .tree-node { display: flex; align-items: center; gap: 6px; }
 .tree-node .label { font-size: 13px; }

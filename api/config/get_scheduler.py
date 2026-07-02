@@ -301,7 +301,9 @@ class SchedulerUtil:
                 name='Scheduler任务同步',
                 replace_existing=True,
             )
-            cls._sync_listener_task = asyncio.create_task(cls._listen_sync_channel(redis))
+        # 无论单/多 worker,leader 都订阅同步频道:外部进程(如 demo_seed 改库后)只需
+        # PUBLISH scheduler:sync:request 即可让运行中的调度器即时从库重载,无需重启后端。
+        cls._sync_listener_task = asyncio.create_task(cls._listen_sync_channel(redis))
 
         logger.info('✅️ 系统初始定时任务加载成功')
 

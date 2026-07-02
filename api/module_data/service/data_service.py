@@ -132,6 +132,13 @@ class DataMetaService:
         return connection_schema(source_type)
 
     @staticmethod
+    def source_type_icon(source_type: str) -> str | None:
+        """该数据源类型的品牌图标 SVG 文本(供前端渲染);未注册/无图标返回 None。"""
+        from module_data.handlers import handler_icon  # noqa: PLC0415
+
+        return handler_icon(source_type)
+
+    @staticmethod
     def operators() -> list[dict]:
         return OPERATORS
 

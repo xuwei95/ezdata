@@ -103,6 +103,26 @@ def get_handler_cls(source_type: str) -> type[Connector]:
     return cls
 
 
+def handler_icon(source_type: str) -> str | None:
+    """返回该数据源类型的品牌图标 SVG 文本(取自其 handler 子包目录下的 icon.svg);无则 None。
+
+    路径由已注册 handler 类自身所在目录推导(不假设目录命名),source_type 未注册即 None,天然防路径穿越。
+    """
+    import inspect  # noqa: PLC0415
+
+    cls = _handlers.get(source_type)
+    if cls is None:
+        return None
+    icon_path = os.path.join(os.path.dirname(inspect.getfile(cls)), 'icon.svg')
+    if not os.path.isfile(icon_path):
+        return None
+    try:
+        with open(icon_path, encoding='utf-8') as f:
+            return f.read()
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def create_handler(source_type: str, config: dict, secrets: str | dict | None = None,
                    *, cache: bool = True) -> Connector:
     """从库记录构造 handler 实例。
