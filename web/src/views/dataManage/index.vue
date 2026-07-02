@@ -8,11 +8,12 @@
             <el-button type="primary" size="small" icon="Plus" @click="sourceModalRef.open()">新建数据源</el-button>
             <el-button size="small" icon="Refresh" circle @click="reloadTree" />
           </div>
+          <el-input v-model="filterText" size="small" clearable placeholder="搜索数据源 / 数据模型" prefix-icon="Search" class="tree-filter" />
           <el-tree ref="treeRef" :load="loadNode" lazy node-key="key" :props="{ label: 'label', isLeaf: 'isLeaf' }"
-            highlight-current @node-click="onNodeClick" class="src-tree">
+            highlight-current @node-click="onNodeClick" :filter-node-method="filterNode" class="src-tree">
             <template #default="{ data }">
               <span class="tree-node">
-                <el-icon v-if="data.nodeType === 'source'"><Coin /></el-icon>
+                <el-icon v-if="data.nodeType === 'source'"><component :is="sourceIcon(data.raw && data.raw.sourceType)" /></el-icon>
                 <el-icon v-else><Grid /></el-icon>
                 <span class="label">{{ data.label }}</span>
                 <span v-if="data.nodeType === 'source'" class="dot" :class="data.status" />
@@ -122,7 +123,7 @@
 </template>
 
 <script setup name="DataManage">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Splitpanes, Pane } from 'splitpanes'
 import 'splitpanes/dist/splitpanes.css'
@@ -147,6 +148,27 @@ onMounted(async () => {
 })
 
 const capsOf = (type) => capsMap.value[type] || []
+
+// 数据源类型 → 图标(全局注册的 element-plus 图标名);按关键词归类,未命中归 SQL 族
+function sourceIcon(type) {
+  const t = (type || '').toLowerCase()
+  if (/elastic|opensearch|(^|_)es($|_)/.test(t)) return 'Search'
+  if (/mongo/.test(t)) return 'Files'
+  if (/redis|memcache|(^|_)kv/.test(t)) return 'Key'
+  if (/kafka|pulsar|rabbit|rocketmq|(^|_)mq|stream/.test(t)) return 'Connection'
+  if (/neo4j|nebula|janus|graph/.test(t)) return 'Share'
+  if (/akshare|ccxt|tushare|api|http|rest/.test(t)) return 'TrendCharts'
+  if (/s3|minio|oss|obs|cos|hdfs|ftp|file/.test(t)) return 'Folder'
+  return 'Coin' // mysql/pg/clickhouse/doris/hive/tdengine/oracle/sqlserver/sqlite… SQL 族
+}
+
+// 树搜索:按名称过滤(懒加载树仅过滤已加载节点,展开数据源后其模型也参与过滤)
+const filterText = ref('')
+watch(filterText, (v) => treeRef.value && treeRef.value.filter(v))
+function filterNode(value, data) {
+  if (!value) return true
+  return (data.label || '').toLowerCase().includes(value.toLowerCase())
+}
 
 // 懒加载树:level0 = 数据源;source 节点 = 其数据模型
 async function loadNode(node, resolve) {
@@ -251,8 +273,10 @@ async function removeModel(m) {
 
 <style scoped lang="scss">
 .data-manage { padding: 10px; }
-.left-panel { height: 100%; border-right: 1px solid #ebeef5; padding-right: 6px; }
-.left-toolbar { display: flex; gap: 6px; padding: 6px 4px; }
+.left-panel { height: 100%; display: flex; flex-direction: column; box-sizing: border-box; border-right: 1px solid #ebeef5; padding-right: 6px; }
+.left-toolbar { flex-shrink: 0; display: flex; gap: 6px; padding: 6px 4px; }
+.tree-filter { flex-shrink: 0; margin: 0 4px 6px; }
+.src-tree { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; }
 .right-panel { padding: 0 12px; }
 .tree-node { display: flex; align-items: center; gap: 6px; }
 .tree-node .label { font-size: 13px; }

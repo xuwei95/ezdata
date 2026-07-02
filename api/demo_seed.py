@@ -706,6 +706,30 @@ def dispatch_demo_tasks() -> int:
     return n
 
 
+def _trigger_scheduler_reload() -> bool:
+    """通知运行中的后端调度器立即从库重载(无需重启):向 Redis 同步频道 PUBLISH。
+
+    后端 leader 的 _listen_sync_channel 收到后触发 _sync_jobs_from_database(增/删/改差量同步)。
+    返回收到消息的订阅者数是否 >0(>0 说明有在监听的调度器)。best-effort,失败不影响播种。
+    """
+    try:
+        import redis  # noqa: PLC0415
+
+        from config.env import RedisConfig  # noqa: PLC0415
+
+        r = redis.Redis(
+            host=RedisConfig.redis_host, port=RedisConfig.redis_port,
+            username=RedisConfig.redis_username or None, password=RedisConfig.redis_password or None,
+            db=RedisConfig.redis_database, socket_timeout=5,
+        )
+        received = r.publish('scheduler:sync:request', 'demo_seed')
+        r.close()
+        return received > 0
+    except Exception as e:  # noqa: BLE001
+        print(f'触发调度重载失败({e}),可重启后端激活')
+        return False
+
+
 def seed_demo() -> None:
     """整体初始化:播种元数据 + 派发 ETL 到 Celery 填充 ES。幂等(按固定 demo id 先删后插),可重复执行。"""
     n = seed_metadata()
@@ -713,7 +737,11 @@ def seed_demo() -> None:
     print(f'OK: 数据源 {len(DATASOURCES)} + 任务 {n}(其中定时 {scheduled} 个/单次 {n - scheduled} 个) + 数据模型 {n} + AI应用 1(app_id={APP_ID}) 已写入')
     m = dispatch_demo_tasks()
     print(f'已派发 {m} 个 ETL 任务到 Celery 立即灌一次 ES(约 2-3 分钟)')
-    print('定时调度需重启后端激活:docker restart ezdata-backend-my(启动时 init_system_scheduler 读 sys_job)')
+    # 播种改的是 sys_job 表,运行中的调度器需重载才生效。优先 PUBLISH 让其即时重载,兜底提示重启。
+    if _trigger_scheduler_reload():
+        print('✅ 已通知运行中的后端即时重载定时调度(无需重启)')
+    else:
+        print('⚠️ 未检测到在监听的调度器,请重启后端激活:docker restart ezdata-backend-my')
 
 
 if __name__ == '__main__':
