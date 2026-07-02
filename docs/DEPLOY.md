@@ -150,6 +150,9 @@ docker compose --env-file .env.pg up -d --build
 | `RAG_VECTOR_BACKEND` / `RAG_VECTOR_HOSTS` / `RAG_VECTOR_USER` / `RAG_VECTOR_PASSWORD` | RAG 向量库(hosts 留空回退 `TASK_ES_HOSTS`,**但账号不回退,需单独给**) |
 | `STORAGE_TYPE=s3` + `S3_ENDPOINT` / `S3_BUCKET_NAME` / `S3_ACCESS_KEY` / `S3_SECRET_KEY` / `STORAGE_PUBLIC_ENDPOINT` | 对象存储(MinIO) |
 | `EMBEDDING_TYPE` / `EMBEDDING_MODEL` / `DASHSCOPE_API_KEY` | 知识库 embedding |
+| `LLM_TYPE` / `LLM_MODEL` / `LLM_API_KEY` / `LLM_URL` | AI 兜底对话模型(应用 `modelId=0` 及内部 AI 生成用;优先级低于「AI 模型管理」里启用的库内模型) |
+| `LLM_REASONING` / `LLM_SUPPORT_IMAGES` | 兜底模型是否为深度思考 / 多模态模型(`true` 才放开思考内容展示 / 图片输入) |
+| `TZ` / `SCHEDULER_TZ` | 容器时区 / 调度器时区,**默认均 `Asia/Shanghai`**。容器默认 UTC 会让 cron 的"9-15 点"跑到北京 17-23 点,故务必保持北京时区(见 [7.1](#71-定时任务时区)) |
 | `JWT_SECRET_KEY` | 令牌签名(prod 必填) |
 | `DATA_ENCRYPT_KEY` | 库内数据源/AI 凭据 AES 加密(与 JWT 分离;留空回退由 JWT 派生,兼容旧密文) |
 | `SANDBOX_ENABLED` / `SANDBOX_API_URL` / `SANDBOX_BEARER_KEY` | 调试态代码执行沙箱 |
@@ -163,7 +166,7 @@ docker compose --env-file .env.pg up -d --build
 - **默认是干净的空项目**:种子只含平台基础数据,不含任何演示数据源 / 任务。
 - **运行时表**:`ai_sessions` 等由 agno 在首次对话时惰性建,无需预建。
 
-### 6.1 可选:加载财经演示数据(akshare/ccxt → ES + AI 分析助手)
+### 6.1 可选:加载财经演示数据(akshare → ES + AI 分析助手)
 
 想要一套开箱即用的财经 demo,**服务起来后手动跑一次脚本即可**(无需改源码 / 重建镜像):
 
@@ -174,11 +177,13 @@ docker exec -i ezdata-backend-my python - < api/demo_seed.py
 
 它会(幂等,可重复跑;**只影响 demo 命名空间,不碰用户/权限/其他数据**):
 
-- 建 3 个数据源:`akshare_cn`(免 key 财经)、`ccxt_okx`(加密货币公开行情)、`demo_es`(内置 ES)
-- 建 16 个数据集成任务 + 16 个数据模型(A股行情/财务/涨停/概念板块及成分股/技术选股/宏观/新闻/币圈),并**派发到 Celery 异步执行**,约 2-3 分钟把数据填进 `demo_es` 的 `fin_*` 索引
+- 建 2 个数据源:`akshare_cn`(免 key 财经)、`demo_es`(内置 ES)
+- 建 **27 个数据集成任务** + 27 个数据模型(A股/港股/美股快照、日线、涨停池、龙虎榜、概念/行业板块、技术选股、业绩、宏观 GDP/LPR、新闻等),并**派发到 Celery 异步执行**,约 2-3 分钟把数据填进 `demo_es` 的 `fin_*` 索引
 - 建 1 个 AI 应用「财经数据分析助手」(app_id=9001,已绑数据源 + 取数/绘图工具)
+- 定时任务用 **7 段 Quartz** cron(秒 分 时 日 月 周 年),盘中任务按**北京时间**(见 [7.1 时区](#71-定时任务时区)),周一到周五=`2-6`,步进用 `0/N`,与前端 cron 组件一致
+- 跑完自动向运行中的调度器 `PUBLISH scheduler:sync:request` **触发即时重载**(打印 `✅ 已通知…无需重启`);若打印 `⚠️ 未检测到在监听的调度器`(多为镜像旧),则 `docker restart ezdata-backend-my` 激活
 
-> **要让 AI 助手能对话出图,需先配大模型**:设环境变量 `LLM_TYPE` / `LLM_MODEL` / `LLM_API_KEY`(应用 `model.modelId=0` 走此兜底),或在「AI 模型管理」启用一个对话模型。数据 ETL 与查询不依赖大模型。
+> **要让 AI 助手能对话出图,需先配大模型**:设环境变量 `LLM_TYPE` / `LLM_MODEL` / `LLM_API_KEY`(应用 `model.modelId=0` 走此兜底),或在「AI 模型管理」启用一个对话模型。若用**深度思考**模型(如 DeepSeek-V4/R1),再设 `LLM_REASONING=true` 才会展示思考过程。数据 ETL 与查询不依赖大模型。
 
 > 非容器部署时,手动把对应 `.sql` 导入你的库;演示数据同样跑 `python demo_seed.py`(在 api 目录、加载好应用 env 后)。
 
@@ -190,6 +195,13 @@ docker exec -i ezdata-backend-my python - < api/demo_seed.py
 - **Redis**:`--requirepass ezdata123456`,健康检查与 Celery broker 均带密。
 - **MinIO**:`minio-init` 一次性容器建 `ezdata` 桶并设匿名下载;改了 root 口令后该容器的 `mc alias` 口令需同步(compose 已同步)。
 - **数据源 `demo_es` 的口令**放在 `config`(明文)而非加密 `secrets`——这样静态 SQL 种子即可直连加密 ES。运行无碍;但在 UI 编辑该数据源时密码框会显示为空(handler 仍能连)。生产可在 UI 重填一次密码存进加密 secrets。
+
+### 7.1 定时任务时区
+
+- 调度器(APScheduler)按 **`SCHEDULER_TZ`(默认 `Asia/Shanghai`)** 解释 cron;compose 给 backend/worker 注入 **`TZ=Asia/Shanghai`** 统一容器 `date`/日志/`datetime.now()`。
+- **为何重要**:容器默认 UTC,若不设时区,cron 的 `hour=9-15`(意为北京交易时段)会在 **UTC 9-15 = 北京 17-23 点**触发 → 白天看着"定时任务完全不触发"。用了新镜像(时区已注入到每个 trigger)即正确;老镜像需 `docker compose pull` 更新。
+- **cron 格式**:7 段 Quartz `秒 分 时 日 月 周 年`,与前端 cron 生成器一致 —— **步进用 `0/N`**(非 `*/N`,否则组件显示 NaN);**星期用数字**(Quartz 周日=1..周六=7,周一到周五=`2-6`,别用名称/0);**年写 `*`**;日与星期二选一(定了星期则日写 `?`)。例:交易时段每5分钟 `0 0/5 9-15 ? * 2-6 *`。后端会把 Quartz 数字星期自动转成 APScheduler 约定。
+- 非法 cron 在**创建/编辑时即被拒绝**(fail-fast 校验);即使存量脏数据,同步时也只跳过那一条、不影响其它任务与调度器。
 
 ---
 
@@ -298,10 +310,13 @@ GITHUB_SSO_DEFAULT_DEPT_ID = 100         # 新用户默认部门(决定租户)
 | `down -v` 时报 `network ... has active endpoints` | Docker 残留端点。`docker network prune -f`;仍不行重启 Docker。不影响下次 `up`。 |
 | 前端能开但接口 401/跨域 | 检查 nginx 反代(prod `web/bin/nginx.docker*.conf`)/ vite 代理目标(dev `VITE_DEV_PROXY_TARGET`)。 |
 | worker 不执行任务 | 看 `ezdata-worker-dev` 日志是否 Redis `NOAUTH/WRONGPASS`(口令不一致)或队列名不在 `CELERY_QUEUES`。 |
+| 定时任务"完全不触发" | ①时区:容器 UTC 而 cron 按北京时段写 → 跑到北京 17-23 点。用新镜像(`SCHEDULER_TZ=Asia/Shanghai` 已注入 trigger)即修,老镜像 `docker compose pull`。②跑了 `demo_seed` 没重载:新镜像会自动 `PUBLISH` 触发;否则 `docker restart ezdata-backend-my`(调度器仅在后端启动时读 sys_job)。日志 `next run at ... UTC` 是时区没对的铁证。 |
+| cron 生成器里"分/时"显示 `NaN/x` | 表达式用了 `*/N` 步进,组件按 `0/N` 解析 → `Number('*')=NaN`。改成 `0/N`(如每5分钟 `0/5`)。 |
 
 ---
 
 ## 附录:后置 / 可选
 
+- **前端镜像轻量重建**(可选,`docker build` 跑 vite 时 OOM/把 Docker Desktop 跑崩的规避法):把"跑 vite"和"打镜像"拆开——在装好 `node_modules` 的构建容器里 `docker exec` 跑 `npm run build:docker` 产出 `dist`,`docker cp` 出来后再用只 `COPY dist` 的极简 nginx 镜像打包(不在 buildkit 里跑 vite)。资源受限的 Windows/WSL2 上尤其稳;Linux 原生 Docker 一般直接 `docker compose build ezdata-frontend` 即可。
 - **flower**(Celery 监控):复用 backend 镜像 `celery -A config.celery_app flower`,默认 5555,按需另加 service。
 - **K8s / Helm**:工作负载按 backend / worker / frontend 拆分(scheduler 进程内,无独立 Deployment);依赖 mysql/redis/minio/es 子 chart;backend 多副本靠 `server.py` 启动锁保证调度单实例。
