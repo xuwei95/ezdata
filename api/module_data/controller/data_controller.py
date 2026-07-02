@@ -49,6 +49,11 @@ async def source_schema(source_type: Annotated[str, Path()]) -> Response:
     return ResponseUtil.success(data=DataMetaService.connection_schema(source_type))
 
 
+@data_controller.get('/source/type-icon/{source_type}', summary='数据源类型品牌图标(SVG 文本)', dependencies=[UserInterfaceAuthDependency('data:source:list')])
+async def source_type_icon(source_type: Annotated[str, Path()]) -> Response:
+    return ResponseUtil.success(data=DataMetaService.source_type_icon(source_type))
+
+
 @data_controller.get('/operators', summary='过滤操作符目录', dependencies=[UserInterfaceAuthDependency('data:source:list')])
 async def operators() -> Response:
     return ResponseUtil.success(data=DataMetaService.operators())

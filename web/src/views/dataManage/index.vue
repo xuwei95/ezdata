@@ -13,7 +13,8 @@
             highlight-current @node-click="onNodeClick" :filter-node-method="filterNode" class="src-tree">
             <template #default="{ data }">
               <span class="tree-node">
-                <el-icon v-if="data.nodeType === 'source'"><component :is="sourceIcon(data.raw && data.raw.sourceType)" /></el-icon>
+                <img v-if="data.nodeType === 'source' && iconCache[data.raw && data.raw.sourceType]" :src="iconCache[data.raw.sourceType]" class="src-icon" />
+                <el-icon v-else-if="data.nodeType === 'source'"><component :is="sourceIcon(data.raw && data.raw.sourceType)" /></el-icon>
                 <el-icon v-else><Grid /></el-icon>
                 <span class="label">{{ data.label }}</span>
                 <span v-if="data.nodeType === 'source'" class="dot" :class="data.status" />
@@ -132,7 +133,7 @@ import DataQueryTab from './components/DataQueryTab.vue'
 import DataInterfaceTab from './components/DataInterfaceTab.vue'
 import KnowledgeBaseTab from './components/KnowledgeBaseTab.vue'
 import {
-  getSourceTypes, listSource, testSource, delSource, listTables, listColumns,
+  getSourceTypes, getSourceTypeIcon, listSource, testSource, delSource, listTables, listColumns,
   listModel, addModel, getModel, updateModel, delModel,
 } from '@/api/dataManage/data'
 
@@ -149,7 +150,20 @@ onMounted(async () => {
 
 const capsOf = (type) => capsMap.value[type] || []
 
-// 数据源类型 → 图标(全局注册的 element-plus 图标名);按关键词归类,未命中归 SQL 族
+// 数据源类型品牌图标(取 handler 里的 icon.svg,按类型缓存;未加载好/无图标时回退到下面的 element-plus 图标)
+const iconCache = reactive({}) // sourceType -> dataURI('' 表示无图标)
+async function loadSourceIcon(type) {
+  if (!type || iconCache[type] !== undefined) return
+  iconCache[type] = '' // 占位,避免重复请求
+  try {
+    const svg = (await getSourceTypeIcon(type)).data
+    if (svg && typeof svg === 'string' && svg.includes('<svg')) {
+      iconCache[type] = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg)
+    }
+  } catch (e) { /* 保持 '' 回退默认图标 */ }
+}
+
+// 数据源类型 → 回退图标(全局注册的 element-plus 图标名);按关键词归类,未命中归 SQL 族
 function sourceIcon(type) {
   const t = (type || '').toLowerCase()
   if (/elastic|opensearch|(^|_)es($|_)/.test(t)) return 'Search'
@@ -174,6 +188,7 @@ function filterNode(value, data) {
 async function loadNode(node, resolve) {
   if (node.level === 0) {
     const res = await listSource({ pageNum: 1, pageSize: 200 })
+    ;(res.rows || []).forEach((s) => loadSourceIcon(s.sourceType)) // 预取各源品牌图标
     return resolve((res.rows || []).map((s) => ({
       key: 's_' + s.id, label: s.name, nodeType: 'source', status: s.status, raw: s, isLeaf: false,
     })))
@@ -277,6 +292,7 @@ async function removeModel(m) {
 .left-toolbar { flex-shrink: 0; display: flex; gap: 6px; padding: 6px 4px; }
 .tree-filter { flex-shrink: 0; margin: 0 4px 6px; }
 .src-tree { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; }
+.src-icon { width: 16px; height: 16px; object-fit: contain; vertical-align: middle; flex-shrink: 0; }
 .right-panel { padding: 0 12px; }
 .tree-node { display: flex; align-items: center; gap: 6px; }
 .tree-node .label { font-size: 13px; }

@@ -7,6 +7,10 @@ export function getSourceTypes() {
 export function getSourceSchema(sourceType) {
   return request({ url: '/data/source/schema/' + sourceType, method: 'get' })
 }
+// 数据源类型品牌图标(返回 svg 文本)
+export function getSourceTypeIcon(sourceType) {
+  return request({ url: '/data/source/type-icon/' + sourceType, method: 'get' })
+}
 export function getOperators() {
   return request({ url: '/data/operators', method: 'get' })
 }
