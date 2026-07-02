@@ -13,8 +13,7 @@
             highlight-current @node-click="onNodeClick" :filter-node-method="filterNode" class="src-tree">
             <template #default="{ data }">
               <span class="tree-node">
-                <img v-if="data.nodeType === 'source' && iconCache[data.raw && data.raw.sourceType]" :src="iconCache[data.raw.sourceType]" class="src-icon" />
-                <el-icon v-else-if="data.nodeType === 'source'"><component :is="sourceIcon(data.raw && data.raw.sourceType)" /></el-icon>
+                <img v-if="data.nodeType === 'source'" :src="iconCache[data.raw && data.raw.sourceType] || DEFAULT_SOURCE_ICON" class="src-icon" />
                 <el-icon v-else><Grid /></el-icon>
                 <span class="label">{{ data.label }}</span>
                 <span v-if="data.nodeType === 'source'" class="dot" :class="data.status" />
@@ -150,30 +149,20 @@ onMounted(async () => {
 
 const capsOf = (type) => capsMap.value[type] || []
 
-// 数据源类型品牌图标(取 handler 里的 icon.svg,按类型缓存;未加载好/无图标时回退到下面的 element-plus 图标)
-const iconCache = reactive({}) // sourceType -> dataURI('' 表示无图标)
+// 数据源图标:优先用 handler 自带品牌 SVG(icon.svg,按类型缓存);无则兜底一个通用"数据库"默认图标。
+const iconCache = reactive({}) // sourceType -> 品牌图标 dataURI('' 表示无品牌图标,走默认)
+// 默认数据源图标(通用数据库 svg):保证任何数据源都显示统一图标,不会空白
+const DEFAULT_SOURCE_ICON = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#79879c" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5"/><path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3"/></svg>')
 async function loadSourceIcon(type) {
   if (!type || iconCache[type] !== undefined) return
-  iconCache[type] = '' // 占位,避免重复请求
+  iconCache[type] = '' // 占位,避免重复请求;'' → 模板用 DEFAULT_SOURCE_ICON 兜底
   try {
     const svg = (await getSourceTypeIcon(type)).data
     if (svg && typeof svg === 'string' && svg.includes('<svg')) {
       iconCache[type] = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg)
     }
-  } catch (e) { /* 保持 '' 回退默认图标 */ }
-}
-
-// 数据源类型 → 回退图标(全局注册的 element-plus 图标名);按关键词归类,未命中归 SQL 族
-function sourceIcon(type) {
-  const t = (type || '').toLowerCase()
-  if (/elastic|opensearch|(^|_)es($|_)/.test(t)) return 'Search'
-  if (/mongo/.test(t)) return 'Files'
-  if (/redis|memcache|(^|_)kv/.test(t)) return 'Key'
-  if (/kafka|pulsar|rabbit|rocketmq|(^|_)mq|stream/.test(t)) return 'Connection'
-  if (/neo4j|nebula|janus|graph/.test(t)) return 'Share'
-  if (/akshare|ccxt|tushare|api|http|rest/.test(t)) return 'TrendCharts'
-  if (/s3|minio|oss|obs|cos|hdfs|ftp|file/.test(t)) return 'Folder'
-  return 'Coin' // mysql/pg/clickhouse/doris/hive/tdengine/oracle/sqlserver/sqlite… SQL 族
+  } catch (e) { /* 保持 '' → 走默认图标 */ }
 }
 
 // 树搜索:按名称过滤(懒加载树仅过滤已加载节点,展开数据源后其模型也参与过滤)
