@@ -217,7 +217,7 @@ def _datasource_id(code: str) -> str | None:
 def _build_handler(code: str) -> Any:
     """用明文连接(查库+解密)在 backend 进程建 handler,查只读元信息。"""
     from module_ai.tools.sandbox_code_tools import _resolve_datasource
-    from module_data.handlers import create_handler
+    from ezdata.handlers import create_handler
 
     ds = _resolve_datasource(code)
     return create_handler(ds['source_type'], ds['config'], ds['secrets'])

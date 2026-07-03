@@ -173,7 +173,7 @@ def _jsonable(v: Any) -> Any:
         return v
     except (TypeError, ValueError):
         try:
-            from module_data.etl_util import json_safe
+            from ezdata.utils.etl_util import json_safe
             return json_safe(v)
         except Exception:  # noqa: BLE001 兜底:实在不行才整体 str()
             return str(v)
@@ -346,7 +346,7 @@ def _run_pycode(kind: str, payload: dict) -> dict:
     if kind == 'pydata':
         ds = payload.get('datasource') or {}
         try:
-            from module_data.handlers import create_handler
+            from ezdata.handlers import create_handler
 
             g['handler'] = create_handler(ds.get('source_type'), ds.get('config') or {}, ds.get('secrets') or {},
                                           cache=False)  # 沙箱 fork 子进程用完即死,不缓
@@ -358,7 +358,7 @@ def _run_pycode(kind: str, payload: dict) -> dict:
         # 代码取数:注入 get_handler(code) 从预解密注入的 datasources map 建 handler(仅限注入的源)
         dsmap = payload.get('datasources') or {}
         try:
-            from module_data.handlers import create_handler
+            from ezdata.handlers import create_handler
 
             def _get_handler(code: str) -> Any:
                 ds = dsmap.get(code)

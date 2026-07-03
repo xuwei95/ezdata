@@ -59,7 +59,7 @@ def _load_datasource(code: str) -> Any:
 
 
 def _build_handler(rec: dict) -> Any:
-    from module_data.handlers import create_handler  # noqa: PLC0415
+    from ezdata.handlers import create_handler  # noqa: PLC0415
 
     # 经 create_handler 走进程内实例缓存(worker 跨任务复用连接池);
     # secrets 为密文串(查库)→ from_record 内部解密;为明文 dict(沙箱注入)→ 直接合并不解密
@@ -142,7 +142,7 @@ class DataIntegrationRunner(BaseRunner):
         return injected or _load_datasource(code)
 
     def run(self) -> Any:
-        from module_data.handlers import Capability  # noqa: PLC0415
+        from ezdata.handlers import Capability  # noqa: PLC0415
 
         extract = self.params.get('extract') or {}
         transform = self.params.get('transform') or {}
@@ -180,7 +180,7 @@ class DataIntegrationRunner(BaseRunner):
 
         # 列式快路(无 transform + DB 目标):避开 query→list[dict] 行模式,直接喂 dlt 列式装载。
         # 任一条件不满足(转换/文件目标/不支持)都回退下方普通 query→list→write。
-        from module_data.etl_util import assert_readonly_sql, is_file_target  # noqa: PLC0415
+        from ezdata.utils.etl_util import assert_readonly_sql, is_file_target  # noqa: PLC0415
         dst_is_file = is_file_target(getattr(dst, 'family', None))
 
         # 快路①:文件源(DuckDB)→ DuckDB→Arrow→dlt(实测约 3x)。任意只读查询都适用
@@ -220,7 +220,7 @@ class DataIntegrationRunner(BaseRunner):
           仅选 1 个授权源时另注入 handler 别名。print() 即日志。
         - 与 transform 同为 worker 进程内 exec(同一信任模型);调试预览走沙箱(见 EtlService.preview)。
         """
-        from module_data.handlers import Capability  # noqa: PLC0415
+        from ezdata.handlers import Capability  # noqa: PLC0415
 
         code = (extract.get('code') or '').strip()
         if not code:
@@ -317,7 +317,7 @@ class DataIntegrationRunner(BaseRunner):
     def _run_stream(self, src: Any, dst: Any, src_code: str, dst_code: str, table: str,
                     obj: str | None, extract: dict, load: dict, fn: Any) -> Any:
         """流式源:max_events 有值→有界读取一批;否则长驻阻塞消费,微批持续装载。"""
-        from module_data.etl_util import stream_kwargs, stream_statement  # noqa: PLC0415
+        from ezdata.utils.etl_util import stream_kwargs, stream_statement  # noqa: PLC0415
 
         max_events = int(extract.get('max_events') or 0)
         if max_events > 0:  # 有界:读这一批后一次性装载
@@ -353,7 +353,7 @@ class DataIntegrationRunner(BaseRunner):
         pipeline_name 以 task_id 为唯一键:不同任务即使写同一目标表也用各自的 dlt pipeline 状态,
         避免并发/多任务共用 pipeline 状态相互串扰;同一任务重跑沿用同名 pipeline(保留增量状态)。
         """
-        from module_data.etl_util import is_file_target, serialize_records  # noqa: PLC0415
+        from ezdata.utils.etl_util import is_file_target, serialize_records  # noqa: PLC0415
 
         mode = load.get('mode') or 'append'
         dataset = load.get('dataset') or 'public'
