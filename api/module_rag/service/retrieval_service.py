@@ -42,6 +42,7 @@ class RetrievalService:
             'datasetId': r.get('dataset_id'), 'documentId': r.get('document_id'),
             'documentName': doc_name(r.get('document_id')),
             'chunkType': r.get('chunk_type'), 'question': r.get('question'),
+            'answer': r.get('answer'),
             'score': r.get('score'),
         } for r in records]
         return res
