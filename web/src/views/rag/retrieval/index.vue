@@ -8,7 +8,10 @@
           <el-form label-width="90px">
             <el-form-item label="知识库">
               <el-select v-model="datasetIds" multiple filterable placeholder="选择一个或多个知识库" style="width: 100%">
-                <el-option v-for="d in datasets" :key="d.id" :label="d.name" :value="d.id" />
+                <el-option v-for="d in datasets" :key="d.id" :label="d.name" :value="d.id">
+                  <span>{{ d.name }}</span>
+                  <el-tag v-if="d.sourceId ?? d.source_id" size="small" type="info" style="margin-left: 6px">数据源</el-tag>
+                </el-option>
               </el-select>
             </el-form-item>
             <el-form-item label="查询">
@@ -54,7 +57,11 @@
                 <el-tag size="small" :type="r.chunkType === 'qa' ? 'warning' : 'primary'">{{ r.chunkType }}</el-tag>
                 <span class="score">score: {{ (r.score ?? 0).toFixed ? (r.score ?? 0).toFixed(4) : r.score }}</span>
               </div>
-              <div class="hit-body">{{ r.content }}</div>
+              <div v-if="r.chunkType === 'qa'" class="hit-body">
+                <div class="qa-q">Q：{{ r.question }}</div>
+                <div class="qa-a">A：{{ r.answer || r.content }}</div>
+              </div>
+              <div v-else class="hit-body">{{ r.content }}</div>
               <div class="hit-meta">库:{{ dsName(r.datasetId) }} · 文档:{{ r.documentName || r.documentId }}</div>
             </div>
           </div>
@@ -95,7 +102,7 @@ function doSearch() {
 }
 
 onMounted(() => {
-  listDataset({ pageNum: 1, pageSize: 100 }).then((res) => { datasets.value = res.rows || [] })
+  listDataset({ pageNum: 1, pageSize: 100, includeSource: true }).then((res) => { datasets.value = res.rows || [] })
 })
 </script>
 
@@ -106,5 +113,7 @@ onMounted(() => {
 .hit-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
 .hit-head .score { color: #67c23a; font-size: 12px; }
 .hit-body { color: #303133; font-size: 14px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+.qa-q { color: #606266; font-weight: 600; margin-bottom: 4px; }
+.qa-a { color: #303133; }
 .hit-meta { color: #909399; font-size: 12px; margin-top: 6px; }
 </style>

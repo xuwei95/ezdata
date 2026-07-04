@@ -88,15 +88,33 @@ def retrieve(tenant_id: Any, query: str, dataset_ids: list[str], *, k: int = 5,
         records = []
         if qa:
             records.append({'chunk_id': qa.id, 'content': qa.answer, 'question': qa.question,
-                            'dataset_id': qa.dataset_id, 'document_id': qa.document_id,
+                            'answer': qa.answer, 'dataset_id': qa.dataset_id, 'document_id': qa.document_id,
                             'chunk_type': 'qa', 'score': 1.0})
-        for h in fused[:k]:
-            records.append({
+
+        top = fused[:k]
+        # QA 分段的 question/answer 不一定在向量库 metadata 里(老索引只存了 question,answer 仅在 DB)
+        # → 按 chunk_id 回查 DB 补全,保证向量/混合命中的 QA 也能带出答案(否则只回问题没答案)
+        qa_ids = [h.get('chunk_id') for h in top if h.get('chunk_type') == 'qa' and h.get('chunk_id')]
+        qa_map: dict[str, Any] = {}
+        if qa_ids:
+            qa_map = {c.id: c for c in db.execute(
+                select(RagChunk).where(RagChunk.id.in_(qa_ids))).scalars().all()}
+        for h in top:
+            rec = {
                 'chunk_id': h.get('chunk_id'), 'content': h.get('content'),
                 'dataset_id': h.get('dataset_id'), 'document_id': h.get('document_id'),
                 'chunk_type': h.get('chunk_type', 'chunk'),
+                'question': h.get('question'),
                 'score': h.get('rerank_score') or h.get('rrf_score') or h.get('score'),
-            })
+            }
+            if rec['chunk_type'] == 'qa':
+                c = qa_map.get(rec['chunk_id'])
+                if c is not None:
+                    rec['question'] = c.question
+                    rec['answer'] = c.answer
+                if not rec.get('content'):        # QA 入库 content 为空 → 用 answer 兜底展示
+                    rec['content'] = rec.get('answer')
+            records.append(rec)
         return {'total': len(records), 'records': records}
     finally:
         RequestContext.reset_current_tenant_id(token)

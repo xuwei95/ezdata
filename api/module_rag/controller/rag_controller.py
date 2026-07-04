@@ -27,8 +27,10 @@ async def dataset_list(
     request: Request, db: Annotated[AsyncSession, DBSessionDependency()],
     name: Annotated[str | None, Query()] = None,
     pageNum: Annotated[int, Query()] = 1, pageSize: Annotated[int, Query()] = 10,  # noqa: N803
+    includeSource: Annotated[bool, Query()] = False,  # noqa: N803  召回测试传 true 以列出数据源专属库
 ) -> Response:
-    return ResponseUtil.success(model_content=await DatasetService.get_list(db, name, pageNum, pageSize, is_page=True))
+    return ResponseUtil.success(model_content=await DatasetService.get_list(
+        db, name, pageNum, pageSize, is_page=True, include_source=includeSource))
 
 
 @rag_controller.post('/dataset', summary='新建知识库', dependencies=[UserInterfaceAuthDependency('rag:dataset:edit')])

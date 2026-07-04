@@ -19,12 +19,13 @@ class DatasetService:
 
     @classmethod
     async def get_list(cls, db: AsyncSession, name: str | None, page_num: int, page_size: int,
-                       is_page: bool = True) -> Any:
-        # 只展示通用知识库;数据源专属库(source_id 非空)在数据管理的「知识库」tab 里管理
-        query = select(RagDataset).where(
-            RagDataset.source_id.is_(None),
-            RagDataset.name.like(f'%{name}%') if name else True,
-        ).order_by(RagDataset.create_time.desc())
+                       is_page: bool = True, include_source: bool = False) -> Any:
+        # 默认只展示通用知识库;数据源专属库(source_id 非空)在数据管理的「知识库」tab 里管理。
+        # include_source=True(如召回测试)时一并列出数据源专属库,供选择检索。
+        conds = [RagDataset.name.like(f'%{name}%') if name else True]
+        if not include_source:
+            conds.append(RagDataset.source_id.is_(None))
+        query = select(RagDataset).where(*conds).order_by(RagDataset.create_time.desc())
         return await PageUtil.paginate(db, query, page_num, page_size, is_page)
 
     @classmethod
