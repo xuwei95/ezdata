@@ -40,6 +40,9 @@ services:
       - /app/__pycache__                  # 遮蔽宿主可能带入的 pyc 缓存
     environment:
       - APP_ENV=dev                       # 以 dev 配置运行（.env.dev：APP_RELOAD=true、Swagger 开启）
+      # dev 关闭传输层加解密(公网前后端流量加密才需要;本地开发免配 RSA 密钥,否则 lifespan 校验直接 fail)
+      - TRANSPORT_CRYPTO_ENABLED=false
+      - TRANSPORT_CRYPTO_MODE=off
       # 覆盖 .env.dev 中指向 127.0.0.1 的连接，改为 compose 服务名（load_dotenv 不覆盖已存在的环境变量）
       - DB_HOST=ezdata-mysql-dev
       - DB_PORT=3306
