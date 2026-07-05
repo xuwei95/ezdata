@@ -55,7 +55,8 @@ services:
   ezdata-worker:
     image: ${EZDATA_IMAGE:-ezdata123/ezdata:2.0.0}
     container_name: ${WORKER_NAME:-ezdata-worker-my}
-    command: python -m celery -A config.celery_app worker -Q default --autoscale=4,1 --loglevel=INFO
+    # 固定并发:设了 WORKER_CONCURRENCY(见 .env)用其值,不设则省略 --concurrency → celery 默认=CPU 核数
+    command: sh -c 'exec python -m celery -A config.celery_app worker -Q default$${WORKER_CONCURRENCY:+ --concurrency=$$WORKER_CONCURRENCY} --loglevel=INFO'
     env_file:
       - path: ./.env                      # 同 backend:同目录 .env 覆盖应用配置,缺省可选
         required: false
