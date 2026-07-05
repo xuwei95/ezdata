@@ -94,17 +94,17 @@ services:
     image: ezdata-backend-dev:latest
     container_name: ezdata-worker-dev
     working_dir: /app
-    # prefork 池：容器为 Linux。--autoscale=MAX,MIN 启用弹性并发(同时支持 pool grow/shrink 与运行时 autoscale 控制命令)
+    # prefork 池:固定并发。设了 WORKER_CONCURRENCY 用其值;不设则省略 --concurrency → celery 默认=CPU 核数
     command: >
-      python -m celery -A config.celery_app worker
-      -Q default
-      --autoscale=4,1
-      --loglevel=INFO
+      sh -c 'exec python -m celery -A config.celery_app worker
+      -Q default$${WORKER_CONCURRENCY:+ --concurrency=$$WORKER_CONCURRENCY}
+      --loglevel=INFO'
     volumes:
       - ./api:/app      # 与后端共享源码：改 runner/任务代码即时生效（重启 worker 后）
       - /app/__pycache__
     environment:
       - APP_ENV=dev
+      - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-}   # 透传宿主/.env → 容器;空=用 CPU 核数
       - DB_HOST=ezdata-mysql-dev
       - DB_PORT=3306
       - DB_PASSWORD=ezdata123456
@@ -211,11 +211,13 @@ services:
     volumes:
       - ./web:/app     # 挂载前端源码：改 .vue/.js 即时 HMR
       - /app/node_modules                 # 用镜像内的 node_modules，避免被宿主目录遮蔽
+    # 覆盖镜像 CMD 的 --port 12580，改监听 80（vite.config 默认也是 80）；免重建镜像
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "80"]
     environment:
       # vite.config.js 的代理目标读取此变量，docker 内指向后端服务名（容器互通）
       - VITE_DEV_PROXY_TARGET=http://ezdata-backend-dev:9099
     ports:
-      - "12580:12580"                     # 宿主与容器端口一致，避免 HMR websocket 端口错配
+      - "80:80"                           # 宿主/容器端口一致(均 80)，避免 HMR websocket 错配；访问 http://localhost
     depends_on:
       - ezdata-backend-dev
     networks:
