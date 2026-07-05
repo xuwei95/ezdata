@@ -46,6 +46,8 @@ services:
       # 覆盖 .env.dev 中指向 127.0.0.1 的连接，改为 compose 服务名（load_dotenv 不覆盖已存在的环境变量）
       - DB_HOST=ezdata-mysql-dev
       - DB_PORT=3306
+      - DB_DATABASE=ezdata              # 代码默认仍是 ruoyi-fastapi;dev 直起 uvicorn 时 .env.dev 未生效,故 compose 显式给
+      - DB_USERNAME=root
       - DB_PASSWORD=ezdata123456
       - REDIS_HOST=ezdata-redis-dev
       - REDIS_PORT=6379
@@ -110,6 +112,8 @@ services:
       - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-}   # 透传宿主/.env → 容器;空=用 CPU 核数
       - DB_HOST=ezdata-mysql-dev
       - DB_PORT=3306
+      - DB_DATABASE=ezdata              # 代码默认仍是 ruoyi-fastapi;dev 直起 uvicorn 时 .env.dev 未生效,故 compose 显式给
+      - DB_USERNAME=root
       - DB_PASSWORD=ezdata123456
       - REDIS_HOST=ezdata-redis-dev
       - REDIS_PORT=6379
