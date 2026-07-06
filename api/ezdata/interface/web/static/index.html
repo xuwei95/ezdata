@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ezdata · 数据管理</title>
+<style>
+  /* 仿 Element Plus 亮色主题 */
+  :root{ --primary:#409eff; --success:#67c23a; --danger:#f56c6c; --info:#909399;
+    --border:#ebeef5; --border2:#dcdfe6; --bg:#f5f7fa; --panel:#fff; --text:#303133; --muted:#909399; }
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; margin:0; }
+  body{ font:13px/1.5 -apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif; color:var(--text); background:var(--bg); }
+  .layout{ display:flex; flex-direction:column; height:100vh; }
+  header{ height:48px; flex:0 0 48px; display:flex; align-items:center; gap:10px; padding:0 16px; background:var(--panel); border-bottom:1px solid var(--border); }
+  header h1{ font-size:15px; font-weight:600; margin:0; }
+  header .badge{ font-size:12px; color:var(--muted); }
+  header .llm{ margin-left:auto; font-size:12px; }
+  .llm .on{ color:var(--success); } .llm .off{ color:var(--danger); }
+  .body{ flex:1; display:flex; min-height:0; }
+
+  /* 左:数据源 */
+  aside{ width:260px; flex:0 0 260px; background:var(--panel); border-right:1px solid var(--border); display:flex; flex-direction:column; }
+  .toolbar{ display:flex; gap:6px; padding:8px; }
+  .search{ padding:0 8px 8px; }
+  .ds-list{ flex:1; overflow:auto; padding:4px 0; }
+  .tnode{ display:flex; align-items:center; gap:6px; padding:6px 10px; cursor:pointer; border-left:2px solid transparent; white-space:nowrap; }
+  .tnode:hover{ background:#f5f7fa; }
+  .tnode.on{ background:#ecf5ff; border-left-color:var(--primary); }
+  .caret{ width:12px; flex:0 0 12px; text-align:center; color:#c0c4cc; font-size:10px; display:inline-block; transition:transform .15s; }
+  .caret.open{ transform:rotate(90deg); }
+  .caret.leaf{ visibility:hidden; }
+  .tnode img.ic{ width:16px; height:16px; object-fit:contain; flex:0 0 16px; }
+  .tnode .nm{ flex:1; overflow:hidden; text-overflow:ellipsis; }
+  .children .tnode{ padding-left:32px; }
+  .children .tmsg{ padding:5px 10px 5px 32px; font-size:12px; color:var(--muted); }
+  .children .tmsg.err{ color:var(--danger); white-space:normal; }
+  .dot{ width:8px; height:8px; border-radius:50%; background:#c0c4cc; flex:0 0 8px; }
+  .dot.ok{ background:var(--success); } .dot.failed{ background:var(--danger); }
+  .empty-list{ padding:20px 12px; color:var(--muted); text-align:center; }
+
+  /* 右:内容 */
+  main{ flex:1; overflow:auto; padding:16px 20px; min-width:0; }
+  .empty-main{ display:flex; flex-direction:column; align-items:center; justify-content:center; height:70vh; color:var(--muted); }
+  .tabs{ display:flex; gap:2px; border-bottom:1px solid var(--border); margin-bottom:16px; }
+  .tabs .tab{ padding:9px 16px; cursor:pointer; color:var(--muted); border-bottom:2px solid transparent; margin-bottom:-1px; }
+  .tabs .tab.on{ color:var(--primary); border-bottom-color:var(--primary); font-weight:500; }
+  .tabpage{ display:none; } .tabpage.on{ display:block; }
+
+  /* descriptions 表 */
+  .desc{ border:1px solid var(--border); border-radius:4px; overflow:hidden; width:100%; border-collapse:collapse; }
+  .desc th,.desc td{ border:1px solid var(--border); padding:9px 12px; text-align:left; font-weight:400; }
+  .desc th{ background:#fafafa; color:#606266; width:90px; white-space:nowrap; }
+  .tag{ display:inline-block; font-size:12px; padding:1px 8px; border-radius:4px; margin:2px 4px 2px 0; background:#ecf5ff; color:var(--primary); border:1px solid #d9ecff; }
+  .tag.g{ background:#f0f9eb; color:var(--success); border-color:#e1f3d8; }
+  .tag.r{ background:#fef0f0; color:var(--danger); border-color:#fde2e2; }
+
+  /* 按钮 */
+  .btn{ display:inline-flex; align-items:center; gap:4px; font:inherit; padding:7px 15px; border:1px solid var(--border2); border-radius:4px; background:#fff; color:#606266; cursor:pointer; }
+  .btn:hover{ color:var(--primary); border-color:#c6e2ff; background:#ecf5ff; }
+  .btn.primary{ background:var(--primary); border-color:var(--primary); color:#fff; }
+  .btn.primary:hover{ background:#66b1ff; border-color:#66b1ff; color:#fff; }
+  .btn.success{ background:var(--success); border-color:var(--success); color:#fff; }
+  .btn.danger{ color:var(--danger); border-color:#fbc4c4; background:#fff; }
+  .btn.danger:hover{ background:var(--danger); color:#fff; }
+  .btn.sm{ padding:5px 11px; font-size:12px; }
+  .btn:disabled{ opacity:.5; cursor:not-allowed; }
+  .row-actions{ margin-top:14px; display:flex; gap:8px; flex-wrap:wrap; }
+
+  /* form */
+  label.f{ display:block; font-size:13px; color:#606266; margin:12px 0 5px; }
+  input,select,textarea{ width:100%; font:inherit; color:var(--text); border:1px solid var(--border2); border-radius:4px; padding:7px 11px; background:#fff; }
+  input:focus,select:focus,textarea:focus{ outline:none; border-color:var(--primary); }
+  textarea{ font-family:Consolas,Monaco,monospace; resize:vertical; }
+  .grid2{ display:flex; gap:12px; } .grid2>div{ flex:1; }
+
+  /* 查询 */
+  .bar{ display:flex; align-items:center; justify-content:space-between; margin:0 0 6px; }
+  .muted{ color:var(--muted); font-size:12px; }
+  .ai-panel{ margin:8px 0; padding:12px; border:1px dashed #c0c4cc; border-radius:6px; background:#fafafa; }
+  .ai-out{ margin:8px 0 0; padding:9px 11px; background:#1e1e1e; color:#d4d4d4; border-radius:4px; font:12px/1.5 Consolas,Monaco,monospace; white-space:pre-wrap; word-break:break-all; max-height:180px; overflow:auto; }
+  .cursor{ color:#67c23a; animation:blink 1s steps(1) infinite; }
+  @keyframes blink{ 50%{ opacity:0; } }
+  .tables-hint{ margin:8px 0; font-size:12px; }
+  .tables-hint code{ background:#f4f4f5; color:#606266; padding:2px 7px; border-radius:4px; margin:2px 4px 2px 0; display:inline-block; cursor:pointer; }
+  .tables-hint code:hover{ background:#ecf5ff; color:var(--primary); }
+  .result-bar{ display:flex; align-items:center; justify-content:space-between; margin:12px 0 6px; }
+  .scroll{ overflow:auto; max-height:calc(100vh - 360px); border:1px solid var(--border); border-radius:4px; }
+  table.grid{ width:100%; border-collapse:collapse; }
+  table.grid th,table.grid td{ border:1px solid var(--border); padding:6px 10px; text-align:left; white-space:nowrap; max-width:320px; overflow:hidden; text-overflow:ellipsis; }
+  table.grid th{ background:#fafafa; color:#606266; position:sticky; top:0; }
+  table.grid tr:nth-child(even){ background:#fafafa; }
+
+  /* modal */
+  .mask{ display:none; position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:10; }
+  .mask.on{ display:flex; align-items:flex-start; justify-content:center; }
+  .modal{ background:#fff; border-radius:6px; width:560px; max-width:92vw; margin-top:8vh; max-height:82vh; display:flex; flex-direction:column; }
+  .modal h3{ margin:0; padding:16px 20px; border-bottom:1px solid var(--border); font-size:16px; }
+  .modal .mbody{ padding:8px 20px 16px; overflow:auto; }
+  .modal .mfoot{ padding:12px 20px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; gap:8px; }
+
+  /* 可搜索下拉 */
+  .combo{ position:relative; }
+  .combo-list{ display:none; position:absolute; z-index:5; left:0; right:0; top:100%; margin-top:2px; background:#fff; border:1px solid var(--border2); border-radius:4px; box-shadow:0 4px 16px rgba(0,0,0,.12); max-height:260px; overflow:auto; }
+  .combo-list.on{ display:block; }
+  .combo-opt{ display:flex; align-items:center; gap:8px; padding:7px 11px; cursor:pointer; }
+  .combo-opt:hover{ background:#ecf5ff; }
+  .combo-opt img{ width:16px; height:16px; object-fit:contain; flex:0 0 16px; }
+  .combo-opt .t{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .combo-opt .st{ font-size:11px; color:var(--muted); flex:0 0 auto; }
+  .combo-empty{ padding:12px; color:var(--muted); text-align:center; }
+  /* 依赖诊断 */
+  .dep-box{ margin:10px 0 0; padding:9px 11px; background:#fafafa; border:1px solid var(--border); border-radius:4px; font-size:12px; }
+  .dep-req{ color:#606266; word-break:break-all; }
+  .dep-actions{ margin-top:8px; display:flex; gap:8px; }
+  .pip-tail{ margin-top:8px; padding:8px; background:#1e1e1e; color:#d4d4d4; border-radius:4px; font:11px/1.45 Consolas,Monaco,monospace; white-space:pre-wrap; max-height:160px; overflow:auto; }
+
+  /* toast */
+  #toast{ position:fixed; top:16px; left:50%; transform:translateX(-50%); z-index:99; display:flex; flex-direction:column; gap:8px; align-items:center; }
+  .toast{ padding:9px 16px; border-radius:4px; font-size:13px; box-shadow:0 2px 12px rgba(0,0,0,.1); }
+  .toast.ok{ background:#f0f9eb; color:var(--success); border:1px solid #e1f3d8; }
+  .toast.err{ background:#fef0f0; color:var(--danger); border:1px solid #fde2e2; }
+  .toast.info{ background:#edf2fc; color:#606266; border:1px solid #e4e7ed; }
+</style>
+</head>
+<body>
+<div class="layout">
+  <header>
+    <h1>ezdata</h1>
+    <span class="llm" id="llm">LLM…</span>
+  </header>
+  <div class="body">
+    <!-- 左:数据源 -->
+    <aside>
+      <div class="toolbar">
+        <button class="btn primary sm" style="flex:1" onclick="openModal()">＋ 新建数据源</button>
+        <button class="btn sm" onclick="refreshConns()" title="刷新">⟳</button>
+      </div>
+      <div class="search"><input id="ds-search" placeholder="搜索数据源 / 表" oninput="renderTree()"></div>
+      <div class="ds-list" id="ds-list"><div class="empty-list">加载中…</div></div>
+    </aside>
+
+    <!-- 右:详情/查询 -->
+    <main>
+      <div class="empty-main" id="empty-main">
+        <div style="font-size:40px">🗄️</div>
+        <p>请选择左侧数据源</p>
+      </div>
+
+      <div id="detail" style="display:none">
+        <div class="tabs">
+          <div class="tab on" data-tab="info" onclick="switchTab('info')">基本信息</div>
+          <div class="tab" data-tab="query" onclick="switchTab('query')">数据查询</div>
+        </div>
+
+        <!-- 基本信息(数据源 或 表,由 renderInfo 动态渲染) -->
+        <div class="tabpage on" id="page-info"></div>
+
+        <!-- 数据查询 -->
+        <div class="tabpage" id="page-query">
+          <div class="bar">
+            <span class="muted">原生查询(SQL 字符串 / 该源原生 DSL)</span>
+            <button class="btn sm" onclick="toggleAi()">✨ AI 生成查询</button>
+          </div>
+          <textarea id="q-stmt" rows="4" placeholder="例如:SELECT * FROM xxx WHERE ...;或点「AI 生成查询」用自然语言生成"></textarea>
+
+          <!-- AI 面板 -->
+          <div class="ai-panel" id="ai-panel" style="display:none">
+            <textarea id="ai-q" rows="2" placeholder="用自然语言描述你想查什么,例如:最近一周金额最高的 10 笔订单"></textarea>
+            <div class="bar" style="margin-top:8px">
+              <span>
+                <button class="btn primary sm" id="ai-gen" onclick="genQuery()">✨ 生成查询</button>
+                <button class="btn sm" id="ai-apply" onclick="applyGen()" style="display:none; margin-left:6px">↥ 应用到查询框</button>
+              </span>
+              <span class="muted">生成结果显示在下方,点【应用到查询框】覆盖上方查询框</span>
+            </div>
+            <pre class="ai-out" id="ai-out" style="display:none"></pre>
+          </div>
+
+          <div class="bar" style="margin-top:10px">
+            <button class="btn primary" id="q-run" onclick="runQuery()">🔍 查询</button>
+            <span title="限制本次查询返回的最大行数,避免一次拉取过多数据">
+              <span class="muted">最多返回行数</span>
+              <input id="q-limit" type="number" value="200" title="限制本次查询返回的最大行数"
+                     style="width:90px; display:inline-block; margin-left:6px">
+            </span>
+          </div>
+
+          <div class="result-bar">
+            <span class="muted" id="q-count">暂无数据</span>
+            <button class="btn sm" id="q-export" onclick="exportExcel()" disabled>⬇ 导出 Excel</button>
+          </div>
+          <div id="q-result"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- 新建数据源 modal -->
+<div class="mask" id="mask">
+  <div class="modal">
+    <h3 id="modal-title">新建数据源</h3>
+    <div class="mbody">
+      <label class="f">数据源类型</label>
+      <div class="combo">
+        <input id="new-type-search" placeholder="搜索并选择数据源类型…" autocomplete="off"
+          oninput="filterTypes()" onfocus="filterTypes()">
+        <input type="hidden" id="new-type">
+        <div class="combo-list" id="new-type-list"></div>
+      </div>
+      <div id="dep-box" class="dep-box" style="display:none"></div>
+      <pre id="dep-log" class="pip-tail" style="display:none"></pre>
+
+      <label class="f">名称(唯一)</label>
+      <input id="new-name" placeholder="如 sales_db">
+      <div id="edit-note" class="muted" style="display:none; margin-top:6px">编辑模式:类型/名称不可改;密钥字段留空表示保持原值</div>
+
+      <div id="new-form"></div>
+    </div>
+    <div class="mfoot">
+      <button class="btn" onclick="testNew()">测试连接</button>
+      <button class="btn" onclick="closeModal()">取消</button>
+      <button class="btn primary" onclick="saveNew()">保存</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const api = async (path, method='GET', body=null) => {
+  const r = await fetch('/api'+path, {method, headers:{'Content-Type':'application/json'}, body: body?JSON.stringify(body):null});
+  const j = await r.json();
+  if (!r.ok || j.error) throw new Error(j.error || ('HTTP '+r.status));
+  return j;
+};
+const esc = v => (v==null?'':String(v)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+// SSE 流:POST /api+path,按 event 分发到 handlers(data 为 JSON)
+async function sse(path, body, handlers){
+  const resp = await fetch('/api'+path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+  if(!resp.ok || !resp.body) throw new Error('HTTP '+resp.status);
+  const reader=resp.body.getReader(), dec=new TextDecoder(); let buf='';
+  for(;;){
+    const {done,value}=await reader.read(); if(done) break;
+    buf += dec.decode(value,{stream:true});
+    let i;
+    while((i=buf.indexOf('\n\n'))>=0){
+      const block=buf.slice(0,i); buf=buf.slice(i+2);
+      let ev='message', data='';
+      for(const ln of block.split('\n')){
+        if(ln.startsWith('event:')) ev=ln.slice(6).trim();
+        else if(ln.startsWith('data:')) data+=ln.slice(5).trim();
+      }
+      let parsed=null; if(data){ try{ parsed=JSON.parse(data); }catch(e){ parsed=data; } }
+      if(handlers[ev]) handlers[ev](parsed);
+    }
+  }
+}
+function toast(text, type='info'){ const t=document.createElement('div'); t.className='toast '+type; t.textContent=text;
+  $('#toast').appendChild(t); setTimeout(()=>t.remove(), 2600); }
+
+const DEFAULT_ICON='data:image/svg+xml;charset=utf-8,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#79879c" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5"/><path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3"/></svg>');
+const TABLE_ICON='data:image/svg+xml;charset=utf-8,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#909399" stroke-width="1.6"><rect x="3" y="4" width="18" height="16" rx="1"/><path d="M3 9h18M3 14h18M9 4v16"/></svg>');
+const jss = v => esc(String(v)).replace(/'/g,"\\'");   // 供内联 onclick 的字符串转义
+let SOURCE_TYPES=[], SCHEMAS={}, ICONS={}, CAPS={}, CONNS=[], CURRENT=null, STATUS={};
+let EXPANDED=new Set(), TABLES={}, ACTIVE_TABLE=null;   // 树:已展开数据源 / 表缓存 / 当前选中表(name+' '+table)
+let CURRENT_TABLE=null;   // 当前选中的表名(选中的是表则非空,选中的是数据源则 null)
+let CURRENT_ROWS=[];      // 当前查询结果行(供导出 Excel)
+let GEN_STMT='';          // AI 最近生成的查询语句(点「应用到查询框」才覆盖)
+
+async function iconFor(type){
+  if(ICONS[type]!==undefined) return ICONS[type];
+  ICONS[type]='';
+  try{ const {svg}=await api('/icon?type='+encodeURIComponent(type));
+    if(svg && svg.includes('<svg')) ICONS[type]='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);
+  }catch(e){}
+  return ICONS[type];
+}
+
+// ---------- init ----------
+async function init(){
+  try{ const l=await api('/llm');
+    $('#llm').innerHTML = l.ready ? `LLM <span class="on">✓ ${esc(l.model)}</span>` : `LLM <span class="off">✗ 未配置</span>`;
+  }catch(e){ $('#llm').textContent='LLM ?'; }
+  SOURCE_TYPES = await api('/source_types');
+  CAPS = Object.fromEntries(SOURCE_TYPES.map(t=>[t.source_type, t.capabilities||[]]));
+  await refreshConns();
+}
+
+async function getSchema(type){ if(!SCHEMAS[type]) SCHEMAS[type]=await api('/schema?type='+encodeURIComponent(type)); return SCHEMAS[type]; }
+
+// ---------- 数据源 → 表 两级树 ----------
+async function refreshConns(){
+  CONNS = await api('/connections');
+  for(const c of CONNS) await iconFor(c.source_type);
+  EXPANDED = new Set([...EXPANDED].filter(n=>CONNS.find(c=>c.name===n)));
+  TABLES = {};                              // 刷新清表缓存,展开中的重新拉取
+  renderTree();
+  for(const n of EXPANDED) loadTablesFor(n);
+  if(CURRENT && !CONNS.find(c=>c.name===CURRENT.name)){
+    CURRENT=null; CURRENT_TABLE=null; ACTIVE_TABLE=null; $('#detail').style.display='none'; $('#empty-main').style.display='flex';
+  }
+}
+
+function renderTree(){
+  const kw=($('#ds-search').value||'').toLowerCase();
+  const el=$('#ds-list');
+  const tblsOf=c=>(TABLES[c.name]&&TABLES[c.name].tables)||[];
+  const list=CONNS.filter(c=> c.name.toLowerCase().includes(kw) || tblsOf(c).some(t=>t.toLowerCase().includes(kw)));
+  if(!list.length){ el.innerHTML='<div class="empty-list">'+(CONNS.length?'无匹配':'暂无数据源,点上方新建')+'</div>'; return; }
+  let h='';
+  for(const c of list){
+    const open=EXPANDED.has(c.name);
+    const selDs=CURRENT&&CURRENT.name===c.name&&!ACTIVE_TABLE;
+    h+=`<div class="tnode ${selDs?'on':''}" onclick="onDsClick('${jss(c.name)}')">
+      <span class="caret ${open?'open':''}">▶</span>
+      <img class="ic" src="${ICONS[c.source_type]||DEFAULT_ICON}">
+      <span class="nm">${esc(c.name)}</span>
+      <span class="dot ${STATUS[c.name]||''}"></span></div>`;
+    h+=`<div class="children" style="display:${open?'block':'none'}">`;
+    if(open){
+      const tb=TABLES[c.name];
+      if(!tb) h+='<div class="tmsg">加载中…</div>';
+      else if(tb.error) h+=`<div class="tmsg err">${esc(tb.error)}</div>`;
+      else if(!tb.tables.length) h+='<div class="tmsg">无表</div>';
+      else{
+        const ts=tb.tables.filter(t=>!kw||t.toLowerCase().includes(kw)||c.name.toLowerCase().includes(kw));
+        h+=ts.map(t=>`<div class="tnode ${ACTIVE_TABLE===c.name+' '+t?'on':''}" onclick="selectTable('${jss(c.name)}','${jss(t)}')">
+          <span class="caret leaf">▶</span><img class="ic" src="${TABLE_ICON}"><span class="nm">${esc(t)}</span></div>`).join('');
+      }
+    }
+    h+='</div>';
+  }
+  el.innerHTML=h;
+}
+
+async function loadTablesFor(name){
+  try{ TABLES[name]={tables: await api('/tables?name='+encodeURIComponent(name))}; }
+  catch(e){ TABLES[name]={error:e.message}; }
+  renderTree();
+}
+
+function showDetail(name){
+  CURRENT=CONNS.find(c=>c.name===name);
+  $('#empty-main').style.display='none'; $('#detail').style.display='block';
+  renderInfo();
+}
+function resetQuery(){
+  $('#q-stmt').value=''; $('#q-result').innerHTML=''; $('#q-count').textContent='暂无数据';
+  $('#ai-panel').style.display='none'; $('#ai-out').style.display='none'; $('#ai-q').value='';
+  const ap=$('#ai-apply'); if(ap) ap.style.display='none'; GEN_STMT='';
+  CURRENT_ROWS=[]; const ex=$('#q-export'); if(ex) ex.disabled=true;
+}
+
+// 导出当前查询结果为 xlsx(把行 POST 给后端 pandas 生成,下载 blob)
+async function exportExcel(){
+  if(!CURRENT_ROWS.length){ toast('无数据可导出','err'); return; }
+  const ts=new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
+  const fn=`${CURRENT?CURRENT.name:'export'}${CURRENT_TABLE?'_'+CURRENT_TABLE:''}_${ts}.xlsx`;
+  const btn=$('#q-export'); btn.disabled=true; const old=btn.textContent; btn.textContent='导出中…';
+  try{
+    const resp=await fetch('/api/export',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({rows:CURRENT_ROWS, filename:fn})});
+    if(!resp.ok){ let m='HTTP '+resp.status; try{ m=(await resp.json()).error||m; }catch(e){} throw new Error(m); }
+    const blob=await resp.blob();
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=fn;
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
+    toast('已导出 '+fn,'ok');
+  }catch(e){ toast('导出失败: '+e.message,'err'); }
+  finally{ btn.textContent=old; btn.disabled=!CURRENT_ROWS.length; }
+}
+
+// 点数据源:选中(基本信息)+ 展开/折叠(懒加载表)
+function onDsClick(name){
+  const changed=!CURRENT||CURRENT.name!==name||CURRENT_TABLE;
+  CURRENT_TABLE=null; ACTIVE_TABLE=null;
+  showDetail(name);
+  if(changed){ switchTab('info'); resetQuery(); }
+  if(EXPANDED.has(name)) EXPANDED.delete(name);
+  else { EXPANDED.add(name); if(!TABLES[name]) loadTablesFor(name); }
+  renderTree();
+}
+// 点表:选中该表 → 基本信息展示字段 + 数据查询预填(该源原生语法)
+function selectTable(name, table){
+  const wasEmpty=!CURRENT_TABLE&&!(CURRENT&&$('#detail').style.display!=='none');
+  const activeTab=document.querySelector('.tab.on')?.dataset.tab||'info';
+  CURRENT=CONNS.find(c=>c.name===name);
+  CURRENT_TABLE=table; ACTIVE_TABLE=name+' '+table;
+  $('#empty-main').style.display='none'; $('#detail').style.display='block';
+  resetQuery();
+  renderInfo();            // 渲染表信息 + 字段表(供基本信息 tab)
+  // 保持当前 tab(不再强制切回基本信息);若停在数据查询,预填后自动重查
+  prefillSample(name, table).then(()=>{ if(activeTab==='query'&&!wasEmpty) runQuery(); });
+  renderTree();
+}
+function renderInfo(){
+  if(CURRENT_TABLE){ renderTableInfo(CURRENT, CURRENT_TABLE); return; }
+  const c=CURRENT, caps=CAPS[c.source_type]||[];
+  const t=SOURCE_TYPES.find(x=>x.source_type===c.source_type)||{};
+  const st=STATUS[c.name];
+  const status = st==='ok'?'<span class="tag g">正常</span>':st==='failed'?'<span class="tag r">失败</span>':'<span class="tag">未测试</span>';
+  $('#page-info').innerHTML=`
+    <table class="desc">
+      <tr><th>名称</th><td>${esc(c.name)}</td><th>类型</th><td>${esc(c.source_type)}</td></tr>
+      <tr><th>数据族</th><td>${esc(t.family||'—')}</td><th>状态</th><td>${status}</td></tr>
+      <tr><th>能力</th><td colspan="3">${caps.map(x=>`<span class="tag">${esc(x)}</span>`).join('')||'—'}</td></tr>
+      <tr><th>配置</th><td colspan="3"><code style="font-size:12px">${esc(JSON.stringify(c.config))}</code></td></tr>
+    </table>
+    <div class="row-actions">
+      <button class="btn" onclick="testCurrent(event)">🔌 测试连接</button>
+      <button class="btn" onclick="openEdit()">✎ 编辑</button>
+      <button class="btn danger" onclick="delCurrent()">🗑 删除</button>
+    </div>`;
+}
+
+// 表基本信息:表名/数据源/族 + 字段表(对齐平台模型详情的字段展示)
+async function renderTableInfo(c, table){
+  const t=SOURCE_TYPES.find(x=>x.source_type===c.source_type)||{};
+  $('#page-info').innerHTML=`
+    <table class="desc">
+      <tr><th>表</th><td>${esc(table)}</td><th>数据源</th><td>${esc(c.name)}</td></tr>
+      <tr><th>类型</th><td>${esc(c.source_type)}</td><th>数据族</th><td>${esc(t.family||'—')}</td></tr>
+    </table>
+    <div class="bar" style="margin:16px 0 6px">
+      <span class="muted">字段</span>
+      <button class="btn sm" onclick="switchTab('query')">🔍 去查询</button>
+    </div>
+    <div id="fields-box"><div class="muted">加载字段中…</div></div>`;
+  try{
+    const cols=await api('/columns?name='+encodeURIComponent(c.name)+'&table='+encodeURIComponent(table));
+    if(CURRENT_TABLE!==table||!CURRENT||CURRENT.name!==c.name) return;   // 期间切走了,丢弃
+    if(!cols.length){ $('#fields-box').innerHTML='<div class="muted">无字段信息</div>'; return; }
+    let h='<div class="scroll" style="max-height:calc(100vh - 320px)"><table class="grid"><thead><tr>'
+        +'<th>#</th><th>字段</th><th>类型</th><th>可空</th><th>备注</th></tr></thead><tbody>';
+    cols.forEach((f,i)=>{ h+=`<tr><td>${i+1}</td><td>${esc(f.name)}</td><td>${esc(f.type)}</td>`
+        +`<td>${f.nullable?'是':'否'}</td><td>${esc(f.comment||'')}</td></tr>`; });
+    h+='</tbody></table></div>';
+    $('#fields-box').innerHTML=h;
+  }catch(e){
+    if(CURRENT_TABLE===table){ const b=$('#fields-box'); if(b) b.innerHTML=`<div class="tag r">${esc(e.message)}</div>`; }
+  }
+}
+
+// 表的数据查询预填:走 /api/sample(该源原生语法),失败回退通用 SELECT
+async function prefillSample(name, table){
+  let native=`SELECT * FROM ${table} LIMIT 100`;
+  try{ const r=await api('/sample?name='+encodeURIComponent(name)+'&table='+encodeURIComponent(table));
+    if(r&&r.native) native=(typeof r.native==='object')?JSON.stringify(r.native,null,2):r.native;
+  }catch(e){}
+  if(CURRENT_TABLE===table) $('#q-stmt').value=native;   // 期间没切走才填
+}
+
+function switchTab(tab){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.tab===tab));
+  document.querySelectorAll('.tabpage').forEach(p=>p.classList.remove('on'));
+  $('#page-'+tab).classList.add('on');
+}
+
+async function testCurrent(ev){
+  const btn=ev&&ev.currentTarget; let old;
+  if(btn){ old=btn.textContent; btn.disabled=true; btn.textContent='测试中…'; }
+  try{ const r=await api('/test','POST',{name:CURRENT.name});
+    STATUS[CURRENT.name]=r.success?'ok':'failed'; renderInfo(); renderTree();
+    // renderInfo 会重建按钮,故只在结果时提示一次(不再额外弹「测试中」)
+    r.success?toast('连接成功 '+(r.latencyMs!=null?Math.round(r.latencyMs)+'ms':''),'ok'):toast('连接失败: '+r.message,'err');
+  }catch(e){ STATUS[CURRENT.name]='failed'; renderInfo(); renderTree(); toast(e.message,'err'); }
+  finally{ if(btn&&btn.isConnected){ btn.disabled=false; btn.textContent=old; } }
+}
+async function delCurrent(){
+  if(!confirm(`删除数据源「${CURRENT.name}」?`)) return;
+  try{ await api('/connections/delete','POST',{name:CURRENT.name}); toast('删除成功','ok'); CURRENT=null;
+    $('#detail').style.display='none'; $('#empty-main').style.display='flex'; await refreshConns();
+  }catch(e){ toast(e.message,'err'); }
+}
+
+// ---------- 查询 ----------
+function toggleAi(){ const p=$('#ai-panel'); p.style.display=p.style.display==='none'?'block':'none'; }
+
+function renderRows(rows){
+  CURRENT_ROWS=rows||[];
+  const ex=$('#q-export'); if(ex) ex.disabled=!CURRENT_ROWS.length;
+  if(!rows||!rows.length){ $('#q-count').textContent='暂无数据'; $('#q-result').innerHTML=''; return; }
+  const cols=[...new Set(rows.flatMap(r=>Object.keys(r)))];
+  let h='<div class="scroll"><table class="grid"><thead><tr><th>#</th>'+cols.map(c=>`<th>${esc(c)}</th>`).join('')+'</tr></thead><tbody>';
+  rows.slice(0,500).forEach((r,i)=>{ h+=`<tr><td>${i+1}</td>`+cols.map(c=>{let v=r[c]; if(v&&typeof v==='object')v=JSON.stringify(v); return `<td title="${esc(v)}">${esc(v)}</td>`;}).join('')+'</tr>'; });
+  h+='</tbody></table></div>';
+  $('#q-result').innerHTML=h;
+  $('#q-count').textContent=`共 ${rows.length} 行`+(rows.length>500?'(仅显示前 500)':'');
+}
+
+async function runQuery(){
+  const stmt=$('#q-stmt').value.trim();
+  if(!stmt){ toast('请输入查询语句','err'); return; }
+  const btn=$('#q-run'); btn.disabled=true; btn.textContent='查询中…';
+  try{
+    let s=stmt; try{ s=JSON.parse(stmt); }catch(e){}   // JSON DSL 自动识别
+    const r=await api('/query','POST',{name:CURRENT.name,statement:s,limit:parseInt($('#q-limit').value)||200});
+    renderRows(r.rows); toast(`查询到 ${r.rows.length} 行`,'ok');
+  }catch(e){ toast(e.message,'err'); $('#q-result').innerHTML=`<div class="tag r" style="white-space:pre-wrap">${esc(e.message)}</div>`; }
+  finally{ btn.disabled=false; btn.textContent='🔍 查询'; }
+}
+
+// 仅生成查询(不执行、不自动填框):结果显示在预览区,点「应用到查询框」才覆盖查询框
+async function genQuery(){
+  const q=$('#ai-q').value.trim();
+  if(!q){ toast('请描述你想查什么','err'); return; }
+  const btn=$('#ai-gen'); btn.disabled=true; btn.textContent='生成中…';
+  $('#ai-apply').style.display='none'; GEN_STMT='';
+  const out=$('#ai-out'); out.style.display='block'; out.textContent='🤔 模型思考中…';
+  let acc='', got=false;
+  try{
+    await sse('/gen/stream', {name:CURRENT.name, question:q, tables: CURRENT_TABLE?[CURRENT_TABLE]:undefined}, {
+      token:(d)=>{ if(!got){got=true;out.textContent='';} acc+=d; out.innerHTML=esc(acc)+'<span class="cursor">▋</span>'; out.scrollTop=out.scrollHeight; },
+      statement:(d)=>{ const st=typeof d==='object'?JSON.stringify(d,null,2):d; GEN_STMT=st; out.textContent=st;
+                       $('#ai-apply').style.display=''; toast('已生成,点【应用到查询框】填入','ok'); },
+      error:(d)=>{ toast('生成失败: '+((d&&d.error)||''),'err'); out.textContent=acc+'\n[错误] '+((d&&d.error)||''); },
+    });
+  }catch(e){ toast('生成失败: '+e.message,'err'); out.textContent=(acc||'')+'\n[错误] '+e.message; }
+  finally{ btn.disabled=false; btn.textContent='✨ 生成查询'; if(!GEN_STMT) out.innerHTML=esc(out.textContent.replace(/▋$/,'')); }
+}
+
+// 把最近生成的查询覆盖进查询框(用户确认后再点)
+function applyGen(){
+  if(!GEN_STMT){ toast('尚无生成结果','err'); return; }
+  $('#q-stmt').value=GEN_STMT;
+  toast('已应用到查询框,点【查询】执行','ok');
+}
+
+// ---------- 新建 / 编辑数据源 modal ----------
+let EDIT_NAME=null;   // null=新建;否则=正在编辑的连接名
+
+function openModal(){
+  EDIT_NAME=null;
+  $('#mask').classList.add('on');
+  $('#modal-title').textContent='新建数据源';
+  $('#new-type').value=''; $('#new-type-search').value=''; $('#new-type-search').disabled=false;
+  $('#new-name').value=''; $('#new-name').readOnly=false;
+  $('#edit-note').style.display='none';
+  $('#new-form').innerHTML=''; $('#dep-box').style.display='none'; clearDepLog();
+  filterTypes();
+}
+
+// 编辑当前选中的数据源:类型/名称锁定,表单预填 config(密钥留空=不变)
+async function openEdit(){
+  if(!CURRENT || CURRENT_TABLE) return;
+  EDIT_NAME=CURRENT.name;
+  $('#mask').classList.add('on');
+  $('#modal-title').textContent='编辑数据源';
+  const t=SOURCE_TYPES.find(x=>x.source_type===CURRENT.source_type)||{};
+  $('#new-type').value=CURRENT.source_type;
+  $('#new-type-search').value=(t.title||CURRENT.source_type)+' ('+CURRENT.source_type+')';
+  $('#new-type-search').disabled=true;
+  $('#new-name').value=CURRENT.name; $('#new-name').readOnly=true;
+  $('#edit-note').style.display='';
+  $('#dep-box').style.display='none'; clearDepLog();
+  await renderNewForm(CURRENT.config||{});
+}
+function closeModal(){ $('#mask').classList.remove('on'); $('#new-type-list').classList.remove('on'); }
+$('#mask').addEventListener('click', e=>{ if(e.target===$('#mask')) closeModal(); });
+// 点组合框外部收起下拉
+document.addEventListener('click', e=>{ if(!e.target.closest('.combo')) $('#new-type-list').classList.remove('on'); });
+
+// 可搜索类型下拉
+function filterTypes(){
+  const kw=($('#new-type-search').value||'').toLowerCase();
+  const list=SOURCE_TYPES.filter(t=> t.source_type.toLowerCase().includes(kw) || (t.title||'').toLowerCase().includes(kw));
+  $('#new-type-list').innerHTML = list.length
+    ? list.map(t=>`<div class="combo-opt" onclick="chooseType('${jss(t.source_type)}')">
+        <img src="${ICONS[t.source_type]||DEFAULT_ICON}"><span class="t">${esc(t.title||t.source_type)}</span><span class="st">${esc(t.source_type)}</span></div>`).join('')
+    : '<div class="combo-empty">无匹配</div>';
+  $('#new-type-list').classList.add('on');
+}
+async function chooseType(st){
+  $('#new-type').value=st;
+  const t=SOURCE_TYPES.find(x=>x.source_type===st)||{};
+  $('#new-type-search').value=(t.title||st)+' ('+st+')';
+  $('#new-type-list').classList.remove('on');
+  clearDepLog();
+  await renderNewForm();
+  loadDeps(st);
+}
+
+// 依赖诊断 / 安装
+async function loadDeps(st){
+  const box=$('#dep-box'); box.style.display='block'; box.innerHTML='<span class="muted">检测依赖中…</span>';
+  try{ renderDep(await api('/deps?type='+encodeURIComponent(st))); }
+  catch(e){ box.innerHTML=`<span class="tag r">${esc(e.message)}</span>`; }
+}
+function clearDepLog(){ const l=$('#dep-log'); l.style.display='none'; l.textContent=''; }
+function renderDep(d){
+  const reqs=(d.requirements&&d.requirements.length)?d.requirements.join(', '):'无(内置驱动,无需额外安装)';
+  const state=d.ready?'<span class="tag g">依赖已就绪</span>'
+                     :`<span class="tag r">缺失: ${esc((d.missing||[]).join(', ')||'—')}</span>`;
+  const canInstall=(d.requirements||[]).length>0;
+  $('#dep-box').innerHTML=`${state}
+    <div class="dep-req" style="margin-top:6px">requirements: ${esc(reqs)}</div>
+    <div class="dep-actions">
+      <button class="btn sm" onclick="loadDeps('${jss(d.source_type)}')">检测依赖</button>
+      <button class="btn primary sm" id="dep-install" onclick="installDeps('${jss(d.source_type)}')" ${canInstall?'':'disabled'}>安装依赖</button>
+    </div>`;
+}
+async function installDeps(st){
+  const btn=$('#dep-install'); if(btn){ btn.disabled=true; btn.textContent='安装中…'; }
+  const log=$('#dep-log'); log.style.display='block'; log.textContent='';
+  try{
+    await sse('/deps/install/stream', {source_type:st}, {
+      log:(line)=>{ log.textContent+=(line??'')+'\n'; log.scrollTop=log.scrollHeight; },
+      done:(d)=>{ toast(d.message||(d.ok?'安装完成':'安装未完成'), d.ok?'ok':'err'); loadDeps(st); },
+      error:(d)=>{ toast('安装失败: '+((d&&d.error)||''),'err'); },
+    });
+  }catch(e){ toast(e.message,'err'); }
+  finally{ const b=$('#dep-install'); if(b){ b.disabled=false; b.textContent='安装依赖'; } }
+}
+
+// prefill:编辑时的既有 config(仅非密钥字段回填;密钥不回填,留空=不变)
+async function renderNewForm(prefill){
+  const type=$('#new-type').value; const sc=await getSchema(type);
+  const props=sc.properties||{}, req=sc.required||[];
+  const editing=!!EDIT_NAME;
+  let h='';
+  for(const [k,p] of Object.entries(props)){
+    const isPwd=p.format==='password';
+    const t=p.type==='integer'?'number':(p.type==='boolean'?'checkbox':(isPwd?'password':'text'));
+    const label=(p.title||k)+(req.includes(k)?' *':'')+(isPwd?' 🔒':'');
+    // 取值:编辑且非密钥且 prefill 有值 → 用既有值;否则用 schema 默认
+    const pv = (!isPwd && prefill && prefill[k]!==undefined) ? prefill[k] : p.default;
+    h+=`<label class="f">${esc(label)}${p.description?` <span class="muted">— ${esc(p.description)}</span>`:''}</label>`;
+    if(t==='checkbox'){
+      h+=`<input data-k="${k}" data-secret="${isPwd}" type="checkbox"${pv?' checked':''}>`;
+    }else{
+      const val=(pv!=null)?` value="${esc(pv)}"`:'';
+      const ph=(isPwd&&editing)?' placeholder="留空则不变"':'';
+      h+=`<input data-k="${k}" data-secret="${isPwd}" data-int="${p.type==='integer'}" type="${t}"${val}${ph}>`;
+    }
+  }
+  $('#new-form').innerHTML=h||'<p class="muted" style="margin-top:12px">该源无连接参数</p>';
+}
+function collectNewForm(){
+  const config={}, secrets={};
+  $('#new-form').querySelectorAll('input').forEach(i=>{
+    let v=i.type==='checkbox'?i.checked:i.value;
+    if(v===''||v==null) return;
+    if(i.dataset.int==='true') v=parseInt(v,10);
+    (i.dataset.secret==='true'?secrets:config)[i.dataset.k]=v;
+  });
+  return {config, secrets};
+}
+async function testNew(){
+  if(!$('#new-type').value){ toast('请先选择数据源类型','err'); return; }
+  try{ const {config,secrets}=collectNewForm();
+    const r=await api('/test','POST',{source_type:$('#new-type').value,config,secrets});
+    r.success?toast('连接成功 '+(r.latencyMs!=null?Math.round(r.latencyMs)+'ms':''),'ok'):toast('连接失败: '+r.message,'err');
+  }catch(e){ toast(e.message,'err'); }
+}
+async function saveNew(){
+  if(!$('#new-type').value){ toast('请先选择数据源类型','err'); return; }
+  const {config,secrets}=collectNewForm();
+  try{
+    if(EDIT_NAME){
+      // 编辑:更新 config;仅当填了密钥字段才更新 secrets(否则保持原值)
+      const payload={name:EDIT_NAME, source_type:$('#new-type').value, config};
+      if(Object.keys(secrets).length) payload.secrets=secrets;
+      await api('/connections/update','POST',payload);
+      toast('已保存修改','ok');
+      const editedName=EDIT_NAME;
+      closeModal(); await refreshConns();
+      if(CONNS.find(c=>c.name===editedName)) showDetail(editedName);   // 刷新详情显示新配置
+    }else{
+      const name=$('#new-name').value.trim();
+      if(!name){ toast('请填名称','err'); return; }
+      await api('/connections','POST',{name,source_type:$('#new-type').value,config,secrets});
+      toast('已保存','ok'); closeModal(); await refreshConns();
+    }
+  }catch(e){ toast(e.message,'err'); }
+}
+
+init();
+</script>
+</body>
+</html>

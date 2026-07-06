@@ -3,6 +3,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# ezdata 轻 UI 运行产物:连接目录含明文密钥,本地测试库,勿提交
+*.db
+ezdata_local.db
+
 # C extensions
 *.so
 

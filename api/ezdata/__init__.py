@@ -1,11 +1,15 @@
-"""ezdata:纯数据访问 SDK(零 db / web / config / exec / crypto)。
+"""ezdata:纯数据访问 SDK。
 
-三组:
+核心三组(零 db / web / config / exec / crypto,本文件只导出它们):
   handlers/   —— 88 连接器(懒加载注册表 + 实例缓存),统一 Connector 契约;
   services/   —— 数据访问门面(facade) + 提示词(prompts) + 密钥注入(secrets);
   utils/      —— 纯工具(etl_util 只读护栏/JSON 清洗/序列化、query 过滤 DSL 适配)。
 
-供三类入口共用:web 服务(委托:先查库拿配置+解密 secrets 再调 services)、CLI、MCP/skill。
+对外接口层(★与核心完全隔离,核心绝不 import 它,只演示/对外开放用;用哪个才加载,依赖箭头只向下):
+  interface/web/  —— 自包含的 web app:连接目录(sources)+ 数据/AI/ETL facade(core)+ LLM(llm)
+                     + HTTP 服务(server)+ 单页 UI。core 传输无关,将来 mcp/cli/skill 可直接复用。
+
+供各入口共用:web 服务(委托:先查库拿配置+解密 secrets 再调 services)、CLI、MCP/skill。
 入参一律是"数据源描述"(source_type + config + 明文 secrets dict),不认数据库/加密/租户;
 若需传密文 secrets,调 ezdata.services.secrets.set_decryptor(...) 注入解密器。
 """
