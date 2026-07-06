@@ -1,0 +1,14 @@
+# ezdata 轻 UI(interface/web)运行依赖 —— 单一真相源(Dockerfile 也装这个)。
+# UI(http.server)/ LLM 传输 / 连接目录(sqlite3)全走标准库,不在此列。
+#
+#   SQLAlchemy —— SQL 族 handler(含 sqlite)必需;
+#   pandas     —— 同步 ETL 写路径(pandas.to_sql)用;
+#   agno       —— AI 取数的 LLM 客户端(ezdata.interface.web.llm)封装;
+#   openai / anthropic —— agno 两族模型各自的 provider SDK(暂只支持这两族)。
+# dlt / 各数据源驱动均为可选,按需再装(页面可一键 pip install)。
+SQLAlchemy>=2.0
+pandas>=2.0
+openpyxl>=3.1        # 查询结果导出 xlsx(pandas.to_excel 引擎)
+agno
+openai
+anthropic
