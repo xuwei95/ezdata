@@ -38,6 +38,12 @@ services:
     volumes:
       - ./api:/app      # 挂载后端源码：改 .py 即时热重载
       - /app/__pycache__                  # 遮蔽宿主可能带入的 pyc 缓存
+    # 同目录 .env 注入应用配置(LLM_*/EMBEDDING_* 等):存在则注入,不存在则跳过。
+    # 与下方 environment 的关系:environment 优先级更高,故 DB_HOST 等服务名连接仍覆盖根 .env;
+    # env_file 主要带进 AI 相关配置。容器内 load_dotenv('.env.dev', override=False) 不覆盖已注入值。
+    env_file:
+      - path: ./.env
+        required: false
     environment:
       - APP_ENV=dev                       # 以 dev 配置运行（.env.dev：APP_RELOAD=true、Swagger 开启）
       # dev 关闭传输层加解密(公网前后端流量加密才需要;本地开发免配 RSA 密钥,否则 lifespan 校验直接 fail)
@@ -107,6 +113,10 @@ services:
     volumes:
       - ./api:/app      # 与后端共享源码：改 runner/任务代码即时生效（重启 worker 后）
       - /app/__pycache__
+    # 同后端:同目录 .env 注入 AI 等应用配置(environment 优先级更高,DB_/REDIS_ 等仍用下方服务名)
+    env_file:
+      - path: ./.env
+        required: false
     environment:
       - APP_ENV=dev
       - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-}   # 透传宿主/.env → 容器;空=用 CPU 核数
