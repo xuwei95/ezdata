@@ -27,8 +27,18 @@
           <el-input v-else v-model="values[key]" :placeholder="prop.description" />
         </el-form-item>
       </template>
-      <el-form-item label="备注">
-        <el-input v-model="form.remark" type="textarea" />
+      <el-form-item label="备注 / 业务上下文">
+        <div style="width: 100%">
+          <el-input v-model="form.remark" type="textarea" :autosize="{ minRows: 6, maxRows: 20 }"
+            placeholder="该数据源的业务上下文(表关系 / 指标口径 / 常见问法→字段 / 取数注意)。会作为上下文喂给取数 AI;可点「AI 解析」按结构自动生成初稿再编辑。" />
+          <div style="margin-top: 6px; display: flex; align-items: center; gap: 10px">
+            <el-button size="small" :loading="analyzing" :disabled="!form.id" @click="onAnalyze">✨ AI 解析</el-button>
+            <el-button v-if="analyzeText" size="small" type="primary" link @click="applyAnalyze">↥ 应用到描述</el-button>
+            <span v-if="!form.id" class="tip">保存数据源后可用(需读取其结构)</span>
+            <span v-else class="tip">AI 读取现有描述 + 表结构后生成</span>
+          </div>
+          <pre v-if="analyzeText" class="analyze-out">{{ analyzeText }}</pre>
+        </div>
       </el-form-item>
     </el-form>
     <template #footer>
@@ -43,10 +53,13 @@
 import { ref, reactive, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getSourceTypes, getSourceSchema, addSource, updateSource, testSource, getSource } from '@/api/dataManage/data'
+import { getToken } from '@/utils/auth'
 
 const emit = defineEmits(['ok'])
 const visible = ref(false)
 const testing = ref(false)
+const analyzing = ref(false)
+const analyzeText = ref('')
 const types = ref([])
 const schema = ref({})
 const values = reactive({})
@@ -62,6 +75,34 @@ function reset() {
   form.id = undefined; form.name = ''; form.code = ''; form.sourceType = ''; form.remark = ''
   Object.keys(values).forEach((k) => delete values[k])
   schema.value = {}
+  analyzeText.value = ''
+}
+
+// AI 解析:读该源现有描述+结构,流式生成业务上下文初稿(后端 text/event-stream 直出文本增量)
+async function onAnalyze() {
+  if (!form.id) return
+  analyzing.value = true; analyzeText.value = ''
+  try {
+    const resp = await fetch(
+      `${import.meta.env.VITE_APP_BASE_API}/data/source/${form.id}/analyze-context/stream`,
+      { method: 'POST', headers: { Authorization: 'Bearer ' + getToken(), 'Content-Type': 'application/json' } }
+    )
+    if (!resp.ok || !resp.body) throw new Error('HTTP ' + resp.status)
+    const reader = resp.body.getReader(); const dec = new TextDecoder()
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      analyzeText.value += dec.decode(value, { stream: true })
+    }
+  } catch (e) {
+    ElMessage.error('AI 解析失败: ' + (e.message || e))
+  } finally {
+    analyzing.value = false
+  }
+}
+function applyAnalyze() {
+  form.remark = analyzeText.value
+  ElMessage.success('已应用到备注,可继续编辑后保存')
 }
 
 async function loadSchema(type) {
@@ -146,5 +187,18 @@ defineExpose({ open })
   font-size: 12px;
   color: #909399;
   line-height: 1.4;
+}
+.analyze-out {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  background: #f5f7fa;
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+  line-height: 1.5;
 }
 </style>

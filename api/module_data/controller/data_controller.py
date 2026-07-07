@@ -115,6 +115,17 @@ async def source_columns(
     return ResponseUtil.success(data=await DataSourceService.get_columns(db, ds_id, table))
 
 
+@data_controller.post('/source/{ds_id}/analyze-context/stream', summary='AI 解析数据源业务上下文(流式)',
+                      dependencies=[UserInterfaceAuthDependency('data:source:edit')])
+async def source_analyze_context_stream(
+    ds_id: Annotated[str, Path()], db: Annotated[AsyncSession, DBSessionDependency()],
+) -> StreamingResponse:
+    """读该数据源的现有描述 + 整体结构,流式生成业务上下文初稿(供前端「应用到描述」复写)。"""
+    cfg, prompt = await DataSourceService.prep_analyze_context(db, ds_id)
+    return StreamingResponse(_ai_stream(cfg, prompt), media_type='text/event-stream',
+                             headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
+
+
 # ---------------- 数据模型 CRUD ----------------
 @data_controller.get('/model/list', summary='数据模型分页列表', response_model=PageResponseModel[DataModelVo], dependencies=[UserInterfaceAuthDependency('data:model:list')])
 async def model_list(

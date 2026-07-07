@@ -60,14 +60,17 @@ def _short_args(args: Any, n: int = 600) -> Any:
 # 这是工具用法层面的固定规则(由我们提供的工具决定),与用户自定义 system_prompt 叠加生效。
 _DATA_AGENT_INSTRUCTIONS: list[str] = [
     '你是 ezdata 的数据分析助手:可发现数据源、查表结构、检索数据源知识库,并在沙箱里跑取数/计算代码、产出结论与图表表格。',
-    '取数工作流(务必按序遵守):',
-    '1. 用 list_datasources / get_table_schema 认清目标数据源编码与表结构。',
-    '2. 【关键】在写任何取数代码之前,先调用 search_datasource_knowledge(datasource_code, query=用户的原始问题),'
-    '查该数据源是否已有“验证过的解法”(标注为 QA 的历史问答,answer 即可直接运行的取数/分析代码)。',
-    '   - 若检索结果里有可复用的解法代码:**优先直接复用它、或仅按本次差异微调**,不要从零重写;',
-    '   - 仅当没有可用解法时,才用 run_datasource_query 自行编写取数代码。',
-    '3. 取数/计算成功后正常作答;无需主动声称“已存入知识库”(由用户点“收藏到知识库”决定)。',
-    '即:能复用知识库里已验证的解法时,绝不重复造轮子。',
+    '取数工作流(务必按序,目标是尽量少绕圈、少调工具):',
+    '1. 先看上面「数据源与关键表」目录判断目标数据源编码;目录已能认出源/表时,不要再调 list_datasources。'
+    '   仅当目录里没有、或拿不准时,才用 list_datasources 认源。',
+    '2. 【关键·先查解法】在写任何取数代码、甚至查表结构之前,先调用 '
+    'search_datasource_knowledge(datasource_code, query=用户的原始问题),查该源是否已有”验证过的解法”'
+    '(标注 QA 的历史问答,answer 即可直接运行的取数/分析代码):',
+    '   - 命中可复用解法:**直接复用、或仅按本次差异微调后运行**,不要从零重写,也不必再逐个 get_table_schema;',
+    '   - 未命中:才进入第 3 步自行发现+编写。',
+    '3. 没有可用解法时:用 get_table_schema 查清目标表字段/调用参数 → run_datasource_query 编写取数代码。',
+    '4. 取数/计算成功后正常作答;无需声称”已存入知识库”(由用户点”收藏到知识库”决定)。',
+    '一句话:先复用已验证解法,不行再发现现写;能省一轮工具调用就省一轮。',
     '取数注意(尤其 Elasticsearch 源):'
     '① 对文本字段做 terms 聚合/精确匹配/排序,务必用带 .keyword 的子字段(如 industry.keyword),'
     'get_table_schema 已会列出可用的 .keyword 字段,直接用列出的名字,别对 text 主字段聚合(会报错或聚到分词上);'
@@ -133,7 +136,9 @@ class AiChatService:
         :return: (是否附带历史, 历史轮数)
         """
         add_history = user_config.add_history_to_context == '0'
-        num_history = user_config.num_history_runs or 10
+        # 默认历史轮数由 10 降到 5:取数会话大部分价值在当前任务,过多历史(含肥工具结果)每轮重发很费 token。
+        # 用户仍可在对话设置里自行调高。
+        num_history = user_config.num_history_runs or 5
 
         return bool(add_history), int(num_history)
 
@@ -245,13 +250,24 @@ class AiChatService:
             builtin_codes=builtin_codes, kb_tool=kb_tool,
             datasource_scope=datasource_scope, datasource_query_enabled=datasource_query_enabled,
         )
+        # 普通对话注入数据 agent 工作流指令;并把「精简数据目录」前置进指令(减少 list_datasources 往返)。
+        # 应用模式用应用自己的 prompt(instructions 非 None),不注入目录、避免人设被盖。
+        from module_ai.tools.data_agent_tools import build_data_catalog  # noqa: PLC0415
+
+        if instructions is None:
+            catalog = build_data_catalog(datasource_scope)
+            agent_instructions = ([catalog, *_DATA_AGENT_INSTRUCTIONS] if catalog else _DATA_AGENT_INSTRUCTIONS)
+        else:
+            # 应用模式:保留应用自己的 prompt(人设优先),仅当绑定了数据源时把精简目录追加在后面
+            catalog = build_data_catalog(datasource_scope) if datasource_scope else ''
+            agent_instructions = ([*instructions, catalog] if catalog else instructions)
+
         return Agent(
             model=model,
             id=agent_id,
             name=name,
             description=system_prompt or 'You are a helpful AI assistant.',
-            # 普通对话注入数据 agent 工作流指令;应用模式用应用自己的 prompt(instructions=[]),避免人设被盖
-            instructions=_DATA_AGENT_INSTRUCTIONS if instructions is None else instructions,
+            instructions=agent_instructions,
             db=storage,
             user_id=str(user_id),
             session_id=session_id,
@@ -301,6 +317,11 @@ class AiChatService:
             # agno 2.4.8 仅按 id 前缀白名单判定结构化输出支持(opus 只认 4-1/4-5),
             # 新版 opus-4-8 被误判为不支持 → 长期记忆抽取(用结构化输出)报错。实际支持,这里强制放行。
             model._supports_structured_outputs = lambda: True  # noqa: SLF001
+            # 省 token:缓存稳定前缀(系统指令 + 工具定义)。每轮重发的大前缀命中缓存,输入费大降。
+            # OpenAI 兼容(siliconflow/deepseek 等)是服务端自动前缀缓存,无需在此配置。
+            for _attr in ('cache_system_prompt', 'cache_tools'):
+                if hasattr(model, _attr):
+                    setattr(model, _attr, True)
         return model
 
     @classmethod
