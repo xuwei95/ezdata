@@ -22,6 +22,7 @@
 - **知识库(RAG)** `module_rag`:文档(pdf/docx/excel/pptx/csv/md/网页…)抽取 → 切分(含语义/Markdown)→ 向量化 → **ES8 向量库(dense_vector + kNN + BM25 混合检索)**;Contextual Retrieval、增量训练、QA、**每个数据源的专属知识库**;处理层接入 [Agno](https://github.com/agno-agi/agno)(readers / chunking / VectorDb 封装)。
 - **AI** `module_ai` / `module_dashboard`:统一 AI 模型管理(密钥 AES 加密,支持**深度思考**模型);Agno Agent 对话——发现数据源、查表结构、检索知识库,在沙箱里跑取数/计算并产出结论 + **图表/表格**;**AI 工具**(内置百度搜索等 + MCP 接入)、**AI 应用**(把提示词/工具/知识库打包成独立助手 + 对外 APIKey)、**跨会话长期记忆**;对话内还能**提议 / 修改 / 复制 / 调试运行任务**(AI 填表、人拍板);控制台总览(ECharts)。
 - **系统**:用户 / 角色 / 菜单 / 部门 / 字典,RBAC + **多租户** + 数据权限。
+- **轻量查数 UI** `ezdata/interface/web`(可选):脱离平台也能单跑的极简工具——标准库 `http.server` + `sqlite3` 连接目录 + agno LLM(openai/anthropic),连数据源 → 浏览表/字段 → 原生/AI 取数 → 导出 Excel。`python -m ezdata.interface.web`,详见该目录 `README.md`。
 
 ## 🧱 技术栈
 
