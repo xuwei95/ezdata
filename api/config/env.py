@@ -148,6 +148,12 @@ class CelerySettings(BaseSettings):
     celery_timezone: str = 'Asia/Shanghai'
     celery_worker_max_tasks_per_child: int = 200
     celery_result_expires: int = 3600
+    # 全局任务超时(秒):soft 抛 SoftTimeLimitExceeded(可捕获→标记失败告警);hard 到点 SIGKILL 卡死子进程释放槽位。
+    # 任务级 Task.timeout 可覆盖:0=用这里的全局默认,-1=不限(流式/超长),>0=自定义秒数。
+    celery_task_soft_time_limit: int = 1800
+    celery_task_time_limit: int = 2100
+    # 每个 worker 一次只预取 1 个任务,避免慢/卡任务把预取的其它任务一起拖住(队列堵塞)。
+    celery_worker_prefetch_multiplier: int = 1
 
     @property
     def queue_list(self) -> list[str]:

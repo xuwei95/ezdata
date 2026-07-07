@@ -1316,6 +1316,7 @@ create table api_token (
 -- 全局共享(不加 tenant_id)：sys_menu/sys_dict_*/sys_config/sys_role/sys_post/task_template/sys_job_log。
 -- ============================================================================
 alter table task           add column tenant_id bigint null comment '租户ID(顶级部门)', add index idx_task_tenant (tenant_id);
+alter table task           add column timeout int null default 0 comment '任务超时(秒):0=用全局默认,-1=不限(流式/超长),>0=自定义';
 alter table task_instance  add column tenant_id bigint null comment '租户ID(顶级部门)', add index idx_task_instance_tenant (tenant_id);
 alter table task_log       add column tenant_id bigint null comment '租户ID(顶级部门)', add index idx_task_log_tenant (tenant_id);
 alter table alert_strategy add column tenant_id bigint null comment '租户ID(顶级部门)', add index idx_alert_strategy_tenant (tenant_id);

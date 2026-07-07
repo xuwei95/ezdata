@@ -140,6 +140,14 @@
             </el-form-item>
           </el-col>
         </el-row>
+        <el-row>
+          <el-col :span="12">
+            <el-form-item label="超时时间" prop="timeout">
+              <el-input-number v-model="form.timeout" :min="-1" controls-position="right" style="width: 100%" />
+              <div class="form-tip">单位：秒。0=用系统默认；-1=不限(流式/超长任务)；&gt;0=超时后终止并告警</div>
+            </el-form-item>
+          </el-col>
+        </el-row>
         <el-form-item label="失败告警">
           <el-select v-model="alertStrategyIdsArr" multiple clearable placeholder="选择告警策略(失败重试耗尽时触发,可多选)" style="width: 100%">
             <el-option v-for="s in strategyOptions" :key="s.strategyId" :label="s.strategyName" :value="s.strategyId" />
@@ -480,6 +488,7 @@ function reset() {
     priority: 1,
     retry: 0,
     countdown: 60,
+    timeout: 0,
     status: 0,
     remark: undefined
   }
