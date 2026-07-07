@@ -53,24 +53,35 @@ def _handler_from_ds(ds: DataSource) -> Any:
 
 
 async def _ai_resolve_cfg(db: AsyncSession) -> dict:
-    """解析系统内 AI 模型配置:优先库内启用模型,无则回退环境变量兜底模型(LLM_*)。"""
+    """解析系统内部 AI 生成(ETL 取数/转换、数据查询 AI 取数)所用模型。
+
+    这些入口没有"选模型"的 UI,统一用**系统兜底模型**(环境变量 LLM_*);
+    仅当兜底未配置时,才回退到「AI 模型管理」里第一个启用的模型(便于纯库内配置的部署)。
+    """
+    from config.env import AiConfig  # noqa: PLC0415
+
+    if AiConfig.enabled:  # 首选:系统兜底模型(api_key 明文)
+        return dict(provider=AiConfig.provider, model_code=AiConfig.llm_model, model_name=None,
+                    api_key=AiConfig.llm_api_key, base_url=AiConfig.llm_url or None,
+                    max_tokens=AiConfig.llm_max_tokens or 1024)
+
+    # 兜底未配置 → 回退库内第一个启用模型(api_key 为 AES 密文)
     from sqlalchemy import select  # noqa: PLC0415
 
-    from config.env import AiConfig  # noqa: PLC0415
     from module_ai.entity.do.ai_model_do import AiModels  # noqa: PLC0415
 
     mc = (await db.execute(
         select(AiModels).where(AiModels.status == '0').order_by(AiModels.model_sort))).scalars().first()
-    if mc:  # 库内启用模型(api_key 为 AES 密文)
+    if mc:
+        if not mc.api_key:  # 启用了但没填 key:给清楚提示,而不是暴露 provider 的环境变量名
+            raise ServiceException(
+                message=f'启用的模型「{mc.model_name or mc.model_code}」未配置 API Key,'
+                        f'请在「AI 模型管理」补全,或配置环境变量兜底模型(LLM_TYPE/LLM_MODEL/LLM_API_KEY)')
         return dict(provider=mc.provider, model_code=mc.model_code, model_name=mc.model_name,
-                    api_key=CryptoUtil.decrypt(mc.api_key) if mc.api_key else None,
+                    api_key=CryptoUtil.decrypt(mc.api_key),
                     base_url=mc.base_url, max_tokens=mc.max_tokens or 1024)
-    if AiConfig.enabled:  # 环境变量兜底模型(api_key 明文)
-        return dict(provider=AiConfig.provider, model_code=AiConfig.llm_model, model_name=None,
-                    api_key=AiConfig.llm_api_key, base_url=AiConfig.llm_url or None,
-                    max_tokens=AiConfig.llm_max_tokens or 1024)
     raise ServiceException(
-        message='未配置可用 AI 模型:请在「AI 模型管理」启用一个,或在环境变量配置兜底模型(LLM_TYPE/LLM_MODEL/LLM_API_KEY[/LLM_URL])')
+        message='未配置可用 AI 模型:请配置环境变量兜底模型(LLM_TYPE/LLM_MODEL/LLM_API_KEY[/LLM_URL]),或在「AI 模型管理」启用一个')
 
 
 def _strip_fence(text: str) -> str:

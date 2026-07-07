@@ -69,3 +69,11 @@ export function runJob(jobId, jobGroup) {
     data: data
   })
 }
+
+// 重启调度器(仅超管;权限 monitor:job:restart)
+export function restartScheduler() {
+  return request({
+    url: '/monitor/job/restart',
+    method: 'put'
+  })
+}

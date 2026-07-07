@@ -84,6 +84,15 @@
                v-hasPermi="['monitor:job:query']"
             >日志</el-button>
          </el-col>
+         <el-col :span="1.5">
+            <el-button
+               type="warning"
+               plain
+               icon="RefreshRight"
+               @click="handleRestartScheduler"
+               v-hasPermi="['monitor:job:restart']"
+            >重启调度器</el-button>
+         </el-col>
          <right-toolbar v-model:showSearch="showSearch" @queryTable="getList"></right-toolbar>
       </el-row>
 
@@ -328,7 +337,7 @@
 
 <script setup name="Job">
 import Crontab from '@/components/Crontab'
-import { listJob, getJob, delJob, addJob, updateJob, runJob, changeJobStatus } from "@/api/monitor/job"
+import { listJob, getJob, delJob, addJob, updateJob, runJob, changeJobStatus, restartScheduler } from "@/api/monitor/job"
 
 const router = useRouter();
 const { proxy } = getCurrentInstance();
@@ -451,6 +460,15 @@ function handleRun(row) {
   }).then(() => {
     proxy.$modal.msgSuccess("执行成功");})
   .catch(() => {});
+}
+/* 重启调度器(仅超管) */
+function handleRestartScheduler() {
+  proxy.$modal.confirm('确认要重启调度器吗?将关闭后重新加载全部任务。').then(function () {
+    return restartScheduler();
+  }).then(() => {
+    proxy.$modal.msgSuccess("调度器重启成功");
+    setTimeout(getList, 1500);
+  }).catch(() => {});
 }
 /** 任务详细信息 */
 function handleView(row) {

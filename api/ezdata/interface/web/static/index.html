@@ -650,7 +650,10 @@ function collectNewForm(){
 async function testNew(){
   if(!$('#new-type').value){ toast('请先选择数据源类型','err'); return; }
   try{ const {config,secrets}=collectNewForm();
-    const r=await api('/test','POST',{source_type:$('#new-type').value,config,secrets});
+    // 编辑态带上 name:后端以原连接为底合并,密钥留空则复用已存密钥(不会因空密钥失败)
+    const body={source_type:$('#new-type').value,config,secrets};
+    if(EDIT_NAME) body.name=EDIT_NAME;
+    const r=await api('/test','POST',body);
     r.success?toast('连接成功 '+(r.latencyMs!=null?Math.round(r.latencyMs)+'ms':''),'ok'):toast('连接失败: '+r.message,'err');
   }catch(e){ toast(e.message,'err'); }
 }
