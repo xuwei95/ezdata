@@ -82,6 +82,7 @@ class TaskModel(BaseModel):
     priority: int | None = Field(default=1, description='优先级')
     retry: int | None = Field(default=0, description='失败重试次数')
     countdown: int | None = Field(default=0, description='失败重试间隔(秒)')
+    timeout: int | None = Field(default=0, description='任务超时(秒):0=全局默认,-1=不限(流式/超长),>0=自定义')
     run_queue: str | None = Field(default='default', description='运行队列')
     running_id: str | None = Field(default=None, description='正在运行任务实例ID')
     job_id: int | None = Field(default=None, description='关联的调度任务ID')

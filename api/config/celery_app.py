@@ -57,6 +57,12 @@ celery_app.conf.update(
     task_track_started=True,
     result_expires=CeleryConfig.celery_result_expires,
     worker_max_tasks_per_child=CeleryConfig.celery_worker_max_tasks_per_child,
+    # 全局超时:软超时抛 SoftTimeLimitExceeded(任务内捕获→失败告警);硬超时 SIGKILL 卡死子进程,释放槽位。
+    # 任务级 Task.timeout 会在 dispatch 时按任务覆盖(0=默认/-1=不限/>0=自定义)。
+    task_soft_time_limit=CeleryConfig.celery_task_soft_time_limit,
+    task_time_limit=CeleryConfig.celery_task_time_limit,
+    # 一次只预取 1 个任务:卡死的任务不会连累它预取的其它任务,减少队列堵塞。
+    worker_prefetch_multiplier=CeleryConfig.celery_worker_prefetch_multiplier,
     worker_hijack_root_logger=False,
     broker_connection_retry_on_startup=True,
     # 允许通过 control.pool_restart 远程重启 worker 池(Worker 管理用)
