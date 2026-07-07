@@ -10,6 +10,11 @@ from typing import Any
 
 from agno.tools import Toolkit
 
+# 输出瘦身:未建模表名最多列这么多(其余提示用 keyword 搜);API 接口文档最多保留这么多行。
+# 目的是控制工具输出体积——这些结果会留在对话 history、每轮重发,越小越省 token。
+_UNMODELED_CAP = 60
+_DOC_LINE_CAP = 30
+
 
 class DataAgentTools(Toolkit):
     """数据探索工具集(供数据 agent 调用)。"""
@@ -62,7 +67,10 @@ class DataAgentTools(Toolkit):
             # 未建模的表(多为系统/中间表):表名紧凑列成一行,仍全在可搜,但不逐行占空间
             if unmodeled:
                 label = '  其余未建模表' if modeled else '  表(均未建模)'
-                parts.append(f'{label}({len(unmodeled)}): ' + ', '.join(unmodeled))
+                shown = ', '.join(unmodeled[:_UNMODELED_CAP])
+                more = (f' …(共 {len(unmodeled)},其余用 get_table_schema(源, keyword=) 搜)'
+                        if len(unmodeled) > _UNMODELED_CAP else '')
+                parts.append(f'{label}({len(unmodeled)}): ' + shown + more)
             blocks.append('\n'.join(parts))
         return ('数据源及其表(表名后「— 业务名: 描述」是已建模的):\n\n' + '\n\n'.join(blocks)
                 + '\n\n认出目标表后:get_table_schema(数据源编码, tables="表名") 查字段 → run_datasource_query 取数。')
@@ -129,7 +137,10 @@ class DataAgentTools(Toolkit):
                 if hasattr(handler, 'describe'):
                     doc = handler.describe(t)
                     if doc:
-                        block += '\n  【接口文档】\n' + '\n'.join('    ' + ln for ln in doc.splitlines())
+                        dl = doc.splitlines()
+                        if len(dl) > _DOC_LINE_CAP:
+                            dl = dl[:_DOC_LINE_CAP] + ['…(接口文档已截断,需要更多参数说明再问)']
+                        block += '\n  【接口文档】\n' + '\n'.join('    ' + ln for ln in dl)
                 out.append(block)
             return (api_hint if is_api else '') + '\n\n'.join(out)
         except Exception as e:  # noqa: BLE001
@@ -152,10 +163,14 @@ class DataAgentTools(Toolkit):
         ds_id = _datasource_id(datasource_code)
         if not ds_id:
             return f'数据源不存在: {datasource_code}'
+        # 置顶注入该源的业务上下文(remark):表关系/口径/术语→字段/取数注意,取数前必读
+        ctx = _datasource_business_context(datasource_code)
+        prefix = f'【业务上下文】\n{ctx}\n\n' if ctx else ''
         try:
-            return search_knowledge_base(query, source_id=ds_id)
+            kb = search_knowledge_base(query, source_id=ds_id)
         except Exception as e:  # noqa: BLE001
-            return f'知识库检索失败: {e}'
+            kb = f'(知识库检索失败: {e})'
+        return prefix + kb
 
 
 # ---------------------------------------------------------------------------
@@ -201,6 +216,53 @@ def _models_of_source(datasource_code: str) -> dict:
         db.close()
 
 
+def build_data_catalog(allowed_codes: list | None = None, *, max_sources: int = 30, max_tables: int = 12) -> str:
+    """构造精简数据目录(数据源 + 已建模表的业务名),用于注入 system prompt,减少 agent 的发现往返。
+
+    只查库(data_source/data_model,单会话一次拉全),**不连 handler**;任何异常返回空串,不影响对话。
+    """
+    try:
+        from sqlalchemy import select  # noqa: PLC0415
+
+        from module_data.entity.do.data_do import DataModel, DataSource  # noqa: PLC0415
+        from module_task_schedule.sync_db import get_sync_session_local  # noqa: PLC0415
+
+        db = get_sync_session_local()()
+        try:
+            ds_stmt = select(DataSource.code, DataSource.name, DataSource.source_type)
+            if allowed_codes:
+                ds_stmt = ds_stmt.where(DataSource.code.in_(list(allowed_codes)))
+            sources = [{'code': r[0], 'name': r[1], 'source_type': r[2]} for r in db.execute(ds_stmt).all()]
+            if not sources:
+                return ''
+            m_rows = db.execute(
+                select(DataModel.datasource_code, DataModel.object_name, DataModel.name)
+                .where(DataModel.datasource_code.in_([s['code'] for s in sources]), DataModel.status == 1)).all()
+        finally:
+            db.close()
+
+        by_src: dict[str, list] = {}
+        for dcode, obj, nm in m_rows:
+            if obj:
+                by_src.setdefault(dcode, []).append((obj, nm))
+        lines: list[str] = []
+        for s in sources[:max_sources]:
+            head = f"【{s['code']}】{s['name'] or ''}({s['source_type'] or ''})"
+            mods = by_src.get(s['code']) or []
+            if mods:
+                items = [f'{obj}={nm}' if nm else obj for obj, nm in mods[:max_tables]]
+                more = f' …等{len(mods)}张' if len(mods) > max_tables else ''
+                lines.append(head + ': ' + ', '.join(items) + more)
+            else:
+                lines.append(head + '(未建模,用 get_table_schema 探索)')
+        if len(sources) > max_sources:
+            lines.append(f'…(共 {len(sources)} 个数据源)')
+        return ('已有数据源与关键表(表名=业务名,均已建模;认得出目标就直接用,不必再调 list_datasources):\n'
+                + '\n'.join(lines))
+    except Exception:  # noqa: BLE001
+        return ''
+
+
 def _datasource_id(code: str) -> str | None:
     from sqlalchemy import select
 
@@ -210,6 +272,21 @@ def _datasource_id(code: str) -> str | None:
     db = get_sync_session_local()()
     try:
         return db.execute(select(DataSource.id).where(DataSource.code == code)).scalars().first()
+    finally:
+        db.close()
+
+
+def _datasource_business_context(code: str) -> str:
+    """读该数据源的 remark(=业务上下文文档),取数前置顶注入。无则空串。"""
+    from sqlalchemy import select  # noqa: PLC0415
+
+    from module_data.entity.do.data_do import DataSource  # noqa: PLC0415
+    from module_task_schedule.sync_db import get_sync_session_local  # noqa: PLC0415
+
+    db = get_sync_session_local()()
+    try:
+        r = db.execute(select(DataSource.remark).where(DataSource.code == code)).scalars().first()
+        return (r or '').strip()
     finally:
         db.close()
 

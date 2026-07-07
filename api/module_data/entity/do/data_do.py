@@ -23,7 +23,7 @@ class DataSource(Base, TenantMixin):
         String(20), nullable=True, server_default='untested', comment='状态 untested/ok/failed'
     )
     last_test_at: Mapped[datetime | None] = mapped_column(nullable=True, comment='最后测试时间')
-    remark: Mapped[str | None] = mapped_column(String(500), nullable=True, server_default="''", comment='备注')
+    remark: Mapped[str | None] = mapped_column(Text, nullable=True, comment='备注/业务上下文(供取数 AI 读取)')
     create_by: Mapped[str | None] = mapped_column(String(64), nullable=True, server_default="''", comment='创建者')
     create_time: Mapped[datetime | None] = mapped_column(default=datetime.now, nullable=True, comment='创建时间')
     update_by: Mapped[str | None] = mapped_column(String(64), nullable=True, server_default="''", comment='更新者')

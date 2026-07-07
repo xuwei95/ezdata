@@ -52,6 +52,29 @@ def _handler_from_ds(ds: DataSource) -> Any:
     return _build_handler(ds.source_type, ds.config or {}, _decrypt_secrets(ds))
 
 
+def _source_structure_text(ds: DataSource, max_tables: int = 30, max_fields: int = 40) -> str:
+    """采集数据源结构文本(表 + 字段),供 AI 分析业务上下文。有上限,避免超大库把 prompt 撑爆。同步阻塞,由调用方 threadpool 包裹。"""
+    try:
+        handler = _handler_from_ds(ds)
+        tables = handler.list_tables() or []
+    except Exception as e:  # noqa: BLE001
+        return f'(无法读取结构: {e})'
+    is_api = getattr(handler, 'family', '') == 'api'
+    lines = [f'共 {len(tables)} 张{"接口" if is_api else "表"}:']
+    for t in tables[:max_tables]:
+        try:
+            cols = handler.get_columns(t)
+        except Exception:  # noqa: BLE001
+            lines.append(f'- {t}')
+            continue
+        fs = ', '.join((f'{c.name}:{getattr(c, "type", "")}').rstrip(':') for c in cols[:max_fields])
+        more = ' …' if len(cols) > max_fields else ''
+        lines.append(f'- {t}({fs}{more})')
+    if len(tables) > max_tables:
+        lines.append(f'…(还有 {len(tables) - max_tables} 张未列)')
+    return '\n'.join(lines)
+
+
 async def _ai_resolve_cfg(db: AsyncSession) -> dict:
     """解析系统内部 AI 生成(ETL 取数/转换、数据查询 AI 取数)所用模型。
 
@@ -177,6 +200,26 @@ class DataSourceService:
         secret_fields = get_handler_cls(ds.source_type).secret_fields() if ds.source_type else []
         vo.secrets = dict.fromkeys(secret_fields, MASK) if secret_fields else None
         return vo
+
+    @classmethod
+    async def prep_analyze_context(cls, db: AsyncSession, ds_id: str) -> tuple[dict, str]:
+        """AI 解析业务上下文:读**现有描述 + 整体结构**,拼提示词 + 模型配置(供流式生成)。"""
+        ds = await DataSourceDao.get_by_id(db, ds_id)
+        if not ds:
+            raise ServiceException(message='数据源不存在')
+        structure = await run_in_threadpool(_source_structure_text, ds)
+        current = (ds.remark or '').strip() or '(暂无)'
+        prompt = (
+            f'你是数据平台的建模与业务分析专家。下面是数据源「{ds.name}」(类型 {ds.source_type})的**现有描述**与**整体结构**。'
+            '请先读懂现有描述,再结合结构,产出/完善这个数据源的**业务上下文文档**,供后续 AI 取数时参考。\n'
+            '覆盖(有则写、无则略;简洁 Markdown,中文):① 数据源用途与主要业务对象;② 关键表/接口及含义;'
+            '③ 表间关系/常用 join;④ 重要指标口径(怎么算);⑤ 常见问法 → 用哪张表/哪些字段;'
+            '⑥ 取数注意(如 ES 文本聚合用 .keyword、akshare 是函数调用非 SQL、时间字段格式等)。\n'
+            '只输出业务上下文文档本身,不要寒暄、不要代码块包裹整篇。\n\n'
+            f'【现有描述】\n{current}\n\n【整体结构】\n{structure}'
+        )
+        cfg = await _ai_resolve_cfg(db)
+        return cfg, prompt
 
     @classmethod
     async def add(cls, db: AsyncSession, vo: DataSourceVo, operator: str) -> CrudResponseModel:
