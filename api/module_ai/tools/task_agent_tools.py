@@ -41,7 +41,7 @@ def _search_tasks(keyword: str, limit: int) -> list[dict]:
     db = get_sync_session_local()()
     try:
         stmt = select(Task.id, Task.name, Task.template_code, Task.trigger_type,
-                      Task.crontab, Task.status, Task.built_in)
+                      Task.crontab, Task.status, Task.built_in, Task.task_type)
         kw = (keyword or '').strip()
         if kw:
             stmt = stmt.where(Task.name.like(f'%{kw}%'))
@@ -50,7 +50,8 @@ def _search_tasks(keyword: str, limit: int) -> list[dict]:
             stmt = stmt.where(Task.tenant_id == tid)
         stmt = stmt.order_by(Task.update_time.desc()).limit(max(1, min(limit or 10, 50)))
         return [{'id': r[0], 'name': r[1], 'template_code': r[2], 'trigger_type': r[3],
-                 'crontab': r[4], 'status': r[5], 'built_in': r[6]} for r in db.execute(stmt).all()]
+                 'crontab': r[4], 'status': r[5], 'built_in': r[6], 'task_type': r[7]}
+                for r in db.execute(stmt).all()]
     finally:
         db.close()
 
@@ -65,7 +66,8 @@ def _get_task(task_id: str) -> dict | None:
     db = get_sync_session_local()()
     try:
         stmt = select(Task.id, Task.name, Task.template_code, Task.params, Task.trigger_type,
-                      Task.crontab, Task.status, Task.built_in)
+                      Task.crontab, Task.status, Task.built_in, Task.task_type, Task.run_type,
+                      Task.retry, Task.countdown, Task.timeout, Task.run_queue, Task.priority)
         tid = _effective_tenant_id()
         if tid is not None:
             stmt = stmt.where(Task.tenant_id == tid)
@@ -77,7 +79,36 @@ def _get_task(task_id: str) -> dict | None:
         except (ValueError, TypeError):
             params = {}
         return {'id': r[0], 'name': r[1], 'template_code': r[2], 'params': params,
-                'trigger_type': r[4], 'crontab': r[5], 'status': r[6], 'built_in': r[7]}
+                'trigger_type': r[4], 'crontab': r[5], 'status': r[6], 'built_in': r[7],
+                'task_type': r[8], 'run_type': r[9], 'retry': r[10], 'countdown': r[11],
+                'timeout': r[12], 'run_queue': r[13], 'priority': r[14]}
+    finally:
+        db.close()
+
+
+def _get_run_history(task_id: str, limit: int) -> list[dict]:
+    """取某任务最近的执行实例(task_instance),按开始时间倒序。"""
+    from sqlalchemy import select  # noqa: PLC0415
+
+    from module_task_schedule.entity.do.task_do import TaskInstance  # noqa: PLC0415
+    from module_task_schedule.sync_db import get_sync_session_local  # noqa: PLC0415
+
+    db = get_sync_session_local()()
+    try:
+        stmt = (select(TaskInstance.id, TaskInstance.status, TaskInstance.worker,
+                       TaskInstance.retry_num, TaskInstance.progress, TaskInstance.start_time,
+                       TaskInstance.end_time, TaskInstance.result)
+                .where(TaskInstance.task_id == str(task_id))
+                .order_by(TaskInstance.start_time.desc())
+                .limit(max(1, min(limit or 10, 50))))
+        out = []
+        for r in db.execute(stmt).all():
+            st, et = r[5], r[6]
+            dur = round((et - st).total_seconds(), 1) if (st and et) else None
+            out.append({'instance_id': r[0], 'status': r[1], 'worker': r[2], 'retry_num': r[3],
+                        'progress': r[4], 'start_time': st, 'end_time': et, 'duration_s': dur,
+                        'result': r[7]})
+        return out
     finally:
         db.close()
 
@@ -92,7 +123,8 @@ class TaskAgentTools(Toolkit):
             name='task_propose',
             tools=[self.propose_data_integration_task, self.propose_code_extract_task,
                    self.propose_python_task, self.propose_shell_task,
-                   self.find_tasks, self.get_task_detail, self.propose_task_update, self.propose_task_copy],
+                   self.find_tasks, self.get_task_detail, self.get_task_run_history,
+                   self.propose_task_update, self.propose_task_copy],
             **kwargs,
         )
 
@@ -280,6 +312,11 @@ class TaskAgentTools(Toolkit):
         sched = f'定时({task["crontab"]})' if (task['trigger_type'] == 2 and task['crontab']) else '单次'
         st = '启用' if task['status'] == 1 else '停用'
         lines = [f'任务「{task["name"]}」 task_id={task["id"]}  模板={_TPL_LABEL.get(tpl, tpl)}  触发={sched}  状态={st}']
+        # 运行配置(与任务实际字段对齐:重试/超时/队列)
+        _to = task.get('timeout')
+        timeout_txt = '全局默认' if not _to else ('不限' if _to < 0 else f'{_to}s')
+        lines.append(f'运行配置: 重试={task.get("retry") or 0} 次(间隔 {task.get("countdown") or 0}s)  '
+                     f'超时={timeout_txt}  队列={task.get("run_queue") or "default"}')
         if tpl in ('PythonTask', 'ShellTask'):
             lines.append(f'运行方式={p.get("run_type", "code")}  运行参数={p.get("run_params") or "(无)"}')
             lines.append('【代码】\n' + (p.get('code') or ''))
@@ -302,16 +339,47 @@ class TaskAgentTools(Toolkit):
         lines.append('如需据此新建:改好上面内容后调用对应 propose_* 工具(代码取数→propose_code_extract_task)。')
         return '\n'.join(lines)
 
+    # ---------- 查任务执行历史 ----------
+    def get_task_run_history(self, task_id: str, limit: int = 10) -> str:
+        """查看某任务最近的**执行历史**(每次运行的状态/耗时/结果/错误),用于排查任务是否成功、为何失败、跑了多久。
+
+        当用户问「XX 任务跑成功了吗 / 上次什么时候跑的 / 为什么失败 / 跑了多久 / 最近几次执行情况」时使用。
+        不知道 task_id 就先 find_tasks 搜。返回最近若干次执行实例。
+
+        :param task_id: 任务 id(来自 find_tasks)
+        :param limit: 最多返回几条(默认 10,上限 50)
+        :return: 执行历史文本(状态/开始时间/耗时/结果或错误摘要)
+        """
+        task = _get_task(task_id)
+        if not task:
+            return f'未找到 task_id={task_id} 的任务,请先用 find_tasks 确认正确的 task_id。'
+        rows = _get_run_history(task_id, limit)
+        if not rows:
+            return f'任务「{task["name"]}」(task_id={task_id})暂无执行记录(可能从未运行)。'
+        lines = [f'任务「{task["name"]}」最近 {len(rows)} 次执行:']
+        for i, r in enumerate(rows, 1):
+            dur = f'{r["duration_s"]}s' if r['duration_s'] is not None else '进行中/未知'
+            when = str(r['start_time'])[:19] if r['start_time'] else '—'
+            res = (r['result'] or '').strip().replace('\n', ' ')
+            if len(res) > 160:
+                res = res[:160] + '…'
+            retry = f' 重试{r["retry_num"]}' if r['retry_num'] else ''
+            lines.append(f'{i}. [{r["status"]}] {when}  耗时{dur}{retry}  {("→ " + res) if res else ""}')
+        return '\n'.join(lines)
+
     # ---------- 修改已有任务(弹编辑表单)----------
     def propose_task_update(
         self, task_id: str, name: str = '', schedule_cron: str = '',
         to_single_run: bool = False, status: str = '',
+        transform_code: str | None = None, source_query: str = '',
+        extract_code: str = '', code: str = '',
     ) -> str:
-        """提议修改一个**已有任务**:载入其当前配置、应用你要改的项,弹出预填好的编辑表单给用户确认。
+        """提议修改一个**已有任务**:载入其当前配置、应用你要改的项(含**代码/取数语句/转换代码**),弹出预填好的编辑表单给用户确认。
 
-        典型场景:「把 XX 任务定时调成 20 分钟一次」「暂停 XX 任务」「给 XX 任务改个名」。
-        本工具**不直接落库**,只弹表单(已带入该任务现有配置 + 你的改动),用户在表单上确认后才保存。
-        若不知道 task_id,先用 find_tasks 搜出来。只需传要改的项,其余留空表示保持不变。
+        典型场景:「把 XX 任务定时调成 20 分钟一次」「暂停 XX 任务」「改个名」;
+        **也能就地改内容**:「把 XX 任务的转换逻辑改成 …」「把取数语句换成 …」「改一下这个 Python 任务的代码」。
+        建议先 get_task_detail 看清现有代码/配置,再据此把要改的整段内容传进来(会合并进该任务参数,原样带入编辑表单)。
+        本工具**不直接落库**,只弹表单(已带入现有配置 + 你的改动),用户确认后才保存。只传要改的项,其余留空=保持不变。
 
         :param task_id: 目标任务 id(来自 find_tasks)
         :param name: 新任务名(留空=不改名)
@@ -320,6 +388,10 @@ class TaskAgentTools(Toolkit):
             例:每 20 分钟 `0 0/20 * * * ? *`;每天 8 点 `0 0 8 * * ? *`;交易时段每 5 分钟 `0 0/5 9-15 ? * 2-6 *`。留空=不改定时。
         :param to_single_run: 置 True 表示改为「单次」任务(取消定时);与 schedule_cron 互斥
         :param status: 'enable' 启用 / 'disable' 停用 / 留空=不改状态
+        :param transform_code: 【数据集成任务】新的逐行转换函数 `def transform(row): ...`;传空串 `''`=关闭转换;**None(默认)=不改**
+        :param source_query: 【数据集成·查询取数】新的取数语句(按源原生写法,同 propose_data_integration_task);留空=不改
+        :param extract_code: 【数据集成·代码取数】新的取数 Python 代码(产出 result 或 emit);留空=不改
+        :param code: 【Python/Shell 任务】新的脚本代码/命令;留空=不改
         :return: 操作结果文本(已弹修改表单,等待用户确认)
         """
         task = _get_task(task_id)
@@ -328,9 +400,25 @@ class TaskAgentTools(Toolkit):
 
         cron = (schedule_cron or '').strip()
         changes: list[str] = []
+        tpl = task['template_code']
+        params = task['params'] or {}
         new_name = (name or '').strip() or task['name']
         if name and name.strip() != task['name']:
             changes.append(f'改名为「{new_name}」')
+
+        # 内容编辑:就地把代码/取数语句/转换合并进 params(params 随提议原样带入编辑表单,前端可见可再改)
+        if tpl == 'DataIntegrationTask':
+            ex = params.setdefault('extract', {})
+            if source_query and source_query.strip():
+                ex['native'] = source_query.strip(); changes.append('更新取数语句')
+            if extract_code and extract_code.strip():
+                ex['mode'] = 'code'; ex['code'] = extract_code; changes.append('更新取数代码')
+            if transform_code is not None:
+                tc = (transform_code or '').strip()
+                params['transform'] = {'enabled': bool(tc), 'code': tc or DEFAULT_TRANSFORM}
+                changes.append('更新转换代码' if tc else '关闭转换')
+        elif tpl in ('PythonTask', 'ShellTask') and code and code.strip():
+            params['code'] = code; changes.append('更新脚本代码')
 
         # 触发方式/定时
         trigger_type = task['trigger_type'] or 1
@@ -359,7 +447,7 @@ class TaskAgentTools(Toolkit):
             'trigger_type': trigger_type,
             'crontab': crontab,
             'status': new_status,
-            'params': task['params'],
+            'params': params,
             'summary': ';'.join(changes) if changes else '打开编辑表单',
         })
         chg = ';'.join(changes) if changes else '未指定改动(可在表单里手动调整)'
