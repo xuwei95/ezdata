@@ -167,10 +167,10 @@ def make_handler(core):
                 if u.path == '/api/connections/delete':
                     return self._json({'removed': core.remove_connection(b['name'])})
                 if u.path == '/api/test':
-                    if b.get('name'):
-                        return self._json(core.test_connection(b['name']))
+                    # name 存在时以原连接为底合并(编辑态:测新 config + 原密钥);纯新建则只用传入值
                     return self._json(core.test_connection(
-                        source_type=b['source_type'], config=b.get('config'), secrets=b.get('secrets')))
+                        b.get('name'), source_type=b.get('source_type'),
+                        config=b.get('config'), secrets=b.get('secrets')))
                 if u.path == '/api/query':
                     return self._json({'rows': core.query(b['name'], b['statement'], b.get('limit', 200))})
                 if u.path == '/api/export':

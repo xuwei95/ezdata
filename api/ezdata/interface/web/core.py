@@ -55,8 +55,13 @@ class Core:
     # ---------- 数据管理:访问 ----------
     def test_connection(self, name: str | None = None, *, source_type=None,
                         config=None, secrets=None) -> dict:
+        # 传 name 时以已存连接为底:未显式给出的 source_type/config/secrets 用库里的值。
+        # 编辑态测试用此合并——改了 config 但密钥留空时,仍用原密钥,不会因空密钥而失败。
         if name:
-            source_type, config, secrets = self.store.resolve(name)
+            st0, cfg0, sec0 = self.store.resolve(name)
+            source_type = source_type or st0
+            config = config if config is not None else cfg0
+            secrets = secrets if secrets else sec0
         return services.test_connection(source_type, config, secrets)
 
     def list_tables(self, name: str) -> list[str]:
