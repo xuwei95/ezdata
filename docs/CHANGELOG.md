@@ -1,5 +1,22 @@
 # 更新日志
 
+> 下方为上游 RuoYi-Vue3-FastAPI 的更新日志;ezdata 自身变更记于此段。
+
+## ezdata(v2.0)
+
+### 新增
+- **轻量查数 UI** `ezdata/interface/web`:与平台隔离、可单跑的极简工具(标准库 http.server + sqlite 连接目录 + agno LLM),数据源管理/浏览表字段/原生·AI 取数/导出 Excel。AI「生成查询」改为仅生成→预览→手动应用→点查询执行。
+- **AI 走 agno**:暂支持 openai(含 OpenAI 兼容端点)与 anthropic 两族,惰性导入不污染核心。
+- **任务超时(防卡死堵塞)**:Celery 全局软/硬超时(`CELERY_TASK_SOFT_TIME_LIMIT`/`CELERY_TASK_TIME_LIMIT`,默认 1800/2100)+ 任务级 `timeout`(0=默认/-1=不限/>0=自定义)+ `worker_prefetch_multiplier=1`;硬超时 SIGKILL 释放槽位,软超时告警不重试。
+- **重启调度器**:系统监控-定时任务页「重启调度器」按钮(超管;权限 `monitor:job:restart`),close→重抢锁→重载全部任务;多 worker 经 Redis 通道广播由 leader 执行。
+
+### 修复 / 优化
+- **内部 AI 生成(ETL 取数/转换、数据查询)改为优先用系统兜底模型(`LLM_*`)**:这些入口无选模型 UI,不再挑库内启用模型,避免被未配 key 的模型带跑(修 `AIMLAPI_API_KEY not set` 之类报错);启用模型空 key 时给友好提示。
+- 编辑数据源时测试连接不再因密钥留空失败(`/api/test` 传 name 以原连接为底合并)。
+
+### 升级注意
+- 已存在的库(从 `*.sql` 初始化、不在 alembic 管控下)需补 `task.timeout` 列:`alembic stamp 0002_seed_system && alembic upgrade head`,或手动 `ALTER TABLE task ADD COLUMN timeout INT NULL DEFAULT 0`。详见 `docs/DEPLOY.md` §9.5。
+
 ## RuoYi-Vue3-FastAPI v1.9.0
 
 ### 项目依赖

@@ -150,8 +150,10 @@ docker compose --env-file .env.pg up -d --build
 | `RAG_VECTOR_BACKEND` / `RAG_VECTOR_HOSTS` / `RAG_VECTOR_USER` / `RAG_VECTOR_PASSWORD` | RAG 向量库(hosts 留空回退 `TASK_ES_HOSTS`,**但账号不回退,需单独给**) |
 | `STORAGE_TYPE=s3` + `S3_ENDPOINT` / `S3_BUCKET_NAME` / `S3_ACCESS_KEY` / `S3_SECRET_KEY` / `STORAGE_PUBLIC_ENDPOINT` | 对象存储(MinIO) |
 | `EMBEDDING_TYPE` / `EMBEDDING_MODEL` / `DASHSCOPE_API_KEY` | 知识库 embedding |
-| `LLM_TYPE` / `LLM_MODEL` / `LLM_API_KEY` / `LLM_URL` | AI 兜底对话模型(应用 `modelId=0` 及内部 AI 生成用;优先级低于「AI 模型管理」里启用的库内模型) |
-| `LLM_REASONING` / `LLM_SUPPORT_IMAGES` | 兜底模型是否为深度思考 / 多模态模型(`true` 才放开思考内容展示 / 图片输入) |
+| `LLM_TYPE` / `LLM_MODEL` / `LLM_API_KEY` / `LLM_URL` | 系统兜底 AI 模型。**内部 AI 生成(ETL AI 取数/转换、数据查询)优先用它**——这些入口没有选模型 UI,统一走兜底,不会被库内某个未配好 key 的模型带跑;兜底未配置才回退库内启用模型。对话/应用的 `modelId=0` 也用它 |
+| `LLM_REASONING` / `LLM_SUPPORT_IMAGES` | 兜底模型是否为深度思考 / 多模态模型(`true` 才放开思考内容展示 / 图片输入)。**推理模型首个 token 前有思考延迟(几秒),AI 生成"看着卡一下"属正常;要秒出改用 Instruct 类非推理模型并置 `false`** |
+| `CELERY_TASK_SOFT_TIME_LIMIT` / `CELERY_TASK_TIME_LIMIT` | 任务全局超时(秒,默认 `1800`/`2100`)。软超时抛异常→标记失败并告警;硬超时 `SIGKILL` 卡死子进程、释放槽位。任务级 `timeout` 可覆盖:`0`=用此默认、`-1`=不限(流式/超长)、`>0`=自定义 |
+| `CELERY_WORKER_PREFETCH_MULTIPLIER` | 每 worker 一次预取的任务数(默认 `1`)。`1` = 慢/卡任务不连累其预取的其它任务,减少队列堵塞 |
 | `TZ` / `SCHEDULER_TZ` | 容器时区 / 调度器时区,**默认均 `Asia/Shanghai`**。容器默认 UTC 会让 cron 的"9-15 点"跑到北京 17-23 点,故务必保持北京时区(见 [7.1](#71-定时任务时区)) |
 | `JWT_SECRET_KEY` | 令牌签名(prod 必填) |
 | `DATA_ENCRYPT_KEY` | 库内数据源/AI 凭据 AES 加密(与 JWT 分离;留空回退由 JWT 派生,兼容旧密文) |
@@ -203,6 +205,13 @@ docker exec -i ezdata-backend-my python - < api/demo_seed.py
 - **cron 格式**:7 段 Quartz `秒 分 时 日 月 周 年`,与前端 cron 生成器一致 —— **步进用 `0/N`**(非 `*/N`,否则组件显示 NaN);**星期用数字**(Quartz 周日=1..周六=7,周一到周五=`2-6`,别用名称/0);**年写 `*`**;日与星期二选一(定了星期则日写 `?`)。例:交易时段每5分钟 `0 0/5 9-15 ? * 2-6 *`。后端会把 Quartz 数字星期自动转成 APScheduler 约定。
 - 非法 cron 在**创建/编辑时即被拒绝**(fail-fast 校验);即使存量脏数据,同步时也只跳过那一条、不影响其它任务与调度器。
 
+### 7.2 任务超时(防卡死堵塞)& 重启调度器
+
+- **超时**:任务默认受全局软/硬超时约束(`CELERY_TASK_SOFT_TIME_LIMIT`/`CELERY_TASK_TIME_LIMIT`,默认 1800/2100 秒)。软超时→标记失败并告警(不重试,重试大概率仍超时);硬超时→`SIGKILL` 卡死子进程、释放 worker 槽位,prefork 自动补新子进程。配合 `CELERY_WORKER_PREFETCH_MULTIPLIER=1`,卡死任务不会连累排队任务。
+- **任务级 `timeout`**(任务编辑页「超时时间」):`0`=用全局默认、`-1`=**不限**(流式/超长任务必须设 -1,否则会被全局硬超时误杀)、`>0`=自定义秒数(硬超时=软+300)。
+- **重启调度器**:调度器若"断"(丢锁、dev 热重载、卡住),在「系统监控 → 定时任务」页点「**重启调度器**」按钮即可 `close→重抢锁→从库重载全部启用任务` 恢复。该按钮权限 `monitor:job:restart` 未分配给普通角色,**默认仅超管可见/可用**。多 worker 时会经 Redis 通道广播,由真正的 leader 执行。
+- 注意:重启只**重排库里已启用的任务**,不创建任务、也不立即取数;演示数据初始化仍需手动跑 `demo_seed.py`(见 [6.1](#61-可选加载财经演示数据akshare--es--ai-分析助手))。
+
 ---
 
 ## 8. 本地(非容器)开发
@@ -245,6 +254,23 @@ dev 源码挂载,改完代码后端自动 reload;worker 需 `docker restart ezda
 
 ### 9.4 调试态代码执行
 平台「调试 / 预览」态的代码(ETL 代码取数、AI 图表等)在沙箱执行(子进程隔离 + 超时/内存 + import 白名单 + 出网域名白名单)。**dev compose 与生产 `docker-compose.yml`(my / pg 两种模式)均已部署沙箱并 `SANDBOX_ENABLED=true`**;沙箱出网域名白名单由 egress-proxy 的 `SANDBOX_EGRESS_ALLOW` 控制(默认财经/行情域名,按需增删)。非容器或自定义部署若未起沙箱,置空 `SANDBOX_ENABLED` 即回落 worker/后端本地真实执行。正式任务恒走 worker。
+
+### 9.5 升级已有库(schema 变更)
+
+新功能可能新增列(如任务超时 `task.timeout`)。**全新安装**从 `ezdata.sql`/`ezdata-pg.sql` 建库会自带;**已存在的库不会重跑 SQL**,需补上新列——两种方式(选一):
+
+- **直接改列(单列最省事)**:
+  ```bash
+  docker exec ezdata-mysql mysql -uroot -p'<库口令>' ezdata -e \
+    "ALTER TABLE task ADD COLUMN timeout INT NULL DEFAULT 0 COMMENT '任务超时(秒):0=全局默认,-1=不限,>0=自定义';"
+  ```
+- **走 alembic 迁移**:本项目库多由 `*.sql` 初始化、**不在 alembic 管控下(无 `alembic_version` 表)**,所以直接 `alembic upgrade head` 会从 baseline 重跑而报错。正确做法是先 `stamp` 到 SQL 对应的版本再升级:
+  ```bash
+  docker exec -it ezdata-backend-my sh -c "cd /app && alembic stamp 0002_seed_system && alembic upgrade head"
+  ```
+  之后再有迁移即可正常 `alembic upgrade head`。
+
+> ⚠️ 新代码会查询新列,**先补列、再上带新代码的镜像**(同一维护窗口);列缺失会导致相关查询报错。
 
 ---
 
@@ -310,6 +336,8 @@ GITHUB_SSO_DEFAULT_DEPT_ID = 100         # 新用户默认部门(决定租户)
 | `down -v` 时报 `network ... has active endpoints` | Docker 残留端点。`docker network prune -f`;仍不行重启 Docker。不影响下次 `up`。 |
 | 前端能开但接口 401/跨域 | 检查 nginx 反代(prod `web/bin/nginx.docker*.conf`)/ vite 代理目标(dev `VITE_DEV_PROXY_TARGET`)。 |
 | worker 不执行任务 | 看 `ezdata-worker-dev` 日志是否 Redis `NOAUTH/WRONGPASS`(口令不一致)或队列名不在 `CELERY_QUEUES`。 |
+| 任务卡死 / 队列堵塞 | 已内置超时:全局软/硬超时(`CELERY_TASK_*`,默认 1800/2100)+ 任务级 `timeout`,硬超时会 `SIGKILL` 卡死子进程释放槽位;`prefetch=1` 防连累排队任务(见 [7.2](#72-任务超时防卡死堵塞--重启调度器))。流式/超长任务须把任务 `timeout` 设 `-1`,否则会被全局硬超时误杀。调度器卡住可在「系统监控-定时任务」点「重启调度器」(超管)。存量库先补 `task.timeout` 列(见 [9.5](#95-升级已有库schema-变更))。 |
+| AI 取数/转换报 `AIMLAPI_API_KEY not set` 之类 provider key 报错 | 「AI 模型管理」里有个启用中的模型没配 key,被内部 AI 生成挑中。现已改为**内部 AI 生成一律走系统兜底模型(`LLM_*`)**;确认 `LLM_TYPE/LLM_MODEL/LLM_API_KEY` 配好即可,或停用/补全那条库内模型。 |
 | 定时任务"完全不触发" | ①时区:容器 UTC 而 cron 按北京时段写 → 跑到北京 17-23 点。用新镜像(`SCHEDULER_TZ=Asia/Shanghai` 已注入 trigger)即修,老镜像 `docker compose pull`。②跑了 `demo_seed` 没重载:新镜像会自动 `PUBLISH` 触发;否则 `docker restart ezdata-backend-my`(调度器仅在后端启动时读 sys_job)。日志 `next run at ... UTC` 是时区没对的铁证。 |
 | cron 生成器里"分/时"显示 `NaN/x` | 表达式用了 `*/N` 步进,组件按 `0/N` 解析 → `Number('*')=NaN`。改成 `0/N`(如每5分钟 `0/5`)。 |
 
