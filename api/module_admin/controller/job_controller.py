@@ -156,6 +156,22 @@ async def execute_system_job(
     return ResponseUtil.success(msg=execute_job_result.message)
 
 
+@job_controller.put(
+    '/job/restart',
+    summary='重启定时任务调度器接口',
+    description='重启调度器(关闭后重新初始化、重载全部任务)。权限 monitor:job:restart 未分配给普通角色,默认仅超管可用。',
+    response_model=ResponseBaseModel,
+    dependencies=[UserInterfaceAuthDependency('monitor:job:restart')],
+)
+@Log(title='定时任务', business_type=BusinessType.UPDATE)
+async def restart_system_scheduler(request: Request) -> Response:
+    from config.get_scheduler import SchedulerUtil  # noqa: PLC0415
+
+    result = await SchedulerUtil.restart_system_scheduler(request.app.state.redis)
+    logger.info(f'调度器重启: {result}')
+    return ResponseUtil.success(msg='调度器重启成功')
+
+
 @job_controller.delete(
     '/job/{job_ids}',
     summary='删除定时任务接口',

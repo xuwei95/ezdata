@@ -160,6 +160,7 @@ class SchedulerUtil:
     _redis: aioredis.Redis | None = None
     _job_update_time_cache: dict[str, datetime] = {}
     _sync_channel: str = 'scheduler:sync:request'
+    _restart_cmd: str = '__scheduler_restart__'   # 同步通道上的重启指令(区别于普通的 worker_id 同步消息)
     _sync_listener_task: asyncio.Task | None = None
     _lock_lost_task: asyncio.Task | None = None
     _sync_task: asyncio.Task | None = None
@@ -508,6 +509,31 @@ class SchedulerUtil:
             await cls._redis.publish(cls._sync_channel, cls._worker_id)
 
     @classmethod
+    async def _local_restart(cls, redis: 'aioredis.Redis | None') -> None:
+        """本进程就地重启调度器:关闭(释放锁)后重新初始化(重抢锁、重载任务)。"""
+        logger.info(f'🔄 Worker {cls._worker_id} 重启调度器…')
+        await cls.close_system_scheduler()
+        await cls.init_system_scheduler(redis or cls._redis)
+
+    @classmethod
+    async def restart_system_scheduler(cls, redis: 'aioredis.Redis | None' = None) -> dict:
+        """重启调度器(供管理端调用)。
+
+        - 本进程是 leader:就地 close + init;
+        - 不是 leader:通过同步通道广播重启指令,由真正的 leader 执行(多 worker 场景);
+        - 无 redis 兜底:就地重启(单机)。
+        """
+        redis = redis or cls._redis
+        if cls._is_leader:
+            await cls._local_restart(redis)
+            return {'restarted': True, 'mode': 'local', 'worker': cls._worker_id}
+        if redis:
+            await redis.publish(cls._sync_channel, cls._restart_cmd)
+            return {'restarted': True, 'mode': 'broadcast', 'worker': cls._worker_id}
+        await cls._local_restart(redis)
+        return {'restarted': True, 'mode': 'local-fallback', 'worker': cls._worker_id}
+
+    @classmethod
     def _ensure_sync_task(cls) -> None:
         """
         启动同步调度任务
@@ -651,9 +677,16 @@ class SchedulerUtil:
             try:
                 await pubsub.subscribe(cls._sync_channel)
                 async for message in pubsub.listen():
+                    if message.get('type') != 'message':
+                        continue
                     if not cls._is_leader:
                         continue
-                    if message.get('type') != 'message':
+                    data = message.get('data')
+                    if isinstance(data, (bytes, bytearray)):
+                        data = data.decode('utf-8', 'ignore')
+                    if data == cls._restart_cmd:
+                        # 收到重启指令:在独立任务里执行(close 会取消当前监听任务,避免自取消)
+                        asyncio.create_task(cls._local_restart(cls._redis))
                         continue
                     await cls.request_scheduler_sync()
             except asyncio.CancelledError:
