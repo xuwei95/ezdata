@@ -27,6 +27,12 @@ async def init_create_table() -> None:
     :return:
     """
     logger.info('🔎 初始化数据库连接...')
+    # 可选:启动时自动 alembic 迁移(AUTO_MIGRATE=true 才执行,默认关);先于 create_all 跑,先改表结构再建缺失表。
+    from fastapi.concurrency import run_in_threadpool  # noqa: PLC0415
+
+    from config.migrate import run_auto_migrate  # noqa: PLC0415
+
+    await run_in_threadpool(run_auto_migrate)
     async with async_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     logger.info('✅️ 数据库连接成功')

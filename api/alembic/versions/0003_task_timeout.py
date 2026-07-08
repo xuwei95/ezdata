@@ -17,11 +17,15 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        'task',
-        sa.Column('timeout', sa.Integer(), nullable=True, server_default='0',
-                  comment='任务超时(秒):0=用全局默认,-1=不限(流式/超长),>0=自定义'),
-    )
+    # 幂等:列已存在(如从含该列的 ezdata.sql 建库)则跳过,便于 stamp 基线后重跑
+    bind = op.get_bind()
+    cols = [c['name'] for c in sa.inspect(bind).get_columns('task')]
+    if 'timeout' not in cols:
+        op.add_column(
+            'task',
+            sa.Column('timeout', sa.Integer(), nullable=True, server_default='0',
+                      comment='任务超时(秒):0=用全局默认,-1=不限(流式/超长),>0=自定义'),
+        )
 
 
 def downgrade() -> None:
