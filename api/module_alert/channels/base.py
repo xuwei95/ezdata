@@ -13,8 +13,9 @@
 
 import json
 import smtplib
+from collections.abc import Callable
 from email.mime.text import MIMEText
-from typing import Any, Callable
+from typing import Any
 
 from loguru import logger as loguru_logger
 
@@ -43,7 +44,7 @@ def dispatch_forward(record: dict[str, Any], forward_conf_list: list[dict[str, A
         try:
             sender(record, conf)
             loguru_logger.info(f'告警渠道[{ctype}]发送成功: {record.get("title")}')
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             loguru_logger.error(f'告警渠道[{ctype}]发送失败: {e}')
 
 
@@ -53,7 +54,7 @@ def _alert_json(record: dict[str, Any]) -> str:
 
 
 def _text_content(record: dict[str, Any]) -> str:
-    return f"{record.get('title', '告警')}\n{record.get('content', '')}"
+    return f'{record.get("title", "告警")}\n{record.get("content", "")}'
 
 
 @register_channel('webhook')

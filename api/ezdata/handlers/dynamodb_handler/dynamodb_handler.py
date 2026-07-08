@@ -33,13 +33,17 @@ class DynamoDBHandler(Connector):
     def client(self) -> Any:
         def _make():
             import boto3
+
             return boto3.client('dynamodb', **self._client_kwargs())
+
         return self._lazy('_client', _make)
 
     def _deserialize(self, item: dict) -> dict:
         def _make():
             from boto3.dynamodb.types import TypeDeserializer
+
             return TypeDeserializer()
+
         deser = self._lazy('_deser', _make)
         return {k: deser.deserialize(v) for k, v in item.items()}
 

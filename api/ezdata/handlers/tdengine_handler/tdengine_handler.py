@@ -22,12 +22,15 @@ class TDengineHandler(Connector):
     def conn(self) -> Any:
         def _make():
             import taosrest
+
             return taosrest.connect(
                 url=self.arg('url', default='http://127.0.0.1:6041'),
                 token=self.arg('token') or None,
                 user=self.arg('user', default='root'),
                 password=self.arg('password', default='taosdata'),
-                database=self.arg('database') or None)
+                database=self.arg('database') or None,
+            )
+
         return self._lazy('_conn', _make)
 
     def _rows(self, sql: str) -> list[dict]:
@@ -49,8 +52,10 @@ class TDengineHandler(Connector):
         return [next(iter(r.values())) for r in self._rows('SHOW TABLES')]
 
     def get_columns(self, table: str) -> list[Column]:
-        return [Column(name=r.get('field') or r.get('Field'), type=r.get('type') or r.get('Type', ''))
-                for r in self._rows(f'DESCRIBE {table}')]
+        return [
+            Column(name=r.get('field') or r.get('Field'), type=r.get('type') or r.get('Type', ''))
+            for r in self._rows(f'DESCRIBE {table}')
+        ]
 
     def query(self, statement: str, params: dict | None = None, limit: int | None = None) -> list[dict]:
         sql = statement

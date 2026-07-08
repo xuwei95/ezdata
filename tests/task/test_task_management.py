@@ -56,7 +56,7 @@ class TaskManagementTest(BasePageTest):
         row = self.page.locator('tbody tr').first
         await row.get_by_role('button', name='记录').click()
         # 抽屉标题包含「执行记录」
-        await self.wait_for_selector("text=执行记录", timeout=10000)
+        await self.wait_for_selector('text=执行记录', timeout=10000)
         # 关闭抽屉
         await self.page.keyboard.press('Escape')
         await self.page.wait_for_timeout(500)

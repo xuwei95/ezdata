@@ -12,9 +12,8 @@ from sqlalchemy import select
 
 from module_task_schedule.sync_db import get_sync_session_local
 
-
-_HARD_GRACE_SECONDS = 300                    # 自定义超时时,硬超时 = 软超时 + 该宽限
-_UNLIMITED_SECONDS = 10 * 365 * 24 * 3600    # timeout=-1(不限)时用的极大值(≈10年)
+_HARD_GRACE_SECONDS = 300  # 自定义超时时,硬超时 = 软超时 + 该宽限
+_UNLIMITED_SECONDS = 10 * 365 * 24 * 3600  # timeout=-1(不限)时用的极大值(≈10年)
 
 
 def _load_run_conf(task_id: str) -> tuple[str, int]:
@@ -54,8 +53,11 @@ def run_task(task_id: Any, *args: Any, **kwargs: Any) -> str | None:
     from config.celery_app import celery_app
 
     async_result = celery_app.send_task(
-        'module_task_schedule.run_task', args=[task_id], queue=queue, **_timeout_opts(timeout))
-    loguru_logger.info(f'任务已投递到 Celery: task_id={task_id} queue={queue} timeout={timeout} instance={async_result.id}')
+        'module_task_schedule.run_task', args=[task_id], queue=queue, **_timeout_opts(timeout)
+    )
+    loguru_logger.info(
+        f'任务已投递到 Celery: task_id={task_id} queue={queue} timeout={timeout} instance={async_result.id}'
+    )
     return async_result.id
 
 
@@ -67,7 +69,8 @@ def run_dag(dag_task_id: Any, source: str = 'published') -> str | None:
     from config.celery_app import celery_app
 
     async_result = celery_app.send_task(
-        'module_task_schedule.run_dag', args=[dag_task_id, source], queue=queue, **_timeout_opts(timeout))
+        'module_task_schedule.run_dag', args=[dag_task_id, source], queue=queue, **_timeout_opts(timeout)
+    )
     loguru_logger.info(f'DAG 已投递: dag={dag_task_id} source={source} queue={queue} run={async_result.id}')
     return async_result.id
 
@@ -80,5 +83,6 @@ def run_single_node(dag_task_id: Any, node_key: str, source: str = 'draft') -> s
     from config.celery_app import celery_app
 
     async_result = celery_app.send_task(
-        'module_task_schedule.run_single_node', args=[dag_task_id, node_key, source], queue=queue)
+        'module_task_schedule.run_single_node', args=[dag_task_id, node_key, source], queue=queue
+    )
     return async_result.id

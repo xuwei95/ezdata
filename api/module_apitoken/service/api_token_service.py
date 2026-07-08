@@ -27,8 +27,12 @@ class ApiTokenService:
                 'name': vo.name,
                 'token': 'sk_' + _secrets.token_urlsafe(24),
                 'token_type': vo.token_type or 'data_api',
-                'ref_id': vo.ref_id, 'status': 1, 'expire_time': vo.expire_time, 'remark': vo.remark,
-                'create_by': operator, 'create_time': datetime.now(),
+                'ref_id': vo.ref_id,
+                'status': 1,
+                'expire_time': vo.expire_time,
+                'remark': vo.remark,
+                'create_by': operator,
+                'create_time': datetime.now(),
             }
             await ApiTokenDao.add(db, obj)
             await db.commit()
@@ -48,7 +52,7 @@ class ApiTokenService:
             raise e
 
     @classmethod
-    async def validate(cls, db: AsyncSession, apikey: str, token_type: str, ref_id: str | None = None) -> 'ApiToken':
+    async def validate(cls, db: AsyncSession, apikey: str, token_type: str, ref_id: str | None = None) -> 'ApiToken':  # noqa: F821  前向引用返回类型(字符串注解,运行期不求值)
         """校验 apikey:存在、启用、类型匹配、未过期、资源范围匹配。失败抛 ServiceException。
 
         返回命中的 ApiToken(调用方可据 tk.tenant_id 建立租户上下文)。

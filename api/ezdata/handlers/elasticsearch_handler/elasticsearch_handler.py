@@ -39,8 +39,7 @@ def _flatten_aggs(aggs: dict, base: dict | None = None) -> list[dict]:
             row = dict(base)
             row[n] = b.get('key_as_string', b.get('key'))
             row['doc_count'] = b.get('doc_count')
-            sub = {k: v for k, v in b.items()
-                   if k not in ('key', 'key_as_string', 'doc_count') and isinstance(v, dict)}
+            sub = {k: v for k, v in b.items() if k not in ('key', 'key_as_string', 'doc_count') and isinstance(v, dict)}
             rows.extend(_flatten_aggs(sub, row) if sub else [row])
     return rows
 
@@ -49,10 +48,7 @@ class ElasticsearchHandler(Connector):
     name = 'elasticsearch'
     title = 'Elasticsearch'
     family = 'search'
-    capabilities = (
-        Capability.READ | Capability.WRITE | Capability.EXTRACT
-        | Capability.SCHEMA | Capability.GEN_API
-    )
+    capabilities = Capability.READ | Capability.WRITE | Capability.EXTRACT | Capability.SCHEMA | Capability.GEN_API
     connection_args = connection_args
     connection_args_example = connection_args_example
 
@@ -77,7 +73,9 @@ class ElasticsearchHandler(Connector):
     def client(self) -> Any:
         def _make():
             from elasticsearch import Elasticsearch
+
             return Elasticsearch(**self._client_kwargs())
+
         return self._lazy('_client', _make)
 
     def test_connection(self) -> ConnectResult:
@@ -97,7 +95,7 @@ class ElasticsearchHandler(Connector):
             cols.append(Column(name=k, type=v.get('type', 'object')))
             # text 字段常带 keyword 子字段:terms 聚合/精确匹配/排序须用 `字段.keyword`,
             # 显式暴露出来,否则调用方(含 AI agent)对文本字段聚合会报错或聚到分词 token 上。
-            sub = (v.get('fields') or {})
+            sub = v.get('fields') or {}
             if isinstance(sub.get('keyword'), dict):
                 cols.append(Column(name=f'{k}.keyword', type='keyword'))
         return cols
@@ -119,8 +117,9 @@ class ElasticsearchHandler(Connector):
             return _flatten_aggs(resp['aggregations'])
         return [h['_source'] | {'_id': h['_id']} for h in resp['hits']['hits']]
 
-    def search(self, table: str, filters: list[dict] | None = None, page: int = 1,
-               pagesize: int = 20, **kwargs: Any) -> dict:
+    def search(
+        self, table: str, filters: list[dict] | None = None, page: int = 1, pagesize: int = 20, **kwargs: Any
+    ) -> dict:
         """分页查询:ES from/size + hits.total。"""
         from ezdata.utils.query import to_es
 
@@ -134,8 +133,15 @@ class ElasticsearchHandler(Connector):
         records = [h['_source'] | {'_id': h['_id']} for h in hits['hits']]
         return {'records': records, 'total': total, 'page': page, 'pagesize': pagesize}
 
-    def extract(self, table: str, *, query: dict | None = None, filters: list[dict] | None = None,
-                chunk_size: int = 1000, **kwargs: Any) -> Any:
+    def extract(
+        self,
+        table: str,
+        *,
+        query: dict | None = None,
+        filters: list[dict] | None = None,
+        chunk_size: int = 1000,
+        **kwargs: Any,
+    ) -> Any:
         import dlt
         from elasticsearch.helpers import scan
 
@@ -156,8 +162,9 @@ class ElasticsearchHandler(Connector):
 
         return _es_docs
 
-    def write(self, data: Iterable[dict], table: str, mode: str = 'append', *, id_field: str | None = None,
-              **kwargs: Any) -> Any:
+    def write(
+        self, data: Iterable[dict], table: str, mode: str = 'append', *, id_field: str | None = None, **kwargs: Any
+    ) -> Any:
         from elasticsearch.helpers import bulk
 
         if mode == 'replace' and self.client.indices.exists(index=table):

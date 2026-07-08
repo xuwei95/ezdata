@@ -11,15 +11,15 @@ from common.annotation.cache_annotation import ApiCache, ApiCacheEvict
 from common.annotation.log_annotation import Log
 from common.annotation.rate_limit_annotation import ApiRateLimit, ApiRateLimitPreset
 from common.aspect.db_seesion import DBSessionDependency
-from common.context import RequestContext, tenant_bypass
-from module_admin.dao.user_tenant_dao import UserTenantDao
 from common.aspect.pre_auth import CurrentUserDependency
 from common.constant import ApiGroup, ApiNamespace
+from common.context import RequestContext, tenant_bypass
 from common.enums import BusinessType, RedisInitKeyConfig
 from common.router import APIRouterPro
 from common.vo import CrudResponseModel, DataResponseModel, DynamicResponseModel, ResponseBaseModel
 from config.env import AppConfig, GithubSsoConfig, JwtConfig
 from exceptions.exception import ServiceException
+from module_admin.dao.user_tenant_dao import UserTenantDao
 from module_admin.entity.vo.login_vo import LoginToken, RouterModel, Token, UserLogin, UserRegister
 from module_admin.entity.vo.user_vo import CurrentUserModel, EditUserModel, SwitchTenantModel, TenantOptionModel
 from module_admin.service.login_service import CustomOAuth2PasswordRequestForm, LoginService, oauth2_scheme
@@ -124,8 +124,7 @@ async def get_login_user_info(
         default_map = {m.tenant_id: m.is_default for m in memberships}
         depts = await UserTenantDao.list_top_depts(query_db, list(default_map.keys()))
         current_user.tenant_list = [
-            TenantOptionModel(tenantId=d[0], tenantName=d[1], isDefault=bool(default_map.get(d[0])))
-            for d in depts
+            TenantOptionModel(tenantId=d[0], tenantName=d[1], isDefault=bool(default_map.get(d[0]))) for d in depts
         ]
         current_user.current_tenant_id = RequestContext.get_current_tenant_id()
     logger.info('获取成功')
@@ -269,7 +268,7 @@ async def switch_tenant(
     return ResponseUtil.success(msg='切换成功', dict_content={'token': access_token})
 
 
-async def _issue_token_for_user(request: Request, user) -> str:  # noqa: ANN001
+async def _issue_token_for_user(request: Request, user) -> str:
     """为已解析的用户签发 JWT 并写入 Redis 会话(复用账密登录的会话机制)。"""
     session_id = str(uuid.uuid4())
     access_token = await LoginService.create_access_token(
@@ -329,8 +328,8 @@ async def github_callback(
         token = await _issue_token_for_user(request, user)
         logger.info(f'GitHub SSO 登录成功: user_id={user.user_id}')
         return RedirectResponse(f'{frontend}{sep}token={token}')
-    except Exception as e:  # noqa: BLE001
-        from urllib.parse import quote  # noqa: PLC0415
+    except Exception as e:
+        from urllib.parse import quote
 
         msg = getattr(e, 'message', None) or str(e)
         logger.warning(f'GitHub SSO 失败: {msg}')

@@ -91,7 +91,7 @@ class DbTaskLogWriter(BaseTaskLogWriter):
         try:
             session.bulk_insert_mappings(TaskLog, rows)
             session.commit()
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             session.rollback()
             loguru_logger.error(f'任务执行日志写入数据库失败: {e}')
         finally:
@@ -113,7 +113,7 @@ class FileTaskLogWriter(BaseTaskLogWriter):
                 os.makedirs(day_dir, exist_ok=True)
                 with open(os.path.join(day_dir, f'{task_uuid}.log'), 'a', encoding='utf-8') as f:
                     f.write(line)
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 loguru_logger.error(f'任务执行日志写入文件失败: {e}')
 
 
@@ -121,8 +121,13 @@ class EsTaskLogWriter(BaseTaskLogWriter):
     """Elasticsearch 后端：批量写入索引(按 task_uuid 查询)"""
 
     def __init__(
-        self, hosts: str, index: str, user: str = '', password: str = '',
-        batch_size: int = _BATCH_SIZE, flush_interval: float = _FLUSH_INTERVAL,
+        self,
+        hosts: str,
+        index: str,
+        user: str = '',
+        password: str = '',
+        batch_size: int = _BATCH_SIZE,
+        flush_interval: float = _FLUSH_INTERVAL,
     ) -> None:
         self._index = index
         self._batch_size = max(1, batch_size)
@@ -165,7 +170,7 @@ class EsTaskLogWriter(BaseTaskLogWriter):
 
             actions = [{'_index': self._index, '_source': row} for row in rows]
             helpers.bulk(self._client, actions, stats_only=True)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             loguru_logger.error(f'任务执行日志写入ES失败: {e}')
 
 
@@ -182,7 +187,7 @@ def _build_writer() -> BaseTaskLogWriter:
                 user=TaskLogConfig.task_es_username,
                 password=TaskLogConfig.task_es_password,
             )
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             loguru_logger.error(f'初始化ES日志后端失败,降级为文件后端: {e}')
             return FileTaskLogWriter(base_dir=TaskLogConfig.task_log_file_dir)
     return FileTaskLogWriter(base_dir=TaskLogConfig.task_log_file_dir)
@@ -202,7 +207,7 @@ class TaskLogger:
             logger.info('开始执行')
             ...
         finally:
-            logger.close()   # 刷盘
+            logger.close()  # 刷盘
     """
 
     def __init__(self, task_uuid: str, writer: BaseTaskLogWriter) -> None:
@@ -216,7 +221,7 @@ class TaskLogger:
         # 回显到 loguru(控制台/系统日志可见)
         try:
             self._bound.opt(exception=exc).log(level, f'[task:{self.task_uuid}] {text}')
-        except Exception:  # noqa: BLE001
+        except Exception:
             pass
         # 写入执行日志后端
         if exc:

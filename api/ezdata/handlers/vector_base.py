@@ -17,7 +17,7 @@ from ezdata.handlers.base import Capability, Connector, ConnectResult
 class VectorConnector(Connector):
     family = 'vector'
     capabilities = Capability.WRITE | Capability.VECTOR | Capability.SCHEMA
-    agno_path: str = ''        # 'agno.vectordb.qdrant.Qdrant'
+    agno_path: str = ''  # 'agno.vectordb.qdrant.Qdrant'
 
     @staticmethod
     def _kw(**pairs: Any) -> dict:
@@ -53,8 +53,9 @@ class VectorConnector(Connector):
         out = []
         for d in documents:
             if isinstance(d, dict):
-                out.append(Document(content=d.get('content', ''), name=d.get('name'),
-                                    meta_data=d.get('meta_data') or {}))
+                out.append(
+                    Document(content=d.get('content', ''), name=d.get('name'), meta_data=d.get('meta_data') or {})
+                )
             else:
                 out.append(d)
         return out
@@ -62,7 +63,7 @@ class VectorConnector(Connector):
     # ---------- 能力 ----------
     def test_connection(self) -> ConnectResult:
         try:
-            self._agno_cls()   # 至少能加载 Agno 向量类(真正连通需指定 collection)
+            self._agno_cls()  # 至少能加载 Agno 向量类(真正连通需指定 collection)
             return ConnectResult(True, 'ok(Agno 向量类已就绪)')
         except Exception as e:
             return ConnectResult(False, str(e))
@@ -71,8 +72,9 @@ class VectorConnector(Connector):
         c = self.arg('collection', 'table', 'index')
         return [c] if c else []
 
-    def similarity_search(self, query: str, collection: str, limit: int = 10,
-                          filters: dict | None = None, **kwargs: Any) -> list[dict]:
+    def similarity_search(
+        self, query: str, collection: str, limit: int = 10, filters: dict | None = None, **kwargs: Any
+    ) -> list[dict]:
         vdb = self._vectordb(collection)
         results = vdb.search(query=query, limit=limit, filters=filters)
         return [self._doc_to_dict(d) for d in results]
@@ -80,8 +82,8 @@ class VectorConnector(Connector):
     def query(self, statement: dict, params: dict | None = None, limit: int | None = None) -> list[dict]:
         """statement = {'collection':..., 'query': '...', 'filters': {...}}。"""
         return self.similarity_search(
-            statement['query'], statement['collection'],
-            limit or statement.get('limit', 10), statement.get('filters'))
+            statement['query'], statement['collection'], limit or statement.get('limit', 10), statement.get('filters')
+        )
 
     def write(self, data: Any, table: str, mode: str = 'append', **kwargs: Any) -> Any:
         vdb = self._vectordb(table)

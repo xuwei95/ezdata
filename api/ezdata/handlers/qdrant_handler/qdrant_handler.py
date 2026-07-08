@@ -15,6 +15,15 @@ class QdrantHandler(VectorConnector):
 
     def _vectordb(self, collection: str) -> Any:
         vcls = self._agno_cls()
-        return vcls(**self._kw(collection=collection, embedder=self._embedder(),
-                 location=self.arg('location'), url=self.arg('url'), host=self.arg('host'),
-                 port=self.arg('port'), api_key=self.arg('api_key'), https=self.arg('https')))
+        return vcls(
+            **self._kw(
+                collection=collection,
+                embedder=self._embedder(),
+                location=self.arg('location'),
+                url=self.arg('url'),
+                host=self.arg('host'),
+                port=self.arg('port'),
+                api_key=self.arg('api_key'),
+                https=self.arg('https'),
+            )
+        )

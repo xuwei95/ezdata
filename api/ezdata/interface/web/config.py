@@ -13,9 +13,9 @@ _HERE = Path(__file__).resolve()
 _WEB_DIR = _HERE.parent
 _API_DIR = _HERE.parent.parent.parent.parent
 _DEFAULT_CANDIDATES = [
-    _WEB_DIR / '.env.dev',   # interface/web/.env.dev(就近,优先)
-    _WEB_DIR / '.env',       # interface/web/.env
-    _API_DIR / '.env.dev',   # api/.env.dev(兜底)
+    _WEB_DIR / '.env.dev',  # interface/web/.env.dev(就近,优先)
+    _WEB_DIR / '.env',  # interface/web/.env
+    _API_DIR / '.env.dev',  # api/.env.dev(兜底)
     _API_DIR / '.env',
 ]
 

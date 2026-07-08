@@ -34,12 +34,12 @@ def json_safe(v: Any) -> Any:
     if hasattr(v, 'item'):  # numpy / pandas 标量 → 原生
         try:
             return json_safe(v.item())
-        except Exception:  # noqa: BLE001
+        except Exception:
             pass
     if hasattr(v, 'isoformat'):
         try:
             return v.isoformat()
-        except Exception:  # noqa: BLE001
+        except Exception:
             pass
     return str(v)
 
@@ -47,6 +47,7 @@ def json_safe(v: Any) -> Any:
 def json_safe_rows(rows: Any) -> Any:
     """list[dict] 记录整体转 JSON 安全;非 list(如 None)原样返回。"""
     return [json_safe(r) for r in rows] if isinstance(rows, list) else rows
+
 
 # 只读语句起始关键字白名单
 _SQL_READONLY_START = re.compile(r'^\s*(select|with|show|explain|desc|describe)\b', re.IGNORECASE)
@@ -83,6 +84,7 @@ def assert_readonly_sql(statement: Any, family: str | None = None) -> None:
     if _SQL_DANGEROUS.search(s):
         raise ReadOnlyViolation('检测到写入/DDL 关键字,已拦截(查询仅限只读,写入请用数据集成任务)')
 
+
 # 目标为对象/文件存储时,写入路径是「整对象 bytes」,需先把记录序列化
 FILE_FAMILIES = {'file', 'object', 'filesystem'}
 
@@ -99,7 +101,7 @@ def stream_statement(object_name: str | None) -> dict:
     stmt: dict[str, Any] = {}
     if object_name:
         stmt['only_tables'] = [object_name]  # binlog 用
-        stmt['topic'] = object_name          # kafka 用
+        stmt['topic'] = object_name  # kafka 用
     return stmt
 
 
@@ -108,7 +110,7 @@ def stream_kwargs(object_name: str | None) -> dict:
     kw: dict[str, Any] = {}
     if object_name:
         kw['only_tables'] = [object_name]  # binlog
-        kw['topic'] = object_name          # kafka
+        kw['topic'] = object_name  # kafka
     return kw
 
 

@@ -94,7 +94,7 @@ class ServerService:
                     usage=f'{psutil.disk_usage(i.device).percent}%',
                 )
                 sys_files.append(disk_data)
-            except Exception:  # noqa: PERF203
+            except Exception:
                 # 忽略所有异常，跳过有问题的磁盘
                 continue
 

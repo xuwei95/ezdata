@@ -8,7 +8,8 @@
 """
 
 import builtins as _builtins
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 # 允许 import 的模块白名单(可按需扩展)
 ALLOWED_IMPORTS = {
@@ -87,7 +88,7 @@ def run_user_code(code: str, params: dict[str, Any], logger: Any, sandbox: bool 
         exec_globals = {'__builtins__': _builtins}
 
     compiled = compile(code, '<task_code>', 'exec')
-    exec(compiled, exec_globals)  # noqa: S102 - 受控执行用户任务代码
+    exec(compiled, exec_globals)
 
     run_func: Callable[..., Any] | None = exec_globals.get('run')
     if not callable(run_func):

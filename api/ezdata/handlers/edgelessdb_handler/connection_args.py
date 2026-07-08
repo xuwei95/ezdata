@@ -10,7 +10,7 @@ connection_args = OrderedDict(
     password={
         'type': ARG_TYPE.PWD,
         'description': 'The password to authenticate the user with the EdgelessDB server.',
-        'secret': True
+        'secret': True,
     },
     database={
         'type': ARG_TYPE.STR,
@@ -18,7 +18,7 @@ connection_args = OrderedDict(
     },
     host={
         'type': ARG_TYPE.STR,
-        'description': 'The host name or IP address of the EdgelessDB server. NOTE: use \'127.0.0.1\' instead of \'localhost\' to connect to local server.',
+        'description': "The host name or IP address of the EdgelessDB server. NOTE: use '127.0.0.1' instead of 'localhost' to connect to local server.",
     },
     port={
         'type': ARG_TYPE.INT,

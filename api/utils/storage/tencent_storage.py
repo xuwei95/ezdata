@@ -1,4 +1,5 @@
 """腾讯云 COS 存储实现（storage_type=tencent-cos）。依赖：cos-python-sdk-v5"""
+
 from collections.abc import Generator
 
 from qcloud_cos import CosConfig, CosS3Client

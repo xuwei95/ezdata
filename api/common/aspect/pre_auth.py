@@ -125,7 +125,7 @@ class PreAuth:
         return current_user
 
 
-def PreAuthDependency(exclude_routes: list[ExcludeRoute] | None = None) -> params.Depends:  # noqa: N802
+def PreAuthDependency(exclude_routes: list[ExcludeRoute] | None = None) -> params.Depends:
     """
     登录认证前置校验依赖
 
@@ -137,7 +137,7 @@ def PreAuthDependency(exclude_routes: list[ExcludeRoute] | None = None) -> param
     return Depends(PreAuth(exclude_routes))
 
 
-def CurrentUserDependency() -> params.Depends:  # noqa: N802
+def CurrentUserDependency() -> params.Depends:
     """
     当前登录用户信息依赖
 

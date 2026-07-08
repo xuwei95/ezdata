@@ -20,9 +20,7 @@ def _exc_location(exception: Any) -> tuple[str, str]:
     return last.filename or '', str(last.lineno or '')
 
 
-def trigger_task_fail_alert(
-    task_id: str, instance_id: str, worker: str | None, retries: int, exception: Any
-) -> None:
+def trigger_task_fail_alert(task_id: str, instance_id: str, worker: str | None, retries: int, exception: Any) -> None:
     """触发任务失败告警(同步上下文，供 Celery worker 调用)"""
     from loguru import logger as loguru_logger
 
@@ -45,5 +43,5 @@ def trigger_task_fail_alert(
             exception_line=exc_line,
             task_type='normal_task',
         )
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         loguru_logger.error(f'触发任务失败告警异常: {e}')

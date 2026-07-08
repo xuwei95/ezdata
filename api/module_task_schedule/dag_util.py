@@ -62,7 +62,7 @@ class DAG:
             return False
 
     def topological_sort(self) -> list[str]:
-        in_deg = {n: 0 for n in self.graph}
+        in_deg = dict.fromkeys(self.graph, 0)
         for downs in self.graph.values():
             for d in downs:
                 in_deg[d] += 1
@@ -106,5 +106,5 @@ def validate_graph(graph: dict[str, Any]) -> tuple[bool, str]:
             return False, '存在未配置模板的节点'
         build_dag(graph)
         return True, 'ok'
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return False, str(e)

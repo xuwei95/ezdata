@@ -5,15 +5,16 @@ Revises: 0003_task_timeout
 Create Date: generated
 
 """
-from typing import Sequence, Union
 
-from alembic import op
+from collections.abc import Sequence
+
 import sqlalchemy as sa
+from alembic import op
 
 revision: str = '0004_ds_remark_text'
-down_revision: Union[str, Sequence[str], None] = '0003_task_timeout'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = '0003_task_timeout'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -21,10 +22,12 @@ def upgrade() -> None:
     bind = op.get_bind()
     col = next((c for c in sa.inspect(bind).get_columns('data_source') if c['name'] == 'remark'), None)
     if col is not None and 'text' not in str(col['type']).lower():
-        op.alter_column('data_source', 'remark', existing_type=sa.String(length=500),
-                        type_=sa.Text(), existing_nullable=True)
+        op.alter_column(
+            'data_source', 'remark', existing_type=sa.String(length=500), type_=sa.Text(), existing_nullable=True
+        )
 
 
 def downgrade() -> None:
-    op.alter_column('data_source', 'remark', existing_type=sa.Text(),
-                    type_=sa.String(length=500), existing_nullable=True)
+    op.alter_column(
+        'data_source', 'remark', existing_type=sa.Text(), type_=sa.String(length=500), existing_nullable=True
+    )

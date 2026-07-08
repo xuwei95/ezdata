@@ -204,7 +204,8 @@ class TaskLogModel(BaseModel):
     content: str | None = Field(default=None, description='日志内容')
     create_time: datetime | None = Field(default=None, description='创建时间')
     cursor: str | None = Field(
-        default=None, description='增量游标(随行返回):前端回传最后一行的cursor以拉取更新的日志。db后端=日志id,es后端=时间戳'
+        default=None,
+        description='增量游标(随行返回):前端回传最后一行的cursor以拉取更新的日志。db后端=日志id,es后端=时间戳',
     )
 
 

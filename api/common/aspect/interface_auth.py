@@ -72,7 +72,7 @@ class CheckRoleInterfaceAuth:
         raise PermissionException(data='', message='该用户无此接口权限')
 
 
-def UserInterfaceAuthDependency(perm: str | list, is_strict: bool = False) -> params.Depends:  # noqa: N802
+def UserInterfaceAuthDependency(perm: str | list, is_strict: bool = False) -> params.Depends:
     """
     根据权限标识校验当前用户接口权限依赖
 
@@ -83,7 +83,7 @@ def UserInterfaceAuthDependency(perm: str | list, is_strict: bool = False) -> pa
     return Depends(CheckUserInterfaceAuth(perm, is_strict))
 
 
-def RoleInterfaceAuthDependency(role_key: str | list, is_strict: bool = False) -> params.Depends:  # noqa: N802
+def RoleInterfaceAuthDependency(role_key: str | list, is_strict: bool = False) -> params.Depends:
     """
     根据角色校验当前用户接口权限依赖
 

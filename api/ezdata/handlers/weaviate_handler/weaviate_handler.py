@@ -15,5 +15,11 @@ class WeaviateHandler(VectorConnector):
 
     def _vectordb(self, collection: str) -> Any:
         vcls = self._agno_cls()
-        return vcls(**self._kw(collection=collection, embedder=self._embedder(),
-                 wcd_url=self.arg('weaviate_url'), wcd_api_key=self.arg('weaviate_api_key')))
+        return vcls(
+            **self._kw(
+                collection=collection,
+                embedder=self._embedder(),
+                wcd_url=self.arg('weaviate_url'),
+                wcd_api_key=self.arg('weaviate_api_key'),
+            )
+        )

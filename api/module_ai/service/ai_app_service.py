@@ -12,9 +12,16 @@ from utils.ai_util import AiUtil
 from utils.common_util import CamelCaseUtil
 
 _DEFAULT_CONFIG: dict = {
-    'prompt': '', 'prologue': '', 'presetQuestions': [], 'quickCommands': [],
-    'toolIds': [], 'datasetIds': [], 'datasourceCodes': [], 'enableMemory': False,
-    'addHistory': True, 'numHistoryRuns': 10,  # 应用自带的上下文历史开关/轮数(默认对齐原行为:开、10轮)
+    'prompt': '',
+    'prologue': '',
+    'presetQuestions': [],
+    'quickCommands': [],
+    'toolIds': [],
+    'datasetIds': [],
+    'datasourceCodes': [],
+    'enableMemory': False,
+    'addHistory': True,
+    'numHistoryRuns': 10,  # 应用自带的上下文历史开关/轮数(默认对齐原行为:开、10轮)
     'model': {'modelId': 0, 'temperature': None, 'maxTokens': None},
 }
 
@@ -43,8 +50,11 @@ class AiAppService:
 
     @classmethod
     async def get_ai_app_list_services(
-        cls, query_db: AsyncSession, query_object: AiAppPageQueryModel,
-        data_scope_sql: ColumnElement, is_page: bool = False,
+        cls,
+        query_db: AsyncSession,
+        query_object: AiAppPageQueryModel,
+        data_scope_sql: ColumnElement,
+        is_page: bool = False,
     ) -> PageModel | list[dict[str, Any]]:
         result = await AiAppDao.get_ai_app_list(query_db, query_object, data_scope_sql, is_page)
         rows = result.rows if isinstance(result, PageModel) else result
@@ -118,9 +128,9 @@ class AiAppService:
     @classmethod
     async def resolve_token(cls, query_db: AsyncSession, api_key: str) -> dict | None:
         """校验应用 apikey(复用通用 api_token 表,token_type='ai_app'):有效 → {app_id, tenant_id};否则 None。"""
-        from datetime import datetime  # noqa: PLC0415
+        from datetime import datetime
 
-        from module_apitoken.dao.api_token_dao import ApiTokenDao  # noqa: PLC0415
+        from module_apitoken.dao.api_token_dao import ApiTokenDao
 
         if not api_key:
             return None
@@ -134,15 +144,19 @@ class AiAppService:
     @classmethod
     async def generate_prompt_stream(cls, query_db: AsyncSession, requirement: str, model_id: int):
         """流式调 LLM 根据一句话需求草拟系统提示词;逐段 yield 文本。"""
-        from agno.agent import Agent  # noqa: PLC0415
-        from agno.run.agent import RunEvent  # noqa: PLC0415
+        from agno.agent import Agent
+        from agno.run.agent import RunEvent
 
-        from module_ai.service.ai_chat_service import AiChatService  # noqa: PLC0415
+        from module_ai.service.ai_chat_service import AiChatService
 
         mc = await AiChatService._resolve_chat_model_config(query_db, model_id or 0)
         model = AiUtil.get_model_from_factory(
-            provider=mc.provider, model_code=mc.model_code, model_name=mc.model_name,
-            api_key=mc.api_key, base_url=mc.base_url, max_tokens=8192,
+            provider=mc.provider,
+            model_code=mc.model_code,
+            model_name=mc.model_name,
+            api_key=mc.api_key,
+            base_url=mc.base_url,
+            max_tokens=8192,
         )
         agent = Agent(model=model, id='prompt-gen', instructions=[_PROMPT_META], markdown=False)
         async for chunk in agent.arun(f'应用定位/需求:{requirement}', stream=True):

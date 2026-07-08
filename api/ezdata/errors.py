@@ -15,15 +15,15 @@ class EzDataError(Exception):
     携带定位上下文(source_type/statement/context)与原始异常(__cause__),供结构化上报。
     """
 
-    def __init__(self, message: str, *, source_type: str | None = None,
-                 statement: object = None, **context: object) -> None:
+    def __init__(
+        self, message: str, *, source_type: str | None = None, statement: object = None, **context: object
+    ) -> None:
         super().__init__(message)
         self.source_type = source_type
         self.statement = statement
         self.context = context
 
-    def to_dict(self, *, with_traceback: bool = False, tb_chars: int = 1500,
-                cause_chars: int = 2000) -> dict:
+    def to_dict(self, *, with_traceback: bool = False, tb_chars: int = 1500, cause_chars: int = 2000) -> dict:
         """结构化上报。默认精简(不含 traceback,省 token);cause_message 是 AI 改代码最有用的信息。"""
         cause = self.__cause__
         cmsg = str(cause) if cause is not None else None

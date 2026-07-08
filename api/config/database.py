@@ -133,7 +133,7 @@ class TenantMixin:
 # 上下文未设置租户(系统/匿名/启动加载)或显式 bypass(超管/Worker引导)时不过滤。
 # ---------------------------------------------------------------------------
 @event.listens_for(Session, 'do_orm_execute')
-def _tenant_filter_orm_execute(orm_execute_state) -> None:  # noqa: ANN001
+def _tenant_filter_orm_execute(orm_execute_state) -> None:
     # 仅处理顶层 ORM SELECT；跳过列刷新与关系懒加载(由 include_aliases 覆盖关联)
     if not (
         orm_execute_state.is_select
@@ -164,7 +164,7 @@ def _tenant_filter_orm_execute(orm_execute_state) -> None:  # noqa: ANN001
 
 
 @event.listens_for(Session, 'before_flush')
-def _tenant_stamp_before_flush(session: Session, flush_context, instances) -> None:  # noqa: ANN001
+def _tenant_stamp_before_flush(session: Session, flush_context, instances) -> None:
     from common.context import RequestContext
 
     tenant_id = RequestContext.get_effective_tenant_id()

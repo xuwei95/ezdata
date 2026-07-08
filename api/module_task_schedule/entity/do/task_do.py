@@ -72,7 +72,9 @@ class Task(Base, TenantMixin):
     crontab: Mapped[str | None] = mapped_column(String(500), nullable=True, server_default="''", comment='定时设置')
     priority: Mapped[int | None] = mapped_column(Integer, nullable=True, server_default='1', comment='优先级')
     retry: Mapped[int | None] = mapped_column(Integer, nullable=True, server_default='0', comment='失败重试次数')
-    countdown: Mapped[int | None] = mapped_column(Integer, nullable=True, server_default='0', comment='失败重试间隔(秒)')
+    countdown: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, server_default='0', comment='失败重试间隔(秒)'
+    )
     timeout: Mapped[int | None] = mapped_column(
         Integer, nullable=True, server_default='0', comment='任务超时(秒):0=用全局默认,-1=不限(流式/超长),>0=自定义'
     )

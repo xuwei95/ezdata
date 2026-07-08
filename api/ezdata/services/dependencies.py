@@ -41,7 +41,7 @@ def install(source_type: str, *, upgrade: bool = False, timeout: int = 600) -> d
 
     cmd = [sys.executable, '-m', 'pip', 'install', *(['-U'] if upgrade else []), *targets]
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, check=False)  # noqa: S603
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, check=False)
     except subprocess.TimeoutExpired:
         return {**before, 'installed': False, 'ok': False, 'message': f'pip 安装超时(>{timeout}s)'}
 

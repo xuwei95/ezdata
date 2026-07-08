@@ -54,5 +54,5 @@ class TaskInstanceService:
 
             celery_app.control.revoke(instance_id, terminate=True, signal='SIGTERM')
             return CrudResponseModel(is_success=True, message='终止指令已发送')
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             raise ServiceException(message=f'终止任务失败: {e}')

@@ -15,7 +15,7 @@ _decryptor: 'Callable[[str], str] | None' = None
 
 def set_decryptor(fn: 'Callable[[str], str] | None') -> None:
     """注入密文解密函数(幂等,后注入覆盖先注入)。传 None 可清除。"""
-    global _decryptor  # noqa: PLW0603
+    global _decryptor
     _decryptor = fn
 
 

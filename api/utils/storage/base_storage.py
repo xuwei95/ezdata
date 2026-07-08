@@ -1,4 +1,5 @@
 """文件存储后端的抽象接口。"""
+
 from abc import ABC, abstractmethod
 from collections.abc import Generator
 

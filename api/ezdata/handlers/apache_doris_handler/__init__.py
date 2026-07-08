@@ -13,6 +13,7 @@ description = 'Apache Doris 数据源(MySQL 协议,SQLAlchemy + dlt)'
 def load_handler():
     """懒加载:仅在真正需要 handler 类时才导入其重依赖(驱动/ORM)。"""
     from ezdata.handlers.apache_doris_handler.apache_doris_handler import ApacheDorisHandler
+
     return ApacheDorisHandler
 
 
@@ -24,11 +25,11 @@ def __getattr__(attr):  # PEP 562:保留 `module.Handler` 旧用法,首次访问
 
 __all__ = [
     'Handler',
+    'capabilities',
     'connection_args',
     'connection_args_example',
     'description',
     'family',
-    'capabilities',
     'load_handler',
     'name',
     'title',

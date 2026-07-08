@@ -3,6 +3,7 @@
 路径基于当前工作目录(cwd)解析，与模板的 /profile 静态服务、UploadConfig.UPLOAD_PATH 对齐：
 默认 STORAGE_LOCAL_PATH = 'vf_admin/upload_path'，因此 local 后端与模板原有行为完全一致。
 """
+
 import os
 import shutil
 from collections.abc import Generator

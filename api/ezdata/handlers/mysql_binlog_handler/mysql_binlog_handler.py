@@ -46,15 +46,16 @@ class MySQLBinlogHandler(Connector):
             return [WriteRowsEvent, UpdateRowsEvent, DeleteRowsEvent]
         return [mapping[e] for e in events if e in mapping]
 
-    def _reader(self, *, blocking: bool, resume: bool, only_tables: list[str] | None,
-                only_events: list[str] | None) -> Any:
+    def _reader(
+        self, *, blocking: bool, resume: bool, only_tables: list[str] | None, only_events: list[str] | None
+    ) -> Any:
         from pymysqlreplication import BinLogStreamReader
 
         return BinLogStreamReader(
             connection_settings=self._conn_setting(),
             server_id=int(self.arg('server_id') or random.randint(10000, 99999)),
-            freeze_schema=False,             # 查实时表结构以解析真实列名(否则 MINIMAL 元数据会得到 UNKNOWN_COL)
-            resume_stream=resume,            # True=只接最新, False=从头
+            freeze_schema=False,  # 查实时表结构以解析真实列名(否则 MINIMAL 元数据会得到 UNKNOWN_COL)
+            resume_stream=resume,  # True=只接最新, False=从头
             blocking=blocking,
             only_schemas=[self.arg('database')] if self.arg('database') else None,
             only_tables=only_tables,
@@ -114,8 +115,12 @@ class MySQLBinlogHandler(Connector):
         """有界预览:从头读最多 N 个变更后返回(blocking=False)。"""
         statement = statement or {}
         n = limit or statement.get('max') or 20
-        reader = self._reader(blocking=False, resume=False,
-                              only_tables=statement.get('only_tables'), only_events=statement.get('only_events'))
+        reader = self._reader(
+            blocking=False,
+            resume=False,
+            only_tables=statement.get('only_tables'),
+            only_events=statement.get('only_events'),
+        )
         out = []
         try:
             for ev in reader:
@@ -127,11 +132,18 @@ class MySQLBinlogHandler(Connector):
             reader.close()
         return out
 
-    def stream(self, *, only_tables: list[str] | None = None, only_events: list[str] | None = None,
-               from_beginning: bool = False, **kwargs: Any) -> Iterator[dict]:
+    def stream(
+        self,
+        *,
+        only_tables: list[str] | None = None,
+        only_events: list[str] | None = None,
+        from_beginning: bool = False,
+        **kwargs: Any,
+    ) -> Iterator[dict]:
         """长驻 CDC:持续 yield 变更事件(阻塞)。"""
-        reader = self._reader(blocking=True, resume=not from_beginning,
-                              only_tables=only_tables, only_events=only_events)
+        reader = self._reader(
+            blocking=True, resume=not from_beginning, only_tables=only_tables, only_events=only_events
+        )
         try:
             for ev in reader:
                 for row in ev.rows:
@@ -139,8 +151,9 @@ class MySQLBinlogHandler(Connector):
         finally:
             reader.close()
 
-    def extract(self, table: str | None = None, *, max_events: int = 10_000,
-                only_events: list[str] | None = None, **kwargs: Any) -> Any:
+    def extract(
+        self, table: str | None = None, *, max_events: int = 10_000, only_events: list[str] | None = None, **kwargs: Any
+    ) -> Any:
         """有界一批变更包成 dlt resource(blocking=False)。table 作为 only_tables 过滤。"""
         import dlt
 
@@ -149,8 +162,7 @@ class MySQLBinlogHandler(Connector):
 
         @dlt.resource(name=table or 'binlog', write_disposition='append')
         def _events() -> Any:
-            reader = handler._reader(blocking=False, resume=False,
-                                     only_tables=only_tables, only_events=only_events)
+            reader = handler._reader(blocking=False, resume=False, only_tables=only_tables, only_events=only_events)
             n = 0
             try:
                 for ev in reader:

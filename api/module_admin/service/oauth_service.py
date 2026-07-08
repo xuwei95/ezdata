@@ -1,4 +1,5 @@
 """GitHub SSO 服务:OAuth 交换、拉取 GitHub 资料、解析/自动建号绑定平台用户。"""
+
 import secrets
 import uuid
 from datetime import datetime
@@ -60,7 +61,9 @@ class GithubOauthService:
             tok = tok_resp.json()
             access_token = tok.get('access_token')
             if not access_token:
-                raise ServiceException(message=f'GitHub 授权失败: {tok.get("error_description") or tok.get("error") or "无 access_token"}')
+                raise ServiceException(
+                    message=f'GitHub 授权失败: {tok.get("error_description") or tok.get("error") or "无 access_token"}'
+                )
 
             auth_headers = {'Authorization': f'Bearer {access_token}', 'Accept': 'application/json'}
             user = (await client.get(f'{GITHUB_API}/user', headers=auth_headers)).json()
@@ -97,19 +100,23 @@ class GithubOauthService:
         全程跨租户(无登录上下文)操作,显式 tenant_bypass。
         返回标量快照(user_id/user_name/tenant_id),避免提交后惰性加载(MissingGreenlet)。
         """
-        from module_admin.entity.do.user_do import SysUser  # noqa: PLC0415
+        from module_admin.entity.do.user_do import SysUser
 
         with tenant_bypass():
             uid: int | None = None
             tenant_id: int | None = None
             # 1) 已绑定
             binding = (
-                await db.execute(
-                    select(SysUserOauth).where(
-                        SysUserOauth.provider == 'github', SysUserOauth.open_id == profile['open_id']
+                (
+                    await db.execute(
+                        select(SysUserOauth).where(
+                            SysUserOauth.provider == 'github', SysUserOauth.open_id == profile['open_id']
+                        )
                     )
                 )
-            ).scalars().first()
+                .scalars()
+                .first()
+            )
             if binding:
                 row = (
                     await db.execute(
@@ -153,19 +160,31 @@ class GithubOauthService:
         不预先初始化:首个 OAuth 自动建号时创建;之后所有未匹配既有用户租户的 OAuth 用户都落到这里。
         调用方已在 tenant_bypass 内(无登录上下文)。
         """
-        from module_admin.entity.do.dept_do import SysDept  # noqa: PLC0415
+        from module_admin.entity.do.dept_do import SysDept
 
         dept = (
-            await db.execute(
-                select(SysDept).where(
-                    SysDept.parent_id == 0, SysDept.dept_name == OAUTH_TENANT_DEPT_NAME, SysDept.del_flag == '0'
+            (
+                await db.execute(
+                    select(SysDept).where(
+                        SysDept.parent_id == 0, SysDept.dept_name == OAUTH_TENANT_DEPT_NAME, SysDept.del_flag == '0'
+                    )
                 )
             )
-        ).scalars().first()
+            .scalars()
+            .first()
+        )
         if dept:
             return dept.dept_id
-        dept = SysDept(parent_id=0, ancestors='0', dept_name=OAUTH_TENANT_DEPT_NAME, order_num=999,
-                       status='0', tenant_id=0, create_by='oauth', create_time=datetime.now())
+        dept = SysDept(
+            parent_id=0,
+            ancestors='0',
+            dept_name=OAUTH_TENANT_DEPT_NAME,
+            order_num=999,
+            status='0',
+            tenant_id=0,
+            create_by='oauth',
+            create_time=datetime.now(),
+        )
         db.add(dept)
         await db.flush()  # 取自增 dept_id
         dept.tenant_id = dept.dept_id  # 顶级部门:tenant_id = 自身 dept_id
@@ -176,7 +195,7 @@ class GithubOauthService:
     @classmethod
     async def _provision_user(cls, db: AsyncSession, profile: dict) -> tuple[int, int | None]:
         """按默认角色(普通用户)+ OAuth 默认租户新建用户,返回 (user_id, tenant_id)。"""
-        from module_admin.entity.do.user_do import SysUser  # noqa: PLC0415
+        from module_admin.entity.do.user_do import SysUser
 
         # 生成唯一登录名
         base = 'gh_' + (profile['login'] or profile['open_id'])
@@ -190,11 +209,13 @@ class GithubOauthService:
         role_ids: list[int] = []
         role_key = (GithubSsoConfig.github_sso_default_role_key or '').strip()
         if role_key:
-            from module_admin.entity.do.role_do import SysRole  # noqa: PLC0415
+            from module_admin.entity.do.role_do import SysRole
 
             role = (
-                await db.execute(select(SysRole).where(SysRole.role_key == role_key, SysRole.del_flag == '0'))
-            ).scalars().first()
+                (await db.execute(select(SysRole).where(SysRole.role_key == role_key, SysRole.del_flag == '0')))
+                .scalars()
+                .first()
+            )
             if role:
                 role_ids = [role.role_id]
 
@@ -204,7 +225,6 @@ class GithubOauthService:
             email=profile.get('email'),
             password=PwdUtil.get_password_hash(secrets.token_urlsafe(24)),  # 随机占位,SSO 用户走第三方登录
             deptId=await cls._resolve_oauth_tenant_dept(db),  # OAuth 默认租户(懒建的顶级部门)
-
             avatar=profile.get('avatar') or '',
             status='0',
             sex='2',

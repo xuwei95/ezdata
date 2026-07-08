@@ -165,7 +165,7 @@ async def execute_system_job(
 )
 @Log(title='定时任务', business_type=BusinessType.UPDATE)
 async def restart_system_scheduler(request: Request) -> Response:
-    from config.get_scheduler import SchedulerUtil  # noqa: PLC0415
+    from config.get_scheduler import SchedulerUtil
 
     result = await SchedulerUtil.restart_system_scheduler(request.app.state.redis)
     logger.info(f'调度器重启: {result}')

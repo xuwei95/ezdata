@@ -1,4 +1,5 @@
 """阿里云 OSS 存储实现（storage_type=aliyun-oss）。依赖：oss2"""
+
 from collections.abc import Generator
 from contextlib import closing
 

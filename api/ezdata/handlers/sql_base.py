@@ -18,11 +18,8 @@ from ezdata.handlers.base import Capability, Column, Connector, ConnectResult
 
 class SqlConnector(Connector):
     family = 'rdbms'
-    capabilities = (
-        Capability.READ | Capability.WRITE | Capability.EXTRACT
-        | Capability.SCHEMA | Capability.GEN_API
-    )
-    driver: str = ''            # SQLAlchemy driver 前缀,如 'mysql+pymysql'
+    capabilities = Capability.READ | Capability.WRITE | Capability.EXTRACT | Capability.SCHEMA | Capability.GEN_API
+    driver: str = ''  # SQLAlchemy driver 前缀,如 'mysql+pymysql'
     default_port: int | None = None
 
     def __init__(self, connection_data: dict[str, Any]) -> None:
@@ -31,7 +28,7 @@ class SqlConnector(Connector):
 
     # 通用 URL 拼接;方言专属(sslmode/dsn/sid/server 等)由子类覆写
     def _build_url(self) -> str:
-        url = self.arg('url')                       # 部分源(如 mysql)支持直接给完整 URL
+        url = self.arg('url')  # 部分源(如 mysql)支持直接给完整 URL
         if url:
             return url
         host = self.arg('host', default='127.0.0.1')
@@ -49,6 +46,7 @@ class SqlConnector(Connector):
     def engine(self) -> Engine:
         def _make() -> Engine:
             return create_engine(self._build_url(), pool_pre_ping=True, **self._engine_kwargs())
+
         return self._lazy('_engine', _make)
 
     def test_connection(self) -> ConnectResult:
@@ -65,8 +63,12 @@ class SqlConnector(Connector):
 
     def get_columns(self, table: str) -> list[Column]:
         cols = inspect(self.engine).get_columns(table)
-        return [Column(name=c['name'], type=str(c['type']),
-                       nullable=c.get('nullable', True), comment=c.get('comment') or '') for c in cols]
+        return [
+            Column(
+                name=c['name'], type=str(c['type']), nullable=c.get('nullable', True), comment=c.get('comment') or ''
+            )
+            for c in cols
+        ]
 
     def query(self, statement: str, params: dict | None = None, limit: int | None = None) -> list[dict]:
         """参数化原生 SQL(绝不拼接);limit 作为强制上限兜底。"""
@@ -76,8 +78,16 @@ class SqlConnector(Connector):
         with self.engine.connect() as c:
             return [dict(r) for r in c.execute(text(sql), params or {}).mappings()]
 
-    def search(self, table: str, filters: list[dict] | None = None, page: int = 1,
-               pagesize: int = 20, *, schema: str | None = None, **kwargs: Any) -> dict:
+    def search(
+        self,
+        table: str,
+        filters: list[dict] | None = None,
+        page: int = 1,
+        pagesize: int = 20,
+        *,
+        schema: str | None = None,
+        **kwargs: Any,
+    ) -> dict:
         """分页查询:SELECT ... LIMIT/OFFSET + COUNT(*)。"""
         from sqlalchemy import MetaData, Table, func, select
 
@@ -92,9 +102,17 @@ class SqlConnector(Connector):
             rows = c.execute(stmt.limit(pagesize).offset((page - 1) * pagesize)).mappings().all()
         return {'records': [dict(r) for r in rows], 'total': total, 'page': page, 'pagesize': pagesize}
 
-    def extract(self, table: str, *, schema: str | None = None, backend: str = 'pyarrow',
-                chunk_size: int = 50_000, incremental_key: str | None = None,
-                filters: list[dict] | None = None, **kwargs: Any) -> Any:
+    def extract(
+        self,
+        table: str,
+        *,
+        schema: str | None = None,
+        backend: str = 'pyarrow',
+        chunk_size: int = 50_000,
+        incremental_key: str | None = None,
+        filters: list[dict] | None = None,
+        **kwargs: Any,
+    ) -> Any:
         from dlt.sources.sql_database import sql_table
 
         # 统一过滤结构 -> query_adapter_callback(WHERE/ORDER BY)
@@ -107,11 +125,26 @@ class SqlConnector(Connector):
             import dlt
 
             incremental = dlt.sources.incremental(incremental_key)
-        return sql_table(credentials=self.engine, table=table, schema=schema,
-                         backend=backend, chunk_size=chunk_size, incremental=incremental, **kwargs)
+        return sql_table(
+            credentials=self.engine,
+            table=table,
+            schema=schema,
+            backend=backend,
+            chunk_size=chunk_size,
+            incremental=incremental,
+            **kwargs,
+        )
 
-    def write(self, data: Iterable[dict] | Any, table: str, mode: str = 'append',
-              *, dataset: str = 'public', pipeline_name: str = 'data_write', **kwargs: Any) -> Any:
+    def write(
+        self,
+        data: Iterable[dict] | Any,
+        table: str,
+        mode: str = 'append',
+        *,
+        dataset: str = 'public',
+        pipeline_name: str = 'data_write',
+        **kwargs: Any,
+    ) -> Any:
         import dlt
 
         dest = dlt.destinations.sqlalchemy(credentials=self.engine)

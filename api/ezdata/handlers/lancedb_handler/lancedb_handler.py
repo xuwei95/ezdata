@@ -15,5 +15,11 @@ class LanceDBHandler(VectorConnector):
 
     def _vectordb(self, collection: str) -> Any:
         vcls = self._agno_cls()
-        return vcls(**self._kw(table_name=collection, embedder=self._embedder(),
-                 uri=self.arg('persist_directory'), api_key=self.arg('api_key')))
+        return vcls(
+            **self._kw(
+                table_name=collection,
+                embedder=self._embedder(),
+                uri=self.arg('persist_directory'),
+                api_key=self.arg('api_key'),
+            )
+        )

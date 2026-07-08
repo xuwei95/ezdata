@@ -33,12 +33,12 @@ import urllib.request
 # 配置
 # ---------------------------------------------------------------------------
 CHROME_CANDIDATES = [
-    r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-    r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
-    r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
-    r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
-    "/usr/bin/google-chrome",
-    "/usr/bin/chromium",
+    r'C:\Program Files\Google\Chrome\Application\chrome.exe',
+    r'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe',
+    r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe',
+    r'C:\Program Files\Microsoft\Edge\Application\msedge.exe',
+    '/usr/bin/google-chrome',
+    '/usr/bin/chromium',
 ]
 
 
@@ -55,6 +55,7 @@ def find_chrome():
 def redis_get(key, host, port, db):
     s = socket.create_connection((host, port), timeout=5)
     try:
+
         def send(*args):
             out = f'*{len(args)}\r\n'.encode()
             for a in args:
@@ -62,6 +63,7 @@ def redis_get(key, host, port, db):
                 out += b'$' + str(len(a)).encode() + b'\r\n' + a + b'\r\n'
             s.sendall(out)
             return s.recv(65536)
+
         send('SELECT', db)
         resp = send('GET', key)
         if resp.startswith(b'$-1'):
@@ -85,8 +87,9 @@ def login(backend, redis_host, redis_port):
     if resp.get('captchaEnabled'):
         code = redis_get(f'captcha_codes:{uuid}', redis_host, redis_port, 2) or ''
     data = urllib.parse.urlencode({'username': 'admin', 'password': 'admin123', 'code': code, 'uuid': uuid}).encode()
-    req = urllib.request.Request(f'{backend}/login', data=data,
-                                 headers={'Content-Type': 'application/x-www-form-urlencoded'})
+    req = urllib.request.Request(
+        f'{backend}/login', data=data, headers={'Content-Type': 'application/x-www-form-urlencoded'}
+    )
     out = json.loads(urllib.request.urlopen(req).read())
     token = out.get('token') or out.get('data', {}).get('token')
     if not token:
@@ -96,8 +99,12 @@ def login(backend, redis_host, redis_port):
 
 def api(backend, token, method, path, body=None):
     data = json.dumps(body).encode() if body is not None else None
-    req = urllib.request.Request(f'{backend}{path}', data=data, method=method,
-                                 headers={'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'})
+    req = urllib.request.Request(
+        f'{backend}{path}',
+        data=data,
+        method=method,
+        headers={'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'},
+    )
     return json.loads(urllib.request.urlopen(req).read())
 
 
@@ -117,9 +124,16 @@ class Browser:
         chrome = find_chrome()
         profile = os.path.join(os.environ.get('TEMP', '/tmp'), f'e2e-task-alert-{os.getpid()}')
         os.makedirs(profile, exist_ok=True)
-        args = [chrome, '--no-first-run', '--no-default-browser-check', '--disable-gpu',
-                f'--remote-debugging-port={self.port}', f'--user-data-dir={profile}',
-                '--window-size=1600,1000', 'about:blank']
+        args = [
+            chrome,
+            '--no-first-run',
+            '--no-default-browser-check',
+            '--disable-gpu',
+            f'--remote-debugging-port={self.port}',
+            f'--user-data-dir={profile}',
+            '--window-size=1600,1000',
+            'about:blank',
+        ]
         if not self.headed:
             args.insert(1, '--headless=new')
         self.proc = subprocess.Popen(args)
@@ -146,20 +160,29 @@ class Browser:
         host, port = hp.split(':')
         self.s = socket.create_connection((host, int(port)))
         key = base64.b64encode(os.urandom(16)).decode()
-        self.s.sendall((f'GET /{path} HTTP/1.1\r\nHost: {host}:{port}\r\nUpgrade: websocket\r\n'
-                        f'Connection: Upgrade\r\nSec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n\r\n').encode())
+        self.s.sendall(
+            (
+                f'GET /{path} HTTP/1.1\r\nHost: {host}:{port}\r\nUpgrade: websocket\r\n'
+                f'Connection: Upgrade\r\nSec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n\r\n'
+            ).encode()
+        )
         buf = b''
         while b'\r\n\r\n' not in buf:
             buf += self.s.recv(4096)
 
     def _send(self, payload):
-        d = payload.encode(); hd = bytearray([0x81]); n = len(d); m = os.urandom(4)
+        d = payload.encode()
+        hd = bytearray([0x81])
+        n = len(d)
+        m = os.urandom(4)
         if n < 126:
             hd.append(0x80 | n)
         elif n < 65536:
-            hd.append(0x80 | 126); hd += struct.pack('>H', n)
+            hd.append(0x80 | 126)
+            hd += struct.pack('>H', n)
         else:
-            hd.append(0x80 | 127); hd += struct.pack('>Q', n)
+            hd.append(0x80 | 127)
+            hd += struct.pack('>Q', n)
         hd += m
         self.s.sendall(bytes(hd) + bytes(b ^ m[i % 4] for i, b in enumerate(d)))
 
@@ -169,10 +192,12 @@ class Browser:
             while len(b) < n:
                 c = self.s.recv(n - len(b))
                 if not c:
-                    raise IOError('socket closed')
+                    raise OSError('socket closed')
                 b += c
             return b
-        b0, b1 = rd(2); ln = b1 & 0x7F
+
+        b0, b1 = rd(2)
+        ln = b1 & 0x7F
         if ln == 126:
             ln = struct.unpack('>H', rd(2))[0]
         elif ln == 127:
@@ -219,74 +244,88 @@ class Browser:
         return False
 
     def click_text(self, text, nth=0):
-        js = ("(function(){var bs=[...document.querySelectorAll('button,a,span')]"
-              ".filter(function(x){return x.textContent.trim().indexOf(%s)>=0 && x.offsetParent!==null});"
-              "var b=bs[%d];if(b){b.click();return true}return false})()" % (json.dumps(text), nth))
+        js = (
+            "(function(){var bs=[...document.querySelectorAll('button,a,span')]"
+            '.filter(function(x){return x.textContent.trim().indexOf(%s)>=0 && x.offsetParent!==null});'
+            'var b=bs[%d];if(b){b.click();return true}return false})()' % (json.dumps(text), nth)
+        )
         return self.ev(js)
 
     def click_row(self, text, nth=0):
         """点击表格行(tbody)内可见按钮，避免误点顶部批量按钮(如批量删除)。"""
-        js = ("(function(){var bs=[...document.querySelectorAll('tbody tr button')]"
-              ".filter(function(x){return x.offsetParent!==null && x.textContent.indexOf(%s)>=0});"
-              "var b=bs[%d];if(b){b.click();return true}return false})()" % (json.dumps(text), nth))
+        js = (
+            "(function(){var bs=[...document.querySelectorAll('tbody tr button')]"
+            '.filter(function(x){return x.offsetParent!==null && x.textContent.indexOf(%s)>=0});'
+            'var b=bs[%d];if(b){b.click();return true}return false})()' % (json.dumps(text), nth)
+        )
         return self.ev(js)
 
     def click_dialog_button(self, text):
-        js = ("(function(){var b=[...document.querySelectorAll('.el-dialog button,.el-drawer button')]"
-              ".filter(function(x){return x.offsetParent!==null})"
-              ".find(function(x){return x.textContent.trim().replace(/\\s/g,'')===%s.replace(/\\s/g,'')});"
-              "if(b){b.click();return true}return false})()" % json.dumps(text))
+        js = (
+            "(function(){var b=[...document.querySelectorAll('.el-dialog button,.el-drawer button')]"
+            '.filter(function(x){return x.offsetParent!==null})'
+            ".find(function(x){return x.textContent.trim().replace(/\\s/g,'')===%s.replace(/\\s/g,'')});"
+            'if(b){b.click();return true}return false})()' % json.dumps(text)
+        )
         return self.ev(js)
 
     def fill_label(self, label, value):
         """按 el-form-item label 定位输入框并填值(原生 setter 触发 v-model)；仅可见对话框。"""
-        js = ("(function(){var items=[...document.querySelectorAll('.el-dialog .el-form-item,.el-drawer .el-form-item')]"
-              ".filter(function(x){return x.offsetParent!==null});"
-              "var it=items.find(function(x){var l=x.querySelector('.el-form-item__label');return l&&l.textContent.indexOf(%s)>=0});"
-              "if(!it)return false;var el=it.querySelector('input,textarea');if(!el)return false;"
-              "var proto=el.tagName==='TEXTAREA'?window.HTMLTextAreaElement.prototype:window.HTMLInputElement.prototype;"
-              "var setter=Object.getOwnPropertyDescriptor(proto,'value').set;setter.call(el,%s);"
-              "el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));return true})()"
-              % (json.dumps(label), json.dumps(value)))
+        js = (
+            "(function(){var items=[...document.querySelectorAll('.el-dialog .el-form-item,.el-drawer .el-form-item')]"
+            '.filter(function(x){return x.offsetParent!==null});'
+            "var it=items.find(function(x){var l=x.querySelector('.el-form-item__label');return l&&l.textContent.indexOf(%s)>=0});"
+            "if(!it)return false;var el=it.querySelector('input,textarea');if(!el)return false;"
+            "var proto=el.tagName==='TEXTAREA'?window.HTMLTextAreaElement.prototype:window.HTMLInputElement.prototype;"
+            "var setter=Object.getOwnPropertyDescriptor(proto,'value').set;setter.call(el,%s);"
+            "el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));return true})()"
+            % (json.dumps(label), json.dumps(value))
+        )
         return self.ev(js)
 
     def fill_placeholder(self, ph, value):
-        js = ("(function(){var el=[...document.querySelectorAll('.el-dialog input,.el-dialog textarea')]"
-              ".filter(function(x){return x.offsetParent!==null})"
-              ".find(function(x){return (x.placeholder||'').indexOf(%s)>=0});if(!el)return false;"
-              "var proto=el.tagName==='TEXTAREA'?window.HTMLTextAreaElement.prototype:window.HTMLInputElement.prototype;"
-              "var setter=Object.getOwnPropertyDescriptor(proto,'value').set;setter.call(el,%s);"
-              "el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));return true})()"
-              % (json.dumps(ph), json.dumps(value)))
+        js = (
+            "(function(){var el=[...document.querySelectorAll('.el-dialog input,.el-dialog textarea')]"
+            '.filter(function(x){return x.offsetParent!==null})'
+            ".find(function(x){return (x.placeholder||'').indexOf(%s)>=0});if(!el)return false;"
+            "var proto=el.tagName==='TEXTAREA'?window.HTMLTextAreaElement.prototype:window.HTMLInputElement.prototype;"
+            "var setter=Object.getOwnPropertyDescriptor(proto,'value').set;setter.call(el,%s);"
+            "el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));return true})()"
+            % (json.dumps(ph), json.dumps(value))
+        )
         return self.ev(js)
 
     def select_option(self, label, option_text, timeout=8):
         """打开某 el-form-item 内的 el-select 并选中包含 option_text 的项(带轮询，兼容选项异步加载)。"""
         opened = self.ev(
             "(function(){var items=[...document.querySelectorAll('.el-dialog .el-form-item')]"
-            ".filter(function(x){return x.offsetParent!==null});"
+            '.filter(function(x){return x.offsetParent!==null});'
             "var it=items.find(function(x){var l=x.querySelector('.el-form-item__label');return l&&l.textContent.indexOf(%s)>=0});"
             "if(!it)return false;var sel=it.querySelector('.el-select');if(!sel)return false;"
             "var trig=sel.querySelector('.el-select__wrapper')||sel.querySelector('input')||sel;trig.click();return true})()"
-            % json.dumps(label))
+            % json.dumps(label)
+        )
         if not opened:
             return False
         end = time.time() + timeout
         while time.time() < end:
             clicked = self.ev(
                 "(function(){var os=[...document.querySelectorAll('.el-select-dropdown__item')]"
-                ".filter(function(d){return d.offsetParent!==null});"
-                "var o=os.find(function(x){return x.textContent.indexOf(%s)>=0});if(o){o.click();return true}return false})()"
-                % json.dumps(option_text))
+                '.filter(function(d){return d.offsetParent!==null});'
+                'var o=os.find(function(x){return x.textContent.indexOf(%s)>=0});if(o){o.click();return true}return false})()'
+                % json.dumps(option_text)
+            )
             if clicked:
                 return True
             time.sleep(0.5)
         return False
 
     def click_radio(self, text):
-        js = ("(function(){var r=[...document.querySelectorAll('.el-dialog .el-radio')]"
-              ".find(function(x){return x.textContent.trim().indexOf(%s)>=0});if(r){r.click();return true}return false})()"
-              % json.dumps(text))
+        js = (
+            "(function(){var r=[...document.querySelectorAll('.el-dialog .el-radio')]"
+            '.find(function(x){return x.textContent.trim().indexOf(%s)>=0});if(r){r.click();return true}return false})()'
+            % json.dumps(text)
+        )
         return self.ev(js)
 
     def screenshot(self, path):
@@ -390,8 +429,11 @@ class Runner:
             time.sleep(2)
             lst = api(self.backend, self.token, 'GET', '/task/info/list?pageNum=1&pageSize=50')
             row = next((r for r in lst.get('rows', []) if r.get('name') == name), None)
-            self.record('2.2 任务为定时且关联调度', bool(row and row.get('triggerType') == 2 and row.get('jobId')),
-                        f"jobId={row.get('jobId') if row else None}")
+            self.record(
+                '2.2 任务为定时且关联调度',
+                bool(row and row.get('triggerType') == 2 and row.get('jobId')),
+                f'jobId={row.get("jobId") if row else None}',
+            )
 
             tid = row.get('id') if row else None
             # 新建任务默认停用 -> 启用后其 sys_job 才会被 APScheduler 调度触发
@@ -403,8 +445,11 @@ class Runner:
             instance_seen = False
             for _ in range(18):
                 time.sleep(2.5)
-                recs = api(self.backend, self.token, 'GET',
-                           f'/task/instance/list?pageNum=1&pageSize=5&taskId={tid}') if tid else {'rows': []}
+                recs = (
+                    api(self.backend, self.token, 'GET', f'/task/instance/list?pageNum=1&pageSize=5&taskId={tid}')
+                    if tid
+                    else {'rows': []}
+                )
                 if recs.get('rows'):
                     instance_seen = True
                     break
@@ -475,21 +520,44 @@ class Runner:
             {'type': 'notice', 'notice_users': 'admin'},
         ]
         sname = f'E2E告警策略_{self.ts}'
-        api(self.backend, self.token, 'POST', '/alert/strategy', {
-            'strategyName': sname, 'biz': 'scheduler', 'status': 1,
-            'triggerConf': json.dumps({'level': 2}), 'forwardConf': json.dumps(forward),
-        })
+        api(
+            self.backend,
+            self.token,
+            'POST',
+            '/alert/strategy',
+            {
+                'strategyName': sname,
+                'biz': 'scheduler',
+                'status': 1,
+                'triggerConf': json.dumps({'level': 2}),
+                'forwardConf': json.dumps(forward),
+            },
+        )
         # 取刚建策略id
         strat_rows = api(self.backend, self.token, 'GET', '/alert/strategy/list?pageNum=1&pageSize=100').get('rows', [])
         sid = next((s.get('strategyId') for s in strat_rows if s.get('strategyName') == sname), None)
         try:
             # 4.1 经 API 创建绑定告警策略的失败任务(PythonTask 已改为内置组件/Monaco，UI 录入代码脆弱，故走 API 确定性创建)
-            fail_params = json.dumps({'run_type': 'code', 'code': 'def run(params, logger):\n    raise RuntimeError("e2e boom")'})
-            api(self.backend, self.token, 'POST', '/task/info', {
-                'name': name, 'templateCode': 'PythonTask', 'taskType': 1, 'triggerType': 1,
-                'status': 0, 'params': fail_params, 'runQueue': 'default', 'retry': 0,
-                'alertStrategyIds': str(sid) if sid else '',
-            })
+            fail_params = json.dumps(
+                {'run_type': 'code', 'code': 'def run(params, logger):\n    raise RuntimeError("e2e boom")'}
+            )
+            api(
+                self.backend,
+                self.token,
+                'POST',
+                '/task/info',
+                {
+                    'name': name,
+                    'templateCode': 'PythonTask',
+                    'taskType': 1,
+                    'triggerType': 1,
+                    'status': 0,
+                    'params': fail_params,
+                    'runQueue': 'default',
+                    'retry': 0,
+                    'alertStrategyIds': str(sid) if sid else '',
+                },
+            )
             time.sleep(1)
             lst = api(self.backend, self.token, 'GET', '/task/info/list?pageNum=1&pageSize=100')
             tid = next((r['id'] for r in lst.get('rows', []) if r.get('name') == name), None)
@@ -502,7 +570,12 @@ class Runner:
             self.shot('e2e-05-alert-task')
 
             # 执行(会失败 -> 触发告警)；UI 点“执行”，失败兜底走 API
-            if not (b.click_row('执行') and (time.sleep(0.8) or True) and b.click_text('确定') and b.wait_text('已触发执行', 8)):
+            if not (
+                b.click_row('执行')
+                and (time.sleep(0.8) or True)
+                and b.click_text('确定')
+                and b.wait_text('已触发执行', 8)
+            ):
                 if tid:
                     api(self.backend, self.token, 'PUT', f'/task/info/run/{tid}')
             print('  等待告警生成(最多 40s)...')
@@ -511,8 +584,12 @@ class Runner:
             alert_ok = False
             for _ in range(20):
                 time.sleep(2)
-                recs = api(self.backend, self.token, 'GET',
-                           f'/alert/record/list?pageNum=1&pageSize=10&title={urllib.parse.quote(name)}')
+                recs = api(
+                    self.backend,
+                    self.token,
+                    'GET',
+                    f'/alert/record/list?pageNum=1&pageSize=10&title={urllib.parse.quote(name)}',
+                )
                 if recs.get('rows'):
                     alert_ok = True
                     break
@@ -560,16 +637,28 @@ class Runner:
     def case_job_sync(self):
         print('用例5：任务状态同步(启用/禁用/修改) -> 关联调度(sys_job)同步')
         name = f'E2E_SYNC_{self.ts}'
-        cron1 = '0/5 * * * * ?'   # 每5秒
-        cron2 = '0/4 * * * * ?'   # 修改后：每4秒(改 cron 以验证重建)
+        cron1 = '0/5 * * * * ?'  # 每5秒
+        cron2 = '0/4 * * * * ?'  # 修改后：每4秒(改 cron 以验证重建)
         params = json.dumps({'code': "def run(params, logger):\n    logger.info('sync e2e ok')"})
         tid = None
         try:
             # 5.1 新增定时任务(默认停用) -> 回填 jobId(关联调度已建立)，且停用态不被调度触发
-            api(self.backend, self.token, 'POST', '/task/info', {
-                'name': name, 'templateCode': 'PythonTask', 'taskType': 1,
-                'triggerType': 2, 'crontab': cron1, 'status': 0, 'params': params, 'runQueue': 'default',
-            })
+            api(
+                self.backend,
+                self.token,
+                'POST',
+                '/task/info',
+                {
+                    'name': name,
+                    'templateCode': 'PythonTask',
+                    'taskType': 1,
+                    'triggerType': 2,
+                    'crontab': cron1,
+                    'status': 0,
+                    'params': params,
+                    'runQueue': 'default',
+                },
+            )
             time.sleep(1.5)
             row = self._task_row(name)
             tid = row.get('id') if row else None
@@ -577,8 +666,11 @@ class Runner:
             print('  停用态观察 12s 应不被调度...')
             time.sleep(12)
             ok_create = bool(tid and job_id and row.get('triggerType') == 2) and self._instance_count(tid) == 0
-            self.record('5.1 新增定时任务建立关联调度(回填jobId)且停用态不触发', ok_create,
-                        f"jobId={job_id} instances={self._instance_count(tid) if tid else '-'}")
+            self.record(
+                '5.1 新增定时任务建立关联调度(回填jobId)且停用态不触发',
+                ok_create,
+                f'jobId={job_id} instances={self._instance_count(tid) if tid else "-"}',
+            )
             self.shot('e2e-08-sync-created')
 
             # 5.2 启用 -> 任务被 APScheduler 真正调度并产生执行记录(行为证明启用已同步)
@@ -594,13 +686,26 @@ class Runner:
             print('  禁用后观察 14s 应无新增执行记录...')
             time.sleep(14)
             after = self._instance_count(tid)
-            self.record('5.3 禁用同步:停止调度(无新增执行记录)', after == base, f"before={base} after={after}")
+            self.record('5.3 禁用同步:停止调度(无新增执行记录)', after == base, f'before={base} after={after}')
 
             # 5.4 修改(改 cron 并启用) -> 关联 sys_job 重建(jobId 变化)且按新配置重新被调度
-            api(self.backend, self.token, 'PUT', '/task/info', {
-                'id': tid, 'name': name, 'templateCode': 'PythonTask', 'taskType': 1,
-                'triggerType': 2, 'crontab': cron2, 'status': 1, 'params': params, 'runQueue': 'default',
-            })
+            api(
+                self.backend,
+                self.token,
+                'PUT',
+                '/task/info',
+                {
+                    'id': tid,
+                    'name': name,
+                    'templateCode': 'PythonTask',
+                    'taskType': 1,
+                    'triggerType': 2,
+                    'crontab': cron2,
+                    'status': 1,
+                    'params': params,
+                    'runQueue': 'default',
+                },
+            )
             time.sleep(1.5)
             row2 = self._task_row(name)
             new_job_id = row2.get('jobId') if row2 else None
@@ -608,14 +713,17 @@ class Runner:
             base2 = self._instance_count(tid)
             print('  修改启用后等待重新触发(最多 40s)...')
             refired = self._wait_fire(tid, base2)
-            self.record('5.4 修改重建关联调度(jobId变化)并按新配置触发', recreated and refired,
-                        f"oldJob={job_id} newJob={new_job_id} refired={refired}")
+            self.record(
+                '5.4 修改重建关联调度(jobId变化)并按新配置触发',
+                recreated and refired,
+                f'oldJob={job_id} newJob={new_job_id} refired={refired}',
+            )
             self.shot('e2e-09-sync-edited')
 
             # 5.5 单次触发(执行一次) -> 直接投递 Celery，返回 instanceId
             run_resp = api(self.backend, self.token, 'PUT', f'/task/info/run/{tid}')
             run_ok = run_resp.get('code') == 200 and bool((run_resp.get('data') or {}).get('instanceId'))
-            self.record('5.5 单次触发执行返回 instanceId', run_ok, f"data={run_resp.get('data')}")
+            self.record('5.5 单次触发执行返回 instanceId', run_ok, f'data={run_resp.get("data")}')
 
             # 5.6 删除(启用态下直接删除) -> 任务消失且关联调度被移除(删除后不再触发)
             api(self.backend, self.token, 'PUT', '/task/info/changeStatus', {'id': tid, 'status': 1})
@@ -628,8 +736,11 @@ class Runner:
             time.sleep(14)
             gone = self._task_row(name) is None
             after3 = self._instance_count(deleted_tid)
-            self.record('5.6 删除任务移除关联调度(任务消失且停止触发)', gone and after3 == base3,
-                        f"taskGone={gone} before={base3} after={after3}")
+            self.record(
+                '5.6 删除任务移除关联调度(任务消失且停止触发)',
+                gone and after3 == base3,
+                f'taskGone={gone} before={base3} after={after3}',
+            )
         except Exception as e:
             self.record('用例5 异常', False, str(e))
         finally:

@@ -45,7 +45,7 @@ class APIRouterPro(APIRouter):
     ```
     """
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         *,
         prefix: Annotated[str, Doc('An optional path prefix for the router.')] = '',

@@ -21,10 +21,7 @@ class KafkaHandler(Connector):
     name = 'kafka'
     title = 'Apache Kafka'
     family = 'stream'
-    capabilities = (
-        Capability.WRITE | Capability.EXTRACT
-        | Capability.STREAM | Capability.SCHEMA
-    )
+    capabilities = Capability.WRITE | Capability.EXTRACT | Capability.STREAM | Capability.SCHEMA
     connection_args = connection_args
     connection_args_example = connection_args_example
 
@@ -36,13 +33,17 @@ class KafkaHandler(Connector):
                 kw[k] = self.arg(k)
         return kw
 
-    def _consumer(self, topic: str, *, timeout_ms: int | None = None,
-                  offset: str = 'latest', group: str | None = None) -> Any:
+    def _consumer(
+        self, topic: str, *, timeout_ms: int | None = None, offset: str = 'latest', group: str | None = None
+    ) -> Any:
         from kafka import KafkaConsumer
 
         kw = self._conn_kwargs()
-        kw.update(auto_offset_reset=offset, enable_auto_commit=False,
-                  value_deserializer=lambda v: v.decode('utf-8', 'replace') if v else None)
+        kw.update(
+            auto_offset_reset=offset,
+            enable_auto_commit=False,
+            value_deserializer=lambda v: v.decode('utf-8', 'replace') if v else None,
+        )
         if group or self.arg('group_id'):
             kw['group_id'] = group or self.arg('group_id')
         if timeout_ms is not None:

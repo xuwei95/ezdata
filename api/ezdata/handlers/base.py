@@ -22,13 +22,13 @@ from ezdata.handlers.const import secret_fields, to_json_schema
 class Capability(Flag):
     """连接器能力位(可组合)。"""
 
-    READ = auto()        # 原生查询(读路径)
-    WRITE = auto()       # 写入/更新/删除
-    EXTRACT = auto()     # 批量抽取(dlt 写路径)
-    SCHEMA = auto()      # 读取数据结构
-    STREAM = auto()      # 流式消费(Kafka / binlog)
-    GEN_API = auto()     # 可生成数据服务接口
-    VECTOR = auto()      # 向量相似度检索
+    READ = auto()  # 原生查询(读路径)
+    WRITE = auto()  # 写入/更新/删除
+    EXTRACT = auto()  # 批量抽取(dlt 写路径)
+    SCHEMA = auto()  # 读取数据结构
+    STREAM = auto()  # 流式消费(Kafka / binlog)
+    GEN_API = auto()  # 可生成数据服务接口
+    VECTOR = auto()  # 向量相似度检索
 
 
 @dataclass
@@ -50,16 +50,16 @@ class Connector(ABC):
     """所有数据源 handler 的基类。"""
 
     # —— 身份/元信息(子类覆盖)——
-    name: str = ''                              # 'mysql' / 'elasticsearch' ...
-    title: str = ''                             # 'MySQL'
-    family: str = ''                            # 'rdbms' / 'search' / 'document' / 'file' ...
+    name: str = ''  # 'mysql' / 'elasticsearch' ...
+    title: str = ''  # 'MySQL'
+    family: str = ''  # 'rdbms' / 'search' / 'document' / 'file' ...
     capabilities: Capability = Capability(0)
     connection_args: 'OrderedDict[str, dict]' = OrderedDict()
     connection_args_example: 'OrderedDict[str, dict]' = OrderedDict()
 
     def __init__(self, connection_data: dict[str, Any]) -> None:
         self.connection_data: dict[str, Any] = connection_data or {}
-        self._lock = threading.RLock()          # 保护共享句柄(engine/client/driver)的懒建
+        self._lock = threading.RLock()  # 保护共享句柄(engine/client/driver)的懒建
 
     def _lazy(self, attr: str, factory: 'Any') -> Any:
         """线程安全懒建共享句柄:建好后并发使用安全(池/client 本身线程安全),只锁创建那一刻。
@@ -68,10 +68,10 @@ class Connector(ABC):
         否则会建出多个连接池、泄漏其一。
         """
         val = getattr(self, attr, None)
-        if val is not None:                     # 快路径:已建,无锁
+        if val is not None:  # 快路径:已建,无锁
             return val
         with self._lock:
-            val = getattr(self, attr, None)     # double-check
+            val = getattr(self, attr, None)  # double-check
             if val is None:
                 val = factory()
                 setattr(self, attr, val)
@@ -95,7 +95,8 @@ class Connector(ABC):
             if decrypt is None:
                 raise RuntimeError(
                     '收到密文形式的 secrets,但未注入解密器:请改传明文 dict,'
-                    '或调用 ezdata.services.secrets.set_decryptor(...) 注入。')
+                    '或调用 ezdata.services.secrets.set_decryptor(...) 注入。'
+                )
             merged.update(json.loads(decrypt(secrets)))
         elif isinstance(secrets, dict):
             merged.update(secrets)
@@ -129,7 +130,7 @@ class Connector(ABC):
         if eng is not None and hasattr(eng, 'dispose'):
             try:
                 eng.dispose()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
         for attr in ('_client', '_driver'):
             obj = getattr(self, attr, None)
@@ -140,7 +141,7 @@ class Connector(ABC):
                 if callable(fn):
                     try:
                         fn()
-                    except Exception:  # noqa: BLE001
+                    except Exception:
                         pass
                     break
 
@@ -187,14 +188,16 @@ class Connector(ABC):
         self._require(Capability.STREAM)
         raise NotImplementedError
 
-    def similarity_search(self, query: str, collection: str, limit: int = 10,
-                          filters: dict | None = None, **kwargs: Any) -> list[dict]:
+    def similarity_search(
+        self, query: str, collection: str, limit: int = 10, filters: dict | None = None, **kwargs: Any
+    ) -> list[dict]:
         """向量相似度检索:对 collection 按 query 文本检索最相近的 limit 条。"""
         self._require(Capability.VECTOR)
         raise NotImplementedError
 
-    def search(self, table: str, filters: list[dict] | None = None, page: int = 1,
-               pagesize: int = 20, **kwargs: Any) -> dict:
+    def search(
+        self, table: str, filters: list[dict] | None = None, page: int = 1, pagesize: int = 20, **kwargs: Any
+    ) -> dict:
         """分页查询(数据接口用):返回 {records, total, page, pagesize}。
         仅支持 offset/页码分页的源实现并保留 GEN_API 能力。"""
         self._require(Capability.GEN_API)

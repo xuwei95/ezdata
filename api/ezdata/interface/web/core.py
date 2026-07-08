@@ -53,8 +53,7 @@ class Core:
         return self.store.remove(name)
 
     # ---------- 数据管理:访问 ----------
-    def test_connection(self, name: str | None = None, *, source_type=None,
-                        config=None, secrets=None) -> dict:
+    def test_connection(self, name: str | None = None, *, source_type=None, config=None, secrets=None) -> dict:
         # 传 name 时以已存连接为底:未显式给出的 source_type/config/secrets 用库里的值。
         # 编辑态测试用此合并——改了 config 但密钥留空时,仍用原密钥,不会因空密钥而失败。
         if name:
@@ -81,7 +80,7 @@ class Core:
         st, cfg, sec = self.store.resolve(name)
         try:
             native = services.get_handler(st, cfg, sec).sample_query(table, 100)
-        except Exception:  # noqa: BLE001  未实现/取样失败:回退通用 SELECT
+        except Exception:
             native = f'SELECT * FROM {table} LIMIT 100'
         return {'native': native}
 
@@ -99,9 +98,9 @@ class Core:
         清洗孤立代理字符(\\udcxx):某些库/编码会带出无法编码为 UTF-8 的孤立代理,
         pandas(pyarrow 字符串)会报 UnicodeEncodeError,先替换掉再落表。
         """
-        import io  # noqa: PLC0415
+        import io
 
-        import pandas as pd  # noqa: PLC0415
+        import pandas as pd
 
         def _clean(v: Any) -> Any:
             if isinstance(v, str):
@@ -114,8 +113,7 @@ class Core:
         return buf.getvalue()
 
     # ---------- AI 取数 ----------
-    def ask(self, name: str, question: str, tables: list[str] | None = None,
-            limit: int | None = 200) -> dict:
+    def ask(self, name: str, question: str, tables: list[str] | None = None, limit: int | None = 200) -> dict:
         """NL → 查询语句 → 执行。返回 {source_type, family, statement, rows, row_count}。"""
         st, cfg, sec = self.store.resolve(name)
         h = services.get_handler(st, cfg, sec)
@@ -132,8 +130,7 @@ class Core:
             'row_count': len(rows),
         }
 
-    def ask_stream(self, name: str, question: str, tables: list[str] | None = None,
-                   limit: int | None = 200):
+    def ask_stream(self, name: str, question: str, tables: list[str] | None = None, limit: int | None = 200):
         """流式 AI 取数:先逐 token 吐生成的查询,再执行并给出结果。
 
         yield 事件 dict:{event, data}
@@ -189,34 +186,43 @@ class Core:
         before = services.dependency_status(source_type)
         reqs = before.get('requirements') or []
         if not reqs:
-            yield {'event': 'done', 'data': {'ok': True, 'ready': True, 'missing_after': [],
-                                             'message': '该数据源无 requirements,无需安装'}}
+            yield {
+                'event': 'done',
+                'data': {'ok': True, 'ready': True, 'missing_after': [], 'message': '该数据源无 requirements,无需安装'},
+            }
             return
         targets = reqs if upgrade else (before.get('missing') or [])
         if not targets:
-            yield {'event': 'done', 'data': {'ok': True, 'ready': True, 'missing_after': [],
-                                             'message': '依赖已就绪,无需安装'}}
+            yield {
+                'event': 'done',
+                'data': {'ok': True, 'ready': True, 'missing_after': [], 'message': '依赖已就绪,无需安装'},
+            }
             return
         cmd = [sys.executable, '-m', 'pip', 'install', *(['-U'] if upgrade else []), *targets]
         yield {'event': 'log', 'data': '$ ' + ' '.join(cmd)}
-        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,  # noqa: S603
-                                text=True, bufsize=1)
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
         for line in proc.stdout:
             yield {'event': 'log', 'data': line.rstrip('\n')}
         proc.wait()
-        importlib.invalidate_caches()   # 让本进程发现刚装进 site-packages 的新驱动
+        importlib.invalidate_caches()  # 让本进程发现刚装进 site-packages 的新驱动
         after = services.dependency_status(source_type)
         ok = proc.returncode == 0 and after.get('ready')
-        yield {'event': 'done', 'data': {
-            'ok': ok, 'ready': after.get('ready'), 'returncode': proc.returncode,
-            'missing_after': after.get('missing') or [],
-            'message': '安装完成,依赖已就绪(当前进程已动态生效)' if ok else '安装未完全成功,请看上方日志',
-        }}
+        yield {
+            'event': 'done',
+            'data': {
+                'ok': ok,
+                'ready': after.get('ready'),
+                'returncode': proc.returncode,
+                'missing_after': after.get('missing') or [],
+                'message': '安装完成,依赖已就绪(当前进程已动态生效)' if ok else '安装未完全成功,请看上方日志',
+            },
+        }
 
     @staticmethod
     def _parse_statement(text: str, family: str) -> Any:
         """api 族输出 {func,params} JSON;其余源(SQL/DSL)按文本执行,DSL 也尝试解析为对象。"""
         import json
+
         t = text.strip()
         if family == 'api' or (t.startswith('{') and t.endswith('}')):
             try:
@@ -230,8 +236,17 @@ class Core:
     # 写入模式 -> pandas.to_sql if_exists
     _SQL_FAMILIES = {'rdbms', 'timeseries'}
 
-    def run_etl(self, source: str, target: str, *, statement: Any, table: str,
-                mode: str = 'append', limit: int | None = None, use_dlt: bool = False) -> dict:
+    def run_etl(
+        self,
+        source: str,
+        target: str,
+        *,
+        statement: Any,
+        table: str,
+        mode: str = 'append',
+        limit: int | None = None,
+        use_dlt: bool = False,
+    ) -> dict:
         """同步 ETL:源上取数 → 写入目标。
 
         use_dlt=True:大数据/增量走 dlt(抽取 dlt source → handler.write,数据入 dlt dataset)。
@@ -249,6 +264,7 @@ class Core:
         target_h = services.get_handler(t_t, t_c, t_s)
         if getattr(target_h, 'family', '') in self._SQL_FAMILIES and hasattr(target_h, 'engine'):
             import pandas as pd
+
             if_exists = 'replace' if mode == 'replace' else 'append'
             pd.DataFrame(rows).to_sql(table, target_h.engine, if_exists=if_exists, index=False)
             return {'mode': 'sync', 'target': t_t, 'table': table, 'row_count': len(rows)}

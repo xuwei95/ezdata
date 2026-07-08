@@ -17,9 +17,14 @@ class DatabricksHandler(SqlConnector):
     def _build_url(self) -> str:
         host = self.arg('server_hostname')
         token = quote_plus(str(self.arg('access_token', default='')))
-        params = {k: v for k, v in {
-            'http_path': self.arg('http_path'), 'catalog': self.arg('catalog'),
-            'schema': self.arg('schema'),
-        }.items() if v}
+        params = {
+            k: v
+            for k, v in {
+                'http_path': self.arg('http_path'),
+                'catalog': self.arg('catalog'),
+                'schema': self.arg('schema'),
+            }.items()
+            if v
+        }
         qs = f'?{urlencode(params)}' if params else ''
         return f'databricks://token:{token}@{host}:{self.default_port}{qs}'

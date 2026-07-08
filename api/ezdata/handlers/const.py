@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from collections import OrderedDict
 
 
-class HANDLER_CONNECTION_ARG_TYPE:  # noqa: N801  保持与 MindsDB 一致的常量类命名
+class HANDLER_CONNECTION_ARG_TYPE:
     __slots__ = ()
     STR = 'str'
     INT = 'int'
@@ -26,8 +26,13 @@ ARG_TYPE = HANDLER_CONNECTION_ARG_TYPE()
 
 # ARG_TYPE → JSON Schema 基础类型
 _JSON_TYPE = {
-    ARG_TYPE.STR: 'string', ARG_TYPE.URL: 'string', ARG_TYPE.PATH: 'string', ARG_TYPE.PWD: 'string',
-    ARG_TYPE.INT: 'integer', ARG_TYPE.BOOL: 'boolean', ARG_TYPE.DICT: 'object',
+    ARG_TYPE.STR: 'string',
+    ARG_TYPE.URL: 'string',
+    ARG_TYPE.PATH: 'string',
+    ARG_TYPE.PWD: 'string',
+    ARG_TYPE.INT: 'integer',
+    ARG_TYPE.BOOL: 'boolean',
+    ARG_TYPE.DICT: 'object',
 }
 
 
@@ -40,8 +45,9 @@ def secret_fields(connection_args: 'OrderedDict[str, dict]') -> list[str]:
     return [k for k, v in (connection_args or {}).items() if is_secret(v)]
 
 
-def to_json_schema(connection_args: 'OrderedDict[str, dict]',
-                   example: 'OrderedDict[str, Any] | dict | None' = None) -> dict[str, Any]:
+def to_json_schema(
+    connection_args: 'OrderedDict[str, dict]', example: 'OrderedDict[str, Any] | dict | None' = None
+) -> dict[str, Any]:
     """把 MindsDB 风格 connection_args 转成 JSON Schema(前端表单渲染用)。
     example(connection_args_example)里的值作为字段默认值带给前端预填。密钥不带默认。"""
     example = example or {}

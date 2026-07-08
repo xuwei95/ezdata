@@ -30,6 +30,7 @@ TENANT_PWD = 'Tenant@123'
 def redis_get(key, host, port, db):
     s = socket.create_connection((host, port), timeout=5)
     try:
+
         def send(*args):
             out = f'*{len(args)}\r\n'.encode()
             for a in args:
@@ -37,6 +38,7 @@ def redis_get(key, host, port, db):
                 out += b'$' + str(len(a)).encode() + b'\r\n' + a + b'\r\n'
             s.sendall(out)
             return s.recv(65536)
+
         send('SELECT', db)
         resp = send('GET', key)
         if resp.startswith(b'$-1'):
@@ -58,8 +60,9 @@ def login(username, password):
     if resp.get('captchaEnabled'):
         code = redis_get(f'captcha_codes:{uuid}', REDIS_HOST, REDIS_PORT, 2) or ''
     data = urllib.parse.urlencode({'username': username, 'password': password, 'code': code, 'uuid': uuid}).encode()
-    req = urllib.request.Request(f'{BACKEND}/login', data=data,
-                                 headers={'Content-Type': 'application/x-www-form-urlencoded'})
+    req = urllib.request.Request(
+        f'{BACKEND}/login', data=data, headers={'Content-Type': 'application/x-www-form-urlencoded'}
+    )
     out = json.loads(urllib.request.urlopen(req).read())
     token = out.get('token') or out.get('data', {}).get('token')
     if not token:
@@ -69,8 +72,12 @@ def login(username, password):
 
 def api(token, method, path, body=None):
     data = json.dumps(body).encode() if body is not None else None
-    req = urllib.request.Request(f'{BACKEND}{path}', data=data, method=method,
-                                 headers={'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'})
+    req = urllib.request.Request(
+        f'{BACKEND}{path}',
+        data=data,
+        method=method,
+        headers={'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'},
+    )
     try:
         return json.loads(urllib.request.urlopen(req).read())
     except urllib.error.HTTPError as ex:
@@ -110,31 +117,70 @@ def user_names(token):
 
 
 def create_dept(admin, name, parent_id):
-    return api(admin, 'POST', '/system/dept', {
-        'deptName': name, 'parentId': parent_id, 'orderNum': 1, 'status': '0', 'leader': 'tester',
-    })
+    return api(
+        admin,
+        'POST',
+        '/system/dept',
+        {
+            'deptName': name,
+            'parentId': parent_id,
+            'orderNum': 1,
+            'status': '0',
+            'leader': 'tester',
+        },
+    )
 
 
 def create_user(admin, user_name, dept_id):
-    return api(admin, 'POST', '/system/user', {
-        'userName': user_name, 'nickName': user_name, 'password': TENANT_PWD,
-        'deptId': dept_id, 'status': '0', 'roleIds': [1], 'postIds': [],
-    })
+    return api(
+        admin,
+        'POST',
+        '/system/user',
+        {
+            'userName': user_name,
+            'nickName': user_name,
+            'password': TENANT_PWD,
+            'deptId': dept_id,
+            'status': '0',
+            'roleIds': [1],
+            'postIds': [],
+        },
+    )
 
 
 def create_task(token, name, code='print_ok'):
-    params = json.dumps({'run_type': 'code', 'code': "def run(params, logger):\n    logger.info('mt')\n    return 'ok'"})
-    return api(token, 'POST', '/task/info', {
-        'name': name, 'templateCode': 'PythonTask', 'taskType': 1,
-        'triggerType': 1, 'status': 0, 'params': params, 'runQueue': 'default',
-    })
+    params = json.dumps(
+        {'run_type': 'code', 'code': "def run(params, logger):\n    logger.info('mt')\n    return 'ok'"}
+    )
+    return api(
+        token,
+        'POST',
+        '/task/info',
+        {
+            'name': name,
+            'templateCode': 'PythonTask',
+            'taskType': 1,
+            'triggerType': 1,
+            'status': 0,
+            'params': params,
+            'runQueue': 'default',
+        },
+    )
 
 
 def create_strategy(token, name):
-    return api(token, 'POST', '/alert/strategy', {
-        'strategyName': name, 'biz': 'scheduler', 'status': 1,
-        'triggerConf': json.dumps({'level': 2}), 'forwardConf': json.dumps([]),
-    })
+    return api(
+        token,
+        'POST',
+        '/alert/strategy',
+        {
+            'strategyName': name,
+            'biz': 'scheduler',
+            'status': 1,
+            'triggerConf': json.dumps({'level': 2}),
+            'forwardConf': json.dumps([]),
+        },
+    )
 
 
 # --------------------------- 主流程 ---------------------------
@@ -170,7 +216,11 @@ def main():
     # 2. 各租户创建一个用户(赋超级管理员角色=全权限，但 user_id!=1 故受租户限制)
     print('== 各租户创建用户 ==')
     rA, rB = create_user(admin, A_user, A_id), create_user(admin, B_user, B_id)
-    check('2.1 创建租户用户A/B', rA.get('code') in (200, None) and rB.get('code') in (200, None), f'A={rA.get("msg")} B={rB.get("msg")}')
+    check(
+        '2.1 创建租户用户A/B',
+        rA.get('code') in (200, None) and rB.get('code') in (200, None),
+        f'A={rA.get("msg")} B={rB.get("msg")}',
+    )
 
     # 3. 租户用户登录
     print('== 租户用户登录 ==')
@@ -223,8 +273,11 @@ def main():
     # 8. 平台超管可见全部(任务/策略至少包含A新建 + 原租户100数据)
     print('== 平台超管全局可见 ==')
     admin_tasks = task_list(admin)
-    check('8.1 平台超管可见多租户任务(含A新建与历史)', any(t['name'] == a_task for t in admin_tasks) and len(admin_tasks) >= 2,
-          f'admin任务数={len(admin_tasks)}')
+    check(
+        '8.1 平台超管可见多租户任务(含A新建与历史)',
+        any(t['name'] == a_task for t in admin_tasks) and len(admin_tasks) >= 2,
+        f'admin任务数={len(admin_tasks)}',
+    )
 
     finish()
 

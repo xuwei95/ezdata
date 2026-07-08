@@ -15,16 +15,24 @@ class DagGraphDao:
 
     @classmethod
     async def get_draft(cls, db: AsyncSession, dag_task_id: str) -> DagGraph | None:
-        return (await db.execute(
-            select(DagGraph).where(DagGraph.dag_task_id == dag_task_id, DagGraph.version == 'draft')
-        )).scalars().first()
+        return (
+            (await db.execute(select(DagGraph).where(DagGraph.dag_task_id == dag_task_id, DagGraph.version == 'draft')))
+            .scalars()
+            .first()
+        )
 
     @classmethod
     async def list_versions(cls, db: AsyncSession, dag_task_id: str) -> list[DagGraph]:
         """所有版本(草稿 + 发布版),按时间倒序。"""
-        return list((await db.execute(
-            select(DagGraph).where(DagGraph.dag_task_id == dag_task_id).order_by(DagGraph.create_time.desc())
-        )).scalars().all())
+        return list(
+            (
+                await db.execute(
+                    select(DagGraph).where(DagGraph.dag_task_id == dag_task_id).order_by(DagGraph.create_time.desc())
+                )
+            )
+            .scalars()
+            .all()
+        )
 
     @classmethod
     async def add(cls, db: AsyncSession, obj: dict[str, Any]) -> DagGraph:

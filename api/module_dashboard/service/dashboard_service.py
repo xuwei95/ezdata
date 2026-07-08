@@ -32,7 +32,11 @@ class DashboardService:
             rows = (await db.execute(select(col, func.count()).group_by(col))).all()
             out = []
             for k, v in rows:
-                name = mapper.get(int(k), '未知') if (mapper and k is not None) else (str(k) if k not in (None, '') else '未知')
+                name = (
+                    mapper.get(int(k), '未知')
+                    if (mapper and k is not None)
+                    else (str(k) if k not in (None, '') else '未知')
+                )
                 out.append({'name': name, 'value': int(v)})
             return out
 
@@ -58,15 +62,22 @@ class DashboardService:
 
         # 任务实例:近 7 天(避免全表扫 20 万)
         cutoff = datetime.now() - timedelta(days=7)
-        ts_rows = (await db.execute(
-            select(TaskInstance.status, func.count()).where(TaskInstance.start_time >= cutoff)
-            .group_by(TaskInstance.status))).all()
+        ts_rows = (
+            await db.execute(
+                select(TaskInstance.status, func.count())
+                .where(TaskInstance.start_time >= cutoff)
+                .group_by(TaskInstance.status)
+            )
+        ).all()
         task_status = [{'name': s or '未知', 'value': int(v)} for s, v in ts_rows]
 
-        tr_rows = (await db.execute(
-            select(func.date(TaskInstance.start_time), TaskInstance.status, func.count())
-            .where(TaskInstance.start_time >= cutoff)
-            .group_by(func.date(TaskInstance.start_time), TaskInstance.status))).all()
+        tr_rows = (
+            await db.execute(
+                select(func.date(TaskInstance.start_time), TaskInstance.status, func.count())
+                .where(TaskInstance.start_time >= cutoff)
+                .group_by(func.date(TaskInstance.start_time), TaskInstance.status)
+            )
+        ).all()
         trend_map: dict[str, dict] = {}
         for d, s, v in tr_rows:
             key = str(d)
@@ -78,17 +89,27 @@ class DashboardService:
                 t['failure'] += int(v)
         task_trend = sorted(trend_map.values(), key=lambda x: x['date'])
 
-        recent = (await db.execute(
-            select(TaskInstance).order_by(desc(TaskInstance.start_time)).limit(8))).scalars().all()
-        recent_runs = [{
-            'name': r.name, 'status': r.status, 'startTime': r.start_time,
-            'dur': cls._dur(r.start_time, r.end_time),
-        } for r in recent]
+        recent = (
+            (await db.execute(select(TaskInstance).order_by(desc(TaskInstance.start_time)).limit(8))).scalars().all()
+        )
+        recent_runs = [
+            {
+                'name': r.name,
+                'status': r.status,
+                'startTime': r.start_time,
+                'dur': cls._dur(r.start_time, r.end_time),
+            }
+            for r in recent
+        ]
 
         return {
-            'cards': cards, 'sourceFamily': source_family, 'sourceType': source_type,
-            'ragDocStatus': rag_doc_status, 'taskStatus': task_status,
-            'taskTrend': task_trend, 'recentRuns': recent_runs,
+            'cards': cards,
+            'sourceFamily': source_family,
+            'sourceType': source_type,
+            'ragDocStatus': rag_doc_status,
+            'taskStatus': task_status,
+            'taskTrend': task_trend,
+            'recentRuns': recent_runs,
             'aiUsage': {'totals': ai_usage.get('totals') or {}, 'series': ai_usage.get('series') or []},
         }
 

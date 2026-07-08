@@ -18,9 +18,17 @@ class ChunkService:
     """分段 / QA 管理。写操作同步到向量库。"""
 
     @classmethod
-    async def get_list(cls, db: AsyncSession, dataset_id: str, document_id: str | None,
-                       page_num: int, page_size: int, is_page: bool = True,
-                       chunk_type: str | None = None, keyword: str | None = None) -> Any:
+    async def get_list(
+        cls,
+        db: AsyncSession,
+        dataset_id: str,
+        document_id: str | None,
+        page_num: int,
+        page_size: int,
+        is_page: bool = True,
+        chunk_type: str | None = None,
+        keyword: str | None = None,
+    ) -> Any:
         conds = [RagChunk.dataset_id == dataset_id]
         if document_id:
             conds.append(RagChunk.document_id == document_id)
@@ -37,7 +45,8 @@ class ChunkService:
         ds = (await db.execute(select(RagDataset).where(RagDataset.id == req.dataset_id))).scalars().first()
         if not ds:
             raise ServiceException(message='知识库不存在')
-        from module_rag.runtime_util import snapshot_dataset  # noqa: PLC0415
+        from module_rag.runtime_util import snapshot_dataset
+
         ds_snap = snapshot_dataset(ds)  # commit 后 ds 会过期,提前快照供线程池用
         tenant_id = RequestContext.get_effective_tenant_id()
         is_qa = req.chunk_type == 'qa'
@@ -46,7 +55,8 @@ class ChunkService:
         if not is_qa and not req.content:
             raise ServiceException(message='分段内容不能为空')
 
-        from module_rag.runtime_util import md5  # noqa: PLC0415
+        from module_rag.runtime_util import md5
+
         index_text = req.question if is_qa else req.content
         try:
             if req.id:  # 编辑
@@ -63,13 +73,23 @@ class ChunkService:
             else:  # 新增
                 cid = uuid.uuid4().hex
                 doc_id = req.document_id or 'manual'
-                db.add(RagChunk(
-                    id=cid, dataset_id=req.dataset_id, document_id=doc_id, chunk_type=req.chunk_type,
-                    content=req.content, question=req.question, answer=req.answer,
-                    question_hash=md5(req.question) if is_qa and req.question else None,
-                    hash=md5(req.content or req.question or ''), position=0, status=1,
-                    create_by=operator, create_time=datetime.now(),
-                ))
+                db.add(
+                    RagChunk(
+                        id=cid,
+                        dataset_id=req.dataset_id,
+                        document_id=doc_id,
+                        chunk_type=req.chunk_type,
+                        content=req.content,
+                        question=req.question,
+                        answer=req.answer,
+                        question_hash=md5(req.question) if is_qa and req.question else None,
+                        hash=md5(req.content or req.question or ''),
+                        position=0,
+                        status=1,
+                        create_by=operator,
+                        create_time=datetime.now(),
+                    )
+                )
             await db.commit()
             # 同步向量库(用游离快照,避免线程内读已过期 ORM 触发懒加载)
             await run_in_threadpool(cls._index_single, ds_snap, cid, index_text, req.chunk_type, doc_id, tenant_id)
@@ -98,13 +118,14 @@ class ChunkService:
             raise e
 
     @classmethod
-    async def bulk_import(cls, db: AsyncSession, req) -> dict:  # noqa: ANN001
+    async def bulk_import(cls, db: AsyncSession, req) -> dict:
         """CSV/Excel 批量导入 QA对/分段。"""
         ds = (await db.execute(select(RagDataset).where(RagDataset.id == req.dataset_id))).scalars().first()
         if not ds:
             raise ServiceException(message='知识库不存在')
         tenant_id = RequestContext.get_effective_tenant_id()
-        from module_rag.bulk_import import bulk_import_from_file  # noqa: PLC0415
+        from module_rag.bulk_import import bulk_import_from_file
+
         return await run_in_threadpool(bulk_import_from_file, req.dataset_id, req.chunk_type, req.file_key, tenant_id)
 
     @classmethod
@@ -122,22 +143,33 @@ class ChunkService:
 
     # ---------------- 同步向量库(线程内)----------------
     @staticmethod
-    def _index_single(dataset: RagDataset, chunk_id: str, text: str, chunk_type: str,
-                      document_id: str, tenant_id: Any) -> None:
-        from module_rag.runtime_util import build_embedding_client, build_store  # noqa: PLC0415
+    def _index_single(
+        dataset: RagDataset, chunk_id: str, text: str, chunk_type: str, document_id: str, tenant_id: Any
+    ) -> None:
+        from module_rag.runtime_util import build_embedding_client, build_store
+
         client = build_embedding_client(dataset)
         vec = client.embed_query(text)
         store = build_store(dataset)
         store.ensure_index(len(vec))
-        store.add([{
-            'chunk_id': chunk_id, 'content': text, 'content_vector': vec,
-            'tenant_id': str(tenant_id) if tenant_id is not None else '',
-            'dataset_id': dataset.id, 'document_id': document_id, 'chunk_type': chunk_type,
-        }])
+        store.add(
+            [
+                {
+                    'chunk_id': chunk_id,
+                    'content': text,
+                    'content_vector': vec,
+                    'tenant_id': str(tenant_id) if tenant_id is not None else '',
+                    'dataset_id': dataset.id,
+                    'document_id': document_id,
+                    'chunk_type': chunk_type,
+                }
+            ]
+        )
 
     @staticmethod
     def _delete_vectors(dataset: RagDataset, chunk_ids: list[str]) -> None:
-        from module_rag.runtime_util import build_store  # noqa: PLC0415
+        from module_rag.runtime_util import build_store
+
         try:
             store = build_store(dataset)
             if store.index_exists():

@@ -44,8 +44,8 @@ os.environ.setdefault('SCHEMA__NAMING', 'direct')
 
 def _load_datasource(code: str) -> Any:
     """同步会话按编码加载数据源记录(worker 无请求上下文)。"""
-    from module_data.entity.do.data_do import DataSource  # noqa: PLC0415
-    from module_task_schedule.sync_db import get_sync_session_local  # noqa: PLC0415
+    from module_data.entity.do.data_do import DataSource
+    from module_task_schedule.sync_db import get_sync_session_local
 
     db = get_sync_session_local()()
     try:
@@ -59,7 +59,7 @@ def _load_datasource(code: str) -> Any:
 
 
 def _build_handler(rec: dict) -> Any:
-    from ezdata.handlers import create_handler  # noqa: PLC0415
+    from ezdata.handlers import create_handler
 
     # 经 create_handler 走进程内实例缓存(worker 跨任务复用连接池);
     # secrets 为密文串(查库)→ from_record 内部解密;为明文 dict(沙箱注入)→ 直接合并不解密
@@ -85,7 +85,7 @@ def _whole_table_native(native: Any) -> str | None:
 def _compile_transform(code: str):
     """编译逐行转换函数:用户代码须定义 transform(row)->row。"""
     ns: dict[str, Any] = {}
-    exec(compile(code, '<etl-transform>', 'exec'), ns)  # noqa: S102 受限内部调试用途
+    exec(compile(code, '<etl-transform>', 'exec'), ns)
     fn = ns.get('transform')
     if not callable(fn):
         raise ValueError('转换代码必须定义 transform(row) 函数')
@@ -98,10 +98,10 @@ _EXTRACT_ROW_CAP = 200000
 
 def _is_dataframe(v: Any) -> bool:
     try:
-        import pandas as pd  # noqa: PLC0415
+        import pandas as pd
 
         return isinstance(v, pd.DataFrame)
-    except Exception:  # noqa: BLE001
+    except Exception:
         return False
 
 
@@ -110,7 +110,7 @@ def _coerce_records(data: Any) -> list[dict]:
     if data is None:
         raise ValueError('代码取数未产出结果:请把结果(list[dict])赋值给变量 result')
     try:
-        import pandas as pd  # noqa: PLC0415
+        import pandas as pd
 
         if isinstance(data, pd.DataFrame):
             return data.to_dict('records')
@@ -142,7 +142,7 @@ class DataIntegrationRunner(BaseRunner):
         return injected or _load_datasource(code)
 
     def run(self) -> Any:
-        from ezdata.handlers import Capability  # noqa: PLC0415
+        from ezdata.handlers import Capability
 
         extract = self.params.get('extract') or {}
         transform = self.params.get('transform') or {}
@@ -180,7 +180,8 @@ class DataIntegrationRunner(BaseRunner):
 
         # 列式快路(无 transform + DB 目标):避开 query→list[dict] 行模式,直接喂 dlt 列式装载。
         # 任一条件不满足(转换/文件目标/不支持)都回退下方普通 query→list→write。
-        from ezdata.utils.etl_util import assert_readonly_sql, is_file_target  # noqa: PLC0415
+        from ezdata.utils.etl_util import assert_readonly_sql, is_file_target
+
         dst_is_file = is_file_target(getattr(dst, 'family', None))
 
         # 快路①:文件源(DuckDB)→ DuckDB→Arrow→dlt(实测约 3x)。任意只读查询都适用
@@ -220,7 +221,7 @@ class DataIntegrationRunner(BaseRunner):
           仅选 1 个授权源时另注入 handler 别名。print() 即日志。
         - 与 transform 同为 worker 进程内 exec(同一信任模型);调试预览走沙箱(见 EtlService.preview)。
         """
-        from ezdata.handlers import Capability  # noqa: PLC0415
+        from ezdata.handlers import Capability
 
         code = (extract.get('code') or '').strip()
         if not code:
@@ -268,12 +269,17 @@ class DataIntegrationRunner(BaseRunner):
             emit_used['v'] = True
             return _load_batch(_coerce_records(rows if rows is not None else []))
 
-        ns: dict[str, Any] = {'get_handler': get_handler, 'logger': self.logger,
-                              'log': self.logger.info, 'emit': emit, 'result': None}
+        ns: dict[str, Any] = {
+            'get_handler': get_handler,
+            'logger': self.logger,
+            'log': self.logger.info,
+            'emit': emit,
+            'result': None,
+        }
         if len(allowed) == 1:
             ns['handler'] = get_handler(allowed[0])
         self.logger.info('执行代码取数(worker 进程内)…')
-        exec(compile(code, '<etl-extract>', 'exec'), ns)  # noqa: S102 worker 信任模型,同 transform
+        exec(compile(code, '<etl-extract>', 'exec'), ns)
         res = ns.get('result')
 
         def _empty_replace_guard() -> None:
@@ -285,18 +291,24 @@ class DataIntegrationRunner(BaseRunner):
             _empty_replace_guard()
             return f'ETL 完成(代码取数·流式分批): -> {dst_code}.{table} ({stream_state["total"]} 行)'
         # ② result 是生成器/迭代器(排除 list/tuple/dict/str/bytes/DataFrame)→ 原生 yield 流式
-        if (res is not None and not isinstance(res, (list, tuple, dict, str, bytes))
-                and not _is_dataframe(res) and hasattr(res, '__iter__')):
+        if (
+            res is not None
+            and not isinstance(res, (list, tuple, dict, str, bytes))
+            and not _is_dataframe(res)
+            and hasattr(res, '__iter__')
+        ):
             buf: list[dict] = []
             for item in res:
                 if item is None:
                     continue
                 buf.extend(_coerce_records(item))  # yield 单行 dict → [dict];yield 整批 list → 原样
                 while len(buf) >= _CHUNK:
-                    _load_batch(buf[:_CHUNK]); buf = buf[_CHUNK:]
+                    _load_batch(buf[:_CHUNK])
+                    buf = buf[_CHUNK:]
                 if stream_state['total'] >= _EXTRACT_ROW_CAP:
                     self.logger.info(f'生成器流式已达上限 {_EXTRACT_ROW_CAP},停止')
-                    buf = []; break
+                    buf = []
+                    break
             if buf:
                 _load_batch(buf)
             _empty_replace_guard()
@@ -314,10 +326,20 @@ class DataIntegrationRunner(BaseRunner):
         self.logger.info(str(info)[:500])
         return f'ETL 完成(代码取数): -> {dst_code}.{table} ({len(data)} 行)'
 
-    def _run_stream(self, src: Any, dst: Any, src_code: str, dst_code: str, table: str,
-                    obj: str | None, extract: dict, load: dict, fn: Any) -> Any:
+    def _run_stream(
+        self,
+        src: Any,
+        dst: Any,
+        src_code: str,
+        dst_code: str,
+        table: str,
+        obj: str | None,
+        extract: dict,
+        load: dict,
+        fn: Any,
+    ) -> Any:
         """流式源:max_events 有值→有界读取一批;否则长驻阻塞消费,微批持续装载。"""
-        from ezdata.utils.etl_util import stream_kwargs, stream_statement  # noqa: PLC0415
+        from ezdata.utils.etl_util import stream_kwargs, stream_statement
 
         max_events = int(extract.get('max_events') or 0)
         if max_events > 0:  # 有界:读这一批后一次性装载
@@ -353,7 +375,7 @@ class DataIntegrationRunner(BaseRunner):
         pipeline_name 以 task_id 为唯一键:不同任务即使写同一目标表也用各自的 dlt pipeline 状态,
         避免并发/多任务共用 pipeline 状态相互串扰;同一任务重跑沿用同名 pipeline(保留增量状态)。
         """
-        from ezdata.utils.etl_util import is_file_target, serialize_records  # noqa: PLC0415
+        from ezdata.utils.etl_util import is_file_target, serialize_records
 
         mode = load.get('mode') or 'append'
         dataset = load.get('dataset') or 'public'

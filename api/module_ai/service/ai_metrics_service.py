@@ -18,10 +18,17 @@ def _empty_overview() -> dict[str, Any]:
     """ai_sessions 尚未由 agno 建表(全新环境/未对话过)时的空结果。"""
     return {
         'totals': {
-            'sessions': 0, 'runs': 0, 'inputTokens': 0, 'outputTokens': 0,
-            'totalTokens': 0, 'avgDuration': 0, 'successRate': 0,
+            'sessions': 0,
+            'runs': 0,
+            'inputTokens': 0,
+            'outputTokens': 0,
+            'totalTokens': 0,
+            'avgDuration': 0,
+            'successRate': 0,
         },
-        'series': [], 'byModel': [], 'byUser': [],
+        'series': [],
+        'byModel': [],
+        'byUser': [],
     }
 
 
@@ -91,8 +98,11 @@ class AiMetricsService:
 
         return {
             'totals': {
-                'sessions': sessions, 'runs': total_runs,
-                'inputTokens': tin, 'outputTokens': tout, 'totalTokens': ttot,
+                'sessions': sessions,
+                'runs': total_runs,
+                'inputTokens': tin,
+                'outputTokens': tout,
+                'totalTokens': ttot,
                 'avgDuration': round(dur_sum / total_runs, 2) if total_runs else 0,
                 'successRate': round(ok / total_runs * 100, 1) if total_runs else 0,
             },
@@ -107,5 +117,7 @@ class AiMetricsService:
         if not ids:
             return {}
         in_clause = ','.join(str(i) for i in ids)  # 均为 int,无注入风险
-        res = await db.execute(text(f'SELECT user_id, nick_name, user_name FROM sys_user WHERE user_id IN ({in_clause})'))
+        res = await db.execute(
+            text(f'SELECT user_id, nick_name, user_name FROM sys_user WHERE user_id IN ({in_clause})')
+        )
         return {str(r[0]): (r[1] or r[2] or str(r[0])) for r in res}

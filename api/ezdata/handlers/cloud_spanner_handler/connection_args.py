@@ -18,15 +18,13 @@ connection_args = OrderedDict(
     dialect={
         'type': ARG_TYPE.STR,
         'description': 'Dialect of the database',
-        "required": False,
+        'required': False,
     },
     credentials={
         'type': ARG_TYPE.STR,
         'description': 'The Google Cloud Platform service account key in the JSON format.',
-        'secret': True
+        'secret': True,
     },
 )
 
-connection_args_example = OrderedDict(
-    instance_id='test-instance', datbase_id='example-db', project='your-project-id'
-)
+connection_args_example = OrderedDict(instance_id='test-instance', datbase_id='example-db', project='your-project-id')

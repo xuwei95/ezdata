@@ -56,5 +56,5 @@ def split_text(text: str, chunk_size: int = 1024, chunk_overlap: int = 200) -> l
     for cur in raw[1:]:
         prev = out[-1]
         tail = prev[-chunk_overlap:]
-        out.append((tail + cur)[:chunk_size + chunk_overlap])
+        out.append((tail + cur)[: chunk_size + chunk_overlap])
     return out

@@ -1,4 +1,5 @@
 """Google Cloud Storage 实现（storage_type=google-storage）。依赖：google-cloud-storage"""
+
 import base64
 import io
 import json

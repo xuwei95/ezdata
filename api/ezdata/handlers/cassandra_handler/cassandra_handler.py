@@ -13,7 +13,7 @@ class CassandraHandler(Connector):
     capabilities = Capability.READ | Capability.WRITE | Capability.EXTRACT | Capability.SCHEMA
     connection_args = connection_args
     connection_args_example = connection_args_example
-    _driver_module = 'cassandra'        # scylla-driver 也用 cassandra.* 命名空间
+    _driver_module = 'cassandra'  # scylla-driver 也用 cassandra.* 命名空间
 
     def __init__(self, connection_data: dict[str, Any]) -> None:
         super().__init__(connection_data)
@@ -28,12 +28,14 @@ class CassandraHandler(Connector):
         def _make():
             from cassandra.auth import PlainTextAuthProvider
             from cassandra.cluster import Cluster
+
             auth = None
             if self.arg('user'):
                 auth = PlainTextAuthProvider(username=self.arg('user'), password=self.arg('password', default=''))
             hosts = [h.strip() for h in str(self.arg('host', default='127.0.0.1')).split(',')]
             cluster = Cluster(hosts, port=int(self.arg('port', default=9042)), auth_provider=auth)
             return cluster.connect(self.keyspace) if self.keyspace else cluster.connect()
+
         return self._lazy('_session', _make)
 
     def test_connection(self) -> ConnectResult:
@@ -45,13 +47,15 @@ class CassandraHandler(Connector):
 
     def list_tables(self) -> list[str]:
         rows = self.session.execute(
-            'SELECT table_name FROM system_schema.tables WHERE keyspace_name=%s', (self.keyspace,))
+            'SELECT table_name FROM system_schema.tables WHERE keyspace_name=%s', (self.keyspace,)
+        )
         return [r.table_name for r in rows]
 
     def get_columns(self, table: str) -> list[Column]:
         rows = self.session.execute(
             'SELECT column_name, type FROM system_schema.columns WHERE keyspace_name=%s AND table_name=%s',
-            (self.keyspace, table))
+            (self.keyspace, table),
+        )
         return [Column(name=r.column_name, type=r.type) for r in rows]
 
     def query(self, statement: str, params: dict | None = None, limit: int | None = None) -> list[dict]:

@@ -43,17 +43,16 @@ class DataAgentTools(Toolkit):
         """
         code_list = [c.strip() for c in codes.split(',') if c.strip()] or None
         if self.allowed_codes is not None:  # 限定数据源范围:只在授权的源里探索
-            code_list = (list(self.allowed_codes) if not code_list
-                         else [c for c in code_list if c in self.allowed_codes])
+            code_list = list(self.allowed_codes) if not code_list else [c for c in code_list if c in self.allowed_codes]
         rows = _list_datasources(code_list)
         if not rows:
             return '未找到数据源。'
         blocks: list[str] = []
         for r in rows:
-            header = f"【{r['code']}】{r['name'] or ''} ({r['source_type'] or ''})"
+            header = f'【{r["code"]}】{r["name"] or ""} ({r["source_type"] or ""})'
             try:
                 names = _build_handler(r['code']).list_tables()
-            except Exception:  # noqa: BLE001 不支持 schema / 连不上的源,跳过表名
+            except Exception:
                 blocks.append(header + '  (表列表暂不可用)')
                 continue
             if not names:
@@ -66,17 +65,23 @@ class DataAgentTools(Toolkit):
             # 已建模的表:逐行详列(业务名+描述,这些是业务相关、最常用的)
             for t in modeled:
                 m = models[t]
-                parts.append(f"  - {t} — {m['name']}{(': ' + m['remark']) if m.get('remark') else ''}")
+                parts.append(f'  - {t} — {m["name"]}{(": " + m["remark"]) if m.get("remark") else ""}')
             # 未建模的表(多为系统/中间表):表名紧凑列成一行,仍全在可搜,但不逐行占空间
             if unmodeled:
                 label = '  其余未建模表' if modeled else '  表(均未建模)'
                 shown = ', '.join(unmodeled[:_UNMODELED_CAP])
-                more = (f' …(共 {len(unmodeled)},其余用 get_table_schema(源, keyword=) 搜)'
-                        if len(unmodeled) > _UNMODELED_CAP else '')
+                more = (
+                    f' …(共 {len(unmodeled)},其余用 get_table_schema(源, keyword=) 搜)'
+                    if len(unmodeled) > _UNMODELED_CAP
+                    else ''
+                )
                 parts.append(f'{label}({len(unmodeled)}): ' + shown + more)
             blocks.append('\n'.join(parts))
-        return ('数据源及其表(表名后「— 业务名: 描述」是已建模的):\n\n' + '\n\n'.join(blocks)
-                + '\n\n认出目标表后:get_table_schema(数据源编码, tables="表名") 查字段 → run_datasource_query 取数。')
+        return (
+            '数据源及其表(表名后「— 业务名: 描述」是已建模的):\n\n'
+            + '\n\n'.join(blocks)
+            + '\n\n认出目标表后:get_table_schema(数据源编码, tables="表名") 查字段 → run_datasource_query 取数。'
+        )
 
     def get_table_schema(self, datasource_code: str, tables: str = '', keyword: str = '') -> str:
         """查数据源的表结构(实时、准确),并叠加数据模型里的业务描述。
@@ -94,19 +99,21 @@ class DataAgentTools(Toolkit):
             return f'该应用未授权访问数据源: {datasource_code}(仅可用: {", ".join(self.allowed_codes)})'
         try:
             handler = _build_handler(datasource_code)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             return f'数据源连接失败: {e}'
         models = _models_of_source(datasource_code)  # {object_name: {name, remark, fdesc}}
         tl = handler.table_labels() if hasattr(handler, 'table_labels') else {}  # 内置说明(如 akshare 函数中文名)
         is_api = getattr(handler, 'family', '') == 'api'
-        api_hint = ('【API 数据源用法】每个“表”是一个数据接口函数(akshare 财经函数 / ccxt 交易所方法等);'
-                    '取数在 run_datasource_query 里写 `result = handler.query("函数名", {参数})`'
-                    '(返回 list[dict],已带重试),参数见下方各函数说明/接口文档;**勿用 SQL**。\n')
+        api_hint = (
+            '【API 数据源用法】每个“表”是一个数据接口函数(akshare 财经函数 / ccxt 交易所方法等);'
+            '取数在 run_datasource_query 里写 `result = handler.query("函数名", {参数})`'
+            '(返回 list[dict],已带重试),参数见下方各函数说明/接口文档;**勿用 SQL**。\n'
+        )
 
         def _label(t: str) -> str:
             m = models.get(t)
             if m:
-                return f"{m['name']}{(': ' + m['remark']) if m.get('remark') else ''}"
+                return f'{m["name"]}{(": " + m["remark"]) if m.get("remark") else ""}'
             return tl.get(t, '')  # 回退到 handler 内置说明
 
         table_list = [t.strip() for t in tables.split(',') if t.strip()]
@@ -121,11 +128,18 @@ class DataAgentTools(Toolkit):
                         continue
                     rows.append(f'- {t}' + (f'  ({label})' if label else ''))
                 if not rows:
-                    return (f'没有匹配「{keyword}」的表;换个关键词,或不传 keyword 看全部表。'
-                            if kw else '该数据源无可见表。')
+                    return (
+                        f'没有匹配「{keyword}」的表;换个关键词,或不传 keyword 看全部表。'
+                        if kw
+                        else '该数据源无可见表。'
+                    )
                 tip = '(括号内为业务名/说明)'
-                return ((api_hint if is_api else '') + f'表(共 {len(rows)} 张){tip}:\n' + '\n'.join(rows)
-                        + '\n\n认出目标表后,用 tables 参数查它的字段/调用参数。')
+                return (
+                    (api_hint if is_api else '')
+                    + f'表(共 {len(rows)} 张){tip}:\n'
+                    + '\n'.join(rows)
+                    + '\n\n认出目标表后,用 tables 参数查它的字段/调用参数。'
+                )
             out: list[str] = []
             for t in table_list:
                 cols = handler.get_columns(t)
@@ -146,7 +160,7 @@ class DataAgentTools(Toolkit):
                         block += '\n  【接口文档】\n' + '\n'.join('    ' + ln for ln in dl)
                 out.append(block)
             return (api_hint if is_api else '') + '\n\n'.join(out)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             return f'查询表结构失败(该源可能不支持 schema): {e}'
 
     def search_datasource_knowledge(self, datasource_code: str, query: str) -> str:
@@ -173,7 +187,7 @@ class DataAgentTools(Toolkit):
         prefix = f'【业务上下文】\n{ctx}\n\n' if ctx else ''
         try:
             kb = search_knowledge_base(query, source_id=ds_id)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             kb = f'(知识库检索失败: {e})'
         return prefix + kb
 
@@ -209,13 +223,16 @@ def _models_of_source(datasource_code: str) -> dict:
 
     db = get_sync_session_local()()
     try:
-        rows = db.execute(select(DataModel.name, DataModel.object_name, DataModel.remark)
-                          .where(DataModel.datasource_code == datasource_code, DataModel.status == 1)).all()
+        rows = db.execute(
+            select(DataModel.name, DataModel.object_name, DataModel.remark).where(
+                DataModel.datasource_code == datasource_code, DataModel.status == 1
+            )
+        ).all()
         out: dict[str, dict] = {}
         for name, obj, remark in rows:
             if not obj:
                 continue
-            out[obj] = {'name': name, 'remark': (remark or '').strip(" '\"　")}
+            out[obj] = {'name': name, 'remark': (remark or '').strip(' \'"　')}
         return out
     finally:
         db.close()
@@ -227,10 +244,10 @@ def build_data_catalog(allowed_codes: list | None = None, *, max_sources: int = 
     只查库(data_source/data_model,单会话一次拉全),**不连 handler**;任何异常返回空串,不影响对话。
     """
     try:
-        from sqlalchemy import select  # noqa: PLC0415
+        from sqlalchemy import select
 
-        from module_data.entity.do.data_do import DataModel, DataSource  # noqa: PLC0415
-        from module_task_schedule.sync_db import get_sync_session_local  # noqa: PLC0415
+        from module_data.entity.do.data_do import DataModel, DataSource
+        from module_task_schedule.sync_db import get_sync_session_local
 
         db = get_sync_session_local()()
         try:
@@ -241,8 +258,10 @@ def build_data_catalog(allowed_codes: list | None = None, *, max_sources: int = 
             if not sources:
                 return ''
             m_rows = db.execute(
-                select(DataModel.datasource_code, DataModel.object_name, DataModel.name)
-                .where(DataModel.datasource_code.in_([s['code'] for s in sources]), DataModel.status == 1)).all()
+                select(DataModel.datasource_code, DataModel.object_name, DataModel.name).where(
+                    DataModel.datasource_code.in_([s['code'] for s in sources]), DataModel.status == 1
+                )
+            ).all()
         finally:
             db.close()
 
@@ -252,7 +271,7 @@ def build_data_catalog(allowed_codes: list | None = None, *, max_sources: int = 
                 by_src.setdefault(dcode, []).append((obj, nm))
         lines: list[str] = []
         for s in sources[:max_sources]:
-            head = f"【{s['code']}】{s['name'] or ''}({s['source_type'] or ''})"
+            head = f'【{s["code"]}】{s["name"] or ""}({s["source_type"] or ""})'
             mods = by_src.get(s['code']) or []
             if mods:
                 items = [f'{obj}={nm}' if nm else obj for obj, nm in mods[:max_tables]]
@@ -262,9 +281,10 @@ def build_data_catalog(allowed_codes: list | None = None, *, max_sources: int = 
                 lines.append(head + '(未建模,用 get_table_schema 探索)')
         if len(sources) > max_sources:
             lines.append(f'…(共 {len(sources)} 个数据源)')
-        return ('已有数据源与关键表(表名=业务名,均已建模;认得出目标就直接用,不必再调 list_datasources):\n'
-                + '\n'.join(lines))
-    except Exception:  # noqa: BLE001
+        return '已有数据源与关键表(表名=业务名,均已建模;认得出目标就直接用,不必再调 list_datasources):\n' + '\n'.join(
+            lines
+        )
+    except Exception:
         return ''
 
 
@@ -283,10 +303,10 @@ def _datasource_id(code: str) -> str | None:
 
 def _datasource_business_context(code: str) -> str:
     """读该数据源的 remark(=业务上下文文档),取数前置顶注入。无则空串。"""
-    from sqlalchemy import select  # noqa: PLC0415
+    from sqlalchemy import select
 
-    from module_data.entity.do.data_do import DataSource  # noqa: PLC0415
-    from module_task_schedule.sync_db import get_sync_session_local  # noqa: PLC0415
+    from module_data.entity.do.data_do import DataSource
+    from module_task_schedule.sync_db import get_sync_session_local
 
     db = get_sync_session_local()()
     try:
@@ -298,8 +318,8 @@ def _datasource_business_context(code: str) -> str:
 
 def _build_handler(code: str) -> Any:
     """用明文连接(查库+解密)在 backend 进程建 handler,查只读元信息。"""
-    from module_ai.tools.sandbox_code_tools import _resolve_datasource
     from ezdata.handlers import create_handler
+    from module_ai.tools.sandbox_code_tools import _resolve_datasource
 
     ds = _resolve_datasource(code)
     return create_handler(ds['source_type'], ds['config'], ds['secrets'])

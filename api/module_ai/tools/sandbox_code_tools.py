@@ -15,15 +15,19 @@ from typing import Any
 
 from agno.tools import Toolkit
 
-
 _ROW_CAP = 500  # 表格产物最多回传行数(避免大表撑爆传输;LLM 文本摘要已含总数)
 
 
 class SandboxCodeTools(Toolkit):
     """沙箱代码执行工具集(供 agent 调用)。"""
 
-    def __init__(self, artifacts: list | None = None, allowed_codes: list | None = None,
-                 enable_datasource: bool = True, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        artifacts: list | None = None,
+        allowed_codes: list | None = None,
+        enable_datasource: bool = True,
+        **kwargs: Any,
+    ) -> None:
         # 结构化产物收集器(图表/表格):工具产出时 append,_stream_agent 排空发给前端渲染。
         # 给 LLM 的返回值仍是文本摘要,不污染上下文。
         self.artifacts: list = artifacts if artifacts is not None else []
@@ -69,13 +73,12 @@ class SandboxCodeTools(Toolkit):
 
         try:
             res = sandbox_client.run_python(code, variable_to_return)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             return f'调用沙箱失败: {e}'
         self._collect(res)
         return _format_result(res)
 
-    def run_datasource_query(self, datasource_code: str, code: str,
-                             variable_to_return: str = 'result') -> str:
+    def run_datasource_query(self, datasource_code: str, code: str, variable_to_return: str = 'result') -> str:
         """对指定数据源运行取数代码,可对数据加工后返回结论 / 表格 / 图表。
 
         code 中可直接使用预置的 `handler` 对象访问数据源:
@@ -100,11 +103,11 @@ class SandboxCodeTools(Toolkit):
             return f'该应用未授权访问数据源: {datasource_code}(仅可用: {", ".join(self.allowed_codes)})'
         try:
             datasource = _resolve_datasource(datasource_code)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             return f'数据源解析失败: {e}'
         try:
             res = sandbox_client.run_python_data(code, datasource, variable_to_return)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             return f'调用沙箱失败: {e}'
         self._collect(res)
         return _format_result(res)
@@ -120,7 +123,7 @@ def _resolve_datasource(code: str) -> dict:
     if rec.get('secrets'):
         try:
             secrets = json.loads(CryptoUtil.decrypt(rec['secrets']))
-        except Exception:  # noqa: BLE001 解密失败按空密钥,由 handler 报连接错误
+        except Exception:
             secrets = {}
     return {'source_type': rec['source_type'], 'config': rec.get('config') or {}, 'secrets': secrets}
 

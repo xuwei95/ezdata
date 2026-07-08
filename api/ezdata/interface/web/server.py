@@ -78,13 +78,13 @@ def make_handler(core):
                     frame = f'event: {ev.get("event", "message")}\ndata: {data}\n\n'
                     self.wfile.write(frame.encode('utf-8'))
                     self.wfile.flush()
-            except Exception as e:  # noqa: BLE001  已在流中,只能以 error 事件收尾
+            except Exception as e:
                 traceback.print_exc()
                 err = json.dumps({'error': f'{type(e).__name__}: {e}'}, ensure_ascii=False)
                 try:
-                    self.wfile.write(f'event: error\ndata: {err}\n\n'.encode('utf-8'))
+                    self.wfile.write(f'event: error\ndata: {err}\n\n'.encode())
                     self.wfile.flush()
-                except Exception:  # noqa: BLE001
+                except Exception:
                     pass
 
         def _file(self, path: Path, ctype: str):
@@ -95,13 +95,14 @@ def make_handler(core):
             self.send_response(200)
             self.send_header('Content-Type', ctype)
             self.send_header('Content-Length', str(len(body)))
-            self.send_header('Cache-Control', 'no-store')   # 开发期:每次刷新都取最新 UI,避免浏览器缓存旧页
+            self.send_header('Cache-Control', 'no-store')  # 开发期:每次刷新都取最新 UI,避免浏览器缓存旧页
             self.end_headers()
             self.wfile.write(body)
 
         def _download(self, data: bytes, ctype: str, filename: str):
             """以附件形式下发二进制(导出用)。"""
-            from urllib.parse import quote  # noqa: PLC0415
+            from urllib.parse import quote
+
             self.send_response(200)
             self.send_header('Content-Type', ctype)
             self.send_header('Content-Disposition', f"attachment; filename*=UTF-8''{quote(filename)}")
@@ -134,6 +135,7 @@ def make_handler(core):
                     return self._json(core.connection_schema(q['type']))
                 if u.path == '/api/icon':
                     from ezdata import services
+
                     return self._json({'svg': services.source_type_icon(q['type'])})
                 if u.path == '/api/deps':
                     return self._json(core.dependency_status(q['type']))
@@ -146,10 +148,15 @@ def make_handler(core):
                 if u.path == '/api/sample':
                     return self._json(core.sample_query(q['name'], q['table']))
                 if u.path == '/api/llm':
-                    return self._json({'ready': core.llm.ready, 'model': core.llm.cfg.get('model'),
-                                       'base_url': core.llm.cfg.get('base_url')})
+                    return self._json(
+                        {
+                            'ready': core.llm.ready,
+                            'model': core.llm.cfg.get('model'),
+                            'base_url': core.llm.cfg.get('base_url'),
+                        }
+                    )
                 self._json({'error': 'not found'}, 404)
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 traceback.print_exc()
                 self._err(e)
 
@@ -159,8 +166,9 @@ def make_handler(core):
             try:
                 b = self._body()
                 if u.path == '/api/connections':
-                    return self._json(core.add_connection(
-                        b['name'], b['source_type'], b.get('config'), b.get('secrets')))
+                    return self._json(
+                        core.add_connection(b['name'], b['source_type'], b.get('config'), b.get('secrets'))
+                    )
                 if u.path == '/api/connections/update':
                     name = b.pop('name')
                     return self._json(core.update_connection(name, **b))
@@ -168,32 +176,34 @@ def make_handler(core):
                     return self._json({'removed': core.remove_connection(b['name'])})
                 if u.path == '/api/test':
                     # name 存在时以原连接为底合并(编辑态:测新 config + 原密钥);纯新建则只用传入值
-                    return self._json(core.test_connection(
-                        b.get('name'), source_type=b.get('source_type'),
-                        config=b.get('config'), secrets=b.get('secrets')))
+                    return self._json(
+                        core.test_connection(
+                            b.get('name'),
+                            source_type=b.get('source_type'),
+                            config=b.get('config'),
+                            secrets=b.get('secrets'),
+                        )
+                    )
                 if u.path == '/api/query':
                     return self._json({'rows': core.query(b['name'], b['statement'], b.get('limit', 200))})
                 if u.path == '/api/export':
                     data = core.export_excel(b.get('rows') or [])
                     fn = b.get('filename') or 'export.xlsx'
-                    return self._download(
-                        data, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', fn)
+                    return self._download(data, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', fn)
                 if u.path == '/api/ask':
-                    return self._json(core.ask(b['name'], b['question'],
-                                               b.get('tables'), b.get('limit', 200)))
+                    return self._json(core.ask(b['name'], b['question'], b.get('tables'), b.get('limit', 200)))
                 if u.path == '/api/ask/stream':
-                    return self._sse(core.ask_stream(b['name'], b['question'],
-                                                     b.get('tables'), b.get('limit', 200)))
+                    return self._sse(core.ask_stream(b['name'], b['question'], b.get('tables'), b.get('limit', 200)))
                 if u.path == '/api/gen/stream':
                     return self._sse(core.gen_query_stream(b['name'], b['question'], b.get('tables')))
                 if u.path == '/api/deps/install':
-                    return self._json(core.install_dependencies(
-                        b['source_type'], upgrade=b.get('upgrade', False)))
+                    return self._json(core.install_dependencies(b['source_type'], upgrade=b.get('upgrade', False)))
                 if u.path == '/api/deps/install/stream':
-                    return self._sse(core.install_dependencies_stream(
-                        b['source_type'], upgrade=b.get('upgrade', False)))
+                    return self._sse(
+                        core.install_dependencies_stream(b['source_type'], upgrade=b.get('upgrade', False))
+                    )
                 self._json({'error': 'not found'}, 404)
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 traceback.print_exc()
                 self._err(e)
 

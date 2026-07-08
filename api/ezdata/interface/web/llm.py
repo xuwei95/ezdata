@@ -45,22 +45,21 @@ def _build_model(cfg: dict, temperature: float | None):
 
     try:
         if _is_anthropic(provider):
-            from agno.models.anthropic import Claude  # noqa: PLC0415
+            from agno.models.anthropic import Claude
 
             # Claude 不接受顶层 base_url;自定义网关须走 client_params(对齐主项目 AiUtil 的处理)
             if base_url:
                 params['client_params'] = {'base_url': base_url}
             return Claude(**params)
 
-        from agno.models.openai import OpenAIChat  # noqa: PLC0415
+        from agno.models.openai import OpenAIChat
 
         if base_url:
             params['base_url'] = base_url
         return OpenAIChat(**params)
     except ImportError as e:
         raise LLMError(
-            '未安装 agno 或对应 provider SDK:请 `pip install agno openai anthropic`'
-            '(或 pip install ezdata[ai])'
+            '未安装 agno 或对应 provider SDK:请 `pip install agno openai anthropic`(或 pip install ezdata[ai])'
         ) from e
 
 
@@ -76,12 +75,11 @@ class LLMClient:
         return bool(self.cfg.get('api_key') and self.cfg.get('model'))
 
     def _agent(self, temperature: float | None):
-        from agno.agent import Agent  # noqa: PLC0415
+        from agno.agent import Agent
 
         return Agent(model=_build_model(self.cfg, temperature))
 
-    def complete(self, prompt: str, *, system: str | None = None,
-                 temperature: float = 0.0) -> str:
+    def complete(self, prompt: str, *, system: str | None = None, temperature: float = 0.0) -> str:
         """一次性补全,返回文本。"""
         if not self.ready:
             raise LLMError('LLM 未配置:请检查 .env 的 LLM_API_KEY / LLM_MODEL')
@@ -90,12 +88,11 @@ class LLMClient:
             out = self._agent(temperature).run(text)
         except LLMError:
             raise
-        except Exception as e:  # noqa: BLE001  统一包成 LLMError,保留原始链
+        except Exception as e:
             raise LLMError(f'LLM 调用失败: {e}') from e
         return (getattr(out, 'content', None) or str(out) or '').strip()
 
-    def stream(self, prompt: str, *, system: str | None = None,
-               temperature: float = 0.0) -> Iterator[str]:
+    def stream(self, prompt: str, *, system: str | None = None, temperature: float = 0.0) -> Iterator[str]:
         """流式补全:逐段 yield 文本增量(对齐主项目 _ai_stream:取事件 .content,无增量则回退整段)。"""
         if not self.ready:
             raise LLMError('LLM 未配置:请检查 .env 的 LLM_API_KEY / LLM_MODEL')
@@ -112,7 +109,7 @@ class LLMClient:
                 yield getattr(out, 'content', None) or str(out)
         except LLMError:
             raise
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             raise LLMError(f'LLM 流式调用失败: {e}') from e
 
 

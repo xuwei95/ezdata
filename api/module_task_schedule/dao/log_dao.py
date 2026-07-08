@@ -32,10 +32,7 @@ class TaskLogDao:
             new_rows = (
                 (
                     await db.execute(
-                        select(TaskLog)
-                        .where(cond, TaskLog.id > after_id)
-                        .order_by(TaskLog.id.asc())
-                        .limit(2000)
+                        select(TaskLog).where(cond, TaskLog.id > after_id).order_by(TaskLog.id.asc()).limit(2000)
                     )
                 )
                 .scalars()
@@ -52,9 +49,7 @@ class TaskLogDao:
         limit = query_object.page_size or 100
         total = (await db.execute(select(func.count()).select_from(TaskLog).where(cond))).scalar() or 0
         latest = (
-            (await db.execute(select(TaskLog).where(cond).order_by(TaskLog.id.desc()).limit(limit)))
-            .scalars()
-            .all()
+            (await db.execute(select(TaskLog).where(cond).order_by(TaskLog.id.desc()).limit(limit))).scalars().all()
         )
         rows = list(reversed(latest))  # 反转为时间正序(老->新)，便于控制台式滚动到底部
         return PageModel(

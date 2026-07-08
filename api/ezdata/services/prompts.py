@@ -41,7 +41,7 @@ def _api_query_prompt(handler: Any, object_names: list[str] | None, question: st
     if not names:  # 没选函数:给出白名单里前若干个候选,让模型自行挑选
         try:
             names = [t for t in handler.list_tables()][:SCHEMA_TABLE_CAP]
-        except Exception:  # noqa: BLE001
+        except Exception:
             names = list(labels.keys())[:SCHEMA_TABLE_CAP]
     blocks: list[str] = []
     for t in names:
@@ -50,7 +50,7 @@ def _api_query_prompt(handler: Any, object_names: list[str] | None, question: st
         if hasattr(handler, 'describe'):
             try:
                 doc = (handler.describe(t) or '').strip()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 doc = ''
         block = f'- {t}' + (f':{desc}' if desc else '')
         if doc:
@@ -81,7 +81,7 @@ def _native_query_prompt(handler: Any, object_names: list[str] | None, question:
         try:
             sq = handler.sample_query(names[0], 50)
             example = f'该数据源原生查询的结构形如(请在此基础上按需求改写):\n{json.dumps(sq, ensure_ascii=False)}\n'
-        except Exception:  # noqa: BLE001
+        except Exception:
             example = ''
     return (
         f'你是 {handler.name} 数据查询专家。{schema_ctx}'
@@ -106,14 +106,17 @@ def _schema_context(handler: Any, object_names: list[str] | None) -> str:
     # 没选表:喂全库结构(滤掉 dlt 内部表),大库截断
     try:
         tables = [t for t in handler.list_tables() if not t.startswith('_dlt')]
-    except Exception:  # noqa: BLE001
+    except Exception:
         return ''
     shown = tables[:SCHEMA_TABLE_CAP]
     parts = _tables_schema(handler, shown)
     if not parts:
         return ''
-    note = (f'(全库共 {len(tables)} 张表,仅列出前 {len(shown)} 张;'
-            f'如需其它表请在主表里指定)\n') if len(tables) > len(shown) else ''
+    note = (
+        (f'(全库共 {len(tables)} 张表,仅列出前 {len(shown)} 张;如需其它表请在主表里指定)\n')
+        if len(tables) > len(shown)
+        else ''
+    )
     return '可用表结构(可连表查询):\n' + note + '\n'.join(parts) + '\n\n'
 
 
@@ -124,7 +127,7 @@ def _tables_schema(handler: Any, tables: list[str]) -> list[str]:
         try:
             cols = handler.get_columns(t)
             parts.append(f'表 `{t}`: ' + ', '.join(f'{c.name} {c.type}' for c in cols))
-        except Exception:  # noqa: BLE001
+        except Exception:
             continue
     return parts
 
@@ -142,8 +145,11 @@ def build_transform_prompt(columns: list[str] | None, question: str) -> str:
 def build_extract_code_prompt(datasource_codes: list[str] | None, question: str) -> str:
     """取数代码(爬虫/任意取数)生成提示词:NL → 产出 result(list[dict])的 Python。"""
     codes = [c for c in (datasource_codes or []) if c]
-    srcs = (f'可用数据源(用 get_handler("编码") 取连接,有 .query()/.extract() 等只读取数方法):'
-            f'{", ".join(codes)}\n') if codes else ''
+    srcs = (
+        (f'可用数据源(用 get_handler("编码") 取连接,有 .query()/.extract() 等只读取数方法):{", ".join(codes)}\n')
+        if codes
+        else ''
+    )
     return (
         '你是 Python 数据抓取/取数专家。请根据需求写一段 Python 代码,把抓取/整理到的数据'
         '组织成 list[dict](每个 dict 是一行记录),并赋值给变量 `result`。\n'

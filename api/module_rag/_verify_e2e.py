@@ -39,7 +39,7 @@ def check(label, cond, detail=''):
     global PASS, FAIL
     ok = bool(cond)
     PASS += ok
-    FAIL += (not ok)
+    FAIL += not ok
     print(f'  [{"PASS" if ok else "FAIL"}] {label}' + (f' — {detail}' if detail else ''))
 
 
@@ -50,13 +50,25 @@ async def main() -> int:
     try:
         # 1. 建库 + 文本文档(不自动训练,测试里同步训练以便确定性)
         async with AsyncSessionLocal() as db:
-            ds_id = (await DatasetService.create(
-                db, DatasetCreateReq(name='e2e-kb', vector_backend='elasticsearch',
-                                     remark='端到端测试库'), 'tester'))['id']
-            doc_id = (await DocumentService.create(
-                db, DocumentCreateReq(dataset_id=ds_id, name='doc-平台介绍', document_type='text',
-                                      text=LONG_TEXT, auto_train=False,
-                                      chunk_strategy={'chunk_size': 180, 'chunk_overlap': 40}), 'tester'))['id']
+            ds_id = (
+                await DatasetService.create(
+                    db, DatasetCreateReq(name='e2e-kb', vector_backend='elasticsearch', remark='端到端测试库'), 'tester'
+                )
+            )['id']
+            doc_id = (
+                await DocumentService.create(
+                    db,
+                    DocumentCreateReq(
+                        dataset_id=ds_id,
+                        name='doc-平台介绍',
+                        document_type='text',
+                        text=LONG_TEXT,
+                        auto_train=False,
+                        chunk_strategy={'chunk_size': 180, 'chunk_overlap': 40},
+                    ),
+                    'tester',
+                )
+            )['id']
         check('建库 + 建文档', ds_id and doc_id, f'ds={ds_id[:8]} doc={doc_id[:8]}')
 
         # 2. 训练(同步)
@@ -81,12 +93,19 @@ async def main() -> int:
         # 5. QA 命中
         print('== QA ==')
         async with AsyncSessionLocal() as db:
-            await ChunkService.save(db, ChunkSaveReq(
-                dataset_id=ds_id, chunk_type='qa', question='公司年假有几天',
-                answer='公司提供每年 15 天带薪年假'), 'tester')
+            await ChunkService.save(
+                db,
+                ChunkSaveReq(
+                    dataset_id=ds_id, chunk_type='qa', question='公司年假有几天', answer='公司提供每年 15 天带薪年假'
+                ),
+                'tester',
+            )
         qa = retrieve(TENANT, '公司年假有几天', [ds_id], k=3, retrieval_type='hybrid')
-        check('QA 精确命中', any(r['chunk_type'] == 'qa' for r in qa['records']),
-              str([r['chunk_type'] for r in qa['records']]))
+        check(
+            'QA 精确命中',
+            any(r['chunk_type'] == 'qa' for r in qa['records']),
+            str([r['chunk_type'] for r in qa['records']]),
+        )
 
         return 0 if FAIL == 0 else 1
     finally:
@@ -95,7 +114,7 @@ async def main() -> int:
             async with AsyncSessionLocal() as db:
                 try:
                     await DatasetService.delete(db, ds_id)
-                except Exception as e:  # noqa: BLE001
+                except Exception as e:
                     print('  清理失败:', e)
         RequestContext.reset_current_tenant_id(token)
         print(f'\n== 结果:{PASS} passed, {FAIL} failed ==')

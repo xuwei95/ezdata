@@ -125,9 +125,7 @@ async def delete_template(
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     _require_super_admin(current_user)
-    result = await TaskTemplateService.delete_template_services(
-        query_db, DeleteTaskTemplateModel(ids=template_ids)
-    )
+    result = await TaskTemplateService.delete_template_services(query_db, DeleteTaskTemplateModel(ids=template_ids))
     logger.info(result.message)
     return ResponseUtil.success(msg=result.message)
 

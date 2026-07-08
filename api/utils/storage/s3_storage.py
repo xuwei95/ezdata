@@ -3,6 +3,7 @@
 注：boto3 在本模块顶部导入；storage_utils 仅在 STORAGE_TYPE=s3 时才导入本模块，
 因此 local 部署无需安装 boto3。
 """
+
 from collections.abc import Generator
 
 import boto3

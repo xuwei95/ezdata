@@ -22,7 +22,9 @@ PASS = FAIL = 0
 
 def check(label, cond, detail=''):
     global PASS, FAIL
-    ok = bool(cond); PASS += ok; FAIL += (not ok)
+    ok = bool(cond)
+    PASS += ok
+    FAIL += not ok
     print(f'  [{"PASS" if ok else "FAIL"}] {label}' + (f' — {detail}' if detail else ''))
 
 
@@ -39,8 +41,9 @@ async def main():
             # 1. 该源专属知识库 + 存一条业务知识
             kb = await DatasetService.ensure_for_source(db, ds_src.id, None, 'tester')
             check('取/建专属知识库', bool(kb.get('id')), kb.get('name'))
-            saved = await ChunkService.save(db, ChunkSaveReq(
-                dataset_id=kb['id'], chunk_type='chunk', content=KNOW), 'tester')
+            saved = await ChunkService.save(
+                db, ChunkSaveReq(dataset_id=kb['id'], chunk_type='chunk', content=KNOW), 'tester'
+            )
             chunk_id = saved.get('id')
 
             # 2. 核心:取数前的 KB 召回(_kb_context)能拿到业务知识
@@ -55,10 +58,10 @@ async def main():
                 res = await DataQueryService.ai_query(db, M_ID, '查最近10条已支付的订单', limit=10)
                 sql = res.get('query', '')
                 check('ai_query 产出 SQL', sql.lower().lstrip().startswith('select'), sql[:80])
-                check('ai_query 返回结果集', 'records' in res, f"total={res.get('total')}")
+                check('ai_query 返回结果集', 'records' in res, f'total={res.get("total")}')
                 # KB 注入生效的弱信号:LLM 多半会用 status=1 过滤已支付
                 print(f'  [信息] 生成 SQL: {sql}')
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 print(f'  [信息] ai_query 执行未完成(LLM/数据源原因,不影响 KB 注入结论): {str(e)[:120]}')
 
             return 0 if FAIL == 0 else 1

@@ -35,29 +35,30 @@ class HandlerMeta:
     name: str
     title: str
     family: str
-    capabilities: tuple[str, ...]              # 能力位名字(如 ('READ','WRITE',...))
+    capabilities: tuple[str, ...]  # 能力位名字(如 ('READ','WRITE',...))
     description: str
-    directory: str                             # 子包目录(取 icon.svg 用,免加载类)
+    directory: str  # 子包目录(取 icon.svg 用,免加载类)
     connection_args: 'OrderedDict[str, dict]'
     connection_args_example: 'OrderedDict[str, dict]'
-    loader: Callable[[], type[Connector]]      # 懒加载 thunk
+    loader: Callable[[], type[Connector]]  # 懒加载 thunk
     _cls: type[Connector] | None = field(default=None, repr=False)
     import_error: Exception | None = field(default=None, repr=False)
     _load_lock: 'threading.Lock' = field(default_factory=threading.Lock, repr=False, compare=False)
 
     def load(self) -> type[Connector]:
         """首次调用触发重导入并缓存(线程安全);失败记入 import_error 并抛 DependencyError。"""
-        if self._cls is not None:            # 快路径:已加载,无锁
+        if self._cls is not None:  # 快路径:已加载,无锁
             return self._cls
         with self._load_lock:
-            if self._cls is None:            # double-check
+            if self._cls is None:  # double-check
                 try:
                     self._cls = self.loader()
-                except Exception as e:  # noqa: BLE001
+                except Exception as e:
                     self.import_error = e
                     raise DependencyError(
                         f'数据源 {self.name} 依赖未就绪(驱动/包缺失,可用 install_dependencies 安装): {e}',
-                        source_type=self.name) from e
+                        source_type=self.name,
+                    ) from e
             return self._cls
 
 
@@ -85,7 +86,7 @@ def _cache_key(source_type: str, config: dict, secrets: 'str | dict | None') -> 
 def _safe_close(handler: Connector) -> None:
     try:
         handler.close()
-    except Exception:  # noqa: BLE001
+    except Exception:
         pass
 
 
@@ -167,7 +168,7 @@ def _discover() -> None:
             continue
         try:
             module = importlib.import_module(f'{__name__}.{mod.name}')
-        except Exception:  # noqa: BLE001  轻量 __init__ 都失败才会到这(基本不该发生)
+        except Exception:
             continue
         _register_module(module)
 
@@ -198,7 +199,7 @@ def handler_icon(source_type: str) -> str | None:
     try:
         with open(icon_path, encoding='utf-8') as f:
             return f.read()
-    except Exception:  # noqa: BLE001
+    except Exception:
         return None
 
 
@@ -216,10 +217,10 @@ def _read_requirements(path: str, seen: 'set[str] | None' = None) -> list[str]:
             s = ln.strip()
             if not s or s.startswith('#'):
                 continue
-            if s.startswith(('-r ', '--requirement')):          # 递归引用:相对本文件目录解析
+            if s.startswith(('-r ', '--requirement')):  # 递归引用:相对本文件目录解析
                 inc = s.split(None, 1)[1].strip()
                 out.extend(_read_requirements(os.path.join(base, inc), seen))
-            elif s.startswith('-'):                              # 其它 pip 选项(--extra-index-url 等)跳过
+            elif s.startswith('-'):  # 其它 pip 选项(--extra-index-url 等)跳过
                 continue
             else:
                 out.append(s)
@@ -238,7 +239,7 @@ def handler_requirements(source_type: str) -> list[str]:
 
 def _req_dist_name(requirement: str) -> str:
     """从依赖行(如 'elasticsearch>=8.13,<9')取分发包名(pip/importlib.metadata 用名)。"""
-    import re  # noqa: PLC0415
+    import re
 
     return re.split(r'[<>=!~;\[ ]', requirement, maxsplit=1)[0].strip()
 
@@ -250,7 +251,7 @@ def handler_dependencies(source_type: str) -> dict:
     这里按包名查 importlib.metadata,是与导入时机无关的准确判断。
     返回 {source_type, requirements, missing, ready}。
     """
-    import importlib.metadata as md  # noqa: PLC0415
+    import importlib.metadata as md
 
     reqs = handler_requirements(source_type)
     missing: list[str] = []
@@ -265,8 +266,9 @@ def handler_dependencies(source_type: str) -> dict:
     return {'source_type': source_type, 'requirements': reqs, 'missing': missing, 'ready': not missing}
 
 
-def create_handler(source_type: str, config: dict, secrets: str | dict | None = None,
-                   *, cache: bool = True) -> Connector:
+def create_handler(
+    source_type: str, config: dict, secrets: str | dict | None = None, *, cache: bool = True
+) -> Connector:
     """从库记录构造 handler 实例。
 
     cache=True(默认):按 (source_type, config, secrets) 内容哈希复用进程内实例,
@@ -288,7 +290,7 @@ def create_handler(source_type: str, config: dict, secrets: str | dict | None = 
     handler = get_handler_cls(source_type).from_record(config, secrets)
     with _cache_lock:
         ent = _handler_cache.get(key)
-        if ent is not None:            # 并发下他人已建,丢弃本次、用已有
+        if ent is not None:  # 并发下他人已建,丢弃本次、用已有
             ent[1] = now
             _handler_cache.move_to_end(key)
             _safe_close(handler)
@@ -306,12 +308,15 @@ def connection_schema(source_type: str) -> dict:
 
 def list_source_types() -> list[dict]:
     """列出已注册源类型 + 能力(给前端/权限可选项)。走轻量元数据,不加载任何 Handler 类。"""
-    return [{
-        'source_type': meta.name,
-        'title': meta.title,
-        'family': meta.family,
-        'capabilities': list(meta.capabilities),
-    } for _st, meta in sorted(_handlers.items())]
+    return [
+        {
+            'source_type': meta.name,
+            'title': meta.title,
+            'family': meta.family,
+            'capabilities': list(meta.capabilities),
+        }
+        for _st, meta in sorted(_handlers.items())
+    ]
 
 
 _discover()

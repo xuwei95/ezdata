@@ -22,12 +22,12 @@ def run_auto_migrate() -> None:
     if not _truthy(os.getenv('AUTO_MIGRATE')):
         return
     try:
-        from alembic import command  # noqa: PLC0415
-        from alembic.config import Config  # noqa: PLC0415
-        from alembic.runtime.migration import MigrationContext  # noqa: PLC0415
-        from sqlalchemy import create_engine  # noqa: PLC0415
+        from alembic import command
+        from alembic.config import Config
+        from alembic.runtime.migration import MigrationContext
+        from sqlalchemy import create_engine
 
-        from config.database import SYNC_SQLALCHEMY_DATABASE_URL  # noqa: PLC0415
+        from config.database import SYNC_SQLALCHEMY_DATABASE_URL
 
         eng = create_engine(SYNC_SQLALCHEMY_DATABASE_URL)
         try:
@@ -44,5 +44,5 @@ def run_auto_migrate() -> None:
         logger.info('⛓️ AUTO_MIGRATE: alembic upgrade head …')
         command.upgrade(cfg, 'head')
         logger.info('✅️ AUTO_MIGRATE: 迁移完成')
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error(f'❌ AUTO_MIGRATE 迁移失败(不阻断启动,可手动处理): {e}')

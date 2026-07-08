@@ -76,9 +76,11 @@ class AzureBlobHandler(Connector):
     def extract(self, table: str, *, file_glob: str | None = None, **kwargs: Any) -> Any:
         from dlt.sources.filesystem import filesystem
 
-        return filesystem(bucket_url=f'az://{self.container}',
-                          credentials={'connection_string': self.arg('connection_string')},
-                          file_glob=file_glob or f'{table}*')
+        return filesystem(
+            bucket_url=f'az://{self.container}',
+            credentials={'connection_string': self.arg('connection_string')},
+            file_glob=file_glob or f'{table}*',
+        )
 
     def write(self, data: bytes | str, table: str, mode: str = 'append', **kwargs: Any) -> Any:
         body = data.encode() if isinstance(data, str) else data

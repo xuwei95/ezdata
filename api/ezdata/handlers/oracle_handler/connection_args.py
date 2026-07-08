@@ -12,7 +12,12 @@ connection_args = OrderedDict(
     service_name={'type': ARG_TYPE.STR, 'description': 'Service Name。', 'required': False, 'label': 'Service Name'},
     user={'type': ARG_TYPE.STR, 'description': '用户名。', 'required': True, 'label': 'User'},
     password={'type': ARG_TYPE.PWD, 'description': '密码。', 'required': True, 'label': 'Password', 'secret': True},
-    thick_mode={'type': ARG_TYPE.BOOL, 'description': '是否启用 thick 模式。', 'required': False, 'label': 'Thick Mode'},
+    thick_mode={
+        'type': ARG_TYPE.BOOL,
+        'description': '是否启用 thick 模式。',
+        'required': False,
+        'label': 'Thick Mode',
+    },
 )
 
 connection_args_example = OrderedDict(host='127.0.0.1', port=1521, user='admin', password='password', sid='ORCL')
