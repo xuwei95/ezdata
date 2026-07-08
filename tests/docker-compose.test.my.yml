@@ -72,6 +72,8 @@ services:
       interval: 5s
       timeout: 10s
       retries: 30
+      # 首启需 import 整份 ezdata.sql;start_period 内的失败不计数、不标 unhealthy,避免慢导入被误杀。
+      start_period: 240s
 
   # Redis服务
   ruoyi-redis:
