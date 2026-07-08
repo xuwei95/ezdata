@@ -14,6 +14,9 @@ from agno.tools import Toolkit
 # 目的是控制工具输出体积——这些结果会留在对话 history、每轮重发,越小越省 token。
 _UNMODELED_CAP = 60
 _DOC_LINE_CAP = 30
+# 注入取数上下文的业务文档(remark)最多这么多字符:超了截断,避免长文档每轮重发烧 token。
+# 完整内容仍在数据源备注里可查/可编辑。
+_BIZ_CTX_CAP = 2000
 
 
 class DataAgentTools(Toolkit):
@@ -165,6 +168,8 @@ class DataAgentTools(Toolkit):
             return f'数据源不存在: {datasource_code}'
         # 置顶注入该源的业务上下文(remark):表关系/口径/术语→字段/取数注意,取数前必读
         ctx = _datasource_business_context(datasource_code)
+        if len(ctx) > _BIZ_CTX_CAP:
+            ctx = ctx[:_BIZ_CTX_CAP] + '\n…(业务上下文较长已截断,完整内容见数据源备注)'
         prefix = f'【业务上下文】\n{ctx}\n\n' if ctx else ''
         try:
             kb = search_knowledge_base(query, source_id=ds_id)
