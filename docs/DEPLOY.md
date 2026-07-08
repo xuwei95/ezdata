@@ -272,6 +272,8 @@ dev 源码挂载,改完代码后端自动 reload;worker 需 `docker restart ezda
 
 > ⚠️ 新代码会查询新列,**先补列、再上带新代码的镜像**(同一维护窗口);列缺失会导致相关查询报错。
 
+**可选:启动时自动迁移** —— 设环境变量 **`AUTO_MIGRATE=true`**(默认关),后端启动时会自动 `alembic upgrade head`,省去手动。对"未纳入 alembic 的库(无 `alembic_version`,由 `*.sql` 建库)"会**先 stamp 基线再 upgrade**:基线由 `AUTO_MIGRATE_BASELINE` 控制(默认 `0002_seed_system`,即 `ezdata.sql` 对应的建表+种子状态)。迁移做了**幂等**(加列/改类型前查存在性),故对全新库(已含新列)、滞后库、已纳管库都安全;迁移失败只记日志、**不阻断启动**。滞后很多的库若基线不是 0002,把 `AUTO_MIGRATE_BASELINE` 设成它实际对应的版本即可。
+
 ---
 
 ## 10. 安全加固(对外部署)
