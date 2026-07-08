@@ -13,5 +13,9 @@ connection_args = OrderedDict(
 )
 
 connection_args_example = OrderedDict(
-    host='127.0.0.1', port=27017, username='mongo', password='password', database='database',
+    host='127.0.0.1',
+    port=27017,
+    username='mongo',
+    password='password',
+    database='database',
 )

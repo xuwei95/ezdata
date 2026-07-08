@@ -41,6 +41,7 @@ class CCXTHandler(Connector):
     def _exchange(self) -> Any:
         def _make():
             import ccxt
+
             ex_id = self.arg('exchange', default='okx')
             cls = getattr(ccxt, str(ex_id), None)
             if cls is None:
@@ -56,11 +57,17 @@ class CCXTHandler(Connector):
             ex = cls(cfg)
             # ccxt 不读 HTTP_PROXY 环境变量;沙箱只能经 egress 代理出网,显式注入(backend 无此 env 则直连)
             import os
-            proxy = (os.environ.get('HTTPS_PROXY') or os.environ.get('https_proxy')
-                     or os.environ.get('HTTP_PROXY') or os.environ.get('http_proxy'))
+
+            proxy = (
+                os.environ.get('HTTPS_PROXY')
+                or os.environ.get('https_proxy')
+                or os.environ.get('HTTP_PROXY')
+                or os.environ.get('http_proxy')
+            )
             if proxy:
                 ex.proxies = {'http': proxy, 'https': proxy}  # requests 风格;勿用 httpProxy/httpsProxy(4.x 互斥报错)
             return ex
+
         return self._lazy('_ex', _make)
 
     # ---------- 元信息 ----------
@@ -70,7 +77,7 @@ class CCXTHandler(Connector):
 
             ex = self._exchange()
             return ConnectResult(True, f'ccxt {ccxt.__version__} / {ex.id} 可用')
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             return ConnectResult(False, str(e))
 
     def list_tables(self) -> list[str]:
@@ -95,7 +102,7 @@ class CCXTHandler(Connector):
                 default = '' if required else repr(p.default)
                 cols.append(Column(name=pname, type='参数', comment='必填' if required else f'默认 {default}'))
             return cols or [Column(name='(无参)', type='', comment='')]
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             return [Column(name='(签名不可用)', type='', comment=str(e)[:80])]
 
     def describe(self, table: str) -> str:
@@ -120,7 +127,7 @@ class CCXTHandler(Connector):
         for i in range(attempts):
             try:
                 return fn(**params)
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 msg = str(e).lower()
                 if any(k in msg for k in ('timeout', 'network', 'connection', 'temporarily', 'rate', 'ddos')):
                     last = e
@@ -150,10 +157,19 @@ class CCXTHandler(Connector):
     def _normalize(method: str, res: Any, limit: int | None) -> list[dict]:
         rows: list[dict]
         if method == 'fetch_ohlcv' and isinstance(res, list):
-            rows = [{'timestamp': r[0],
-                     'datetime': datetime.fromtimestamp(r[0] / 1000, tz=timezone.utc).isoformat(),
-                     'open': r[1], 'high': r[2], 'low': r[3], 'close': r[4], 'volume': r[5]}
-                    for r in res if isinstance(r, (list, tuple)) and len(r) >= 6]
+            rows = [
+                {
+                    'timestamp': r[0],
+                    'datetime': datetime.fromtimestamp(r[0] / 1000, tz=timezone.utc).isoformat(),
+                    'open': r[1],
+                    'high': r[2],
+                    'low': r[3],
+                    'close': r[4],
+                    'volume': r[5],
+                }
+                for r in res
+                if isinstance(r, (list, tuple)) and len(r) >= 6
+            ]
         elif method == 'load_markets' and isinstance(res, dict):
             rows = [{'symbol': k, **(v if isinstance(v, dict) else {'value': v})} for k, v in res.items()]
         elif isinstance(res, dict):

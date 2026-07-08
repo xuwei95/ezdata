@@ -35,7 +35,6 @@ import multiprocessing as mp
 import os
 import platform
 import queue
-import sys
 import traceback
 from datetime import datetime
 from typing import Any
@@ -57,7 +56,7 @@ _HAS_FORK = hasattr(os, 'fork')
 for _m in ('pandas', 'numpy'):
     try:
         __import__(_m)
-    except Exception:  # noqa: BLE001 未装则跳过
+    except Exception:
         pass
 
 
@@ -90,7 +89,7 @@ class _InjectedDbLogWriter:
         try:
             session.bulk_insert_mappings(TaskLog, rows)
             session.commit()
-        except Exception:  # noqa: BLE001 日志写库失败不影响执行
+        except Exception:
             session.rollback()
         finally:
             session.close()
@@ -107,12 +106,14 @@ def _make_log_writer(cfg: dict) -> Any | None:
             from module_task_schedule.task_logger import EsTaskLogWriter
 
             return EsTaskLogWriter(
-                hosts=cfg['hosts'], index=cfg.get('index', 'task_logs'),
-                user=cfg.get('user', ''), password=cfg.get('password', ''),
+                hosts=cfg['hosts'],
+                index=cfg.get('index', 'task_logs'),
+                user=cfg.get('user', ''),
+                password=cfg.get('password', ''),
             )
         if typ == 'db' and cfg.get('db_url'):
             return _InjectedDbLogWriter(cfg['db_url'])
-    except Exception:  # noqa: BLE001 直写后端初始化失败 → 降级为仅收集回传
+    except Exception:
         return None
     return None
 
@@ -133,7 +134,7 @@ class _SandboxLogger:
         if self._writer is not None:
             try:
                 self._writer.write(self._task_uuid, level, text, datetime.now())
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
 
     def debug(self, message: Any) -> None:
@@ -174,8 +175,9 @@ def _jsonable(v: Any) -> Any:
     except (TypeError, ValueError):
         try:
             from ezdata.utils.etl_util import json_safe
+
             return json_safe(v)
-        except Exception:  # noqa: BLE001 兜底:实在不行才整体 str()
+        except Exception:
             return str(v)
 
 
@@ -210,8 +212,10 @@ def _dispatch(kind: str, payload: dict) -> dict:
     if kind in ('pyrun', 'pydata', 'pyextract'):
         return _run_pycode(kind, payload)
 
-    logger = _SandboxLogger(_make_log_writer(payload.get('logger_config') or {}),
-                            (payload.get('logger_config') or {}).get('task_uuid') or 'sandbox')
+    logger = _SandboxLogger(
+        _make_log_writer(payload.get('logger_config') or {}),
+        (payload.get('logger_config') or {}).get('task_uuid') or 'sandbox',
+    )
     stdout = io.StringIO()
     try:
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stdout):
@@ -221,16 +225,20 @@ def _dispatch(kind: str, payload: dict) -> dict:
             logger.info(f'[stdout] {out.rstrip()}')
         logger.info(f'[执行成功] 返回值: {_jsonable(result)}')
         logger.close()
-        return {'success': True, 'result': _jsonable(result), 'output': out,
-                'logs': logger.lines, 'error': None}
-    except Exception as e:  # noqa: BLE001 业务执行错误回报给调用方
+        return {'success': True, 'result': _jsonable(result), 'output': out, 'logs': logger.lines, 'error': None}
+    except Exception as e:
         out = stdout.getvalue()
         if out.strip():
             logger.info(f'[stdout] {out.rstrip()}')
         logger.error(f'[执行失败] {type(e).__name__}: {e}')
         logger.close()
-        return {'success': False, 'error': f'{type(e).__name__}: {e}', 'output': out,
-                'logs': logger.lines, 'result': None}
+        return {
+            'success': False,
+            'error': f'{type(e).__name__}: {e}',
+            'output': out,
+            'logs': logger.lines,
+            'result': None,
+        }
 
 
 # 受限 builtins:门住所有沙箱代码(/python/run、/python/data、/transform)的 import。
@@ -238,15 +246,52 @@ def _dispatch(kind: str, payload: dict) -> dict:
 # 网络类(akshare/requests)的出网由 egress 代理(SANDBOX_EGRESS_ALLOW 域名白名单)兜底,而非此处。
 # 注:run_datasource_query 走 akshare 数据源时,handler.query 在普通作用域 import,无需在此放行。
 _ALLOWED_MODULES = {
-    'math', 'datetime', 'time', 'json', 'random', 're', 'decimal', 'itertools', 'collections',
-    'statistics', 'string', 'uuid', 'hashlib', 'base64', 'textwrap', 'functools', 'operator',
-    'pandas', 'numpy', 'pyecharts',
-    'akshare', 'requests', 'ccxt',  # 联网取数:出网受 egress 代理域名白名单约束
-    'bs4', 'lxml', 'urllib',        # 代码取数/爬虫:HTML 解析 + URL 处理(网络仍受 egress 约束)
+    'math',
+    'datetime',
+    'time',
+    'json',
+    'random',
+    're',
+    'decimal',
+    'itertools',
+    'collections',
+    'statistics',
+    'string',
+    'uuid',
+    'hashlib',
+    'base64',
+    'textwrap',
+    'functools',
+    'operator',
+    'pandas',
+    'numpy',
+    'pyecharts',
+    'akshare',
+    'requests',
+    'ccxt',  # 联网取数:出网受 egress 代理域名白名单约束
+    'bs4',
+    'lxml',
+    'urllib',  # 代码取数/爬虫:HTML 解析 + URL 处理(网络仍受 egress 约束)
 }
 _BLOCKED_BUILTINS = {
-    'open', 'eval', 'exec', 'compile', 'input', 'breakpoint', 'exit', 'quit', 'help',
-    'memoryview', 'globals', 'vars', 'locals', 'dir', 'getattr', 'setattr', 'delattr', '__import__',
+    'open',
+    'eval',
+    'exec',
+    'compile',
+    'input',
+    'breakpoint',
+    'exit',
+    'quit',
+    'help',
+    'memoryview',
+    'globals',
+    'vars',
+    'locals',
+    'dir',
+    'getattr',
+    'setattr',
+    'delattr',
+    '__import__',
 }
 
 
@@ -255,7 +300,7 @@ def _safe_builtins() -> dict:
 
     safe = {n: getattr(_b, n) for n in dir(_b) if not n.startswith('_') and n not in _BLOCKED_BUILTINS}
 
-    def _guarded_import(name, *a, **k):  # noqa: ANN001,ANN002,ANN003
+    def _guarded_import(name, *a, **k):
         if name.split('.')[0] not in _ALLOWED_MODULES:
             raise ImportError(f'sandbox 禁止导入: {name}')
         return _b.__import__(name, *a, **k)
@@ -269,7 +314,7 @@ def _is_dataframe(v: Any) -> bool:
         import pandas as pd
 
         return isinstance(v, pd.DataFrame)
-    except Exception:  # noqa: BLE001
+    except Exception:
         return False
 
 
@@ -329,7 +374,7 @@ def _run_pycode(kind: str, payload: dict) -> dict:
         try:
             if hasattr(rows, 'to_dict') and not isinstance(rows, dict):
                 rows = rows.to_dict('records')
-        except Exception:  # noqa: BLE001
+        except Exception:
             pass
         if isinstance(rows, dict):
             rows = [rows]
@@ -348,12 +393,12 @@ def _run_pycode(kind: str, payload: dict) -> dict:
         try:
             from ezdata.handlers import create_handler
 
-            g['handler'] = create_handler(ds.get('source_type'), ds.get('config') or {}, ds.get('secrets') or {},
-                                          cache=False)  # 沙箱 fork 子进程用完即死,不缓
+            g['handler'] = create_handler(
+                ds.get('source_type'), ds.get('config') or {}, ds.get('secrets') or {}, cache=False
+            )  # 沙箱 fork 子进程用完即死,不缓
             g['datasource'] = g['handler']  # 别名
-        except Exception as e:  # noqa: BLE001
-            return {'success': False, 'error': f'数据源连接失败: {type(e).__name__}: {e}',
-                    'stdout': '', 'result': None}
+        except Exception as e:
+            return {'success': False, 'error': f'数据源连接失败: {type(e).__name__}: {e}', 'stdout': '', 'result': None}
     if kind == 'pyextract':
         # 代码取数:注入 get_handler(code) 从预解密注入的 datasources map 建 handler(仅限注入的源)
         dsmap = payload.get('datasources') or {}
@@ -364,28 +409,32 @@ def _run_pycode(kind: str, payload: dict) -> dict:
                 ds = dsmap.get(code)
                 if not ds:
                     raise ValueError(f'数据源未授权或未注入: {code}')
-                return create_handler(ds.get('source_type'), ds.get('config') or {}, ds.get('secrets') or {},
-                                      cache=False)
+                return create_handler(
+                    ds.get('source_type'), ds.get('config') or {}, ds.get('secrets') or {}, cache=False
+                )
 
             g['get_handler'] = _get_handler
             if len(dsmap) == 1:
                 g['handler'] = _get_handler(next(iter(dsmap)))  # 仅 1 个源时给 handler 别名
-        except Exception as e:  # noqa: BLE001
-            return {'success': False, 'error': f'数据源连接失败: {type(e).__name__}: {e}',
-                    'stdout': '', 'result': None}
+        except Exception as e:
+            return {'success': False, 'error': f'数据源连接失败: {type(e).__name__}: {e}', 'stdout': '', 'result': None}
     stdout = io.StringIO()
     try:
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stdout):
             try:
-                exec(compile(code, '<sandbox-pycode>', 'exec'), g)  # noqa: S102 受限 builtins + 容器边界
+                exec(compile(code, '<sandbox-pycode>', 'exec'), g)
             except _StopPreview:  # emit 攒够样本主动中断:正常结束,用已收集的样本
                 pass
         out_val = g.get(var) if var else None
         if out_val is None and _emit_buf:  # 用了 emit 而未设 result:预览取 emit 收集的样本
             out_val = _emit_buf
         # result 是生成器(原生 yield 流式):预览时迭代出前 _EMIT_PREVIEW_CAP 行做样本,避免被 str 化
-        if (out_val is not None and not isinstance(out_val, (list, tuple, dict, str, bytes))
-                and not _is_dataframe(out_val) and hasattr(out_val, '__iter__')):
+        if (
+            out_val is not None
+            and not isinstance(out_val, (list, tuple, dict, str, bytes))
+            and not _is_dataframe(out_val)
+            and hasattr(out_val, '__iter__')
+        ):
             sample: list[Any] = []
             for it in out_val:
                 if isinstance(it, dict):
@@ -398,10 +447,15 @@ def _run_pycode(kind: str, payload: dict) -> dict:
         result = _normalize_result(out_val) if var else None
         logger.close()
         return {'success': True, 'result': result, 'stdout': stdout.getvalue(), 'logs': logger.lines, 'error': None}
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.close()
-        return {'success': False, 'error': f'{type(e).__name__}: {e}', 'stdout': stdout.getvalue(),
-                'logs': logger.lines, 'result': None}
+        return {
+            'success': False,
+            'error': f'{type(e).__name__}: {e}',
+            'stdout': stdout.getvalue(),
+            'logs': logger.lines,
+            'result': None,
+        }
 
 
 def _run_transform(code: str, rows: list) -> dict:
@@ -412,21 +466,24 @@ def _run_transform(code: str, rows: list) -> dict:
     g = {'__builtins__': _safe_builtins()}
     try:
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stdout):
-            exec(compile(code, '<sandbox-transform>', 'exec'), g)  # noqa: S102 受限 builtins + 容器边界
+            exec(compile(code, '<sandbox-transform>', 'exec'), g)
             fn = g.get('transform')
             if not callable(fn):
-                return {'success': False, 'error': '代码必须定义 transform(row) 函数',
-                        'transformed': None, 'output': stdout.getvalue()}
+                return {
+                    'success': False,
+                    'error': '代码必须定义 transform(row) 函数',
+                    'transformed': None,
+                    'output': stdout.getvalue(),
+                }
             out = []
             for r in rows:
                 try:
                     out.append(fn(dict(r)))
-                except Exception as e:  # noqa: BLE001 逐行容错
+                except Exception as e:
                     out.append({'_transform_error': str(e), **(r if isinstance(r, dict) else {})})
         return {'success': True, 'transformed': out, 'output': stdout.getvalue(), 'error': None}
-    except Exception as e:  # noqa: BLE001
-        return {'success': False, 'error': f'{type(e).__name__}: {e}', 'transformed': None,
-                'output': stdout.getvalue()}
+    except Exception as e:
+        return {'success': False, 'error': f'{type(e).__name__}: {e}', 'transformed': None, 'output': stdout.getvalue()}
 
 
 # ---------------------------------------------------------------------------
@@ -440,16 +497,20 @@ def _subprocess_entry(kind: str, payload: dict, q: Any) -> None:
 
             if MEM_LIMIT > 0:
                 resource.setrlimit(resource.RLIMIT_AS, (MEM_LIMIT, MEM_LIMIT))
-        except Exception:  # noqa: BLE001
+        except Exception:
             pass
     try:
         result = _dispatch(kind, payload)
-    except Exception as e:  # noqa: BLE001
-        result = {'success': False, 'error': f'{type(e).__name__}: {e}\n{traceback.format_exc()}',
-                  'logs': [], 'output': ''}
+    except Exception as e:
+        result = {
+            'success': False,
+            'error': f'{type(e).__name__}: {e}\n{traceback.format_exc()}',
+            'logs': [],
+            'output': '',
+        }
     try:
         q.put(result)
-    except Exception:  # noqa: BLE001 结果不可 pickle 等极端情况
+    except Exception:
         q.put({'success': False, 'error': '执行结果无法回传(序列化失败)', 'logs': [], 'output': ''})
 
 
@@ -490,11 +551,11 @@ def _auth(authorization: str = Header(default='')) -> None:
 
 
 class TaskReq(BaseModel):
-    template_code: str = ''           # 内置:PythonTask / ShellTask / DataIntegrationTask
-    runner_type: int = 1              # 1 内置 runner / 2 动态代码
-    runner_code: str | None = None    # runner_type=2 时的模板代码
+    template_code: str = ''  # 内置:PythonTask / ShellTask / DataIntegrationTask
+    runner_type: int = 1  # 1 内置 runner / 2 动态代码
+    runner_code: str | None = None  # runner_type=2 时的模板代码
     params: dict = {}
-    datasources: dict = {}            # {code: {source_type, config, secrets(明文 dict)}} 仅 ETL 用
+    datasources: dict = {}  # {code: {source_type, config, secrets(明文 dict)}} 仅 ETL 用
     logger_config: dict | None = None
     timeout: int = 300
 
@@ -513,14 +574,14 @@ class PyRunReq(BaseModel):
 
 class PyDataReq(BaseModel):
     code: str
-    datasource: dict = {}                 # {source_type, config, secrets(明文 dict)}
+    datasource: dict = {}  # {source_type, config, secrets(明文 dict)}
     variable_to_return: str | None = 'result'
     timeout: int = 60
 
 
 class PyExtractReq(BaseModel):
     code: str
-    datasources: dict = {}                # {code: {source_type, config, secrets(明文 dict)}};get_handler 据此建连
+    datasources: dict = {}  # {code: {source_type, config, secrets(明文 dict)}};get_handler 据此建连
     variable_to_return: str | None = 'result'
     timeout: int = 60
 
@@ -534,9 +595,15 @@ async def health() -> dict:
 async def task_execute(req: TaskReq, authorization: str = Header(default='')) -> dict:
     """通用任务执行:沙箱即远程 executor,按 template_code/runner_type 复用平台 runner。"""
     _auth(authorization)
-    payload = {'template_code': req.template_code, 'runner_type': req.runner_type,
-               'runner_code': req.runner_code, 'params': req.params, 'datasources': req.datasources,
-               'logger_config': req.logger_config, 'timeout': req.timeout}
+    payload = {
+        'template_code': req.template_code,
+        'runner_type': req.runner_type,
+        'runner_code': req.runner_code,
+        'params': req.params,
+        'datasources': req.datasources,
+        'logger_config': req.logger_config,
+        'timeout': req.timeout,
+    }
     return await run_in_threadpool(_execute_with_timeout, 'task', payload, req.timeout)
 
 
@@ -575,7 +642,7 @@ def main() -> None:
     import uvicorn
 
     print(f'[sandbox] FastAPI listening on :{PORT} (fork={_HAS_FORK})', flush=True)
-    uvicorn.run(app, host='0.0.0.0', port=PORT, log_level='warning')  # noqa: S104 容器内,靠网络隔离
+    uvicorn.run(app, host='0.0.0.0', port=PORT, log_level='warning')
 
 
 if __name__ == '__main__':

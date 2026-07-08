@@ -68,7 +68,7 @@ class TaskTemplateManagementTest(BasePageTest):
         await self.wait_for_selector('text=模板名称')
 
         # 内置模板存在(PythonTask/ShellTask)
-        await self.wait_for_selector("text=PythonTask", timeout=10000)
+        await self.wait_for_selector('text=PythonTask', timeout=10000)
 
         await self.create_template(data['name'], data['code'], data['field'], data['field_label'])
         await self.edit_template(data['name'], data['name_edit'])

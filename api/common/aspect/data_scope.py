@@ -96,7 +96,7 @@ class GetDataScope:
         return param_sql
 
 
-def DataScopeDependency(  # noqa: N802
+def DataScopeDependency(
     query_alias: Base,
     user_alias: str | None = 'user_id',
     dept_alias: str | None = 'dept_id',

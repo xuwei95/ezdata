@@ -21,12 +21,17 @@ class DocumentService:
     """文档管理 + 触发训练。"""
 
     @classmethod
-    async def get_list(cls, db: AsyncSession, dataset_id: str, name: str | None,
-                       page_num: int, page_size: int, is_page: bool = True) -> Any:
-        query = select(RagDocument).where(
-            RagDocument.dataset_id == dataset_id,
-            RagDocument.name.like(f'%{name}%') if name else True,
-        ).order_by(RagDocument.create_time.desc())
+    async def get_list(
+        cls, db: AsyncSession, dataset_id: str, name: str | None, page_num: int, page_size: int, is_page: bool = True
+    ) -> Any:
+        query = (
+            select(RagDocument)
+            .where(
+                RagDocument.dataset_id == dataset_id,
+                RagDocument.name.like(f'%{name}%') if name else True,
+            )
+            .order_by(RagDocument.create_time.desc())
+        )
         return await PageUtil.paginate(db, query, page_num, page_size, is_page)
 
     @classmethod
@@ -39,13 +44,22 @@ class DocumentService:
             meta = {}
             if req.document_type == 'text' and req.text:
                 meta['text'] = req.text
-            db.add(RagDocument(
-                id=doc_id, dataset_id=req.dataset_id, name=req.name, document_type=req.document_type,
-                file_key=req.file_key, source=req.source,
-                meta_data=json.dumps(meta, ensure_ascii=False) if meta else None,
-                chunk_strategy=json.dumps(req.chunk_strategy, ensure_ascii=False) if req.chunk_strategy else None,
-                status=1, chunk_count=0, create_by=operator, create_time=datetime.now(),
-            ))
+            db.add(
+                RagDocument(
+                    id=doc_id,
+                    dataset_id=req.dataset_id,
+                    name=req.name,
+                    document_type=req.document_type,
+                    file_key=req.file_key,
+                    source=req.source,
+                    meta_data=json.dumps(meta, ensure_ascii=False) if meta else None,
+                    chunk_strategy=json.dumps(req.chunk_strategy, ensure_ascii=False) if req.chunk_strategy else None,
+                    status=1,
+                    chunk_count=0,
+                    create_by=operator,
+                    create_time=datetime.now(),
+                )
+            )
             await db.commit()
             if req.auto_train:
                 await cls._launch_train(doc_id)
@@ -66,7 +80,8 @@ class DocumentService:
     async def _launch_train(cls, doc_id: str, force: bool = False) -> None:
         """捕获当前租户,起后台线程训练(不阻塞请求)。"""
         tenant_id = RequestContext.get_effective_tenant_id()
-        from module_rag.pipeline import train_document_async  # noqa: PLC0415
+        from module_rag.pipeline import train_document_async
+
         await run_in_threadpool(train_document_async, doc_id, tenant_id, force)
 
     @classmethod
@@ -74,13 +89,19 @@ class DocumentService:
         d = (await db.execute(select(RagDocument).where(RagDocument.id == doc_id))).scalars().first()
         if not d:
             raise ServiceException(message='文档不存在')
-        return {'id': d.id, 'status': d.status, 'statusText': _STATUS_TEXT.get(d.status, ''),
-                'chunkCount': d.chunk_count, 'error': d.error}
+        return {
+            'id': d.id,
+            'status': d.status,
+            'statusText': _STATUS_TEXT.get(d.status, ''),
+            'chunkCount': d.chunk_count,
+            'error': d.error,
+        }
 
     @classmethod
     async def delete(cls, db: AsyncSession, ids: str) -> CrudResponseModel:
         id_list = [i for i in ids.split(',') if i]
-        from module_rag.runtime_util import snapshot_dataset  # noqa: PLC0415
+        from module_rag.runtime_util import snapshot_dataset
+
         docs = (await db.execute(select(RagDocument).where(RagDocument.id.in_(id_list)))).scalars().all()
         # 先从向量库删该文档分段(用游离快照,避免线程内懒加载)
         targets = []
@@ -102,7 +123,8 @@ class DocumentService:
 
     @staticmethod
     def _drop_doc_vectors(dataset: RagDataset, document_id: str, tenant_id: Any) -> None:
-        from module_rag.runtime_util import build_store  # noqa: PLC0415
+        from module_rag.runtime_util import build_store
+
         try:
             store = build_store(dataset)
             if store.index_exists():

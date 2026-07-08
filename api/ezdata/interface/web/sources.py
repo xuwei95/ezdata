@@ -37,8 +37,7 @@ class ConnectionStore:
         return conn
 
     # ---------- 写 ----------
-    def add(self, name: str, source_type: str, config: dict | None = None,
-            secrets: dict | None = None) -> dict:
+    def add(self, name: str, source_type: str, config: dict | None = None, secrets: dict | None = None) -> dict:
         now = datetime.now().isoformat(timespec='seconds')
         with self._lock, self._conn() as c:
             exists = c.execute('SELECT 1 FROM connections WHERE name=?', (name,)).fetchone()
@@ -47,13 +46,20 @@ class ConnectionStore:
             c.execute(
                 'INSERT INTO connections(name, source_type, config, secrets, created_at, updated_at)'
                 ' VALUES(?,?,?,?,?,?)',
-                (name, source_type, json.dumps(config or {}, ensure_ascii=False),
-                 json.dumps(secrets or {}, ensure_ascii=False), now, now),
+                (
+                    name,
+                    source_type,
+                    json.dumps(config or {}, ensure_ascii=False),
+                    json.dumps(secrets or {}, ensure_ascii=False),
+                    now,
+                    now,
+                ),
             )
         return self.get(name)
 
-    def update(self, name: str, *, source_type: str | None = None,
-               config: dict | None = None, secrets: dict | None = None) -> dict:
+    def update(
+        self, name: str, *, source_type: str | None = None, config: dict | None = None, secrets: dict | None = None
+    ) -> dict:
         cur = self.get(name, mask=False)
         if not cur:
             raise ValueError(f'数据源 "{name}" 不存在')
@@ -95,7 +101,7 @@ class ConnectionStore:
     def _row_to_dict(r: sqlite3.Row, mask: bool) -> dict:
         secrets = json.loads(r['secrets'] or '{}')
         if mask:
-            secrets = {k: '***' for k in secrets}
+            secrets = dict.fromkeys(secrets, '***')
         return {
             'name': r['name'],
             'source_type': r['source_type'],

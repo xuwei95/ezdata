@@ -34,12 +34,12 @@ async def _start_background_tasks(app: FastAPI) -> None:
 
 async def _backfill_user_tenants() -> None:
     """存量用户 → sys_user_tenant 默认成员(幂等):仅对从无成员记录的用户,按其 user.tenant_id 补一条默认。"""
-    from sqlalchemy import select  # noqa: PLC0415
+    from sqlalchemy import select
 
-    from config.database import AsyncSessionLocal  # noqa: PLC0415
-    from module_admin.dao.user_tenant_dao import UserTenantDao  # noqa: PLC0415
-    from module_admin.entity.do.user_do import SysUser  # noqa: PLC0415
-    from module_admin.entity.do.user_tenant_do import SysUserTenant  # noqa: PLC0415
+    from config.database import AsyncSessionLocal
+    from module_admin.dao.user_tenant_dao import UserTenantDao
+    from module_admin.entity.do.user_do import SysUser
+    from module_admin.entity.do.user_tenant_do import SysUserTenant
 
     async with AsyncSessionLocal() as db:
         users = (

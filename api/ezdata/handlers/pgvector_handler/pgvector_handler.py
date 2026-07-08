@@ -15,8 +15,12 @@ class PgVectorHandler(PostgresHandler):
     title = 'pgvector (PostgreSQL)'
     family = 'vector'
     capabilities = (
-        Capability.READ | Capability.WRITE | Capability.EXTRACT
-        | Capability.SCHEMA | Capability.GEN_API | Capability.VECTOR
+        Capability.READ
+        | Capability.WRITE
+        | Capability.EXTRACT
+        | Capability.SCHEMA
+        | Capability.GEN_API
+        | Capability.VECTOR
     )
     connection_args = connection_args
     connection_args_example = connection_args_example
@@ -24,12 +28,17 @@ class PgVectorHandler(PostgresHandler):
     def _agno_pgvector(self, collection: str) -> Any:
         from agno.vectordb.pgvector import PgVector
 
-        return PgVector(table_name=collection, db_url=self._build_url(),
-                        schema=self.arg('schema', default='public'))
+        return PgVector(table_name=collection, db_url=self._build_url(), schema=self.arg('schema', default='public'))
 
-    def similarity_search(self, query: str, collection: str, limit: int = 10,
-                          filters: dict | None = None, **kwargs: Any) -> list[dict]:
+    def similarity_search(
+        self, query: str, collection: str, limit: int = 10, filters: dict | None = None, **kwargs: Any
+    ) -> list[dict]:
         vdb = self._agno_pgvector(collection)
-        return [{'name': getattr(d, 'name', None), 'content': getattr(d, 'content', None),
-                 'meta_data': getattr(d, 'meta_data', None)}
-                for d in vdb.search(query=query, limit=limit, filters=filters)]
+        return [
+            {
+                'name': getattr(d, 'name', None),
+                'content': getattr(d, 'content', None),
+                'meta_data': getattr(d, 'meta_data', None),
+            }
+            for d in vdb.search(query=query, limit=limit, filters=filters)
+        ]

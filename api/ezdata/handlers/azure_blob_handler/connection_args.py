@@ -7,18 +7,15 @@ connection_args = OrderedDict(
         'type': ARG_TYPE.STR,
         'description': 'The name of your storage service account Container Name',
         'required': True,
-        'label': 'Container Name'
+        'label': 'Container Name',
     },
     connection_string={
         'type': ARG_TYPE.STR,
         'description': 'Connection String',
         'required': True,
         'label': 'Connection String',
-        'secret': True
-    }
+        'secret': True,
+    },
 )
 
-connection_args_example = OrderedDict(
-    container_name='',
-    connection_string=''
-)
+connection_args_example = OrderedDict(container_name='', connection_string='')

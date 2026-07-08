@@ -16,11 +16,18 @@ _PROMPT = (
 
 
 def _llm_cfg() -> dict | None:
-    from config.env import AiConfig  # noqa: PLC0415
+    from config.env import AiConfig
+
     if not AiConfig.enabled:
         return None
-    return dict(provider=AiConfig.provider, model_code=AiConfig.llm_model, model_name=None,
-                api_key=AiConfig.llm_api_key, base_url=AiConfig.llm_url or None, max_tokens=300)
+    return dict(
+        provider=AiConfig.provider,
+        model_code=AiConfig.llm_model,
+        model_name=None,
+        api_key=AiConfig.llm_api_key,
+        base_url=AiConfig.llm_url or None,
+        max_tokens=300,
+    )
 
 
 def contextualize(doc_text: str, chunks: list[str], *, max_doc_chars: int = 6000) -> list[str]:
@@ -29,10 +36,12 @@ def contextualize(doc_text: str, chunks: list[str], *, max_doc_chars: int = 6000
     if not cfg or not chunks:
         return chunks
     try:
-        from agno.agent import Agent  # noqa: PLC0415
-        from utils.ai_util import AiUtil  # noqa: PLC0415
+        from agno.agent import Agent
+
+        from utils.ai_util import AiUtil
+
         agent = Agent(model=AiUtil.get_model_from_factory(**cfg))
-    except Exception:  # noqa: BLE001
+    except Exception:
         return chunks
 
     doc_excerpt = doc_text[:max_doc_chars]
@@ -42,6 +51,6 @@ def contextualize(doc_text: str, chunks: list[str], *, max_doc_chars: int = 6000
             res = agent.run(_PROMPT.format(doc=doc_excerpt, chunk=ch))
             ctx = (getattr(res, 'content', None) or '').strip()
             out.append(f'{ctx}\n\n{ch}' if ctx else ch)
-        except Exception:  # noqa: BLE001
+        except Exception:
             out.append(ch)
     return out

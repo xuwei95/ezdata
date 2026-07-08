@@ -40,7 +40,9 @@ class RagDocument(Base, TenantMixin):
     id = Column(String(36), primary_key=True, comment='文档ID')
     dataset_id = Column(String(36), nullable=False, index=True, comment='所属知识库')
     name = Column(String(300), nullable=False, comment='文档名')
-    document_type = Column(String(30), server_default='upload_file', comment='来源类型 upload_file/website/text/datamodel')
+    document_type = Column(
+        String(30), server_default='upload_file', comment='来源类型 upload_file/website/text/datamodel'
+    )
     file_key = Column(String(500), nullable=True, comment='文件存储 key')
     source = Column(String(1000), nullable=True, comment='来源(URL / datamodel_id 等)')
     meta_data = Column(Text, nullable=True, comment='元数据(JSON)')

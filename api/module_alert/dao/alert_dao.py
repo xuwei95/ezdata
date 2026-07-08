@@ -21,9 +21,7 @@ class AlertStrategyDao:
     @classmethod
     async def get_strategy_detail_by_id(cls, db: AsyncSession, strategy_id: int) -> AlertStrategy | None:
         return (
-            (await db.execute(select(AlertStrategy).where(AlertStrategy.strategy_id == strategy_id)))
-            .scalars()
-            .first()
+            (await db.execute(select(AlertStrategy).where(AlertStrategy.strategy_id == strategy_id))).scalars().first()
         )
 
     @classmethod

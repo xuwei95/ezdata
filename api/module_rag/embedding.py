@@ -35,8 +35,17 @@ _KNOWN_DIMS = {
 
 
 class EmbeddingClient:
-    def __init__(self, provider: str, model: str, api_key: str, base_url: str | None = None,
-                 *, dims: int | None = None, batch_size: int = 16, timeout: int = 60) -> None:
+    def __init__(
+        self,
+        provider: str,
+        model: str,
+        api_key: str,
+        base_url: str | None = None,
+        *,
+        dims: int | None = None,
+        batch_size: int = 16,
+        timeout: int = 60,
+    ) -> None:
         self.provider = (provider or 'dashscope').strip().lower()
         self.model = model
         self.api_key = api_key
@@ -59,7 +68,7 @@ class EmbeddingClient:
             return []
         out: list[list[float]] = []
         for i in range(0, len(texts), self.batch_size):
-            out.extend(self._embed_batch(texts[i:i + self.batch_size]))
+            out.extend(self._embed_batch(texts[i : i + self.batch_size]))
         return out
 
     def embed_query(self, text: str) -> list[float]:

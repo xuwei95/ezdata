@@ -43,8 +43,12 @@ def _dashscope(query: str, docs: list[str], key: str, model: str, top_n: int) ->
         'parameters': {'top_n': top_n, 'return_documents': False},
     }
     try:
-        resp = requests.post(_DASHSCOPE_RERANK, json=body, timeout=30,
-                             headers={'Authorization': f'Bearer {key}', 'Content-Type': 'application/json'})
+        resp = requests.post(
+            _DASHSCOPE_RERANK,
+            json=body,
+            timeout=30,
+            headers={'Authorization': f'Bearer {key}', 'Content-Type': 'application/json'},
+        )
         resp.raise_for_status()
         results = resp.json().get('output', {}).get('results', [])
         return [(int(r['index']), float(r.get('relevance_score', 0.0))) for r in results]
@@ -56,8 +60,12 @@ def _openai_compat(query: str, docs: list[str], key: str, model: str, base: str,
     """SiliconFlow / OpenAI 兼容 rerank:POST {base}/rerank,返回 results[].{index,relevance_score}。"""
     body = {'model': model, 'query': query, 'documents': docs, 'top_n': top_n, 'return_documents': False}
     try:
-        resp = requests.post(f'{base}/rerank', json=body, timeout=30,
-                             headers={'Authorization': f'Bearer {key}', 'Content-Type': 'application/json'})
+        resp = requests.post(
+            f'{base}/rerank',
+            json=body,
+            timeout=30,
+            headers={'Authorization': f'Bearer {key}', 'Content-Type': 'application/json'},
+        )
         resp.raise_for_status()
         results = resp.json().get('results', [])
         return [(int(r['index']), float(r.get('relevance_score', 0.0))) for r in results]

@@ -25,7 +25,6 @@ from module_ai.entity.vo.ai_app_vo import (
     PromptGenerateReq,
 )
 from module_ai.service.ai_app_service import AiAppService
-from utils.log_util import logger
 from utils.response_util import ResponseUtil
 
 ai_app_controller = APIRouterPro(
@@ -34,7 +33,9 @@ ai_app_controller = APIRouterPro(
 
 
 @ai_app_controller.get(
-    '/list', summary='获取AI应用分页列表', response_model=PageResponseModel[AiAppModel],
+    '/list',
+    summary='获取AI应用分页列表',
+    response_model=PageResponseModel[AiAppModel],
     dependencies=[UserInterfaceAuthDependency('ai:app:list')],
 )
 async def get_ai_app_list(
@@ -48,7 +49,9 @@ async def get_ai_app_list(
 
 
 @ai_app_controller.get(
-    '/all', summary='获取AI应用不分页列表(供对话选择)', response_model=DataResponseModel,
+    '/all',
+    summary='获取AI应用不分页列表(供对话选择)',
+    response_model=DataResponseModel,
 )
 async def get_ai_app_all(
     request: Request,
@@ -60,7 +63,9 @@ async def get_ai_app_all(
 
 
 @ai_app_controller.post(
-    '/prompt/generate', summary='AI 生成系统提示词(流式)', response_class=StreamingResponse,
+    '/prompt/generate',
+    summary='AI 生成系统提示词(流式)',
+    response_class=StreamingResponse,
     dependencies=[UserInterfaceAuthDependency('ai:app:query')],
 )
 async def generate_prompt(
@@ -80,7 +85,9 @@ async def generate_prompt(
 
 
 @ai_app_controller.post(
-    '/debug', summary='应用调试对话(用草稿配置,免保存)', response_class=StreamingResponse,
+    '/debug',
+    summary='应用调试对话(用草稿配置,免保存)',
+    response_class=StreamingResponse,
     dependencies=[UserInterfaceAuthDependency('ai:app:query')],
 )
 async def debug_chat(
@@ -89,8 +96,8 @@ async def debug_chat(
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
-    from module_ai.entity.vo.ai_chat_vo import AiChatRequestModel  # noqa: PLC0415
-    from module_ai.service.ai_chat_service import AiChatService  # noqa: PLC0415
+    from module_ai.entity.vo.ai_chat_vo import AiChatRequestModel
+    from module_ai.service.ai_chat_service import AiChatService
 
     user_id = current_user.user.user_id if current_user and current_user.user else 1
     chat_req = AiChatRequestModel(modelId=0, message=req.message, sessionId=req.session_id)
@@ -99,7 +106,9 @@ async def debug_chat(
 
 
 @ai_app_controller.post(
-    '', summary='新增AI应用', response_model=ResponseBaseModel,
+    '',
+    summary='新增AI应用',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('ai:app:add')],
 )
 @ValidateFields(validate_model='add_ai_app')
@@ -121,7 +130,9 @@ async def add_ai_app(
 
 
 @ai_app_controller.put(
-    '', summary='编辑AI应用', response_model=ResponseBaseModel,
+    '',
+    summary='编辑AI应用',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('ai:app:edit')],
 )
 @ValidateFields(validate_model='edit_ai_app')
@@ -139,7 +150,9 @@ async def edit_ai_app(
 
 
 @ai_app_controller.delete(
-    '/{app_ids}', summary='删除AI应用', response_model=ResponseBaseModel,
+    '/{app_ids}',
+    summary='删除AI应用',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('ai:app:remove')],
 )
 @Log(title='AI应用管理', business_type=BusinessType.DELETE)
@@ -153,7 +166,9 @@ async def delete_ai_app(
 
 
 @ai_app_controller.get(
-    '/{app_id}', summary='获取AI应用详情', response_model=DataResponseModel[AiAppModel],
+    '/{app_id}',
+    summary='获取AI应用详情',
+    response_model=DataResponseModel[AiAppModel],
     dependencies=[UserInterfaceAuthDependency('ai:app:query')],
 )
 async def get_ai_app_detail(

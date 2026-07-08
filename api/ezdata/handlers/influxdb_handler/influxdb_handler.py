@@ -22,15 +22,18 @@ class InfluxDBHandler(Connector):
     def client(self) -> Any:
         def _make():
             from influxdb_client_3 import InfluxDBClient3
+
             return InfluxDBClient3(
                 host=self.arg('host', default='http://127.0.0.1:8181'),
                 token=self.arg('token', default=''),
                 database=self.arg('database', default=''),
-                org=self.arg('org') or None)
+                org=self.arg('org') or None,
+            )
+
         return self._lazy('_client', _make)
 
     def _rows(self, sql: str) -> list[dict]:
-        table = self.client.query(query=sql, language='sql')   # 返回 pyarrow.Table
+        table = self.client.query(query=sql, language='sql')  # 返回 pyarrow.Table
         return table.to_pylist()
 
     def test_connection(self) -> ConnectResult:

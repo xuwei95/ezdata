@@ -74,11 +74,11 @@ class TaskService:
     @staticmethod
     def _validate_cron(crontab: str) -> None:
         """校验 Cron 表达式合法(fail-fast):非法则直接拒绝,避免坏表达式落库后拖累调度器同步。"""
-        from config.get_scheduler import MyCronTrigger  # noqa: PLC0415
+        from config.get_scheduler import MyCronTrigger
 
         try:
             MyCronTrigger.from_crontab(crontab)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             raise ServiceException(message=f'Cron 表达式非法: {crontab}({e})') from e
 
     @classmethod
@@ -105,7 +105,7 @@ class TaskService:
             from config.get_scheduler import SchedulerUtil
 
             await SchedulerUtil.request_scheduler_sync()
-        except Exception:  # noqa: BLE001 - 调度同步失败不应阻断任务CRUD，下次周期同步会补齐
+        except Exception:
             pass
 
     @classmethod
@@ -220,7 +220,7 @@ class TaskService:
                     name = q.get('name')
                     if name:
                         live.add(name)
-        except Exception:  # noqa: BLE001 - inspect 失败(无 broker/worker)时回退配置
+        except Exception:
             pass
         if live:
             return sorted(live)
@@ -238,7 +238,7 @@ class TaskService:
 
             instance_id = dispatch_run_task(task.id)
             return CrudResponseModel(is_success=True, message='已触发执行', result={'instanceId': instance_id})
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             raise ServiceException(message=f'触发执行失败: {e}')
 
     @classmethod
@@ -259,16 +259,28 @@ class TaskService:
 
         use_sandbox = sandbox_client.enabled()
         # ETL 需在持 db 会话时预解密数据源,随请求注入沙箱(沙箱无凭据);其余任务为空
-        datasources = (await cls._resolve_debug_datasources(query_db, params)
-                       if use_sandbox and template_code == 'DataIntegrationTask' else {})
+        datasources = (
+            await cls._resolve_debug_datasources(query_db, params)
+            if use_sandbox and template_code == 'DataIntegrationTask'
+            else {}
+        )
 
         # 后台执行,立即返回 taskUuid;日志由沙箱/本地实时写库,前端流式读取
         asyncio.get_running_loop().run_in_executor(
-            None, cls._run_debug, task_uuid, template_code, runner_type, req.runner_code,
-            params, datasources, use_sandbox, req.timeout,
+            None,
+            cls._run_debug,
+            task_uuid,
+            template_code,
+            runner_type,
+            req.runner_code,
+            params,
+            datasources,
+            use_sandbox,
+            req.timeout,
         )
-        return CrudResponseModel(is_success=True, message='调试已触发',
-                                 result={'taskUuid': task_uuid, 'logViewable': is_task_log_viewable()})
+        return CrudResponseModel(
+            is_success=True, message='调试已触发', result={'taskUuid': task_uuid, 'logViewable': is_task_log_viewable()}
+        )
 
     @staticmethod
     async def _resolve_debug_datasources(query_db: AsyncSession, params: dict) -> dict:
@@ -295,14 +307,22 @@ class TaskService:
             if ds.secrets:
                 try:
                     secrets = json.loads(CryptoUtil.decrypt(ds.secrets))
-                except Exception:  # noqa: BLE001 解密失败按空密钥处理,由 handler 报连接错误
+                except Exception:
                     secrets = {}
             out[code] = {'source_type': ds.source_type, 'config': ds.config or {}, 'secrets': secrets}
         return out
 
     @staticmethod
-    def _run_debug(task_uuid: str, template_code: str, runner_type: int, runner_code: str | None,
-                   params: dict, datasources: dict, use_sandbox: bool, timeout: int | None) -> None:
+    def _run_debug(
+        task_uuid: str,
+        template_code: str,
+        runner_type: int,
+        runner_code: str | None,
+        params: dict,
+        datasources: dict,
+        use_sandbox: bool,
+        timeout: int | None,
+    ) -> None:
         """后台线程:执行调试任务,日志实时写库(沙箱注入连接直写 / 本地 TaskLogger),供前端流式读取。"""
         from module_task_schedule.task_logger import get_task_logger
 
@@ -310,9 +330,10 @@ class TaskService:
             from module_data import sandbox_client
 
             try:
-                sandbox_client.execute_task(template_code, params, runner_type, runner_code,
-                                            datasources, task_uuid, timeout)
-            except Exception as e:  # noqa: BLE001 沙箱连接失败,写一条错误日志供前端查看
+                sandbox_client.execute_task(
+                    template_code, params, runner_type, runner_code, datasources, task_uuid, timeout
+                )
+            except Exception as e:
                 lg = get_task_logger(task_uuid)
                 lg.error(f'[调试] 沙箱调用失败: {e}')
                 lg.close()
@@ -343,7 +364,7 @@ class TaskService:
             if out.getvalue().strip():
                 logger.info(f'[stdout] {out.getvalue().rstrip()}')
             logger.info(f'[执行成功] 返回值: {result}')
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.exception(f'[执行失败] {type(e).__name__}: {e}')
         finally:
             logger.close()

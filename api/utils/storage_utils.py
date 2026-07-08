@@ -5,8 +5,8 @@
 云后端的 SDK 仅在选用对应 storage_type 时才会被导入（见 requirements-storage.txt），local/s3 部署无需安装。
 模块加载时实例化单例 `storage` 供业务层使用。
 """
+
 from collections.abc import Generator
-from typing import Union
 
 from config.env import StorageConfig, UploadConfig
 from utils.storage.local_storage import LocalStorage
@@ -95,7 +95,7 @@ class Storage:
     def save(self, filename, data):
         self.storage_runner.save(filename, data)
 
-    def load(self, filename: str, stream: bool = False) -> Union[bytes, Generator]:
+    def load(self, filename: str, stream: bool = False) -> bytes | Generator:
         if stream:
             return self.load_stream(filename)
         return self.load_once(filename)
@@ -118,24 +118,26 @@ class Storage:
         c = self.conf
         public = c.get('STORAGE_PUBLIC_ENDPOINT')
         if public:
-            return f"{public.rstrip('/')}/{filename}"
+            return f'{public.rstrip("/")}/{filename}'
 
         t = self.storage_type
         if t == 's3':
-            return f"{c.get('S3_ENDPOINT')}/{c.get('S3_BUCKET_NAME')}/{filename}"
+            return f'{c.get("S3_ENDPOINT")}/{c.get("S3_BUCKET_NAME")}/{filename}'
         if t == 'oci-storage':
-            return f"{c.get('OCI_ENDPOINT')}/{c.get('OCI_BUCKET_NAME')}/{filename}"
+            return f'{c.get("OCI_ENDPOINT")}/{c.get("OCI_BUCKET_NAME")}/{filename}'
         if t == 'aliyun-oss':
             # endpoint 形如 oss-cn-hangzhou.aliyuncs.com（不含 scheme）
-            return f"https://{c.get('ALIYUN_OSS_BUCKET_NAME')}.{c.get('ALIYUN_OSS_ENDPOINT')}/{filename}"
+            return f'https://{c.get("ALIYUN_OSS_BUCKET_NAME")}.{c.get("ALIYUN_OSS_ENDPOINT")}/{filename}'
         if t == 'azure-blob':
-            return f"{str(c.get('AZURE_BLOB_ACCOUNT_URL')).rstrip('/')}/{c.get('AZURE_BLOB_CONTAINER_NAME')}/{filename}"
+            return f'{str(c.get("AZURE_BLOB_ACCOUNT_URL")).rstrip("/")}/{c.get("AZURE_BLOB_CONTAINER_NAME")}/{filename}'
         if t == 'google-storage':
-            return f"https://storage.googleapis.com/{c.get('GOOGLE_STORAGE_BUCKET_NAME')}/{filename}"
+            return f'https://storage.googleapis.com/{c.get("GOOGLE_STORAGE_BUCKET_NAME")}/{filename}'
         if t == 'tencent-cos':
-            return f"https://{c.get('TENCENT_COS_BUCKET_NAME')}.cos.{c.get('TENCENT_COS_REGION')}.myqcloud.com/{filename}"
+            return (
+                f'https://{c.get("TENCENT_COS_BUCKET_NAME")}.cos.{c.get("TENCENT_COS_REGION")}.myqcloud.com/{filename}'
+            )
         # local
-        return f"{UploadConfig.UPLOAD_PREFIX}/{filename}"
+        return f'{UploadConfig.UPLOAD_PREFIX}/{filename}'
 
     def exists(self, filename):
         return self.storage_runner.exists(filename)

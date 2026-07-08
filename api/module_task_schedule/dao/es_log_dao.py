@@ -74,7 +74,7 @@ class EsTaskLogDao:
                 }
                 hits = client.search(index=index, body=body).get('hits', {}).get('hits', [])
                 rows = [cls._to_row(h) for h in reversed(hits)]
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             # 索引尚未创建(无日志)/连接异常等:返回空,UI 显示「暂无日志」,不影响轮询
             loguru_logger.warning(f'查询ES执行明细日志失败(返回空): {e}')
             rows = []

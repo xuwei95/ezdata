@@ -16,7 +16,8 @@ ai_metrics_controller = APIRouterPro(
 
 
 @ai_metrics_controller.get(
-    '/overview', summary='AI 用量总览(token/时延/模型/用户)',
+    '/overview',
+    summary='AI 用量总览(token/时延/模型/用户)',
     dependencies=[UserInterfaceAuthDependency('ai:metrics:list')],
 )
 async def metrics_overview(

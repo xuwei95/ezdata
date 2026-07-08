@@ -14,8 +14,12 @@ import sys
 from module_rag.es_vector_store import EsVectorStore
 
 # 解析 ES 地址:ES8_URL > RAG_VECTOR_HOSTS > TASK_ES_HOSTS > 本机(host 9200 / 容器内同集群)
-ES_URL = (os.environ.get('ES8_URL') or os.environ.get('RAG_VECTOR_HOSTS')
-          or os.environ.get('TASK_ES_HOSTS') or 'http://127.0.0.1:9200')
+ES_URL = (
+    os.environ.get('ES8_URL')
+    or os.environ.get('RAG_VECTOR_HOSTS')
+    or os.environ.get('TASK_ES_HOSTS')
+    or 'http://127.0.0.1:9200'
+)
 DIMS = 8
 INDEX = 'rag_ds_verify'
 TENANT = '100'
@@ -29,15 +33,33 @@ def _vec(*xs: float) -> list[float]:
 
 # 三条分段:python / cat / dog,向量在不同坐标轴上拉开,文本可被 BM25 命中
 DOCS = [
-    {'chunk_id': 'c1', 'document_id': 'd1', 'dataset_id': 'verify', 'tenant_id': TENANT, 'chunk_type': 'chunk',
-     'content': 'Python is a popular programming language for data engineering',
-     'content_vector': _vec(1, 0, 0, 0)},
-    {'chunk_id': 'c2', 'document_id': 'd1', 'dataset_id': 'verify', 'tenant_id': TENANT, 'chunk_type': 'chunk',
-     'content': 'The cat sat on the warm windowsill in the morning sun',
-     'content_vector': _vec(0, 1, 0, 0)},
-    {'chunk_id': 'c3', 'document_id': 'd2', 'dataset_id': 'verify', 'tenant_id': TENANT, 'chunk_type': 'chunk',
-     'content': 'A loyal dog runs fast across the green field chasing a ball',
-     'content_vector': _vec(0, 0, 1, 0)},
+    {
+        'chunk_id': 'c1',
+        'document_id': 'd1',
+        'dataset_id': 'verify',
+        'tenant_id': TENANT,
+        'chunk_type': 'chunk',
+        'content': 'Python is a popular programming language for data engineering',
+        'content_vector': _vec(1, 0, 0, 0),
+    },
+    {
+        'chunk_id': 'c2',
+        'document_id': 'd1',
+        'dataset_id': 'verify',
+        'tenant_id': TENANT,
+        'chunk_type': 'chunk',
+        'content': 'The cat sat on the warm windowsill in the morning sun',
+        'content_vector': _vec(0, 1, 0, 0),
+    },
+    {
+        'chunk_id': 'c3',
+        'document_id': 'd2',
+        'dataset_id': 'verify',
+        'tenant_id': TENANT,
+        'chunk_type': 'chunk',
+        'content': 'A loyal dog runs fast across the green field chasing a ball',
+        'content_vector': _vec(0, 0, 1, 0),
+    },
 ]
 
 PASS, FAIL = 0, 0
@@ -59,8 +81,10 @@ def main() -> int:
     print(f'== ES: {ES_URL} ==')
     check('ping', store.ping())
     if not store.ping():
-        print('ES8 不可达,先启动:docker run -d --name ezdata-es8-test -p 9201:9200 '
-              '-e discovery.type=single-node -e xpack.security.enabled=false elasticsearch:8.13.4')
+        print(
+            'ES8 不可达,先启动:docker run -d --name ezdata-es8-test -p 9201:9200 '
+            '-e discovery.type=single-node -e xpack.security.enabled=false elasticsearch:8.13.4'
+        )
         return 1
 
     # 干净起步
@@ -80,8 +104,11 @@ def main() -> int:
     print('== 3. 向量 kNN(查询向量贴近 c1=python) ==')
     vhits = store.vector_search(_vec(0.9, 0.1, 0, 0), k=2)
     check('kNN 返回结果', len(vhits) >= 1, f'{[h["chunk_id"] for h in vhits]}')
-    check('kNN top1 = c1', vhits and vhits[0]['chunk_id'] == 'c1',
-          f'top1={vhits[0]["chunk_id"] if vhits else None} score={vhits[0].get("score") if vhits else None}')
+    check(
+        'kNN top1 = c1',
+        vhits and vhits[0]['chunk_id'] == 'c1',
+        f'top1={vhits[0]["chunk_id"] if vhits else None} score={vhits[0].get("score") if vhits else None}',
+    )
 
     print('== 4. BM25 全文(query="dog field") ==')
     khits = store.keyword_search('dog field', k=3)

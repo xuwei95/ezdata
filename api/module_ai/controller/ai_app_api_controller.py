@@ -42,9 +42,7 @@ async def app_api_chat(
         return ResponseUtil.failure(msg='无效或已过期的 API Key')
 
     session_id = chat_req.session_id or str(uuid.uuid4())
-    req = AiChatRequestModel(
-        modelId=0, message=chat_req.message, sessionId=session_id, appId=str(token['app_id'])
-    )
+    req = AiChatRequestModel(modelId=0, message=chat_req.message, sessionId=session_id, appId=str(token['app_id']))
     # 外部调用无租户中间件:用 token 的租户开启上下文,使应用/工具/知识库查询正确隔离
     tenant_id = token.get('tenant_id')
     # 租户默认拒绝:无租户绑定的 Key 一律拒绝(不再无上下文放行)
@@ -56,7 +54,7 @@ async def app_api_chat(
         try:
             async for chunk in AiChatService.chat_services(query_db, req, 0):
                 yield chunk
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.exception(f'应用对外对话异常: {e}')
         finally:
             if tok is not None:

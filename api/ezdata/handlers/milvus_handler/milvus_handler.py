@@ -15,5 +15,6 @@ class MilvusHandler(VectorConnector):
 
     def _vectordb(self, collection: str) -> Any:
         vcls = self._agno_cls()
-        return vcls(**self._kw(collection=collection, embedder=self._embedder(),
-                 uri=self.arg('uri'), token=self.arg('token')))
+        return vcls(
+            **self._kw(collection=collection, embedder=self._embedder(), uri=self.arg('uri'), token=self.arg('token'))
+        )

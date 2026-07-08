@@ -32,5 +32,5 @@ class BigQueryHandler(SqlConnector):
         if isinstance(sa, dict):
             kw['credentials_info'] = sa
         elif isinstance(sa, str) and sa:
-            kw['credentials_path'] = sa          # 给的是 key 文件路径
+            kw['credentials_path'] = sa  # 给的是 key 文件路径
         return kw

@@ -38,7 +38,6 @@ from module_admin.service.job_log_service import JobLogService
 from utils.log_util import logger
 from utils.server_util import StartupUtil, WorkerIdUtil
 
-
 # 调度器时区:cron 表达式按此时区解释(默认 Asia/Shanghai;容器默认 UTC 会让"9-15 点"跑到 UTC 9-15=北京 17-23 点)。
 # 可用 SCHEDULER_TZ 环境变量覆盖。
 SCHEDULER_TZ = os.getenv('SCHEDULER_TZ') or 'Asia/Shanghai'
@@ -160,7 +159,7 @@ class SchedulerUtil:
     _redis: aioredis.Redis | None = None
     _job_update_time_cache: dict[str, datetime] = {}
     _sync_channel: str = 'scheduler:sync:request'
-    _restart_cmd: str = '__scheduler_restart__'   # 同步通道上的重启指令(区别于普通的 worker_id 同步消息)
+    _restart_cmd: str = '__scheduler_restart__'  # 同步通道上的重启指令(区别于普通的 worker_id 同步消息)
     _sync_listener_task: asyncio.Task | None = None
     _lock_lost_task: asyncio.Task | None = None
     _sync_task: asyncio.Task | None = None
@@ -415,7 +414,7 @@ class SchedulerUtil:
         # 处理并隔离记录,绝不让单条坏 cron 在此抛异常中断整轮同步。
         try:
             trigger_str = str(MyCronTrigger.from_crontab(job_info.cron_expression))
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.error(f'❌ 任务 {job_info.job_name} 的 cron 非法,跳过同步: {job_info.cron_expression} ({e})')
             return False
         expected = {
@@ -919,7 +918,7 @@ class SchedulerUtil:
             exception_info = ''
             try:
                 if iscoroutinefunction(job_func):
-                    asyncio.create_task(cls._execute_async_job_with_log(job_func, job_info, args, kwargs))  # noqa: RUF006
+                    asyncio.create_task(cls._execute_async_job_with_log(job_func, job_info, args, kwargs))
                 else:
                     job_func(*args, **kwargs)
             except Exception as e:

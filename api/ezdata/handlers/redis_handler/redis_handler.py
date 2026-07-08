@@ -22,9 +22,15 @@ class RedisHandler(Connector):
     def client(self) -> Any:
         def _make():
             import redis
+
             return redis.Redis(
-                host=self.arg('host', default='127.0.0.1'), port=int(self.arg('port', default=6379)),
-                password=self.arg('password') or None, db=int(self.arg('db', default=0)), decode_responses=True)
+                host=self.arg('host', default='127.0.0.1'),
+                port=int(self.arg('port', default=6379)),
+                password=self.arg('password') or None,
+                db=int(self.arg('db', default=0)),
+                decode_responses=True,
+            )
+
         return self._lazy('_client', _make)
 
     def test_connection(self) -> ConnectResult:

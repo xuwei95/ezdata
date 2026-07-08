@@ -19,10 +19,7 @@ class S3Handler(Connector):
     name = 's3'
     title = 'S3 / 对象存储'
     family = 'file'
-    capabilities = (
-        Capability.READ | Capability.EXTRACT | Capability.WRITE
-        | Capability.SCHEMA
-    )
+    capabilities = Capability.READ | Capability.EXTRACT | Capability.WRITE | Capability.SCHEMA
     connection_args = connection_args
     connection_args_example = connection_args_example
 
@@ -48,7 +45,9 @@ class S3Handler(Connector):
     def client(self) -> Any:
         def _make():
             import boto3
+
             return boto3.client('s3', **self._client_kwargs())
+
         return self._lazy('_client', _make)
 
     @property
@@ -84,11 +83,11 @@ class S3Handler(Connector):
             con.execute(f"SET s3_session_token='{self.arg('aws_session_token')}'")
 
         endpoint = self.arg('endpoint_url')
-        if endpoint:                                   # MinIO/OSS 兼容
+        if endpoint:  # MinIO/OSS 兼容
             u = urlparse(endpoint if '://' in endpoint else f'http://{endpoint}')
             con.execute(f"SET s3_endpoint='{u.netloc or u.path}'")
             con.execute("SET s3_url_style='path'")
-            con.execute(f"SET s3_use_ssl={'true' if u.scheme == 'https' else 'false'}")
+            con.execute(f'SET s3_use_ssl={"true" if u.scheme == "https" else "false"}')
         else:
             con.execute(f"SET s3_region='{self.arg('region_name', default='us-east-1')}'")
         return con
@@ -113,8 +112,11 @@ class S3Handler(Connector):
         DuckDB SQL 查询。statement 可直接引用 's3://bucket/..' 文件;
         也支持把表名当文件:用 read('<table>') 占位会被替换成对应 URI。
         """
-        sql = statement.replace("read('", f"'s3://{self.bucket}/").replace("')", "'") \
-            if "read('" in statement else statement
+        sql = (
+            statement.replace("read('", f"'s3://{self.bucket}/").replace("')", "'")
+            if "read('" in statement
+            else statement
+        )
         if limit is not None and 'limit' not in sql.lower():
             sql = f'SELECT * FROM ({sql}) AS _q LIMIT {int(limit)}'
         con = self._duckdb()
@@ -127,8 +129,11 @@ class S3Handler(Connector):
 
     def query_arrow(self, statement: str, params: dict | None = None) -> Any:
         """DuckDB 查询直接返回 pyarrow.Table(列式;供 dlt 高吞吐装载,ETL 快路用)。"""
-        sql = statement.replace("read('", f"'s3://{self.bucket}/").replace("')", "'") \
-            if "read('" in statement else statement
+        sql = (
+            statement.replace("read('", f"'s3://{self.bucket}/").replace("')", "'")
+            if "read('" in statement
+            else statement
+        )
         con = self._duckdb()
         try:
             return con.execute(sql, params or {}).fetch_arrow_table()
@@ -147,8 +152,7 @@ class S3Handler(Connector):
         }
         if endpoint:
             creds['endpoint_url'] = endpoint
-        return filesystem(bucket_url=f's3://{self.bucket}', credentials=creds,
-                          file_glob=file_glob or f'{table}*')
+        return filesystem(bucket_url=f's3://{self.bucket}', credentials=creds, file_glob=file_glob or f'{table}*')
 
     def write(self, data: bytes | str, table: str, mode: str = 'append', **kwargs: Any) -> Any:
         """简单上传:把 data 作为对象写到 key=table。"""

@@ -375,10 +375,21 @@ class StorageSettings(BaseSettings):
 
 # 兼容旧项目/小写写法的 provider 别名 -> AiUtil 工厂注册名(CamelCase)
 _LLM_PROVIDER_ALIASES = {
-    'openai': 'OpenAI', 'anthropic': 'Anthropic', 'claude': 'Anthropic',
-    'deepseek': 'DeepSeek', 'tongyi': 'DashScope', 'qwen': 'DashScope', 'dashscope': 'DashScope',
-    'siliconflow': 'SiliconFlow', 'google': 'Google', 'gemini': 'Google', 'ollama': 'Ollama',
-    'openrouter': 'OpenRouter', 'mistral': 'Mistral', 'groq': 'Groq', 'xai': 'xAI',
+    'openai': 'OpenAI',
+    'anthropic': 'Anthropic',
+    'claude': 'Anthropic',
+    'deepseek': 'DeepSeek',
+    'tongyi': 'DashScope',
+    'qwen': 'DashScope',
+    'dashscope': 'DashScope',
+    'siliconflow': 'SiliconFlow',
+    'google': 'Google',
+    'gemini': 'Google',
+    'ollama': 'Ollama',
+    'openrouter': 'OpenRouter',
+    'mistral': 'Mistral',
+    'groq': 'Groq',
+    'xai': 'xAI',
 }
 
 
@@ -397,12 +408,12 @@ class AiSettings(BaseSettings):
         LLM_URL=http://10.0.3.248:3000/api
     """
 
-    llm_type: str = ''        # 提供商:openai/anthropic/deepseek/tongyi...(大小写均可)
-    llm_model: str = ''       # 模型编码,如 claude-sonnet-4-6 / deepseek-chat
+    llm_type: str = ''  # 提供商:openai/anthropic/deepseek/tongyi...(大小写均可)
+    llm_model: str = ''  # 模型编码,如 claude-sonnet-4-6 / deepseek-chat
     llm_api_key: str = ''
-    llm_url: str = ''         # base_url(可空)
+    llm_url: str = ''  # base_url(可空)
     llm_max_tokens: int = 128000
-    llm_reasoning: bool = False   # LLM_REASONING=true:兜底模型是"深度思考(带 think)"模型,放开推理内容展示
+    llm_reasoning: bool = False  # LLM_REASONING=true:兜底模型是"深度思考(带 think)"模型,放开推理内容展示
     llm_support_images: bool = False  # LLM_SUPPORT_IMAGES=true:兜底模型支持图片输入(多模态)
 
     @property
@@ -431,24 +442,24 @@ class RagSettings(BaseSettings):
         RAG_VECTOR_HOSTS=http://127.0.0.1:9200
     """
 
-    embedding_type: str = 'dashscope'          # EMBEDDING_TYPE
+    embedding_type: str = 'dashscope'  # EMBEDDING_TYPE
     embedding_model: str = 'text-embedding-v2'  # EMBEDDING_MODEL
-    embedding_dims: int = 0                     # EMBEDDING_DIMS(0=自动探测/按已知模型)
-    embedding_api_key: str = ''                 # EMBEDDING_API_KEY
-    embedding_url: str = ''                     # EMBEDDING_URL(base_url,可空)
-    dashscope_api_key: str = ''                 # DASHSCOPE_API_KEY(provider=dashscope 时复用)
-    embedding_cache: int = 1                    # EMBEDDING_CACHE(1=启用 rag_embedding 缓存)
+    embedding_dims: int = 0  # EMBEDDING_DIMS(0=自动探测/按已知模型)
+    embedding_api_key: str = ''  # EMBEDDING_API_KEY
+    embedding_url: str = ''  # EMBEDDING_URL(base_url,可空)
+    dashscope_api_key: str = ''  # DASHSCOPE_API_KEY(provider=dashscope 时复用)
+    embedding_cache: int = 1  # EMBEDDING_CACHE(1=启用 rag_embedding 缓存)
 
-    rerank_type: str = ''                       # RERANK_TYPE(空=不启用;dashscope / siliconflow / openai 兼容)
-    rerank_model: str = 'gte-rerank'            # RERANK_MODEL
-    rerank_api_key: str = ''                    # RERANK_API_KEY
-    rerank_url: str = ''                        # RERANK_URL(OpenAI 兼容 rerank 的 base_url,可空;有内置默认的可不填)
+    rerank_type: str = ''  # RERANK_TYPE(空=不启用;dashscope / siliconflow / openai 兼容)
+    rerank_model: str = 'gte-rerank'  # RERANK_MODEL
+    rerank_api_key: str = ''  # RERANK_API_KEY
+    rerank_url: str = ''  # RERANK_URL(OpenAI 兼容 rerank 的 base_url,可空;有内置默认的可不填)
 
-    rag_vector_backend: str = 'elasticsearch'   # RAG_VECTOR_BACKEND
-    rag_vector_hosts: str = ''                  # RAG_VECTOR_HOSTS(空=回退 task_es_hosts)
-    rag_vector_user: str = ''                   # RAG_VECTOR_USER
-    rag_vector_password: str = ''               # RAG_VECTOR_PASSWORD
-    rag_vector_api_key: str = ''                # RAG_VECTOR_API_KEY
+    rag_vector_backend: str = 'elasticsearch'  # RAG_VECTOR_BACKEND
+    rag_vector_hosts: str = ''  # RAG_VECTOR_HOSTS(空=回退 task_es_hosts)
+    rag_vector_user: str = ''  # RAG_VECTOR_USER
+    rag_vector_password: str = ''  # RAG_VECTOR_PASSWORD
+    rag_vector_api_key: str = ''  # RAG_VECTOR_API_KEY
 
     @property
     def api_key(self) -> str:
@@ -478,10 +489,10 @@ class SandboxSettings(BaseSettings):
         SANDBOX_TIMEOUT=60
     """
 
-    sandbox_enabled: bool = False                          # SANDBOX_ENABLED(关=本地真实跑兜底)
+    sandbox_enabled: bool = False  # SANDBOX_ENABLED(关=本地真实跑兜底)
     sandbox_api_url: str = 'http://ezdata-sandbox-dev:8003'  # SANDBOX_API_URL
-    sandbox_bearer_key: str = 'change-me'                  # SANDBOX_BEARER_KEY
-    sandbox_timeout: int = 60                              # SANDBOX_TIMEOUT(秒)
+    sandbox_bearer_key: str = 'change-me'  # SANDBOX_BEARER_KEY
+    sandbox_timeout: int = 60  # SANDBOX_TIMEOUT(秒)
 
 
 class GetConfig:

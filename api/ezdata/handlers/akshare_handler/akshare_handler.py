@@ -114,7 +114,7 @@ class AKShareHandler(Connector):
             import akshare  # noqa: F401
 
             return ConnectResult(True, 'akshare 可用')
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             return ConnectResult(False, f'akshare 不可用: {e}')
 
     def list_tables(self) -> list[str]:
@@ -144,10 +144,9 @@ class AKShareHandler(Connector):
                     continue
                 required = p.default is inspect.Parameter.empty
                 default = '' if required else repr(p.default)
-                cols.append(Column(name=pname, type='参数',
-                                   comment=('必填' if required else f'默认 {default}')))
+                cols.append(Column(name=pname, type='参数', comment=('必填' if required else f'默认 {default}')))
             return cols
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             return [Column(name='(签名不可用)', type='', comment=str(e)[:80])]
 
     def describe(self, table: str) -> str:
@@ -159,7 +158,7 @@ class AKShareHandler(Connector):
 
             fn = getattr(ak, table, None)
             return (inspect.getdoc(fn) or '').strip()[:1800] if fn is not None else ''
-        except Exception:  # noqa: BLE001
+        except Exception:
             return ''
 
     def sample_query(self, table: str, limit: int = 100) -> dict:
@@ -174,7 +173,7 @@ class AKShareHandler(Connector):
             if fn is not None:
                 for pname, p in inspect.signature(fn).parameters.items():
                     params[pname] = '' if p.default is inspect.Parameter.empty else p.default
-        except Exception:  # noqa: BLE001
+        except Exception:
             pass
         return {'func': table, 'params': params}
 
@@ -225,12 +224,17 @@ class AKShareHandler(Connector):
             socket.setdefaulttimeout(cls._SOCKET_TIMEOUT)  # 仅影响本次调用内新建的 socket
             try:
                 return fn(**call_params)
-            except (ConnectionError, TimeoutError) as e:  # requests.ConnectionError / socket.timeout(py3.10=TimeoutError)
+            except (
+                ConnectionError,
+                TimeoutError,
+            ) as e:  # requests.ConnectionError / socket.timeout(py3.10=TimeoutError)
                 last = e
                 time.sleep(1.5 * (i + 1))
-            except Exception as e:  # noqa: BLE001  其余(含解析异常)看是否连接/超时类
+            except Exception as e:
                 msg = str(e).lower()
-                if any(k in msg for k in ('connection', 'timeout', 'timed out', 'remotedisconnected', 'aborted', 'reset')):
+                if any(
+                    k in msg for k in ('connection', 'timeout', 'timed out', 'remotedisconnected', 'aborted', 'reset')
+                ):
                     last = e
                     time.sleep(1.5 * (i + 1))
                     continue

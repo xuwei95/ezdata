@@ -26,9 +26,12 @@ class Neo4jHandler(Connector):
     def driver(self) -> Any:
         def _make():
             from neo4j import GraphDatabase
+
             return GraphDatabase.driver(
                 self.arg('uri', default='bolt://127.0.0.1:7687'),
-                auth=(self.arg('username', 'user', default='neo4j'), self.arg('password', default='')))
+                auth=(self.arg('username', 'user', default='neo4j'), self.arg('password', default='')),
+            )
+
         return self._lazy('_driver', _make)
 
     def test_connection(self) -> ConnectResult:

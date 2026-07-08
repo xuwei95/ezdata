@@ -49,7 +49,7 @@ class AiModelService:
         data_scope_sql: ColumnElement,
     ) -> list[dict[str, Any]]:
         """获取「AI 选模型」可用列表:全部启用模型;若配置了环境变量兜底模型则在首位插入默认项。"""
-        from config.env import AiConfig  # noqa: PLC0415
+        from config.env import AiConfig
 
         rows = await cls.get_ai_model_list_services(
             query_db, AiModelPageQueryModel(status='0'), data_scope_sql, is_page=False
@@ -57,19 +57,21 @@ class AiModelService:
 
         result: list[dict[str, Any]] = []
         if AiConfig.enabled:
-            result.append({
-                'modelId': 0,
-                'provider': AiConfig.provider,
-                'modelCode': AiConfig.llm_model,
-                'modelName': '默认模型',
-                'maxTokens': AiConfig.llm_max_tokens,
-                'temperature': None,
-                'supportReasoning': 'N',
-                'supportImages': 'N',
-                'status': '0',
-                'isDefault': True,
-                'apiKey': '********' * 3,
-            })
+            result.append(
+                {
+                    'modelId': 0,
+                    'provider': AiConfig.provider,
+                    'modelCode': AiConfig.llm_model,
+                    'modelName': '默认模型',
+                    'maxTokens': AiConfig.llm_max_tokens,
+                    'temperature': None,
+                    'supportReasoning': 'N',
+                    'supportImages': 'N',
+                    'status': '0',
+                    'isDefault': True,
+                    'apiKey': '********' * 3,
+                }
+            )
         result.extend(rows)
         return result
 

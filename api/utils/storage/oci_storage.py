@@ -1,4 +1,5 @@
 """Oracle OCI 对象存储实现（storage_type=oci-storage，S3 兼容）。依赖：boto3"""
+
 from collections.abc import Generator
 from contextlib import closing
 

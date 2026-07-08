@@ -209,7 +209,7 @@ class AlertService:
                 AlertRecordDao.sync_add_record(db, dict(record_values))
                 # 转发渠道使用记录内容(record_values 即可作为渠道 payload)
                 dispatch_forward(record_values, forward_conf if isinstance(forward_conf, list) else [])
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             loguru_logger.error(f'处理任务失败告警异常: {e}')
         finally:
             if tenant_token is not None:

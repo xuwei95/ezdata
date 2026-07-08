@@ -24,7 +24,9 @@ PASS = FAIL = 0
 
 def check(label, cond, detail=''):
     global PASS, FAIL
-    ok = bool(cond); PASS += ok; FAIL += (not ok)
+    ok = bool(cond)
+    PASS += ok
+    FAIL += not ok
     print(f'  [{"PASS" if ok else "FAIL"}] {label}' + (f' — {detail}' if detail else ''))
 
 
@@ -35,16 +37,27 @@ def main():
     try:
         src = db.execute(select(DataSource)).scalars().first()
         if not src:
-            print('  无数据源,跳过'); return 0
+            print('  无数据源,跳过')
+            return 0
         print(f'== 数据源:{src.name} ({src.id[:8]}) ==')
 
         # 1. 取或建该源专属知识库
         ds = db.execute(select(RagDataset).where(RagDataset.source_id == src.id)).scalars().first()
         if not ds:
-            ds = RagDataset(id=uuid.uuid4().hex, name=f'{src.name} · 专属知识库', source_id=src.id,
-                            embedding_provider=RagConfig.embedding_type, embedding_model=RagConfig.embedding_model,
-                            vector_backend='elasticsearch', index_name=None, status=1, create_time=datetime.now())
-            db.add(ds); db.commit(); created = ds.id
+            ds = RagDataset(
+                id=uuid.uuid4().hex,
+                name=f'{src.name} · 专属知识库',
+                source_id=src.id,
+                embedding_provider=RagConfig.embedding_type,
+                embedding_model=RagConfig.embedding_model,
+                vector_backend='elasticsearch',
+                index_name=None,
+                status=1,
+                create_time=datetime.now(),
+            )
+            db.add(ds)
+            db.commit()
+            created = ds.id
         check('专属知识库存在', ds is not None and ds.source_id == src.id, ds.id[:8])
 
         # 2. 灌入知识(1 条 QA + 1 条分段)
@@ -61,14 +74,34 @@ def main():
         for (t, q, c), vec in zip(kb, vecs):
             cid = uuid.uuid4().hex
             text = q if t == 'qa' else c
-            es_docs.append({'chunk_id': cid, 'content': text, 'content_vector': vec, 'tenant_id': str(TENANT),
-                            'dataset_id': ds.id, 'document_id': 'manual', 'chunk_type': t,
-                            **({'question': q} if t == 'qa' else {})})
-            rows.append(RagChunk(id=cid, dataset_id=ds.id, document_id='manual', chunk_type=t,
-                                 content=(None if t == 'qa' else c), question=(q if t == 'qa' else None),
-                                 answer=(c if t == 'qa' else None),
-                                 question_hash=(md5(q) if t == 'qa' else None), hash=md5(text),
-                                 position=0, status=1, create_time=datetime.now()))
+            es_docs.append(
+                {
+                    'chunk_id': cid,
+                    'content': text,
+                    'content_vector': vec,
+                    'tenant_id': str(TENANT),
+                    'dataset_id': ds.id,
+                    'document_id': 'manual',
+                    'chunk_type': t,
+                    **({'question': q} if t == 'qa' else {}),
+                }
+            )
+            rows.append(
+                RagChunk(
+                    id=cid,
+                    dataset_id=ds.id,
+                    document_id='manual',
+                    chunk_type=t,
+                    content=(None if t == 'qa' else c),
+                    question=(q if t == 'qa' else None),
+                    answer=(c if t == 'qa' else None),
+                    question_hash=(md5(q) if t == 'qa' else None),
+                    hash=md5(text),
+                    position=0,
+                    status=1,
+                    create_time=datetime.now(),
+                )
+            )
         store.add(es_docs)
         for r in rows:
             db.add(r)

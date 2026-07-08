@@ -213,7 +213,7 @@ class LoginService:
             payload = jwt.decode(token, JwtConfig.jwt_secret_key, algorithms=[JwtConfig.jwt_algorithm])
             user_id: str = payload.get('user_id')
             session_id: str = payload.get('session_id')
-            jwt_tenant_id = payload.get('tenant_id')   # 激活租户(本次登录/切换时写入)
+            jwt_tenant_id = payload.get('tenant_id')  # 激活租户(本次登录/切换时写入)
             if not user_id:
                 logger.warning('用户token不合法')
                 raise AuthException(data='', message='用户token不合法')
@@ -249,7 +249,7 @@ class LoginService:
                 )
 
             role_id_list = [item.role_id for item in query_user.get('user_role_info')]
-            if 1 in role_id_list:  # noqa: SIM108
+            if 1 in role_id_list:
                 permissions = ['*:*:*']
             else:
                 permissions = [row.perms for row in query_user.get('user_menu_info')]
@@ -282,7 +282,9 @@ class LoginService:
             if current_user.user and current_user.user.admin:
                 RequestContext.set_current_tenant_bypass(True)
             else:
-                active_tenant = await cls._resolve_active_tenant(query_db, token_data.user_id, jwt_tenant_id, current_user)
+                active_tenant = await cls._resolve_active_tenant(
+                    query_db, token_data.user_id, jwt_tenant_id, current_user
+                )
                 RequestContext.set_current_tenant_id(active_tenant)
             return current_user
         logger.warning('用户token已失效，请重新登录')
@@ -310,7 +312,7 @@ class LoginService:
         cls, query_db: AsyncSession, user_id: int, jwt_tenant_id: int | None, current_user: CurrentUserModel
     ) -> int | None:
         """解析激活租户:JWT 指定且确为成员 → 用之;否则默认成员;再否则回退按部门推导(存量/未迁移用户兜底)。"""
-        from module_admin.dao.user_tenant_dao import UserTenantDao  # noqa: PLC0415
+        from module_admin.dao.user_tenant_dao import UserTenantDao
 
         with tenant_bypass():
             if jwt_tenant_id is not None and await UserTenantDao.is_member(query_db, user_id, int(jwt_tenant_id)):

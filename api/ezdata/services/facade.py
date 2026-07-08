@@ -11,11 +11,10 @@ JSON 清洗(json_safe_rows)/序列化交由调用方按需处理(见 ezdata.util
 from typing import Any
 
 from ezdata.errors import CapabilityError, EzDataError, QueryError
-from ezdata.handlers import Capability
-from ezdata.utils.etl_util import assert_readonly_sql
+from ezdata.handlers import Capability, create_handler, handler_icon
 from ezdata.handlers import connection_schema as _connection_schema
-from ezdata.handlers import create_handler, handler_icon
 from ezdata.handlers import list_source_types as _list_source_types
+from ezdata.utils.etl_util import assert_readonly_sql
 from ezdata.utils.query import OPERATORS
 
 
@@ -65,12 +64,11 @@ def list_tables(source_type: str, config: dict | None = None, secrets: dict | No
         return h.list_tables()
     except EzDataError:
         raise
-    except Exception as e:  # noqa: BLE001  保留原始异常链(from e)+ 结构化上下文,供 to_dict 带出
+    except Exception as e:
         raise QueryError(f'{source_type} 列表失败: {e}', source_type=source_type) from e
 
 
-def get_columns(source_type: str, config: dict | None = None, secrets: dict | None = None,
-                *, table: str) -> list[dict]:
+def get_columns(source_type: str, config: dict | None = None, secrets: dict | None = None, *, table: str) -> list[dict]:
     """读取字段结构,归一为 [{name,type,nullable,comment}]。"""
     h = _handler(source_type, config, secrets)
     _require(h, Capability.SCHEMA)
@@ -78,13 +76,20 @@ def get_columns(source_type: str, config: dict | None = None, secrets: dict | No
         cols = h.get_columns(table)
     except EzDataError:
         raise
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         raise QueryError(f'{source_type} 取字段结构失败: {e}', source_type=source_type, statement=table) from e
     return [{'name': c.name, 'type': c.type, 'nullable': c.nullable, 'comment': c.comment} for c in cols]
 
 
-def query(source_type: str, config: dict | None = None, secrets: dict | None = None,
-          *, statement: Any, limit: int | None = None, readonly: bool = True) -> list[dict]:
+def query(
+    source_type: str,
+    config: dict | None = None,
+    secrets: dict | None = None,
+    *,
+    statement: Any,
+    limit: int | None = None,
+    readonly: bool = True,
+) -> list[dict]:
     """原生查询取数(读路径)。readonly=True 时对 SQL 文本族做只读护栏(拦 DML/DDL,抛 ReadOnlyViolation)。
 
     执行失败包成 QueryError 但**保留原始报错**(from e + statement),供 to_dict() 结构化带给 AI。
@@ -97,12 +102,20 @@ def query(source_type: str, config: dict | None = None, secrets: dict | None = N
         return h.query(statement, None, limit)
     except EzDataError:
         raise
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         raise QueryError(f'{source_type} 查询失败: {e}', source_type=source_type, statement=statement) from e
 
 
-def write(source_type: str, config: dict | None = None, secrets: dict | None = None,
-          *, records: Any, table: str, mode: str = 'append', **kwargs: Any) -> Any:
+def write(
+    source_type: str,
+    config: dict | None = None,
+    secrets: dict | None = None,
+    *,
+    records: Any,
+    table: str,
+    mode: str = 'append',
+    **kwargs: Any,
+) -> Any:
     """批量写入(写路径,需 WRITE 能力)。"""
     h = _handler(source_type, config, secrets)
     _require(h, Capability.WRITE)
@@ -110,11 +123,12 @@ def write(source_type: str, config: dict | None = None, secrets: dict | None = N
         return h.write(records, table, mode=mode, **kwargs)
     except EzDataError:
         raise
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         raise QueryError(f'{source_type} 写入失败: {e}', source_type=source_type, statement=table) from e
 
 
-def get_handler(source_type: str, config: dict | None = None, secrets: dict | None = None, *,
-                cache: bool = True) -> Any:
+def get_handler(
+    source_type: str, config: dict | None = None, secrets: dict | None = None, *, cache: bool = True
+) -> Any:
     """直接取一个 handler 实例(供需要多次调用/自定义方法的高级场景,如 cli/mcp 编排)。"""
     return _handler(source_type, config, secrets, cache=cache)

@@ -178,8 +178,10 @@ class UserService:
 
                 with tenant_bypass():
                     dept_row = (
-                        await query_db.execute(select(SysDept).where(SysDept.dept_id == add_user.dept_id))
-                    ).scalars().first()
+                        (await query_db.execute(select(SysDept).where(SysDept.dept_id == add_user.dept_id)))
+                        .scalars()
+                        .first()
+                    )
                 add_result.tenant_id = dept_row.tenant_id if dept_row else None
                 await query_db.flush()
             if page_object.role_ids:
@@ -189,7 +191,7 @@ class UserService:
                 for post in page_object.post_ids:
                     await UserDao.add_user_post_dao(query_db, UserPostModel(userId=user_id, postId=post))
             # 多租户成员:显式 tenant_ids 优先,否则按 home 租户建一条默认成员
-            from module_admin.dao.user_tenant_dao import UserTenantDao  # noqa: PLC0415
+            from module_admin.dao.user_tenant_dao import UserTenantDao
 
             tenant_ids = getattr(page_object, 'tenant_ids', None)
             if tenant_ids:
@@ -257,7 +259,7 @@ class UserService:
                             )
                     # 多租户成员:传了 tenant_ids 才同步(清空重建);默认租户取用户 home(user.tenant_id)或首个
                     if page_object.tenant_ids is not None:
-                        from module_admin.dao.user_tenant_dao import UserTenantDao  # noqa: PLC0415
+                        from module_admin.dao.user_tenant_dao import UserTenantDao
 
                         home_tid = getattr(user_info.data, 'tenant_id', None)
                         await UserTenantDao.replace_user_tenants(
@@ -309,14 +311,12 @@ class UserService:
         :param user_id: 用户id
         :return: 用户id对应的信息
         """
-        from module_admin.dao.user_tenant_dao import UserTenantDao  # noqa: PLC0415
+        from module_admin.dao.user_tenant_dao import UserTenantDao
 
         posts = await PostService.get_post_list_services(query_db, PostPageQueryModel(), is_page=False)
         roles = await RoleService.get_role_select_option_services(query_db)
         # 可选租户(顶级部门)选项,供"所属租户"多选;跨租户读,DAO 内部 bypass
-        tenants = [
-            {'tenantId': d[0], 'tenantName': d[1]} for d in await UserTenantDao.list_top_depts(query_db)
-        ]
+        tenants = [{'tenantId': d[0], 'tenantName': d[1]} for d in await UserTenantDao.list_top_depts(query_db)]
         if user_id != '':
             query_user = await UserDao.get_user_detail_by_id(query_db, user_id=user_id)
             post_ids = ','.join([str(row.post_id) for row in query_user.get('user_post_info')])

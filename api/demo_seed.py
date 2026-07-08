@@ -23,19 +23,24 @@ TENANT = 100
 ES = 'demo_es'
 AK = 'akshare_cn'
 
+
 # 中英字段映射:不用一个共享大字典,每个索引/接口配自己那几列(键 = 该 akshare 接口实测返回的中文列名)。
 # tf(MAP, keys) 编译出 transform.code:① 按 MAP 改英文列名(未命中原样保留);
 # ② 用 keys 指定的英文字段拼接 → md5 作 _id 写入(ES 以 _id 落库 → 追加模式下同键幂等 upsert,不重复)。
 # keys 为空则不加 _id。mapping 传 {} 表示只加 _id 不改名(新浪日线/指数本就英文)。
 def tf(mapping: dict, keys: list | None = None) -> str:
-    body = ('def transform(row):\n'
-            '    import hashlib\n'
-            '    M = ' + repr(mapping) + '\n'
-            '    out = {M.get(k, k): v for k, v in row.items()}\n')
+    body = (
+        'def transform(row):\n'
+        '    import hashlib\n'
+        '    M = ' + repr(mapping) + '\n'
+        '    out = {M.get(k, k): v for k, v in row.items()}\n'
+    )
     if keys:
-        body += ('    _k = ' + repr(list(keys)) + '\n'
-                 "    _raw = '|'.join(str(out.get(x, '')) for x in _k)\n"
-                 "    out['_id'] = hashlib.md5(_raw.encode('utf-8')).hexdigest()\n")
+        body += (
+            '    _k = ' + repr(list(keys)) + '\n'
+            "    _raw = '|'.join(str(out.get(x, '')) for x in _k)\n"
+            "    out['_id'] = hashlib.md5(_raw.encode('utf-8')).hexdigest()\n"
+        )
     body += '    return out'
     return body
 
@@ -43,163 +48,369 @@ def tf(mapping: dict, keys: list | None = None) -> str:
 # 新浪全市场快照:直接分页拉 sina json_v2(每页 80 只),原始列为英文键,仅统一少数命名。
 # 含 per/pb/mktcap/nmc/turnoverratio,比 akshare stock_zh_a_spot 一次拉全量更稳(逐页 emit 流式装载)。
 MAP_SPOT = {
-    'trade': 'price', 'pricechange': 'change', 'changepercent': 'change_pct', 'settlement': 'pre_close',
-    'per': 'pe', 'mktcap': 'market_cap', 'nmc': 'float_market_cap', 'turnoverratio': 'turnover_rate',
+    'trade': 'price',
+    'pricechange': 'change',
+    'changepercent': 'change_pct',
+    'settlement': 'pre_close',
+    'per': 'pe',
+    'mktcap': 'market_cap',
+    'nmc': 'float_market_cap',
+    'turnoverratio': 'turnover_rate',
     'ticktime': 'tick_time',
 }
 # 新浪港股全市场快照:分页 getHKStockData(node=qbgg_hk),每页原始英文键,仅统一少数命名。
 # 保留 symbol/name/engname/open/high/low/volume/amount/buy/sell/high_52week/low_52week/eps/dividend/stocks_sum 等。
 MAP_HK = {
-    'lasttrade': 'price', 'prevclose': 'pre_close', 'changepercent': 'change_pct', 'pricechange': 'change',
-    'market_value': 'market_cap', 'pe_ratio': 'pe', 'ticktime': 'tick_time',
+    'lasttrade': 'price',
+    'prevclose': 'pre_close',
+    'changepercent': 'change_pct',
+    'pricechange': 'change',
+    'market_value': 'market_cap',
+    'pe_ratio': 'pe',
+    'ticktime': 'tick_time',
 }
 # 新浪美股全市场快照:JSONP 分页 US_CategoryService.getList(每页20只),原始英文键,仅统一少数命名。
 # 保留 symbol/name(英文名)/cname(中文名)/category(行业)/price/open/high/low/amplitude/volume/pe/market 等。
 MAP_US = {
-    'diff': 'change', 'chg': 'change_pct', 'preclose': 'pre_close', 'mktcap': 'market_cap',
+    'diff': 'change',
+    'chg': 'change_pct',
+    'preclose': 'pre_close',
+    'mktcap': 'market_cap',
 }
 # stock_zh_index_spot_sina(实时指数行情,筛主要指数)——新浪,单接口轻量,适合 5 分钟级高频。
 MAP_INDEXRT = {
-    '代码': 'code', '名称': 'name', '最新价': 'price', '涨跌额': 'change', '涨跌幅': 'change_pct',
-    '昨收': 'pre_close', '今开': 'open', '最高': 'high', '最低': 'low', '成交量': 'volume', '成交额': 'amount',
+    '代码': 'code',
+    '名称': 'name',
+    '最新价': 'price',
+    '涨跌额': 'change',
+    '涨跌幅': 'change_pct',
+    '昨收': 'pre_close',
+    '今开': 'open',
+    '最高': 'high',
+    '最低': 'low',
+    '成交量': 'volume',
+    '成交额': 'amount',
 }
 # stock_zt_pool_em(涨停池)
 MAP_ZT = {
-    '序号': 'seq', '代码': 'code', '名称': 'name', '涨跌幅': 'change_pct', '最新价': 'price', '成交额': 'amount',
-    '流通市值': 'float_market_cap', '总市值': 'market_cap', '换手率': 'turnover_rate', '封板资金': 'seal_amount',
-    '首次封板时间': 'first_seal_time', '最后封板时间': 'last_seal_time', '炸板次数': 'break_count',
-    '涨停统计': 'zt_stat', '连板数': 'boards', '所属行业': 'industry',
+    '序号': 'seq',
+    '代码': 'code',
+    '名称': 'name',
+    '涨跌幅': 'change_pct',
+    '最新价': 'price',
+    '成交额': 'amount',
+    '流通市值': 'float_market_cap',
+    '总市值': 'market_cap',
+    '换手率': 'turnover_rate',
+    '封板资金': 'seal_amount',
+    '首次封板时间': 'first_seal_time',
+    '最后封板时间': 'last_seal_time',
+    '炸板次数': 'break_count',
+    '涨停统计': 'zt_stat',
+    '连板数': 'boards',
+    '所属行业': 'industry',
 }
 # stock_board_concept_name_em(概念板块快照)
 MAP_CPTBOARD = {
-    '排名': 'rank', '板块名称': 'board_name', '板块代码': 'board_code', '最新价': 'price', '涨跌额': 'change',
-    '涨跌幅': 'change_pct', '总市值': 'market_cap', '换手率': 'turnover_rate', '上涨家数': 'up_count',
-    '下跌家数': 'down_count', '领涨股票': 'lead_stock', '领涨股票-涨跌幅': 'lead_stock_change_pct',
+    '排名': 'rank',
+    '板块名称': 'board_name',
+    '板块代码': 'board_code',
+    '最新价': 'price',
+    '涨跌额': 'change',
+    '涨跌幅': 'change_pct',
+    '总市值': 'market_cap',
+    '换手率': 'turnover_rate',
+    '上涨家数': 'up_count',
+    '下跌家数': 'down_count',
+    '领涨股票': 'lead_stock',
+    '领涨股票-涨跌幅': 'lead_stock_change_pct',
 }
 # stock_board_industry_summary_ths(行业板块一览)
 MAP_INDSUM = {
-    '序号': 'seq', '板块': 'board_name', '涨跌幅': 'change_pct', '总成交量': 'total_volume', '总成交额': 'total_amount',
-    '净流入': 'net_inflow', '上涨家数': 'up_count', '下跌家数': 'down_count', '均价': 'avg_price',
-    '领涨股': 'lead_stock', '领涨股-最新价': 'lead_stock_price', '领涨股-涨跌幅': 'lead_stock_change_pct',
+    '序号': 'seq',
+    '板块': 'board_name',
+    '涨跌幅': 'change_pct',
+    '总成交量': 'total_volume',
+    '总成交额': 'total_amount',
+    '净流入': 'net_inflow',
+    '上涨家数': 'up_count',
+    '下跌家数': 'down_count',
+    '均价': 'avg_price',
+    '领涨股': 'lead_stock',
+    '领涨股-最新价': 'lead_stock_price',
+    '领涨股-涨跌幅': 'lead_stock_change_pct',
 }
 # stock_board_concept_summary_ths(概念解析)
 MAP_CPTSUM = {
-    '日期': 'date', '概念名称': 'concept_name', '驱动事件': 'driver_event', '龙头股': 'leader_stock', '成分股数量': 'cons_count',
+    '日期': 'date',
+    '概念名称': 'concept_name',
+    '驱动事件': 'driver_event',
+    '龙头股': 'leader_stock',
+    '成分股数量': 'cons_count',
 }
 # stock_rank_cxg_ths(技术选股·创新高)
 MAP_CXG = {
-    '序号': 'seq', '股票代码': 'code', '股票简称': 'name', '涨跌幅': 'change_pct', '换手率': 'turnover_rate',
-    '最新价': 'price', '前期高点': 'prev_high', '前期高点日期': 'prev_high_date',
+    '序号': 'seq',
+    '股票代码': 'code',
+    '股票简称': 'name',
+    '涨跌幅': 'change_pct',
+    '换手率': 'turnover_rate',
+    '最新价': 'price',
+    '前期高点': 'prev_high',
+    '前期高点日期': 'prev_high_date',
 }
 # stock_rank_lxsz_ths(技术选股·连续上涨)
 MAP_LXSZ = {
-    '序号': 'seq', '股票代码': 'code', '股票简称': 'name', '收盘价': 'close', '最高价': 'high', '最低价': 'low',
-    '连涨天数': 'up_days', '连续涨跌幅': 'consec_change_pct', '累计换手率': 'cum_turnover_rate', '所属行业': 'industry',
+    '序号': 'seq',
+    '股票代码': 'code',
+    '股票简称': 'name',
+    '收盘价': 'close',
+    '最高价': 'high',
+    '最低价': 'low',
+    '连涨天数': 'up_days',
+    '连续涨跌幅': 'consec_change_pct',
+    '累计换手率': 'cum_turnover_rate',
+    '所属行业': 'industry',
 }
 # stock_ipo_ths(新股申购)
 MAP_IPO = {
-    '股票代码': 'code', '股票简称': 'name', '申购代码': 'subscribe_code', '发行总数（万股）': 'issue_total_wan',
-    '网上发行（万股）': 'online_issue_wan', '申购上限（万股）': 'subscribe_limit_wan',
-    '顶格申购需配市值（万元）': 'max_subscribe_mktcap_wan', '发行价格': 'issue_price', '发行市盈率': 'issue_pe',
-    '行业市盈率': 'industry_pe', '申购日期': 'subscribe_date', '中签率（%）': 'winning_rate_pct', '中签号': 'lucky_number',
-    '中签缴款日期': 'payment_date', '上市日期': 'list_date', '打新收益（元）': 'ipo_profit_yuan',
-    '首日最高涨幅': 'first_day_max_gain', '连板天数': 'boards_days',
+    '股票代码': 'code',
+    '股票简称': 'name',
+    '申购代码': 'subscribe_code',
+    '发行总数（万股）': 'issue_total_wan',
+    '网上发行（万股）': 'online_issue_wan',
+    '申购上限（万股）': 'subscribe_limit_wan',
+    '顶格申购需配市值（万元）': 'max_subscribe_mktcap_wan',
+    '发行价格': 'issue_price',
+    '发行市盈率': 'issue_pe',
+    '行业市盈率': 'industry_pe',
+    '申购日期': 'subscribe_date',
+    '中签率（%）': 'winning_rate_pct',
+    '中签号': 'lucky_number',
+    '中签缴款日期': 'payment_date',
+    '上市日期': 'list_date',
+    '打新收益（元）': 'ipo_profit_yuan',
+    '首日最高涨幅': 'first_day_max_gain',
+    '连板天数': 'boards_days',
 }
 # bond_zh_cov_info_ths(可转债)
 MAP_CB = {
-    '债券代码': 'bond_code', '债券简称': 'bond_name', '申购日期': 'subscribe_date', '申购代码': 'subscribe_code',
-    '原股东配售码': 'shareholder_code', '每股获配额': 'per_share_alloc', '计划发行量': 'planned_issue',
-    '实际发行量': 'actual_issue', '中签公布日': 'winning_announce_date', '中签号': 'lucky_number',
-    '上市日期': 'list_date', '正股代码': 'stock_code', '正股简称': 'stock_name', '转股价格': 'convert_price',
-    '到期时间': 'maturity_date', '中签率': 'winning_rate',
+    '债券代码': 'bond_code',
+    '债券简称': 'bond_name',
+    '申购日期': 'subscribe_date',
+    '申购代码': 'subscribe_code',
+    '原股东配售码': 'shareholder_code',
+    '每股获配额': 'per_share_alloc',
+    '计划发行量': 'planned_issue',
+    '实际发行量': 'actual_issue',
+    '中签公布日': 'winning_announce_date',
+    '中签号': 'lucky_number',
+    '上市日期': 'list_date',
+    '正股代码': 'stock_code',
+    '正股简称': 'stock_name',
+    '转股价格': 'convert_price',
+    '到期时间': 'maturity_date',
+    '中签率': 'winning_rate',
 }
 # index_stock_cons_sina(主要指数成分股,替代东财 concept_cons_em——新浪更稳;列本就多为英文,仅统一少数命名)
 # code 内补 index_code/index_name(已英文)。沪深300含 per/pb/mktcap/turnoverratio,上证50等子集可能缺,稀疏正常。
 MAP_IDXCONS = {
-    'trade': 'price', 'pricechange': 'change', 'changepercent': 'change_pct', 'settlement': 'pre_close',
-    'per': 'pe', 'mktcap': 'market_cap', 'nmc': 'float_market_cap', 'turnoverratio': 'turnover_rate',
+    'trade': 'price',
+    'pricechange': 'change',
+    'changepercent': 'change_pct',
+    'settlement': 'pre_close',
+    'per': 'pe',
+    'mktcap': 'market_cap',
+    'nmc': 'float_market_cap',
+    'turnoverratio': 'turnover_rate',
     'ticktime': 'tick_time',
 }
 # 宏观:cpi/ppi/pmi/money_supply 四接口列名的并集(本就是多接口汇到一个索引)+ code 内补的 indicator
 MAP_MACRO = {
-    '月份': 'month', '当月': 'month_val', '当月同比增长': 'month_yoy', '累计': 'cum',
-    '全国-当月': 'national_month', '全国-同比增长': 'national_yoy', '全国-环比增长': 'national_mom', '全国-累计': 'national_cum',
-    '城市-当月': 'urban_month', '城市-同比增长': 'urban_yoy', '城市-环比增长': 'urban_mom', '城市-累计': 'urban_cum',
-    '农村-当月': 'rural_month', '农村-同比增长': 'rural_yoy', '农村-环比增长': 'rural_mom', '农村-累计': 'rural_cum',
-    '制造业-指数': 'mfg_index', '制造业-同比增长': 'mfg_yoy', '非制造业-指数': 'nonmfg_index', '非制造业-同比增长': 'nonmfg_yoy',
-    '流通中的现金(M0)-数量(亿元)': 'm0_amount_yi', '流通中的现金(M0)-同比增长': 'm0_yoy', '流通中的现金(M0)-环比增长': 'm0_mom',
-    '货币(M1)-数量(亿元)': 'm1_amount_yi', '货币(M1)-同比增长': 'm1_yoy', '货币(M1)-环比增长': 'm1_mom',
-    '货币和准货币(M2)-数量(亿元)': 'm2_amount_yi', '货币和准货币(M2)-同比增长': 'm2_yoy', '货币和准货币(M2)-环比增长': 'm2_mom',
+    '月份': 'month',
+    '当月': 'month_val',
+    '当月同比增长': 'month_yoy',
+    '累计': 'cum',
+    '全国-当月': 'national_month',
+    '全国-同比增长': 'national_yoy',
+    '全国-环比增长': 'national_mom',
+    '全国-累计': 'national_cum',
+    '城市-当月': 'urban_month',
+    '城市-同比增长': 'urban_yoy',
+    '城市-环比增长': 'urban_mom',
+    '城市-累计': 'urban_cum',
+    '农村-当月': 'rural_month',
+    '农村-同比增长': 'rural_yoy',
+    '农村-环比增长': 'rural_mom',
+    '农村-累计': 'rural_cum',
+    '制造业-指数': 'mfg_index',
+    '制造业-同比增长': 'mfg_yoy',
+    '非制造业-指数': 'nonmfg_index',
+    '非制造业-同比增长': 'nonmfg_yoy',
+    '流通中的现金(M0)-数量(亿元)': 'm0_amount_yi',
+    '流通中的现金(M0)-同比增长': 'm0_yoy',
+    '流通中的现金(M0)-环比增长': 'm0_mom',
+    '货币(M1)-数量(亿元)': 'm1_amount_yi',
+    '货币(M1)-同比增长': 'm1_yoy',
+    '货币(M1)-环比增长': 'm1_mom',
+    '货币和准货币(M2)-数量(亿元)': 'm2_amount_yi',
+    '货币和准货币(M2)-同比增长': 'm2_yoy',
+    '货币和准货币(M2)-环比增长': 'm2_mom',
 }
 # stock_news_em(个股新闻):code 内补的 query_symbol(已英文)
 MAP_NEWS = {
-    '关键词': 'keyword', '新闻标题': 'title', '新闻内容': 'content', '发布时间': 'publish_time',
-    '文章来源': 'source', '新闻链接': 'url',
+    '关键词': 'keyword',
+    '新闻标题': 'title',
+    '新闻内容': 'content',
+    '发布时间': 'publish_time',
+    '文章来源': 'source',
+    '新闻链接': 'url',
 }
 # stock_market_fund_flow(大盘资金流·时序)
 MAP_MKTFLOW = {
-    '日期': 'date', '上证-收盘价': 'sh_close', '上证-涨跌幅': 'sh_change_pct',
-    '深证-收盘价': 'sz_close', '深证-涨跌幅': 'sz_change_pct',
-    '主力净流入-净额': 'main_net', '主力净流入-净占比': 'main_net_pct',
-    '超大单净流入-净额': 'xlarge_net', '超大单净流入-净占比': 'xlarge_net_pct',
-    '大单净流入-净额': 'large_net', '大单净流入-净占比': 'large_net_pct',
-    '中单净流入-净额': 'mid_net', '中单净流入-净占比': 'mid_net_pct',
-    '小单净流入-净额': 'small_net', '小单净流入-净占比': 'small_net_pct',
+    '日期': 'date',
+    '上证-收盘价': 'sh_close',
+    '上证-涨跌幅': 'sh_change_pct',
+    '深证-收盘价': 'sz_close',
+    '深证-涨跌幅': 'sz_change_pct',
+    '主力净流入-净额': 'main_net',
+    '主力净流入-净占比': 'main_net_pct',
+    '超大单净流入-净额': 'xlarge_net',
+    '超大单净流入-净占比': 'xlarge_net_pct',
+    '大单净流入-净额': 'large_net',
+    '大单净流入-净占比': 'large_net_pct',
+    '中单净流入-净额': 'mid_net',
+    '中单净流入-净占比': 'mid_net_pct',
+    '小单净流入-净额': 'small_net',
+    '小单净流入-净占比': 'small_net_pct',
 }
 # stock_lhb_detail_em(龙虎榜明细)
 MAP_LHB = {
-    '序号': 'seq', '代码': 'code', '名称': 'name', '上榜日': 'list_date', '解读': 'interpret',
-    '收盘价': 'close', '涨跌幅': 'change_pct', '龙虎榜净买额': 'lhb_net_buy', '龙虎榜买入额': 'lhb_buy',
-    '龙虎榜卖出额': 'lhb_sell', '龙虎榜成交额': 'lhb_amount', '市场总成交额': 'market_amount',
-    '净买额占总成交比': 'net_buy_pct', '成交额占总成交比': 'amount_pct', '换手率': 'turnover_rate',
-    '流通市值': 'float_market_cap', '上榜原因': 'reason',
-    '上榜后1日': 'after_1d', '上榜后2日': 'after_2d', '上榜后5日': 'after_5d', '上榜后10日': 'after_10d',
+    '序号': 'seq',
+    '代码': 'code',
+    '名称': 'name',
+    '上榜日': 'list_date',
+    '解读': 'interpret',
+    '收盘价': 'close',
+    '涨跌幅': 'change_pct',
+    '龙虎榜净买额': 'lhb_net_buy',
+    '龙虎榜买入额': 'lhb_buy',
+    '龙虎榜卖出额': 'lhb_sell',
+    '龙虎榜成交额': 'lhb_amount',
+    '市场总成交额': 'market_amount',
+    '净买额占总成交比': 'net_buy_pct',
+    '成交额占总成交比': 'amount_pct',
+    '换手率': 'turnover_rate',
+    '流通市值': 'float_market_cap',
+    '上榜原因': 'reason',
+    '上榜后1日': 'after_1d',
+    '上榜后2日': 'after_2d',
+    '上榜后5日': 'after_5d',
+    '上榜后10日': 'after_10d',
 }
 # stock_yjbb_em(业绩报表):code 内补的 report_period(已英文)
 MAP_YJBB = {
-    '序号': 'seq', '股票代码': 'code', '股票简称': 'name', '每股收益': 'eps',
-    '营业总收入-营业总收入': 'revenue', '营业总收入-同比增长': 'revenue_yoy', '营业总收入-季度环比增长': 'revenue_qoq',
-    '净利润-净利润': 'net_profit', '净利润-同比增长': 'net_profit_yoy', '净利润-季度环比增长': 'net_profit_qoq',
-    '每股净资产': 'bps', '净资产收益率': 'roe', '每股经营现金流量': 'ocfps', '销售毛利率': 'gross_margin',
-    '所处行业': 'industry', '最新公告日期': 'announce_date',
+    '序号': 'seq',
+    '股票代码': 'code',
+    '股票简称': 'name',
+    '每股收益': 'eps',
+    '营业总收入-营业总收入': 'revenue',
+    '营业总收入-同比增长': 'revenue_yoy',
+    '营业总收入-季度环比增长': 'revenue_qoq',
+    '净利润-净利润': 'net_profit',
+    '净利润-同比增长': 'net_profit_yoy',
+    '净利润-季度环比增长': 'net_profit_qoq',
+    '每股净资产': 'bps',
+    '净资产收益率': 'roe',
+    '每股经营现金流量': 'ocfps',
+    '销售毛利率': 'gross_margin',
+    '所处行业': 'industry',
+    '最新公告日期': 'announce_date',
 }
 # stock_industry_pe_ratio_cninfo(行业市盈率·证监会分类)
 MAP_INDPE = {
-    '变动日期': 'date', '行业分类': 'industry_class', '行业层级': 'industry_level', '行业编码': 'industry_code',
-    '行业名称': 'industry_name', '公司数量': 'company_count', '纳入计算公司数量': 'calc_company_count',
-    '总市值-静态': 'market_cap_static', '净利润-静态': 'net_profit_static',
-    '静态市盈率-加权平均': 'pe_weighted', '静态市盈率-中位数': 'pe_median', '静态市盈率-算术平均': 'pe_mean',
+    '变动日期': 'date',
+    '行业分类': 'industry_class',
+    '行业层级': 'industry_level',
+    '行业编码': 'industry_code',
+    '行业名称': 'industry_name',
+    '公司数量': 'company_count',
+    '纳入计算公司数量': 'calc_company_count',
+    '总市值-静态': 'market_cap_static',
+    '净利润-静态': 'net_profit_static',
+    '静态市盈率-加权平均': 'pe_weighted',
+    '静态市盈率-中位数': 'pe_median',
+    '静态市盈率-算术平均': 'pe_mean',
 }
 # stock_margin_sse(上交所融资融券·时序)
 MAP_MARGIN = {
-    '信用交易日期': 'date', '融资余额': 'margin_balance', '融资买入额': 'margin_buy',
-    '融券余量': 'short_volume', '融券余量金额': 'short_amount', '融券卖出量': 'short_sell',
+    '信用交易日期': 'date',
+    '融资余额': 'margin_balance',
+    '融资买入额': 'margin_buy',
+    '融券余量': 'short_volume',
+    '融券余量金额': 'short_amount',
+    '融券卖出量': 'short_sell',
     '融资融券余额': 'total_balance',
 }
 # fund_etf_spot_em(ETF 实时快照)
 MAP_ETF = {
-    '代码': 'code', '名称': 'name', '最新价': 'price', 'IOPV实时估值': 'iopv', '基金折价率': 'discount_rate',
-    '涨跌额': 'change', '涨跌幅': 'change_pct', '成交量': 'volume', '成交额': 'amount', '开盘价': 'open',
-    '最高价': 'high', '最低价': 'low', '昨收': 'pre_close', '振幅': 'amplitude', '换手率': 'turnover_rate',
-    '量比': 'volume_ratio', '委比': 'commission_ratio', '外盘': 'outer_volume', '内盘': 'inner_volume',
-    '主力净流入-净额': 'main_net', '主力净流入-净占比': 'main_net_pct',
-    '超大单净流入-净额': 'xlarge_net', '超大单净流入-净占比': 'xlarge_net_pct',
-    '大单净流入-净额': 'large_net', '大单净流入-净占比': 'large_net_pct',
-    '中单净流入-净额': 'mid_net', '中单净流入-净占比': 'mid_net_pct',
-    '小单净流入-净额': 'small_net', '小单净流入-净占比': 'small_net_pct',
-    '现手': 'current_hand', '买一': 'bid1', '卖一': 'ask1', '最新份额': 'latest_shares',
-    '流通市值': 'float_market_cap', '总市值': 'market_cap', '数据日期': 'data_date', '更新时间': 'update_time',
+    '代码': 'code',
+    '名称': 'name',
+    '最新价': 'price',
+    'IOPV实时估值': 'iopv',
+    '基金折价率': 'discount_rate',
+    '涨跌额': 'change',
+    '涨跌幅': 'change_pct',
+    '成交量': 'volume',
+    '成交额': 'amount',
+    '开盘价': 'open',
+    '最高价': 'high',
+    '最低价': 'low',
+    '昨收': 'pre_close',
+    '振幅': 'amplitude',
+    '换手率': 'turnover_rate',
+    '量比': 'volume_ratio',
+    '委比': 'commission_ratio',
+    '外盘': 'outer_volume',
+    '内盘': 'inner_volume',
+    '主力净流入-净额': 'main_net',
+    '主力净流入-净占比': 'main_net_pct',
+    '超大单净流入-净额': 'xlarge_net',
+    '超大单净流入-净占比': 'xlarge_net_pct',
+    '大单净流入-净额': 'large_net',
+    '大单净流入-净占比': 'large_net_pct',
+    '中单净流入-净额': 'mid_net',
+    '中单净流入-净占比': 'mid_net_pct',
+    '小单净流入-净额': 'small_net',
+    '小单净流入-净占比': 'small_net_pct',
+    '现手': 'current_hand',
+    '买一': 'bid1',
+    '卖一': 'ask1',
+    '最新份额': 'latest_shares',
+    '流通市值': 'float_market_cap',
+    '总市值': 'market_cap',
+    '数据日期': 'data_date',
+    '更新时间': 'update_time',
 }
 # macro_china_gdp(中国 GDP·季度)
 MAP_GDP = {
-    '季度': 'quarter', '国内生产总值-绝对值': 'gdp_abs', '国内生产总值-同比增长': 'gdp_yoy',
-    '第一产业-绝对值': 'primary_abs', '第一产业-同比增长': 'primary_yoy',
-    '第二产业-绝对值': 'secondary_abs', '第二产业-同比增长': 'secondary_yoy',
-    '第三产业-绝对值': 'tertiary_abs', '第三产业-同比增长': 'tertiary_yoy',
+    '季度': 'quarter',
+    '国内生产总值-绝对值': 'gdp_abs',
+    '国内生产总值-同比增长': 'gdp_yoy',
+    '第一产业-绝对值': 'primary_abs',
+    '第一产业-同比增长': 'primary_yoy',
+    '第二产业-绝对值': 'secondary_abs',
+    '第二产业-同比增长': 'secondary_yoy',
+    '第三产业-绝对值': 'tertiary_abs',
+    '第三产业-同比增长': 'tertiary_yoy',
 }
 # macro_china_lpr(LPR 利率·时序;原列名为英文大写,统一成小写下划线)
 MAP_LPR = {
-    'TRADE_DATE': 'trade_date', 'LPR1Y': 'lpr_1y', 'LPR5Y': 'lpr_5y', 'RATE_1': 'rate_1', 'RATE_2': 'rate_2',
+    'TRADE_DATE': 'trade_date',
+    'LPR1Y': 'lpr_1y',
+    'LPR5Y': 'lpr_5y',
+    'RATE_1': 'rate_1',
+    'RATE_2': 'rate_2',
 }
 
 
@@ -212,27 +423,35 @@ def native(func: str, params: dict | None, idx: str, transform: str = '') -> str
     stmt = {'func': func}
     if params:
         stmt['params'] = params
-    return json.dumps({
-        'extract': {'datasource_code': AK, 'object': func, 'native': stmt},
-        'transform': {'enabled': bool(transform), 'code': transform},
-        'load': load(idx),
-    }, ensure_ascii=False)
+    return json.dumps(
+        {
+            'extract': {'datasource_code': AK, 'object': func, 'native': stmt},
+            'transform': {'enabled': bool(transform), 'code': transform},
+            'load': load(idx),
+        },
+        ensure_ascii=False,
+    )
 
 
 def code(ds: str, src: str, idx: str, transform: str = '') -> str:
-    return json.dumps({
-        'extract': {'mode': 'code', 'datasource_codes': [ds], 'code': src},
-        'transform': {'enabled': bool(transform), 'code': transform},
-        'load': load(idx),
-    }, ensure_ascii=False)
+    return json.dumps(
+        {
+            'extract': {'mode': 'code', 'datasource_codes': [ds], 'code': src},
+            'transform': {'enabled': bool(transform), 'code': transform},
+            'load': load(idx),
+        },
+        ensure_ascii=False,
+    )
 
 
 # 市场活跃度 value 列混合类型(家数=int / 活跃度/日期=str),ES 动态映射会类型冲突 → 统一转字符串
-TF_STR_VALUE = ("def transform(row):\n"
-                "    import hashlib\n"
-                "    row['value'] = str(row.get('value', ''))\n"
-                "    row['_id'] = hashlib.md5(str(row.get('item', '')).encode('utf-8')).hexdigest()\n"
-                "    return row")
+TF_STR_VALUE = (
+    'def transform(row):\n'
+    '    import hashlib\n'
+    "    row['value'] = str(row.get('value', ''))\n"
+    "    row['_id'] = hashlib.md5(str(row.get('item', '')).encode('utf-8')).hexdigest()\n"
+    '    return row'
+)
 
 C_STOCK_DAILY = """
 symbols = {'sh600519':'贵州茅台','sz300750':'宁德时代','sz002594':'比亚迪',
@@ -490,108 +709,278 @@ print(f"美股全市场快照完成,共 {total} 条(逐页流式)")
 
 # 定时策略:按各数据的真实更新节奏分档。cron 为 6 段 Quartz:秒 分 时 日 月 周;日/周用 ? 占位。
 # 注意:该 cron 适配器对"星期范围"有坑(会被当成 week-of-year),故只用"每天/每月某日"形态,不用星期。
-CRON_CLOSE = '0 0 16 * * ? *'    # 收盘日更 16:00(日线/指数/大盘资金流等 EOD 序列)
-CRON_INTRADAY = '0 0/30 9-15 ? * 2-6 *'  # 盘中每30分:周一至周五 9:00-15:59(实时快照:全市场/涨停/活跃度/概念·行业板块/ETF)
+CRON_CLOSE = '0 0 16 * * ? *'  # 收盘日更 16:00(日线/指数/大盘资金流等 EOD 序列)
+CRON_INTRADAY = (
+    '0 0/30 9-15 ? * 2-6 *'  # 盘中每30分:周一至周五 9:00-15:59(实时快照:全市场/涨停/活跃度/概念·行业板块/ETF)
+)
 CRON_EVENING = '0 30 18 * * ? *'  # 盘后晚间 18:30(龙虎榜、两融——交易所/东财收盘后才发布)
-CRON_DAWN = '0 30 0 * * ? *'     # 凌晨日更 00:30(概念成分/解析/技术选股/业绩/行业估值/新股/可转债)
-CRON_HOUR = '0 0 * * * ? *'      # 每小时(新闻,时效性强)
-CRON_MONTH = '0 0 2 1 * ? *'     # 每月1号 02:00(宏观月度/季度:CPI·PPI·PMI·货币/GDP/LPR)
-CRON_USCLOSE = '0 0 6 * * ? *'   # 每天北京 06:00(美股收盘后;全量美股~1.7万只逐页流式,约30分钟)
+CRON_DAWN = '0 30 0 * * ? *'  # 凌晨日更 00:30(概念成分/解析/技术选股/业绩/行业估值/新股/可转债)
+CRON_HOUR = '0 0 * * * ? *'  # 每小时(新闻,时效性强)
+CRON_MONTH = '0 0 2 1 * ? *'  # 每月1号 02:00(宏观月度/季度:CPI·PPI·PMI·货币/GDP/LPR)
+CRON_USCLOSE = '0 0 6 * * ? *'  # 每天北京 06:00(美股收盘后;全量美股~1.7万只逐页流式,约30分钟)
 CRON_INDEX5M = '0 0/5 9-15 ? * 2-6 *'  # 盘中每5分:周一至周五 9:00-15:59(常见指数实时、市场活跃度——轻量单接口,低限流)
 CRON_CPT1H = '0 0 9-15 ? * 2-6 *'  # 盘中每小时整点:概念板块"检测新增"(THS 接口偏慢~1-4分,概念也不频繁新增,1小时足够)
 
 # (task_id, 任务名, params_json, 索引, 数据模型名, cron, 详细描述)  cron='' 即单次手动(trigger_type=1)
 # 任务名简明带"→索引";详细描述写清:数据源/字段/更新节奏/适合的分析。data_model 名用"数据模型名"。
 TASKS = [
-    ('demo_fin_spot', 'A股全市场实时快照 → fin_stock_spot',
-     code(AK, C_SPOT, 'fin_stock_spot', tf(MAP_SPOT, ['code'])), 'fin_stock_spot', 'A股全市场快照', CRON_INTRADAY,
-     '新浪全A股截面行情(code 取数·逐页流式:把新浪全市场分页拆成每页 80 只、逐页 emit 装载,单页失败只跳过、不拖垮整体、躲限流):代码/名称/最新价/涨跌额涨跌幅/买卖盘/昨收今开/最高最低/成交量额/市盈率/市净率/总市值流通市值/换手率。收盘后(16:00)刷新,适合涨跌幅榜、量价与市值分析。'),
-    ('demo_fin_hkspot', '港股全市场快照 → fin_hk_spot',
-     code(AK, C_HK_SPOT, 'fin_hk_spot', tf(MAP_HK, ['symbol'])), 'fin_hk_spot', '港股全快照', CRON_INTRADAY,
-     '新浪港股全市场实时快照(code 取数·逐页流式:node=qbgg_hk 每页80只,逐页 emit、单页失败跳过、md5(symbol)幂等):代码/名称/英文名/最新价/昨收/开高低/成交量额/买卖盘/52周高低/EPS/股息/总股本/市值/市盈率。周一至周五盘中每30分刷新,适合港股涨跌榜、量价与市值分析。'),
-    ('demo_fin_usspot', '美股全市场快照 → fin_us_spot',
-     code(AK, C_US_SPOT, 'fin_us_spot', tf(MAP_US, ['symbol'])), 'fin_us_spot', '美股全快照', CRON_USCLOSE,
-     '新浪美股全市场快照(code 取数·逐页流式:US_CategoryService 每页20只、约884页/1.7万只,逐页 emit、单页失败跳过、md5(symbol)幂等):代码/英文名/中文名/行业/最新价/涨跌额涨跌幅/昨收开高低/振幅/成交量/市值/市盈率/交易所。美股收盘后每天北京 06:00 刷新一次,量大约30分钟。'),
-    ('demo_fin_indexrt', '常见指数实时行情 → fin_index_rt',
-     code(AK, C_INDEX_RT, 'fin_index_rt', tf(MAP_INDEXRT, ['code'])), 'fin_index_rt', '常见指数实时', CRON_INDEX5M,
-     '新浪实时行情筛主要指数(上证/深证成指/沪深300/创业板指/科创50/上证50/中证500/中证1000):最新价/涨跌额涨跌幅/昨收今开/最高最低/成交量额。盘中每5分钟刷新(轻量单接口、低限流风险),md5(code)幂等,适合大盘实时监控。'),
-    ('demo_fin_cptnew', '概念板块·检测新增 → fin_concept_new',
-     code(AK, C_CONCEPT_NEW, 'fin_concept_new', tf({}, ['code'])), 'fin_concept_new', '概念检测新增', CRON_CPT1H,
-     '同花顺概念板块列表,按 code 降序取最新 60 个(THS code 越大越新)入库;追加+md5(code) 幂等 → 新概念(新 code)自动增量落库、已有幂等更新。THS 接口偏慢(~1-4分),概念也不频繁新增,盘中每小时刷新一次即可,适合监测市场新题材/新概念上线。'),
-    ('demo_fin_zt', '涨停板池(当日)→ fin_zt_pool',
-     code(AK, C_ZT, 'fin_zt_pool', tf(MAP_ZT, ['code'])), 'fin_zt_pool', '当日涨停池', CRON_INTRADAY,
-     '东财当日涨停个股(code 取数,显式取当日日期):封板资金/首次与最后封板时间/炸板次数/涨停统计/连板数/所属行业。收盘后(16:00)日更,适合按行业统计涨停家数、连板梯队、封板强度分析。'),
-    ('demo_fin_act', '市场活跃度情绪 → fin_market_activity',
-     native('stock_market_activity_legu', None, 'fin_market_activity', TF_STR_VALUE), 'fin_market_activity', '市场活跃度', CRON_INDEX5M,
-     '乐咕乐股市场情绪快照:上涨/下跌/平盘/涨停/跌停/真跌停/活跃度等家数统计,以 item(指标名)+value(值,统一转字符串避免ES类型冲突)键值对存储。收盘后日更,适合做多空力量、市场温度概览。'),
-    ('demo_fin_cptboard', '概念板块行情快照 → fin_concept_board',
-     native('stock_board_concept_name_em', None, 'fin_concept_board', tf(MAP_CPTBOARD, ['board_code'])), 'fin_concept_board', '概念板块行情', CRON_INTRADAY,
-     '东财全部概念板块:排名/板块名称/板块代码/最新价/涨跌额/涨跌幅/总市值/换手率/上涨下跌家数/领涨股票及其涨跌幅。收盘后日更,适合概念热度排行、强势板块筛选。'),
-    ('demo_fin_indsum', '行业板块一览 → fin_industry_summary',
-     native('stock_board_industry_summary_ths', None, 'fin_industry_summary', tf(MAP_INDSUM, ['board_name'])), 'fin_industry_summary', '行业板块一览', CRON_INTRADAY,
-     '同花顺行业板块汇总:涨跌幅/总成交量/总成交额/净流入/上涨下跌家数/均价/领涨股及其最新价与涨跌幅。收盘后日更,适合行业轮动、资金净流入排行。'),
-    ('demo_fin_cptsum', '概念板块解析(驱动/龙头)→ fin_concept_summary',
-     native('stock_board_concept_summary_ths', None, 'fin_concept_summary', tf(MAP_CPTSUM, ['concept_name'])), 'fin_concept_summary', '概念解析', CRON_DAWN,
-     '同花顺概念解析:日期/概念名称/驱动事件/龙头股/成分股数量。概念定义变动不频繁,凌晨(00:30)日更,适合解读概念逻辑、定位龙头与成分股规模。'),
-    ('demo_fin_cxg', '技术选股·创月新高 → fin_cxg',
-     native('stock_rank_cxg_ths', {'symbol': '创月新高'}, 'fin_cxg', tf(MAP_CXG, ['code'])), 'fin_cxg', '技术选股·创新高', CRON_DAWN,
-     '同花顺技术形态选股(创月新高):股票代码/简称/涨跌幅/换手率/最新价/前期高点及其日期。凌晨日更,适合强势突破股票池。'),
-    ('demo_fin_lxsz', '技术选股·连续上涨 → fin_lxsz',
-     native('stock_rank_lxsz_ths', None, 'fin_lxsz', tf(MAP_LXSZ, ['code'])), 'fin_lxsz', '技术选股·连续上涨', CRON_DAWN,
-     '同花顺连续上涨个股:股票代码/简称/收盘价/最高价/最低价/连涨天数/连续涨跌幅/累计换手率/所属行业。凌晨日更,适合动量与连涨梯队分析。'),
-    ('demo_fin_ipo', '新股申购与中签 → fin_ipo',
-     native('stock_ipo_ths', {'symbol': '全部A股'}, 'fin_ipo', tf(MAP_IPO, ['code'])), 'fin_ipo', '新股申购', CRON_DAWN,
-     '同花顺新股申购:申购代码/发行总数与网上发行量/申购上限/顶格申购需配市值/发行价格/发行与行业市盈率/申购日/中签率/中签号/缴款日/上市日/打新收益/首日最高涨幅/连板天数。凌晨日更以跟进新发。'),
-    ('demo_fin_cb', '可转债申购信息 → fin_cb',
-     native('bond_zh_cov_info_ths', None, 'fin_cb', tf(MAP_CB, ['bond_code'])), 'fin_cb', '可转债申购', CRON_DAWN,
-     '同花顺可转债信息中心:债券代码与简称/申购日与申购代码/原股东配售码/每股获配额/计划与实际发行量/中签公布日/中签号/上市日/正股代码与简称/转股价格/到期时间/中签率。凌晨日更。'),
-    ('demo_fin_daily', '龙头股日线·前复权近250日 → fin_stock_daily',
-     code(AK, C_STOCK_DAILY, 'fin_stock_daily', tf({}, ['symbol', 'date'])), 'fin_stock_daily', '个股日线', CRON_CLOSE,
-     '新浪6只代表性个股(贵州茅台/宁德时代/比亚迪/中芯国际/中国平安/格力电器)前复权日线 OHLCV(字段本就是英文 date/open/high/low/close/volume/amount/turnover,无需中英转换),各取最近250个交易日。收盘后日更,适合K线、均线、个股走势对比。'),
-    ('demo_fin_index', '主要指数日线·近250日 → fin_index_daily',
-     code(AK, C_INDEX_DAILY, 'fin_index_daily', tf({}, ['symbol', 'date'])), 'fin_index_daily', '指数日线', CRON_CLOSE,
-     '新浪四大指数(上证指数/深证成指/沪深300/创业板指)日线 OHLCV(英文字段,无需转换),各取最近250个交易日。收盘后日更,适合大盘走势、指数对比。'),
-    ('demo_fin_idxcons', '主要指数成分股 → fin_index_cons',
-     code(AK, C_INDEX_CONS, 'fin_index_cons', tf(MAP_IDXCONS, ['index_code', 'code'])), 'fin_index_cons', '指数成分股', CRON_DAWN,
-     '新浪主要指数成分股(沪深300/上证50/中证500;替代东财 concept_cons 以提升稳定性):个股代码/名称/最新价/涨跌幅/成交量额/市盈率/市净率/市值/换手率,附 index_code/index_name 归属。凌晨日更,适合"指数→成分股"下钻、成分股权重股分析。'),
-    ('demo_fin_macro', '宏观经济·CPI/PPI/PMI/货币供应 → fin_macro',
-     code(AK, C_MACRO, 'fin_macro', tf(MAP_MACRO, ['indicator', 'month'])), 'fin_macro', '宏观经济', CRON_MONTH,
-     '国家统计局/央行月度宏观:CPI(全国/城市/农村当月与同环比累计)、PPI、PMI(制造业/非制造业)、货币供应(M0/M1/M2 数量与同环比),按 indicator 字段区分来源。月度数据,每月1号(02:00)刷新。'),
-    ('demo_fin_news', '个股新闻资讯 → fin_news',
-     code(AK, C_NEWS, 'fin_news', tf(MAP_NEWS, ['query_symbol', 'publish_time', 'title'])), 'fin_news', '个股新闻', CRON_HOUR,
-     '东财个股新闻(贵州茅台/宁德时代/格力电器):关键词/标题/内容/发布时间/来源/链接,附 query_symbol。时效性强,每小时刷新,适合舆情、事件跟踪。'),
+    (
+        'demo_fin_spot',
+        'A股全市场实时快照 → fin_stock_spot',
+        code(AK, C_SPOT, 'fin_stock_spot', tf(MAP_SPOT, ['code'])),
+        'fin_stock_spot',
+        'A股全市场快照',
+        CRON_INTRADAY,
+        '新浪全A股截面行情(code 取数·逐页流式:把新浪全市场分页拆成每页 80 只、逐页 emit 装载,单页失败只跳过、不拖垮整体、躲限流):代码/名称/最新价/涨跌额涨跌幅/买卖盘/昨收今开/最高最低/成交量额/市盈率/市净率/总市值流通市值/换手率。收盘后(16:00)刷新,适合涨跌幅榜、量价与市值分析。',
+    ),
+    (
+        'demo_fin_hkspot',
+        '港股全市场快照 → fin_hk_spot',
+        code(AK, C_HK_SPOT, 'fin_hk_spot', tf(MAP_HK, ['symbol'])),
+        'fin_hk_spot',
+        '港股全快照',
+        CRON_INTRADAY,
+        '新浪港股全市场实时快照(code 取数·逐页流式:node=qbgg_hk 每页80只,逐页 emit、单页失败跳过、md5(symbol)幂等):代码/名称/英文名/最新价/昨收/开高低/成交量额/买卖盘/52周高低/EPS/股息/总股本/市值/市盈率。周一至周五盘中每30分刷新,适合港股涨跌榜、量价与市值分析。',
+    ),
+    (
+        'demo_fin_usspot',
+        '美股全市场快照 → fin_us_spot',
+        code(AK, C_US_SPOT, 'fin_us_spot', tf(MAP_US, ['symbol'])),
+        'fin_us_spot',
+        '美股全快照',
+        CRON_USCLOSE,
+        '新浪美股全市场快照(code 取数·逐页流式:US_CategoryService 每页20只、约884页/1.7万只,逐页 emit、单页失败跳过、md5(symbol)幂等):代码/英文名/中文名/行业/最新价/涨跌额涨跌幅/昨收开高低/振幅/成交量/市值/市盈率/交易所。美股收盘后每天北京 06:00 刷新一次,量大约30分钟。',
+    ),
+    (
+        'demo_fin_indexrt',
+        '常见指数实时行情 → fin_index_rt',
+        code(AK, C_INDEX_RT, 'fin_index_rt', tf(MAP_INDEXRT, ['code'])),
+        'fin_index_rt',
+        '常见指数实时',
+        CRON_INDEX5M,
+        '新浪实时行情筛主要指数(上证/深证成指/沪深300/创业板指/科创50/上证50/中证500/中证1000):最新价/涨跌额涨跌幅/昨收今开/最高最低/成交量额。盘中每5分钟刷新(轻量单接口、低限流风险),md5(code)幂等,适合大盘实时监控。',
+    ),
+    (
+        'demo_fin_cptnew',
+        '概念板块·检测新增 → fin_concept_new',
+        code(AK, C_CONCEPT_NEW, 'fin_concept_new', tf({}, ['code'])),
+        'fin_concept_new',
+        '概念检测新增',
+        CRON_CPT1H,
+        '同花顺概念板块列表,按 code 降序取最新 60 个(THS code 越大越新)入库;追加+md5(code) 幂等 → 新概念(新 code)自动增量落库、已有幂等更新。THS 接口偏慢(~1-4分),概念也不频繁新增,盘中每小时刷新一次即可,适合监测市场新题材/新概念上线。',
+    ),
+    (
+        'demo_fin_zt',
+        '涨停板池(当日)→ fin_zt_pool',
+        code(AK, C_ZT, 'fin_zt_pool', tf(MAP_ZT, ['code'])),
+        'fin_zt_pool',
+        '当日涨停池',
+        CRON_INTRADAY,
+        '东财当日涨停个股(code 取数,显式取当日日期):封板资金/首次与最后封板时间/炸板次数/涨停统计/连板数/所属行业。收盘后(16:00)日更,适合按行业统计涨停家数、连板梯队、封板强度分析。',
+    ),
+    (
+        'demo_fin_act',
+        '市场活跃度情绪 → fin_market_activity',
+        native('stock_market_activity_legu', None, 'fin_market_activity', TF_STR_VALUE),
+        'fin_market_activity',
+        '市场活跃度',
+        CRON_INDEX5M,
+        '乐咕乐股市场情绪快照:上涨/下跌/平盘/涨停/跌停/真跌停/活跃度等家数统计,以 item(指标名)+value(值,统一转字符串避免ES类型冲突)键值对存储。收盘后日更,适合做多空力量、市场温度概览。',
+    ),
+    (
+        'demo_fin_cptboard',
+        '概念板块行情快照 → fin_concept_board',
+        native('stock_board_concept_name_em', None, 'fin_concept_board', tf(MAP_CPTBOARD, ['board_code'])),
+        'fin_concept_board',
+        '概念板块行情',
+        CRON_INTRADAY,
+        '东财全部概念板块:排名/板块名称/板块代码/最新价/涨跌额/涨跌幅/总市值/换手率/上涨下跌家数/领涨股票及其涨跌幅。收盘后日更,适合概念热度排行、强势板块筛选。',
+    ),
+    (
+        'demo_fin_indsum',
+        '行业板块一览 → fin_industry_summary',
+        native('stock_board_industry_summary_ths', None, 'fin_industry_summary', tf(MAP_INDSUM, ['board_name'])),
+        'fin_industry_summary',
+        '行业板块一览',
+        CRON_INTRADAY,
+        '同花顺行业板块汇总:涨跌幅/总成交量/总成交额/净流入/上涨下跌家数/均价/领涨股及其最新价与涨跌幅。收盘后日更,适合行业轮动、资金净流入排行。',
+    ),
+    (
+        'demo_fin_cptsum',
+        '概念板块解析(驱动/龙头)→ fin_concept_summary',
+        native('stock_board_concept_summary_ths', None, 'fin_concept_summary', tf(MAP_CPTSUM, ['concept_name'])),
+        'fin_concept_summary',
+        '概念解析',
+        CRON_DAWN,
+        '同花顺概念解析:日期/概念名称/驱动事件/龙头股/成分股数量。概念定义变动不频繁,凌晨(00:30)日更,适合解读概念逻辑、定位龙头与成分股规模。',
+    ),
+    (
+        'demo_fin_cxg',
+        '技术选股·创月新高 → fin_cxg',
+        native('stock_rank_cxg_ths', {'symbol': '创月新高'}, 'fin_cxg', tf(MAP_CXG, ['code'])),
+        'fin_cxg',
+        '技术选股·创新高',
+        CRON_DAWN,
+        '同花顺技术形态选股(创月新高):股票代码/简称/涨跌幅/换手率/最新价/前期高点及其日期。凌晨日更,适合强势突破股票池。',
+    ),
+    (
+        'demo_fin_lxsz',
+        '技术选股·连续上涨 → fin_lxsz',
+        native('stock_rank_lxsz_ths', None, 'fin_lxsz', tf(MAP_LXSZ, ['code'])),
+        'fin_lxsz',
+        '技术选股·连续上涨',
+        CRON_DAWN,
+        '同花顺连续上涨个股:股票代码/简称/收盘价/最高价/最低价/连涨天数/连续涨跌幅/累计换手率/所属行业。凌晨日更,适合动量与连涨梯队分析。',
+    ),
+    (
+        'demo_fin_ipo',
+        '新股申购与中签 → fin_ipo',
+        native('stock_ipo_ths', {'symbol': '全部A股'}, 'fin_ipo', tf(MAP_IPO, ['code'])),
+        'fin_ipo',
+        '新股申购',
+        CRON_DAWN,
+        '同花顺新股申购:申购代码/发行总数与网上发行量/申购上限/顶格申购需配市值/发行价格/发行与行业市盈率/申购日/中签率/中签号/缴款日/上市日/打新收益/首日最高涨幅/连板天数。凌晨日更以跟进新发。',
+    ),
+    (
+        'demo_fin_cb',
+        '可转债申购信息 → fin_cb',
+        native('bond_zh_cov_info_ths', None, 'fin_cb', tf(MAP_CB, ['bond_code'])),
+        'fin_cb',
+        '可转债申购',
+        CRON_DAWN,
+        '同花顺可转债信息中心:债券代码与简称/申购日与申购代码/原股东配售码/每股获配额/计划与实际发行量/中签公布日/中签号/上市日/正股代码与简称/转股价格/到期时间/中签率。凌晨日更。',
+    ),
+    (
+        'demo_fin_daily',
+        '龙头股日线·前复权近250日 → fin_stock_daily',
+        code(AK, C_STOCK_DAILY, 'fin_stock_daily', tf({}, ['symbol', 'date'])),
+        'fin_stock_daily',
+        '个股日线',
+        CRON_CLOSE,
+        '新浪6只代表性个股(贵州茅台/宁德时代/比亚迪/中芯国际/中国平安/格力电器)前复权日线 OHLCV(字段本就是英文 date/open/high/low/close/volume/amount/turnover,无需中英转换),各取最近250个交易日。收盘后日更,适合K线、均线、个股走势对比。',
+    ),
+    (
+        'demo_fin_index',
+        '主要指数日线·近250日 → fin_index_daily',
+        code(AK, C_INDEX_DAILY, 'fin_index_daily', tf({}, ['symbol', 'date'])),
+        'fin_index_daily',
+        '指数日线',
+        CRON_CLOSE,
+        '新浪四大指数(上证指数/深证成指/沪深300/创业板指)日线 OHLCV(英文字段,无需转换),各取最近250个交易日。收盘后日更,适合大盘走势、指数对比。',
+    ),
+    (
+        'demo_fin_idxcons',
+        '主要指数成分股 → fin_index_cons',
+        code(AK, C_INDEX_CONS, 'fin_index_cons', tf(MAP_IDXCONS, ['index_code', 'code'])),
+        'fin_index_cons',
+        '指数成分股',
+        CRON_DAWN,
+        '新浪主要指数成分股(沪深300/上证50/中证500;替代东财 concept_cons 以提升稳定性):个股代码/名称/最新价/涨跌幅/成交量额/市盈率/市净率/市值/换手率,附 index_code/index_name 归属。凌晨日更,适合"指数→成分股"下钻、成分股权重股分析。',
+    ),
+    (
+        'demo_fin_macro',
+        '宏观经济·CPI/PPI/PMI/货币供应 → fin_macro',
+        code(AK, C_MACRO, 'fin_macro', tf(MAP_MACRO, ['indicator', 'month'])),
+        'fin_macro',
+        '宏观经济',
+        CRON_MONTH,
+        '国家统计局/央行月度宏观:CPI(全国/城市/农村当月与同环比累计)、PPI、PMI(制造业/非制造业)、货币供应(M0/M1/M2 数量与同环比),按 indicator 字段区分来源。月度数据,每月1号(02:00)刷新。',
+    ),
+    (
+        'demo_fin_news',
+        '个股新闻资讯 → fin_news',
+        code(AK, C_NEWS, 'fin_news', tf(MAP_NEWS, ['query_symbol', 'publish_time', 'title'])),
+        'fin_news',
+        '个股新闻',
+        CRON_HOUR,
+        '东财个股新闻(贵州茅台/宁德时代/格力电器):关键词/标题/内容/发布时间/来源/链接,附 query_symbol。时效性强,每小时刷新,适合舆情、事件跟踪。',
+    ),
     # —— 新增数据集(2026-06-30):资金面/基本面/估值/杠杆/宏观补充 ——
-    ('demo_fin_mktflow', '大盘资金流向·近120日时序 → fin_market_fund_flow',
-     native('stock_market_fund_flow', None, 'fin_market_fund_flow', tf(MAP_MKTFLOW, ['date'])), 'fin_market_fund_flow', '大盘资金流', CRON_CLOSE,
-     '东财沪深大盘资金流时序(约近120日):主力/超大单/大单/中单/小单净流入的净额与净占比,并含上证、深证收盘价与涨跌幅。收盘后日更,适合主力资金趋势折线、各级别资金对比堆叠图、资金与指数联动。'),
-    ('demo_fin_lhb', '龙虎榜明细·近30日 → fin_lhb',
-     code(AK, C_LHB, 'fin_lhb', tf(MAP_LHB, ['code', 'list_date'])), 'fin_lhb', '龙虎榜', CRON_EVENING,
-     '东财龙虎榜近30日明细:代码/名称/上榜日/解读/收盘价涨跌幅/龙虎榜净买入卖出与成交额/市场总成交额/净买额与成交额占比/换手率/流通市值/上榜原因/上榜后1·2·5·10日涨幅。龙虎榜收盘后发布,18:30 晚间日更,适合游资动向、上榜原因分布、上榜后表现统计。'),
-    ('demo_fin_yjbb', '业绩报表·最近报告期 → fin_yjbb',
-     code(AK, C_YJBB, 'fin_yjbb', tf(MAP_YJBB, ['code', 'report_period'])), 'fin_yjbb', '业绩报表', CRON_DAWN,
-     '东财全A股最近已披露报告期业绩(自动回溯季度末):EPS/营业总收入及同比环比/净利润及同比环比/每股净资产/净资产收益率ROE/每股经营现金流/销售毛利率/所处行业,附 report_period。财报季滚动更新,凌晨日更,适合成长性(净利同比)、盈利能力(ROE/毛利)、行业对比。'),
-    ('demo_fin_indpe', '行业市盈率估值·证监会分类 → fin_industry_pe',
-     code(AK, C_INDPE, 'fin_industry_pe', tf(MAP_INDPE, ['industry_code', 'date'])), 'fin_industry_pe', '行业市盈率', CRON_DAWN,
-     '巨潮资讯证监会行业分类静态市盈率(自动回溯最近交易日):行业名称与编码/公司数量/纳入计算公司数/静态总市值与净利润/静态市盈率的加权平均·中位数·算术平均。凌晨日更,适合行业估值横向对比、高低估筛选。'),
-    ('demo_fin_margin', '融资融券余额·上交所近180日 → fin_margin',
-     code(AK, C_MARGIN, 'fin_margin', tf(MAP_MARGIN, ['date'])), 'fin_margin', '融资融券', CRON_EVENING,
-     '上交所两融时序(约近180日):信用交易日期/融资余额/融资买入额/融券余量及金额/融券卖出量/融资融券总余额。交易所收盘后发布,18:30 晚间日更,适合杠杆资金趋势、市场情绪与风险偏好分析。'),
-    ('demo_fin_etf', 'ETF 基金实时快照 → fin_etf',
-     native('fund_etf_spot_em', None, 'fin_etf', tf(MAP_ETF, ['code'])), 'fin_etf', 'ETF快照', CRON_INTRADAY,
-     '东财全市场ETF行情:最新价/IOPV实时估值/基金折价率/涨跌幅/成交量额/开高低昨收/振幅/换手率/量比委比/内外盘/各级别资金净流入/最新份额/流通与总市值/数据日期。收盘后日更,适合ETF涨幅榜、折溢价、资金流分析。'),
-    ('demo_fin_gdp', '中国GDP·季度 → fin_gdp',
-     native('macro_china_gdp', None, 'fin_gdp', tf(MAP_GDP, ['quarter'])), 'fin_gdp', '中国GDP', CRON_MONTH,
-     '国家统计局季度GDP:国内生产总值绝对值与同比增长,以及第一/第二/第三产业的绝对值与同比。季度数据,每月1号刷新,适合经济增长趋势、产业结构分析。'),
-    ('demo_fin_lpr', 'LPR贷款市场报价利率·时序 → fin_lpr',
-     native('macro_china_lpr', None, 'fin_lpr', tf(MAP_LPR, ['trade_date'])), 'fin_lpr', 'LPR利率', CRON_MONTH,
-     '央行LPR利率时序:1年期(lpr_1y)与5年期(lpr_5y)贷款市场报价利率及历史利率(原英文大写列已统一为小写下划线)。每月20号公布,每月1号刷新,适合利率走势、货币政策跟踪。'),
+    (
+        'demo_fin_mktflow',
+        '大盘资金流向·近120日时序 → fin_market_fund_flow',
+        native('stock_market_fund_flow', None, 'fin_market_fund_flow', tf(MAP_MKTFLOW, ['date'])),
+        'fin_market_fund_flow',
+        '大盘资金流',
+        CRON_CLOSE,
+        '东财沪深大盘资金流时序(约近120日):主力/超大单/大单/中单/小单净流入的净额与净占比,并含上证、深证收盘价与涨跌幅。收盘后日更,适合主力资金趋势折线、各级别资金对比堆叠图、资金与指数联动。',
+    ),
+    (
+        'demo_fin_lhb',
+        '龙虎榜明细·近30日 → fin_lhb',
+        code(AK, C_LHB, 'fin_lhb', tf(MAP_LHB, ['code', 'list_date'])),
+        'fin_lhb',
+        '龙虎榜',
+        CRON_EVENING,
+        '东财龙虎榜近30日明细:代码/名称/上榜日/解读/收盘价涨跌幅/龙虎榜净买入卖出与成交额/市场总成交额/净买额与成交额占比/换手率/流通市值/上榜原因/上榜后1·2·5·10日涨幅。龙虎榜收盘后发布,18:30 晚间日更,适合游资动向、上榜原因分布、上榜后表现统计。',
+    ),
+    (
+        'demo_fin_yjbb',
+        '业绩报表·最近报告期 → fin_yjbb',
+        code(AK, C_YJBB, 'fin_yjbb', tf(MAP_YJBB, ['code', 'report_period'])),
+        'fin_yjbb',
+        '业绩报表',
+        CRON_DAWN,
+        '东财全A股最近已披露报告期业绩(自动回溯季度末):EPS/营业总收入及同比环比/净利润及同比环比/每股净资产/净资产收益率ROE/每股经营现金流/销售毛利率/所处行业,附 report_period。财报季滚动更新,凌晨日更,适合成长性(净利同比)、盈利能力(ROE/毛利)、行业对比。',
+    ),
+    (
+        'demo_fin_indpe',
+        '行业市盈率估值·证监会分类 → fin_industry_pe',
+        code(AK, C_INDPE, 'fin_industry_pe', tf(MAP_INDPE, ['industry_code', 'date'])),
+        'fin_industry_pe',
+        '行业市盈率',
+        CRON_DAWN,
+        '巨潮资讯证监会行业分类静态市盈率(自动回溯最近交易日):行业名称与编码/公司数量/纳入计算公司数/静态总市值与净利润/静态市盈率的加权平均·中位数·算术平均。凌晨日更,适合行业估值横向对比、高低估筛选。',
+    ),
+    (
+        'demo_fin_margin',
+        '融资融券余额·上交所近180日 → fin_margin',
+        code(AK, C_MARGIN, 'fin_margin', tf(MAP_MARGIN, ['date'])),
+        'fin_margin',
+        '融资融券',
+        CRON_EVENING,
+        '上交所两融时序(约近180日):信用交易日期/融资余额/融资买入额/融券余量及金额/融券卖出量/融资融券总余额。交易所收盘后发布,18:30 晚间日更,适合杠杆资金趋势、市场情绪与风险偏好分析。',
+    ),
+    (
+        'demo_fin_etf',
+        'ETF 基金实时快照 → fin_etf',
+        native('fund_etf_spot_em', None, 'fin_etf', tf(MAP_ETF, ['code'])),
+        'fin_etf',
+        'ETF快照',
+        CRON_INTRADAY,
+        '东财全市场ETF行情:最新价/IOPV实时估值/基金折价率/涨跌幅/成交量额/开高低昨收/振幅/换手率/量比委比/内外盘/各级别资金净流入/最新份额/流通与总市值/数据日期。收盘后日更,适合ETF涨幅榜、折溢价、资金流分析。',
+    ),
+    (
+        'demo_fin_gdp',
+        '中国GDP·季度 → fin_gdp',
+        native('macro_china_gdp', None, 'fin_gdp', tf(MAP_GDP, ['quarter'])),
+        'fin_gdp',
+        '中国GDP',
+        CRON_MONTH,
+        '国家统计局季度GDP:国内生产总值绝对值与同比增长,以及第一/第二/第三产业的绝对值与同比。季度数据,每月1号刷新,适合经济增长趋势、产业结构分析。',
+    ),
+    (
+        'demo_fin_lpr',
+        'LPR贷款市场报价利率·时序 → fin_lpr',
+        native('macro_china_lpr', None, 'fin_lpr', tf(MAP_LPR, ['trade_date'])),
+        'fin_lpr',
+        'LPR利率',
+        CRON_MONTH,
+        '央行LPR利率时序:1年期(lpr_1y)与5年期(lpr_5y)贷款市场报价利率及历史利率(原英文大写列已统一为小写下划线)。每月20号公布,每月1号刷新,适合利率走势、货币政策跟踪。',
+    ),
 ]
 
 # 数据源(自包含:不依赖 ezdata.sql 的 demo 段)。(id, name, code, source_type, family, config_dict)
 DATASOURCES = [
     ('seed-akshare-cn', 'AKShare 财经数据', AK, 'akshare', 'api', {}),
-    ('seed-demo-es', '演示-Elasticsearch', ES, 'elasticsearch', 'search',
-     {'hosts': 'http://ezdata-es:9200', 'user': 'elastic', 'password': 'ezdata123456'}),
+    (
+        'seed-demo-es',
+        '演示-Elasticsearch',
+        ES,
+        'elasticsearch',
+        'search',
+        {'hosts': 'http://ezdata-es:9200', 'user': 'elastic', 'password': 'ezdata123456'},
+    ),
 ]
 
 APP_ID = 9001
@@ -640,8 +1029,11 @@ APP_CONFIG = {
         {'name': '估值对比', 'content': '各证监会行业静态市盈率(加权平均)对比,找出最高和最低的5个行业'},
         {'name': '宏观数据', 'content': '最新 CPI/PPI/PMI 与 LPR 利率概览'},
     ],
-    'toolIds': [], 'datasetIds': [], 'datasourceCodes': [ES, AK],
-    'enableMemory': False, 'model': {'modelId': 0, 'temperature': None, 'maxTokens': None},
+    'toolIds': [],
+    'datasetIds': [],
+    'datasourceCodes': [ES, AK],
+    'enableMemory': False,
+    'model': {'modelId': 0, 'temperature': None, 'maxTokens': None},
 }
 
 # 定时任务联动:APScheduler 从 sys_job 表加载调度(invoke_target=dispatch.run_task, job_args=task_id),
@@ -667,26 +1059,71 @@ def seed_metadata() -> int:
     try:
         for sid, name, dcode, stype, family, cfg in DATASOURCES:
             db.execute(text('DELETE FROM data_source WHERE id=:id'), {'id': sid})
-            db.execute(_DS_SQL, {'id': sid, 'name': name, 'code': dcode, 'stype': stype, 'family': family,
-                                 'config': json.dumps(cfg), 'remark': '演示数据源', 'now': now, 'tenant': TENANT})
+            db.execute(
+                _DS_SQL,
+                {
+                    'id': sid,
+                    'name': name,
+                    'code': dcode,
+                    'stype': stype,
+                    'family': family,
+                    'config': json.dumps(cfg),
+                    'remark': '演示数据源',
+                    'now': now,
+                    'tenant': TENANT,
+                },
+            )
         for tid, name, params, idx, label, cron, desc in TASKS:
             jn = 'TASK_' + tid
             db.execute(text('DELETE FROM task WHERE id=:id'), {'id': tid})
             db.execute(text('DELETE FROM sys_job WHERE job_name=:jn'), {'jn': jn})  # 清旧调度(幂等)
             trigger = 2 if cron else 1  # 1单次 2定时
-            db.execute(_TASK_SQL, {'id': tid, 'name': name, 'params': params, 'trigger': trigger,
-                                   'crontab': cron, 'remark': desc, 'now': now, 'tenant': TENANT})  # 详细描述入 task.remark
+            db.execute(
+                _TASK_SQL,
+                {
+                    'id': tid,
+                    'name': name,
+                    'params': params,
+                    'trigger': trigger,
+                    'crontab': cron,
+                    'remark': desc,
+                    'now': now,
+                    'tenant': TENANT,
+                },
+            )  # 详细描述入 task.remark
             if cron:  # 建 sys_job 并回填 task.job_id,APScheduler 才会真正按 cron 触发
-                r = db.execute(_JOB_SQL, {'jn': jn, 'inv': _INVOKE, 'args': tid, 'cron': cron, 'now': now, 'tenant': TENANT})
+                r = db.execute(
+                    _JOB_SQL, {'jn': jn, 'inv': _INVOKE, 'args': tid, 'cron': cron, 'now': now, 'tenant': TENANT}
+                )
                 db.execute(text('UPDATE task SET job_id=:jid WHERE id=:tid'), {'jid': r.lastrowid, 'tid': tid})
             dm = 'dm_' + idx
             db.execute(text('DELETE FROM data_model WHERE id=:id'), {'id': dm})
-            db.execute(_MODEL_SQL, {'id': dm, 'name': label, 'code': idx, 'ds': ES, 'obj': idx,
-                                    'remark': desc, 'now': now, 'tenant': TENANT})  # 数据模型名=label,备注=详细描述
+            db.execute(
+                _MODEL_SQL,
+                {
+                    'id': dm,
+                    'name': label,
+                    'code': idx,
+                    'ds': ES,
+                    'obj': idx,
+                    'remark': desc,
+                    'now': now,
+                    'tenant': TENANT,
+                },
+            )  # 数据模型名=label,备注=详细描述
         db.execute(text('DELETE FROM ai_app WHERE app_id=:id'), {'id': APP_ID})
-        db.execute(_APP_SQL, {'id': APP_ID, 'name': '财经数据分析助手',
-                              'desc': '基于 akshare 沉淀到 ES 的财经数据,对话取数+绘图分析', 'atype': '数据分析',
-                              'config': json.dumps(APP_CONFIG, ensure_ascii=False), 'now': now, 'tenant': TENANT})
+        db.execute(
+            _APP_SQL,
+            {
+                'id': APP_ID,
+                'name': '财经数据分析助手',
+                'desc': '基于 akshare 沉淀到 ES 的财经数据,对话取数+绘图分析',
+                'atype': '数据分析',
+                'config': json.dumps(APP_CONFIG, ensure_ascii=False),
+                'now': now,
+                'tenant': TENANT,
+            },
+        )
         db.commit()
         return len(TASKS)
     except Exception:
@@ -699,6 +1136,7 @@ def seed_metadata() -> int:
 def dispatch_demo_tasks() -> int:
     """把所有 demo 任务派发到 Celery(异步,由 worker 取数填充 ES)。返回派发数。"""
     from module_task_schedule import dispatch
+
     n = 0
     for tid, *_ in TASKS:
         dispatch.run_task(tid)
@@ -713,19 +1151,22 @@ def _trigger_scheduler_reload() -> bool:
     返回收到消息的订阅者数是否 >0(>0 说明有在监听的调度器)。best-effort,失败不影响播种。
     """
     try:
-        import redis  # noqa: PLC0415
+        import redis
 
-        from config.env import RedisConfig  # noqa: PLC0415
+        from config.env import RedisConfig
 
         r = redis.Redis(
-            host=RedisConfig.redis_host, port=RedisConfig.redis_port,
-            username=RedisConfig.redis_username or None, password=RedisConfig.redis_password or None,
-            db=RedisConfig.redis_database, socket_timeout=5,
+            host=RedisConfig.redis_host,
+            port=RedisConfig.redis_port,
+            username=RedisConfig.redis_username or None,
+            password=RedisConfig.redis_password or None,
+            db=RedisConfig.redis_database,
+            socket_timeout=5,
         )
         received = r.publish('scheduler:sync:request', 'demo_seed')
         r.close()
         return received > 0
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f'触发调度重载失败({e}),可重启后端激活')
         return False
 
@@ -734,7 +1175,9 @@ def seed_demo() -> None:
     """整体初始化:播种元数据 + 派发 ETL 到 Celery 填充 ES。幂等(按固定 demo id 先删后插),可重复执行。"""
     n = seed_metadata()
     scheduled = sum(1 for t in TASKS if t[5])
-    print(f'OK: 数据源 {len(DATASOURCES)} + 任务 {n}(其中定时 {scheduled} 个/单次 {n - scheduled} 个) + 数据模型 {n} + AI应用 1(app_id={APP_ID}) 已写入')
+    print(
+        f'OK: 数据源 {len(DATASOURCES)} + 任务 {n}(其中定时 {scheduled} 个/单次 {n - scheduled} 个) + 数据模型 {n} + AI应用 1(app_id={APP_ID}) 已写入'
+    )
     m = dispatch_demo_tasks()
     print(f'已派发 {m} 个 ETL 任务到 Celery 立即灌一次 ES(约 2-3 分钟)')
     # 播种改的是 sys_job 表,运行中的调度器需重载才生效。优先 PUBLISH 让其即时重载,兜底提示重启。

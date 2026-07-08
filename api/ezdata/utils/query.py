@@ -50,15 +50,24 @@ def filters_to_query_string(filters: list[dict]) -> str:
             parts.append(f'{op}[{field}]={value}')
     return '&'.join(parts)
 
+
 # 操作符目录(供前端渲染条件构造器:name + 中文 + 适用维度)
 OPERATORS = [
-    {'op': 'eq', 'label': '等于'}, {'op': 'neq', 'label': '不等于'},
-    {'op': 'gt', 'label': '大于'}, {'op': 'gte', 'label': '大于等于'},
-    {'op': 'lt', 'label': '小于'}, {'op': 'lte', 'label': '小于等于'},
-    {'op': 'in', 'label': '在列表中'}, {'op': 'nin', 'label': '不在列表中'},
-    {'op': 'contains', 'label': '包含'}, {'op': 'ncontains', 'label': '不包含'},
-    {'op': 'between', 'label': '区间'}, {'op': 'isnull', 'label': '为空'}, {'op': 'notnull', 'label': '非空'},
-    {'op': 'sort_asc', 'label': '升序'}, {'op': 'sort_desc', 'label': '降序'},
+    {'op': 'eq', 'label': '等于'},
+    {'op': 'neq', 'label': '不等于'},
+    {'op': 'gt', 'label': '大于'},
+    {'op': 'gte', 'label': '大于等于'},
+    {'op': 'lt', 'label': '小于'},
+    {'op': 'lte', 'label': '小于等于'},
+    {'op': 'in', 'label': '在列表中'},
+    {'op': 'nin', 'label': '不在列表中'},
+    {'op': 'contains', 'label': '包含'},
+    {'op': 'ncontains', 'label': '不包含'},
+    {'op': 'between', 'label': '区间'},
+    {'op': 'isnull', 'label': '为空'},
+    {'op': 'notnull', 'label': '非空'},
+    {'op': 'sort_asc', 'label': '升序'},
+    {'op': 'sort_desc', 'label': '降序'},
 ]
 SORT_OPS = {'sort_asc', 'sort_desc'}
 
@@ -70,13 +79,19 @@ def _parts(rule: dict) -> tuple[str, str, Any]:
 # ---------- SQL(SQLAlchemy)----------
 # op -> (col, value) 构造条件;dispatch 表避免长 if/elif
 _SQL_OPS: dict[str, Callable] = {
-    'eq': lambda c, v: c == v, 'neq': lambda c, v: c != v,
-    'gt': lambda c, v: c > v, 'gte': lambda c, v: c >= v,
-    'lt': lambda c, v: c < v, 'lte': lambda c, v: c <= v,
-    'in': lambda c, v: c.in_(v), 'nin': lambda c, v: ~c.in_(v),
-    'contains': lambda c, v: c.like(f'%{v}%'), 'ncontains': lambda c, v: ~c.like(f'%{v}%'),
+    'eq': lambda c, v: c == v,
+    'neq': lambda c, v: c != v,
+    'gt': lambda c, v: c > v,
+    'gte': lambda c, v: c >= v,
+    'lt': lambda c, v: c < v,
+    'lte': lambda c, v: c <= v,
+    'in': lambda c, v: c.in_(v),
+    'nin': lambda c, v: ~c.in_(v),
+    'contains': lambda c, v: c.like(f'%{v}%'),
+    'ncontains': lambda c, v: ~c.like(f'%{v}%'),
     'between': lambda c, v: c.between(v[0], v[1]),
-    'isnull': lambda c, v: c.is_(None), 'notnull': lambda c, v: c.isnot(None),
+    'isnull': lambda c, v: c.is_(None),
+    'notnull': lambda c, v: c.isnot(None),
 }
 
 
@@ -104,7 +119,7 @@ def sqlalchemy_adapter(rules: list[dict]) -> Callable:
 
 
 # ---------- Elasticsearch DSL ----------
-def to_es(rules: list[dict]) -> tuple[dict, list]:  # noqa: PLR0912  逐操作符翻译,分支即操作符表
+def to_es(rules: list[dict]) -> tuple[dict, list]:
     bool_q: dict = {'must': [], 'must_not': []}
     sort_list: list = []
     for r in rules or []:

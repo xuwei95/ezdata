@@ -22,28 +22,33 @@ PASS = FAIL = 0
 
 def check(label, cond, detail=''):
     global PASS, FAIL
-    ok = bool(cond); PASS += ok; FAIL += (not ok)
+    ok = bool(cond)
+    PASS += ok
+    FAIL += not ok
     print(f'  [{"PASS" if ok else "FAIL"}] {label}' + (f' — {detail}' if detail else ''))
 
 
 def main():
     print('== 1. Agno Readers(含 pptx)==')
     cases = {
-        '.txt': 'ezdata 文本读取测试。\n'.encode('utf-8') * 10,
-        '.csv': 'name,role\nezdata,平台\ndlt,抽取\n'.encode('utf-8'),
-        '.json': '{"product":"ezdata","kb":"rag"}'.encode('utf-8'),
-        '.md': '# 标题\n\nezdata markdown 读取。'.encode('utf-8'),
+        '.txt': 'ezdata 文本读取测试。\n'.encode() * 10,
+        '.csv': 'name,role\nezdata,平台\ndlt,抽取\n'.encode(),
+        '.json': b'{"product":"ezdata","kb":"rag"}',
+        '.md': '# 标题\n\nezdata markdown 读取。'.encode(),
     }
     # 现造一个 pptx(python-pptx)
     try:
         import io as _io
-        from pptx import Presentation  # noqa: PLC0415
+
+        from pptx import Presentation
+
         prs = Presentation()
         s = prs.slides.add_slide(prs.slide_layouts[5])
         s.shapes.title.text = 'ezdata pptx 抽取测试'
-        buf = _io.BytesIO(); prs.save(buf)
+        buf = _io.BytesIO()
+        prs.save(buf)
         cases['.pptx'] = buf.getvalue()
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print('  (跳过 pptx 造样本:', str(e)[:50], ')')
     for ext, data in cases.items():
         key = f'upload/_agno_rd{ext}'
@@ -67,7 +72,12 @@ def main():
         check('create + exists', v.exists())
         docs = [
             Document(id=uuid.uuid4().hex, name='hr', content='公司每年提供15天带薪年假', content_id='hr-1'),
-            Document(id=uuid.uuid4().hex, name='tech', content='向量库采用 ES8 的 dense_vector 做 kNN 检索', content_id='tech-1'),
+            Document(
+                id=uuid.uuid4().hex,
+                name='tech',
+                content='向量库采用 ES8 的 dense_vector 做 kNN 检索',
+                content_id='tech-1',
+            ),
             Document(id=uuid.uuid4().hex, name='tech', content='ETL 数据集成基于 dlt 实现', content_id='tech-2'),
         ]
         v.insert('hash-abc', docs, filters={'document_id': 'doc1'})

@@ -33,8 +33,11 @@ class AiToolService:
 
     @classmethod
     async def get_ai_tool_list_services(
-        cls, query_db: AsyncSession, query_object: AiToolPageQueryModel,
-        data_scope_sql: ColumnElement, is_page: bool = False,
+        cls,
+        query_db: AsyncSession,
+        query_object: AiToolPageQueryModel,
+        data_scope_sql: ColumnElement,
+        is_page: bool = False,
     ) -> PageModel | list[dict[str, Any]]:
         """获取工具列表(args JSON 串还原为对象)"""
         result = await AiToolDao.get_ai_tool_list(query_db, query_object, data_scope_sql, is_page)
@@ -150,40 +153,47 @@ class AiToolService:
         内置工具 code = toolkit 名(data_explore/sandbox_code/task_propose);MCP 工具给出连接配置。
         供 AI 应用按所选工具装配 agent。
         """
-        from sqlalchemy import select  # noqa: PLC0415
+        from sqlalchemy import select
 
-        from module_ai.entity.do.ai_tool_do import AiTool  # noqa: PLC0415
+        from module_ai.entity.do.ai_tool_do import AiTool
 
         if not tool_ids:
             return {'builtin_codes': [], 'mcp_configs': []}
-        rows = (await query_db.execute(
-            select(AiTool).where(AiTool.tool_id.in_(tool_ids), AiTool.status == '0')
-        )).scalars().all()
+        rows = (
+            (await query_db.execute(select(AiTool).where(AiTool.tool_id.in_(tool_ids), AiTool.status == '0')))
+            .scalars()
+            .all()
+        )
         builtin_codes = [r.code for r in rows if r.tool_type == 'builtin']
-        mcp_configs = [{'name': r.name, 'code': r.code, 'args': _loads(r.args)}
-                       for r in rows if r.tool_type == 'mcp']
+        mcp_configs = [{'name': r.name, 'code': r.code, 'args': _loads(r.args)} for r in rows if r.tool_type == 'mcp']
         return {'builtin_codes': builtin_codes, 'mcp_configs': mcp_configs}
 
     @classmethod
     async def get_enabled_mcp_tools_by_ids(cls, query_db: AsyncSession, tool_ids: list[int]) -> list[dict]:
         """按 id 取启用的 MCP 工具,返回 [{name, code, args(dict)}](供 agent 装配)。"""
-        from sqlalchemy import select  # noqa: PLC0415
+        from sqlalchemy import select
 
-        from module_ai.entity.do.ai_tool_do import AiTool  # noqa: PLC0415
+        from module_ai.entity.do.ai_tool_do import AiTool
 
         if not tool_ids:
             return []
-        rows = (await query_db.execute(
-            select(AiTool).where(AiTool.tool_id.in_(tool_ids), AiTool.tool_type == 'mcp', AiTool.status == '0')
-        )).scalars().all()
+        rows = (
+            (
+                await query_db.execute(
+                    select(AiTool).where(AiTool.tool_id.in_(tool_ids), AiTool.tool_type == 'mcp', AiTool.status == '0')
+                )
+            )
+            .scalars()
+            .all()
+        )
         return [{'name': r.name, 'code': r.code, 'args': _loads(r.args)} for r in rows]
 
     @classmethod
     async def test_mcp_tool_services(cls, args: dict) -> dict:
         """用 agno MCPTools 试连一下 MCP server,返回其暴露的工具名/数。"""
         try:
-            from agno.tools.mcp import MCPTools  # noqa: PLC0415
-        except Exception as e:  # noqa: BLE001
+            from agno.tools.mcp import MCPTools
+        except Exception as e:
             raise ServiceException(message=f'MCP 依赖未安装(需重建镜像后可测): {e}')
 
         kwargs = cls.build_mcp_kwargs(args)
@@ -191,5 +201,5 @@ class AiToolService:
             async with MCPTools(**kwargs) as t:
                 names = sorted((getattr(t, 'functions', None) or {}).keys())
             return {'success': True, 'count': len(names), 'tools': names}
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             raise ServiceException(message=f'连接失败: {e}')

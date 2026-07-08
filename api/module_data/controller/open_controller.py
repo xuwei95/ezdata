@@ -14,7 +14,9 @@ open_controller = APIRouterPro(prefix='/open', order_num=98, tags=['公开数据
 
 @open_controller.get('/data/{model_code}', summary='公开数据接口(apikey + op[field]=value 筛选 + 分页)')
 async def open_data(
-    model_code: Annotated[str, Path()], request: Request, db: Annotated[AsyncSession, DBSessionDependency()],
+    model_code: Annotated[str, Path()],
+    request: Request,
+    db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     # 形如 /open/data/demo_ord?apikey=sk_xxx&eq[status]=PAID&gt[amount]=100&page=1&pagesize=20
     params = dict(request.query_params)

@@ -46,9 +46,13 @@ def snapshot_dataset(ds: RagDataset) -> RagDataset:
     必须在 async 上下文、且属性未过期(commit 前)时调用,避免线程内懒加载触发 MissingGreenlet。
     """
     return RagDataset(
-        id=ds.id, name=ds.name, embedding_provider=ds.embedding_provider,
-        embedding_model=ds.embedding_model, embedding_dims=ds.embedding_dims,
-        vector_backend=ds.vector_backend, vector_source_id=ds.vector_source_id,
+        id=ds.id,
+        name=ds.name,
+        embedding_provider=ds.embedding_provider,
+        embedding_model=ds.embedding_model,
+        embedding_dims=ds.embedding_dims,
+        vector_backend=ds.vector_backend,
+        vector_source_id=ds.vector_source_id,
         index_name=ds.index_name,
     )
 
@@ -81,10 +85,14 @@ def embed_with_cache(db, texts: list[str], dataset: RagDataset, client: Embeddin
     hashes = [md5(t) for t in texts]
     cached: dict[str, list[float]] = {}
     if use_cache:
-        from sqlalchemy import select  # noqa: PLC0415
+        from sqlalchemy import select
+
         uniq = list(dict.fromkeys(hashes))
-        rows = db.execute(select(RagEmbedding).where(
-            RagEmbedding.model_id == mk, RagEmbedding.hash.in_(uniq))).scalars().all()
+        rows = (
+            db.execute(select(RagEmbedding).where(RagEmbedding.model_id == mk, RagEmbedding.hash.in_(uniq)))
+            .scalars()
+            .all()
+        )
         for r in rows:
             try:
                 cached[r.hash] = json.loads(r.vector)
@@ -97,8 +105,9 @@ def embed_with_cache(db, texts: list[str], dataset: RagDataset, client: Embeddin
         for i, vec in zip(miss_idx, miss_vecs):
             cached[hashes[i]] = vec
             if use_cache:
-                db.add(RagEmbedding(hash=hashes[i], model_id=mk, dim=len(vec),
-                                    vector=json.dumps(vec, ensure_ascii=False)))
+                db.add(
+                    RagEmbedding(hash=hashes[i], model_id=mk, dim=len(vec), vector=json.dumps(vec, ensure_ascii=False))
+                )
         if use_cache:
             db.commit()
     return [cached[h] for h in hashes]

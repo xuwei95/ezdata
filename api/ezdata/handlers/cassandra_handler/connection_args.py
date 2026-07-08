@@ -9,13 +9,7 @@ connection_args = OrderedDict(
         'required': True,
         'label': 'User',
     },
-    password={
-        'type': ARG_TYPE.PWD,
-        'description': 'Password',
-        'required': True,
-        'label': 'Password',
-        'secret': True
-    },
+    password={'type': ARG_TYPE.PWD, 'description': 'Password', 'required': True, 'label': 'Password', 'secret': True},
     protocol_version={
         'type': ARG_TYPE.INT,
         'description': 'is not required and defaults to 4.',
@@ -48,4 +42,6 @@ connection_args = OrderedDict(
     },
 )
 
-connection_args_example = OrderedDict(host='127.0.0.1', port=9042, user='cassandra', password='cassandra', keyspace='ks')
+connection_args_example = OrderedDict(
+    host='127.0.0.1', port=9042, user='cassandra', password='cassandra', keyspace='ks'
+)

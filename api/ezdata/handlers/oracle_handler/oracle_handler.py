@@ -18,7 +18,7 @@ class OracleHandler(SqlConnector):
         user = self.arg('user', 'username', default='')
         pwd = quote_plus(str(self.arg('password', default='')))
         dsn = self.arg('dsn')
-        if dsn:                                              # 直接给 DSN
+        if dsn:  # 直接给 DSN
             return f'oracle+oracledb://{user}:{pwd}@{dsn}'
         host = self.arg('host', default='127.0.0.1')
         port = self.arg('port', default=self.default_port)

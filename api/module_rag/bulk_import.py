@@ -19,7 +19,7 @@ from sqlalchemy import select
 
 from common.context import RequestContext
 from module_rag.entity.do.rag_do import RagChunk, RagDataset
-from module_rag.extractor import _read_storage_bytes, _normalize_key  # noqa: PLC0415
+from module_rag.extractor import _normalize_key, _read_storage_bytes
 from module_rag.runtime_util import build_embedding_client, build_store, embed_with_cache, md5
 from module_task_schedule.sync_db import get_sync_session_local
 
@@ -38,13 +38,15 @@ def _pick(row: dict, keys: tuple) -> str:
 
 def _parse_rows(file_key: str, chunk_type: str) -> list[dict]:
     """读 storage 文件,按类型解析成 [{question,answer}] 或 [{content}]。"""
-    import os  # noqa: PLC0415
+    import os
+
     raw = _read_storage_bytes(file_key)
     ext = os.path.splitext(_normalize_key(file_key))[1].lower()
     records: list[dict] = []
 
     if ext in ('.xlsx', '.xls'):
-        from openpyxl import load_workbook  # noqa: PLC0415
+        from openpyxl import load_workbook
+
         wb = load_workbook(io.BytesIO(raw), read_only=True, data_only=True)
         ws = wb.worksheets[0]
         it = ws.iter_rows(values_only=True)
@@ -87,7 +89,8 @@ def bulk_import_from_file(dataset_id: str, chunk_type: str, file_key: str, tenan
         vectors = embed_with_cache(db, texts, dataset, client)
         dims = len(vectors[0])
         if not dataset.embedding_dims:
-            from config.env import RagConfig  # noqa: PLC0415
+            from config.env import RagConfig
+
             dataset.embedding_dims = dims
             if not dataset.embedding_provider:
                 dataset.embedding_provider = RagConfig.embedding_type
@@ -100,24 +103,40 @@ def bulk_import_from_file(dataset_id: str, chunk_type: str, file_key: str, tenan
         es_docs, orm_rows = [], []
         for r, vec, text in zip(rows, vectors, texts):
             cid = uuid.uuid4().hex
-            es_docs.append({
-                'chunk_id': cid, 'content': text, 'content_vector': vec, 'tenant_id': tenant_str,
-                'dataset_id': dataset.id, 'document_id': 'bulk', 'chunk_type': chunk_type,
-                **({'question': r['question']} if chunk_type == 'qa' else {}),
-            })
-            orm_rows.append(RagChunk(
-                id=cid, dataset_id=dataset.id, document_id='bulk', chunk_type=chunk_type,
-                content=(None if chunk_type == 'qa' else text),
-                question=(r['question'] if chunk_type == 'qa' else None),
-                answer=(r['answer'] if chunk_type == 'qa' else None),
-                question_hash=(md5(r['question']) if chunk_type == 'qa' else None),
-                hash=md5(text), position=0, status=1, create_time=datetime.now()))
+            es_docs.append(
+                {
+                    'chunk_id': cid,
+                    'content': text,
+                    'content_vector': vec,
+                    'tenant_id': tenant_str,
+                    'dataset_id': dataset.id,
+                    'document_id': 'bulk',
+                    'chunk_type': chunk_type,
+                    **({'question': r['question']} if chunk_type == 'qa' else {}),
+                }
+            )
+            orm_rows.append(
+                RagChunk(
+                    id=cid,
+                    dataset_id=dataset.id,
+                    document_id='bulk',
+                    chunk_type=chunk_type,
+                    content=(None if chunk_type == 'qa' else text),
+                    question=(r['question'] if chunk_type == 'qa' else None),
+                    answer=(r['answer'] if chunk_type == 'qa' else None),
+                    question_hash=(md5(r['question']) if chunk_type == 'qa' else None),
+                    hash=md5(text),
+                    position=0,
+                    status=1,
+                    create_time=datetime.now(),
+                )
+            )
         store.add(es_docs)
         for o in orm_rows:
             db.add(o)
         db.commit()
         return {'imported': len(orm_rows)}
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         db.rollback()
         return {'imported': 0, 'error': ' '.join(str(e).split())[:500]}
     finally:

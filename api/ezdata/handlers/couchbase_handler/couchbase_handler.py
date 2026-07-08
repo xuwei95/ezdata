@@ -28,9 +28,11 @@ class CouchbaseHandler(Connector):
             from couchbase.auth import PasswordAuthenticator
             from couchbase.cluster import Cluster
             from couchbase.options import ClusterOptions
+
             opts = ClusterOptions(PasswordAuthenticator(self.arg('user', default=''), self.arg('password', default='')))
-            cs = self.arg('connection_string') or f"couchbase://{self.arg('host', default='127.0.0.1')}"
+            cs = self.arg('connection_string') or f'couchbase://{self.arg("host", default="127.0.0.1")}'
             return Cluster(cs, opts)
+
         return self._lazy('_cluster', _make)
 
     def test_connection(self) -> ConnectResult:

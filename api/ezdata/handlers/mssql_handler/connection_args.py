@@ -15,5 +15,10 @@ connection_args = OrderedDict(
 )
 
 connection_args_example = OrderedDict(
-    host='127.0.0.1', port=1433, user='sa', password='password', database='master', schema='dbo',
+    host='127.0.0.1',
+    port=1433,
+    user='sa',
+    password='password',
+    database='master',
+    schema='dbo',
 )

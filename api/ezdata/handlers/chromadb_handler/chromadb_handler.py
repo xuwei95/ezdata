@@ -15,5 +15,12 @@ class ChromaDBHandler(VectorConnector):
 
     def _vectordb(self, collection: str) -> Any:
         vcls = self._agno_cls()
-        return vcls(**self._kw(collection=collection, embedder=self._embedder(),
-                 path=self.arg('persist_directory'), host=self.arg('host'), port=self.arg('port')))
+        return vcls(
+            **self._kw(
+                collection=collection,
+                embedder=self._embedder(),
+                path=self.arg('persist_directory'),
+                host=self.arg('host'),
+                port=self.arg('port'),
+            )
+        )

@@ -42,7 +42,8 @@ def _raw_text(db, doc: RagDocument) -> str:
     if dt == 'text':
         return meta.get('text') or doc.source or ''
     if dt == 'website':
-        import requests  # noqa: PLC0415
+        import requests
+
         url = doc.source or meta.get('url')
         if not url:
             raise ValueError('网页文档缺少 URL')
@@ -74,9 +75,11 @@ def train_document(document_id: str, tenant_id: Any, force: bool = False) -> dic
         contextual = bool(strat.get('contextual'))
 
         # 1 抽取 / 清洗
-        text = clean_text(_raw_text(db, doc),
-                          remove_extra_spaces=strat.get('remove_extra_spaces', True),
-                          remove_urls_emails=strat.get('remove_urls_emails', False))
+        text = clean_text(
+            _raw_text(db, doc),
+            remove_extra_spaces=strat.get('remove_extra_spaces', True),
+            remove_urls_emails=strat.get('remove_urls_emails', False),
+        )
         # 增量:原文+策略未变且上次成功 → 跳过(force 时强制重训)
         new_hash = md5(f'{text}|{strategy}|{chunk_size}|{overlap}|{int(contextual)}')
         if not force and doc.status == 3 and doc.content_hash == new_hash:
@@ -105,7 +108,8 @@ def train_document(document_id: str, tenant_id: Any, force: bool = False) -> dic
         if not dataset.embedding_dims:
             dataset.embedding_dims = dims
             if not dataset.embedding_provider:
-                from config.env import RagConfig  # noqa: PLC0415
+                from config.env import RagConfig
+
                 dataset.embedding_provider = RagConfig.embedding_type
                 dataset.embedding_model = RagConfig.embedding_model
             db.commit()
@@ -119,14 +123,30 @@ def train_document(document_id: str, tenant_id: Any, force: bool = False) -> dic
         es_docs, rows = [], []
         for pos, (content, vec) in enumerate(zip(pieces, vectors)):
             cid = uuid.uuid4().hex
-            es_docs.append({
-                'chunk_id': cid, 'content': content, 'content_vector': vec,
-                'tenant_id': str(tenant_id) if tenant_id is not None else '',
-                'dataset_id': dataset.id, 'document_id': doc.id, 'chunk_type': 'chunk',
-            })
-            rows.append(RagChunk(id=cid, dataset_id=dataset.id, document_id=doc.id, chunk_type='chunk',
-                                 content=content, hash=md5(content), position=pos, status=1,
-                                 create_time=datetime.now()))
+            es_docs.append(
+                {
+                    'chunk_id': cid,
+                    'content': content,
+                    'content_vector': vec,
+                    'tenant_id': str(tenant_id) if tenant_id is not None else '',
+                    'dataset_id': dataset.id,
+                    'document_id': doc.id,
+                    'chunk_type': 'chunk',
+                }
+            )
+            rows.append(
+                RagChunk(
+                    id=cid,
+                    dataset_id=dataset.id,
+                    document_id=doc.id,
+                    chunk_type='chunk',
+                    content=content,
+                    hash=md5(content),
+                    position=pos,
+                    status=1,
+                    create_time=datetime.now(),
+                )
+            )
         store.add(es_docs)
         for r in rows:
             db.add(r)
@@ -137,7 +157,7 @@ def train_document(document_id: str, tenant_id: Any, force: bool = False) -> dic
         doc.update_time = datetime.now()
         db.commit()
         return {'ok': True, 'chunks': len(rows), 'strategy': strategy, 'contextual': contextual}
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         db.rollback()
         try:
             doc = db.execute(select(RagDocument).where(RagDocument.id == document_id)).scalars().first()

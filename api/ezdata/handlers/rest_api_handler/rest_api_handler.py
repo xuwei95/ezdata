@@ -69,8 +69,7 @@ class RestApiHandler(Connector):
         return list(self._endpoints().keys())
 
     def table_labels(self) -> dict[str, str]:
-        return {k: (v.get('desc') or v.get('path') or '')
-                for k, v in self._endpoints().items() if isinstance(v, dict)}
+        return {k: (v.get('desc') or v.get('path') or '') for k, v in self._endpoints().items() if isinstance(v, dict)}
 
     def get_columns(self, table: str) -> list[Column]:
         """取一条样本推断字段(联网慢但准)。"""
@@ -78,7 +77,7 @@ class RestApiHandler(Connector):
             rows = self.query(table, None, 1)
             if rows and isinstance(rows[0], dict):
                 return [Column(name=str(k), type=type(v).__name__) for k, v in rows[0].items()]
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             return [Column(name='(取样失败)', type='', comment=str(e)[:120])]
         return []
 
@@ -160,9 +159,15 @@ class RestApiHandler(Connector):
                     q[pag['limit_param']] = size
             elif ptype == 'cursor' and cursor is not None:
                 q[pag.get('cursor_param') or 'cursor'] = cursor
-            resp = requests.request(method, url, params=q if method == 'GET' else None,
-                                    json=q if method != 'GET' else None,
-                                    headers=headers, auth=auth, timeout=timeout)
+            resp = requests.request(
+                method,
+                url,
+                params=q if method == 'GET' else None,
+                json=q if method != 'GET' else None,
+                headers=headers,
+                auth=auth,
+                timeout=timeout,
+            )
             resp.raise_for_status()
             body = resp.json()
             rows = _dig_list(body, selector)

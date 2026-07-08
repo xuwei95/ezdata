@@ -27,9 +27,16 @@ def _datasets_for_source(source_id: str) -> list[str]:
         db.close()
 
 
-def search_knowledge_base(query: str, *, source_id: str | None = None, dataset_ids: list[str] | None = None,
-                          tenant_id: Any = None, top_k: int = 5, retrieval_type: str = 'hybrid',
-                          rerank: bool = False) -> str:
+def search_knowledge_base(
+    query: str,
+    *,
+    source_id: str | None = None,
+    dataset_ids: list[str] | None = None,
+    tenant_id: Any = None,
+    top_k: int = 5,
+    retrieval_type: str = 'hybrid',
+    rerank: bool = False,
+) -> str:
     """检索知识库,返回适合喂给 LLM 的格式化文本(带来源标注)。"""
     if tenant_id is None:
         tenant_id = RequestContext.get_effective_tenant_id()
@@ -51,11 +58,15 @@ def search_knowledge_base(query: str, *, source_id: str | None = None, dataset_i
     return '\n\n'.join(lines)
 
 
-def make_kb_tool(source_id: str | None = None, dataset_ids: list[str] | None = None,
-                 tenant_id: Any = None, top_k: int = 5):
+def make_kb_tool(
+    source_id: str | None = None, dataset_ids: list[str] | None = None, tenant_id: Any = None, top_k: int = 5
+):
     """构造 Agent 工具闭包:固定知识库范围,Agent 调用时只传 query。"""
-    def search_knowledge_base(query: str) -> str:  # noqa: D401 名字即工具名,供 Agno 自动暴露
+
+    def search_knowledge_base(query: str) -> str:
         """从知识库检索与问题相关的资料,返回带编号的片段文本。"""
-        from module_rag.agent_tools import search_knowledge_base as _s  # noqa: PLC0415
+        from module_rag.agent_tools import search_knowledge_base as _s
+
         return _s(query, source_id=source_id, dataset_ids=dataset_ids, tenant_id=tenant_id, top_k=top_k)
+
     return search_knowledge_base

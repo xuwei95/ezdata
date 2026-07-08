@@ -13,9 +13,18 @@ connection_args = OrderedDict(
     schema={'type': ARG_TYPE.STR, 'description': '默认优先搜索的 schema。', 'required': False, 'label': 'Schema'},
     sslmode={'type': ARG_TYPE.STR, 'description': '连接 sslmode。', 'required': False, 'label': 'sslmode'},
     connection_parameters={
-        'type': ARG_TYPE.DICT, 'description': '额外连接串参数。', 'required': False, 'label': 'connection_parameters'},
+        'type': ARG_TYPE.DICT,
+        'description': '额外连接串参数。',
+        'required': False,
+        'label': 'connection_parameters',
+    },
 )
 
 connection_args_example = OrderedDict(
-    host='127.0.0.1', port=5432, user='root', schema='public', password='password', database='database',
+    host='127.0.0.1',
+    port=5432,
+    user='root',
+    schema='public',
+    password='password',
+    database='database',
 )

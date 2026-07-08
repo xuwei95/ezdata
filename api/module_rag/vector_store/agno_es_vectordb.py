@@ -11,7 +11,7 @@ EsAgnoVectorDb —— 把 ES8 封装成 Agno 的 VectorDb,可直接喂给 Agno K
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Optional
+from typing import Any
 
 from agno.knowledge.document import Document
 from agno.vectordb.base import VectorDb
@@ -24,7 +24,7 @@ from module_rag.vector_store.es_store import EsVectorStore
 
 def _build_embedder(model: str | None = None, base_url: str | None = None, api_key: str | None = None):
     """Agno OpenAIEmbedder 指向 DashScope(openai 兼容端点)。"""
-    from agno.knowledge.embedder.openai import OpenAIEmbedder  # noqa: PLC0415
+    from agno.knowledge.embedder.openai import OpenAIEmbedder
 
     provider = (RagConfig.embedding_type or 'dashscope').lower()
     model = model or RagConfig.embedding_model
@@ -38,9 +38,17 @@ def _build_embedder(model: str | None = None, base_url: str | None = None, api_k
 class EsAgnoVectorDb(VectorDb):
     """ES 的 Agno VectorDb 实现(一个实例 = 一个 ES 索引)。"""
 
-    def __init__(self, connection_data: dict[str, Any], index: str, *, embedder: Any = None,
-                 search_type: SearchType = SearchType.hybrid, tenant_id: Any = None,
-                 reranker: Any = None, name: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        connection_data: dict[str, Any],
+        index: str,
+        *,
+        embedder: Any = None,
+        search_type: SearchType = SearchType.hybrid,
+        tenant_id: Any = None,
+        reranker: Any = None,
+        name: str | None = None,
+    ) -> None:
         super().__init__(id=None, name=name or index, description=None)
         self._es = EsVectorStore(connection_data, index)
         self.embedder = embedder or _build_embedder()
@@ -82,7 +90,7 @@ class EsAgnoVectorDb(VectorDb):
     def name_exists(self, name: str) -> bool:
         return self._es.index_exists() and self._es.count(filters=[{'term': {'name': name}}]) > 0
 
-    def id_exists(self, id: str) -> bool:  # noqa: A002
+    def id_exists(self, id: str) -> bool:
         return self._es.index_exists() and self._es.count(filters=[{'term': {'chunk_id': id}}]) > 0
 
     def content_hash_exists(self, content_hash: str) -> bool:
@@ -94,9 +102,14 @@ class EsAgnoVectorDb(VectorDb):
             d.embed(embedder=self.embedder)
         cid = d.id or d.content_id or (d.meta_data or {}).get('chunk_id')
         return {
-            'chunk_id': cid, 'content': d.content, 'content_vector': d.embedding,
-            'name': d.name, 'content_id': d.content_id, 'content_hash': content_hash,
-            'chunk_type': 'chunk', 'meta': d.meta_data or {},
+            'chunk_id': cid,
+            'content': d.content,
+            'content_vector': d.embedding,
+            'name': d.name,
+            'content_id': d.content_id,
+            'content_hash': content_hash,
+            'chunk_type': 'chunk',
+            'meta': d.meta_data or {},
             'tenant_id': self.tenant_id if self.tenant_id is not None else '',
             **({'document_id': (filters or {}).get('document_id')} if (filters or {}).get('document_id') else {}),
         }
@@ -128,7 +141,7 @@ class EsAgnoVectorDb(VectorDb):
         if self.reranker is not None:
             try:
                 hits = self.reranker.rerank(query=query, documents=hits)  # best-effort
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
         return [self._hit_to_doc(h) for h in hits[:limit]]
 
@@ -136,11 +149,16 @@ class EsAgnoVectorDb(VectorDb):
     def _hit_to_doc(h: dict) -> Document:
         meta = dict(h.get('meta') or {})
         meta['score'] = h.get('rrf_score') or h.get('score')
-        return Document(id=h.get('chunk_id'), name=h.get('name'), content=h.get('content') or '',
-                        content_id=h.get('content_id'), meta_data=meta)
+        return Document(
+            id=h.get('chunk_id'),
+            name=h.get('name'),
+            content=h.get('content') or '',
+            content_id=h.get('content_id'),
+            meta_data=meta,
+        )
 
     # ---------- 删除 ----------
-    def delete_by_id(self, id: str) -> bool:  # noqa: A002
+    def delete_by_id(self, id: str) -> bool:
         return self._es.delete_by_ids([id]) > 0
 
     def delete_by_name(self, name: str) -> bool:
@@ -154,13 +172,13 @@ class EsAgnoVectorDb(VectorDb):
             return False
         fs = [{'term': {k: v}} for k, v in metadata.items()]
         body = {'query': {'bool': {'filter': fs}}}
-        return int(self._es._req('POST', f'{self._es.index}/_delete_by_query?refresh=true', body).get('deleted', 0)) > 0  # noqa: SLF001
+        return int(self._es._req('POST', f'{self._es.index}/_delete_by_query?refresh=true', body).get('deleted', 0)) > 0
 
     def _delete_by_term(self, field: str, value: Any) -> bool:
         if not self._es.index_exists():
             return False
         body = {'query': {'bool': {'filter': [{'term': {field: value}}]}}}
-        return int(self._es._req('POST', f'{self._es.index}/_delete_by_query?refresh=true', body).get('deleted', 0)) > 0  # noqa: SLF001
+        return int(self._es._req('POST', f'{self._es.index}/_delete_by_query?refresh=true', body).get('deleted', 0)) > 0
 
     # ---------- async 包装(线程池跑同步实现)----------
     async def async_create(self) -> None:

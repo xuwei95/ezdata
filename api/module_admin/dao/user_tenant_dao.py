@@ -18,18 +18,14 @@ class UserTenantDao:
     @classmethod
     async def list_by_user(cls, db: AsyncSession, user_id: int) -> list[SysUserTenant]:
         """某用户的全部租户成员记录"""
-        return (
-            await db.execute(select(SysUserTenant).where(SysUserTenant.user_id == user_id))
-        ).scalars().all()
+        return (await db.execute(select(SysUserTenant).where(SysUserTenant.user_id == user_id))).scalars().all()
 
     @classmethod
     async def is_member(cls, db: AsyncSession, user_id: int, tenant_id: int) -> bool:
         """用户是否为某租户成员"""
         row = (
             await db.execute(
-                select(SysUserTenant.id).where(
-                    SysUserTenant.user_id == user_id, SysUserTenant.tenant_id == tenant_id
-                )
+                select(SysUserTenant.id).where(SysUserTenant.user_id == user_id, SysUserTenant.tenant_id == tenant_id)
             )
         ).first()
         return row is not None
@@ -39,9 +35,7 @@ class UserTenantDao:
         """用户的默认激活租户:优先 is_default,否则任一成员;无成员返回 None"""
         rows = (
             await db.execute(
-                select(SysUserTenant.tenant_id, SysUserTenant.is_default).where(
-                    SysUserTenant.user_id == user_id
-                )
+                select(SysUserTenant.tenant_id, SysUserTenant.is_default).where(SysUserTenant.user_id == user_id)
             )
         ).all()
         if not rows:
@@ -76,18 +70,14 @@ class UserTenantDao:
         """无则插入一条成员;返回是否新增。不提交。"""
         if await cls.is_member(db, user_id, tenant_id):
             return False
-        db.add(
-            SysUserTenant(id=str(uuid.uuid4()), user_id=user_id, tenant_id=tenant_id, is_default=is_default)
-        )
+        db.add(SysUserTenant(id=str(uuid.uuid4()), user_id=user_id, tenant_id=tenant_id, is_default=is_default))
         return True
 
     @classmethod
     async def list_top_depts(cls, db: AsyncSession, tenant_ids: list[int] | None = None) -> list[tuple[int, str]]:
         """顶级部门(parent_id=0)= 租户;tenant_ids 给定则只取这些,否则全部。跨租户读,内部 bypass。"""
         with tenant_bypass():
-            stmt = select(SysDept.dept_id, SysDept.dept_name).where(
-                SysDept.parent_id == 0, SysDept.del_flag == '0'
-            )
+            stmt = select(SysDept.dept_id, SysDept.dept_name).where(SysDept.parent_id == 0, SysDept.del_flag == '0')
             if tenant_ids is not None:
                 if not tenant_ids:
                     return []

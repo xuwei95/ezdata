@@ -14,7 +14,7 @@ connection_args = OrderedDict(
         'description': 'The password to authenticate the user with the DocumentDB server.',
         'required': True,
         'label': 'Password',
-        'secret': True
+        'secret': True,
     },
     database={
         'type': ARG_TYPE.STR,
@@ -24,7 +24,7 @@ connection_args = OrderedDict(
     },
     host={
         'type': ARG_TYPE.STR,
-        'description': 'The host name or IP address of the DocumentDB server. NOTE: use \'127.0.0.1\' instead of \'localhost\' to connect to local server.',
+        'description': "The host name or IP address of the DocumentDB server. NOTE: use '127.0.0.1' instead of 'localhost' to connect to local server.",
         'required': True,
         'label': 'Host',
     },

@@ -58,7 +58,9 @@ def show(b, label, token, idx):
     tasks = []
     for _ in range(12):
         time.sleep(2)
-        tasks = b.ev("[...document.querySelectorAll('tbody tr td:nth-child(2)')].map(x=>x.textContent.trim()).filter(Boolean)")
+        tasks = b.ev(
+            "[...document.querySelectorAll('tbody tr td:nth-child(2)')].map(x=>x.textContent.trim()).filter(Boolean)"
+        )
         rows = b.ev("document.querySelectorAll('tbody tr').length")
         if rows:
             break

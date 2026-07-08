@@ -23,10 +23,10 @@ from __future__ import annotations
 import argparse
 import sys
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from config.env import RagConfig
-from module_rag.embedding import EmbeddingClient, _KNOWN_DIMS
+from module_rag.embedding import _KNOWN_DIMS, EmbeddingClient
 from module_rag.entity.do.rag_do import RagChunk, RagDataset, RagDocument
 from module_rag.pipeline import train_document
 from module_rag.runtime_util import build_store
@@ -37,7 +37,8 @@ from module_task_schedule.sync_db import get_sync_session_local
 def _target_dims(provider: str, model: str) -> int:
     """目标向量维度:优先已知模型表,否则探测一条。"""
     return _KNOWN_DIMS.get(model) or len(
-        EmbeddingClient(provider, model, RagConfig.api_key, RagConfig.embedding_url or None).embed_query('probe'))
+        EmbeddingClient(provider, model, RagConfig.api_key, RagConfig.embedding_url or None).embed_query('probe')
+    )
 
 
 def _match(ds_id: str, selectors: list[str]) -> bool:
@@ -51,7 +52,7 @@ def rebuild_dataset(db, ds: RagDataset, provider: str, model: str, dims: int) ->
     # 1 删旧向量索引(维度变了,必须重建)
     try:
         build_store(ds).drop()
-    except Exception as e:  # noqa: BLE001 索引不存在等忽略
+    except Exception as e:
         print(f'    (drop index warn: {e})')
     # 2 embedding 字段切到目标(后续文档训练 / 分段重嵌都按此 + env)
     ds.embedding_provider, ds.embedding_model, ds.embedding_dims = provider, model, dims
@@ -105,7 +106,7 @@ def main(selectors: list[str], rebuild_all: bool) -> int:
                 r = rebuild_dataset(db, ds, provider, model, dims)
                 fails += r['doc_fail']
                 print(f'OK    {tag}: 文档 {r["doc_ok"]} 成功/{r["doc_fail"]} 失败,手动分段重嵌 {r["manual"]}')
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 db.rollback()
                 fails += 1
                 print(f'ERR   {tag}: {e}')
@@ -119,7 +120,6 @@ def main(selectors: list[str], rebuild_all: bool) -> int:
 if __name__ == '__main__':
     ap = argparse.ArgumentParser(description='切换 embedding 模型后重建知识库到当前 env 配置')
     ap.add_argument('datasets', nargs='*', help='只重建指定 dataset id(可前缀,可多个);省略=全部')
-    ap.add_argument('--all', action='store_true', dest='rebuild_all',
-                    help='强制重建(含已与 env 一致的库)')
+    ap.add_argument('--all', action='store_true', dest='rebuild_all', help='强制重建(含已与 env 一致的库)')
     args = ap.parse_args()
     sys.exit(main(args.datasets, args.rebuild_all))

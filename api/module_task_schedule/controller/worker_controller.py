@@ -38,7 +38,9 @@ async def get_worker_list(request: Request) -> Response:
     response_model=DataResponseModel,
     dependencies=[UserInterfaceAuthDependency('task:worker:list')],
 )
-async def get_active_tasks(request: Request, worker: Annotated[str | None, Query(description='worker 名称')] = None) -> Response:
+async def get_active_tasks(
+    request: Request, worker: Annotated[str | None, Query(description='worker 名称')] = None
+) -> Response:
     result = WorkerService.get_active_tasks(worker)
     logger.info('获取 Worker 运行任务成功')
     return ResponseUtil.success(data=result)

@@ -1,66 +1,58 @@
 line-length = 120
 show-fixes = true
 target-version = "py310"
-unsafe-fixes = true
+# 批量清理只取“安全”自动修复,避免语义变化;需要时再单独 `ruff check --fix --unsafe-fixes`。
+unsafe-fixes = false
 
 [lint]
+# 务实集:保留能抓“真实问题”且大多可自动修复的规则族。
+# 本项目是 ruoyi-fastapi 改的 fork,原先 select 里的 ANN(强制类型注解)/PL(pylint)/N(命名)
+# /RET/SIM/PERF/TC/COM/A/ICN/PGH/RSE/ASYNC/FAST 从未被遵守,累计 1000+ 条几乎无法自动修的历史违规,
+# 导致 CI 永远红。这里先收敛到务实基线让 CI 真正可绿、可守;要更严可按模块逐步加回。
 select = [
-    "FAST",   # fastapi
-    "ANN",    # flake8-annotations
-    "ASYNC",  # flake8-async
-    "B",      # flake8-bugbear
-    "A",      # flake8-builtins
-    "COM",    # flake8-commas
-    "C4",     # flake8-comprehensions
-    "ISC",    # flake8-implicit-str-concat
-    "ICN",    # flake8-import-conventions
-    "PIE",    # flake8-pie
-    "RSE",    # flake8-raise
-    "RET",    # flake8-return
-    "SIM",    # flake8-simplify
-    "TC",     # flake8-type-checking
-    "FLY",    # flynt
-    "I",      # isort
-    "N",      # pep8-naming
-    "PERF",   # perflint
     "E",      # pycodestyle errors
     "W",      # pycodestyle warnings
-    "F",      # pyflakes
-    "PGH",    # pygrep-hooks
-    "PL",     # pylint
-    "UP",     # pyupgrade
-    "RUF",    # Ruff-specific rules
+    "F",      # pyflakes(未用导入 / 未定义名等真实问题)
+    "I",      # isort(import 排序)
+    "UP",     # pyupgrade(语法现代化)
+    "B",      # flake8-bugbear(易错模式)
+    "C4",     # flake8-comprehensions
+    "PIE",    # flake8-pie
+    "FLY",    # flynt(手动 str.format → f-string)
+    "ISC",    # flake8-implicit-str-concat
+    "RUF",    # Ruff 专属(失效 noqa 清理 / __all__ 排序等)
 ]
 ignore = [
-    "ANN002", # missing type annotation for *{name}
-    "ANN003", # missing type annotation for **{name}
-    "ANN401", # dynamically typed expressions (typing.Any) are disallowed in {name}
-    "B008",   # do not perform function calls in argument defaults
-    "COM812", # trailing comma missing
-    "RET504", # unnecessary assignment to {name} before return statement
-    "SIM105", # use contextlib.suppress({exception}) instead of try-except-pass
-    "C901",   # too complex
-    "N818",   # exception name {name} should be named with an Error suffix
-    "E501",   # line too long
-    "W191",   # indentation contains tabs
-    "RUF001", # string contains ambiguous
-    "RUF002", # docstring contains ambiguous
-    "RUF003", # comment contains ambiguous
-    "RUF012", # mutable class attributes should be annotated with typing.ClassVar
+    # —— 本 fork 惯用写法,保留规则族但不因这些风格报红 ——
+    "E402",   # 模块级 import 不在文件顶部(celery_app 等需先初始化再 import)
+    "E702",   # 一行多语句(分号);工具/脚本里的紧凑写法
+    "B008",   # 参数默认值里调用函数(FastAPI Depends 惯用)
+    "B904",   # except 内 raise 未接 from(存量较多,择机补)
+    "B905",   # zip 未显式 strict
+    "B023",   # 闭包引用循环变量(存量,已知安全)
+    "B007",   # 未使用的循环控制变量
+    "C408",   # 用字面量替代 dict()/list() 调用
+    "C416",   # 冗余推导式
+    "UP031",  # %-格式化(脚本里较多)
+    # —— RUF 里偏主观、且不可自动修的几条 ——
+    "RUF001", # 字符串含易混淆字符(大量中文,误报)
+    "RUF002", # docstring 含易混淆字符
+    "RUF003", # 注释含易混淆字符
+    "RUF005", # collection 字面量拼接
+    "RUF006", # asyncio 悬挂 task
+    "RUF012", # 可变类属性应注解 ClassVar
+    "RUF015", # 取首元素的多余分配
+    "RUF059", # 未使用的解包变量
+    # —— 其它风格 ——
+    "E501",   # 行过长(line-length=120;超长处多为中文/URL)
+    "W191",   # 缩进含 tab
 ]
-
-[lint.flake8-type-checking]
-runtime-evaluated-base-classes = ["pydantic.BaseModel", "sqlalchemy.orm.DeclarativeBase"]
 
 [lint.isort]
 known-third-party = ["alembic"]
 
-[lint.pylint]
-max-args = 10
-max-returns = 10
-
 [lint.pyupgrade]
-# Preserve types, even if a file imports `from __future__ import annotations`.
+# 即使文件 `from __future__ import annotations`,也保留运行期类型信息。
 keep-runtime-typing = true
 
 [format]

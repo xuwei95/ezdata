@@ -54,16 +54,18 @@ def extract_bytes(raw: bytes, ext: str) -> str:
 # ---------------- storage ----------------
 def _normalize_key(file_key: str) -> str:
     """剥掉上传接口返回的 UPLOAD_PREFIX(如 /profile/),还原为 storage 对象键。"""
-    from config.env import UploadConfig  # noqa: PLC0415
+    from config.env import UploadConfig
+
     prefix = (UploadConfig.UPLOAD_PREFIX or '').strip('/')
     k = file_key.lstrip('/')
     if prefix and k.startswith(prefix + '/'):
-        k = k[len(prefix) + 1:]
+        k = k[len(prefix) + 1 :]
     return k
 
 
 def _read_storage_bytes(file_key: str) -> bytes:
-    from utils.storage_utils import storage  # noqa: PLC0415
+    from utils.storage_utils import storage
+
     file_key = _normalize_key(file_key)
     data = storage.load_once(file_key) if hasattr(storage, 'load_once') else None
     if data is not None:
@@ -120,7 +122,7 @@ def _json(raw: bytes, lines: bool = False) -> str:
 
 def _pdf(raw: bytes) -> str:
     try:
-        from pypdf import PdfReader  # noqa: PLC0415
+        from pypdf import PdfReader
     except ImportError as e:
         raise RuntimeError('解析 PDF 需要 pypdf,请 pip install pypdf') from e
     reader = PdfReader(io.BytesIO(raw))
@@ -129,7 +131,7 @@ def _pdf(raw: bytes) -> str:
 
 def _xlsx(raw: bytes) -> str:
     try:
-        from openpyxl import load_workbook  # noqa: PLC0415
+        from openpyxl import load_workbook
     except ImportError as e:
         raise RuntimeError('解析 Excel 需要 openpyxl,请 pip install openpyxl') from e
     wb = load_workbook(io.BytesIO(raw), read_only=True, data_only=True)
@@ -140,8 +142,7 @@ def _xlsx(raw: bytes) -> str:
         header = next(rows, None)
         header = [str(h) if h is not None else f'col{i}' for i, h in enumerate(header or [])]
         for r in rows:
-            pairs = [f'{header[i] if i < len(header) else f"col{i}"}: {v}'
-                     for i, v in enumerate(r) if v is not None]
+            pairs = [f'{header[i] if i < len(header) else f"col{i}"}: {v}' for i, v in enumerate(r) if v is not None]
             if pairs:
                 out.append('; '.join(pairs))
     return '\n'.join(out)
@@ -150,7 +151,8 @@ def _xlsx(raw: bytes) -> str:
 def _html(raw: bytes) -> str:
     text = _decode(raw)
     try:
-        from bs4 import BeautifulSoup  # noqa: PLC0415
+        from bs4 import BeautifulSoup
+
         soup = BeautifulSoup(text, 'html.parser')
         for tag in soup(['script', 'style', 'noscript']):
             tag.decompose()
@@ -163,7 +165,7 @@ def _html(raw: bytes) -> str:
 
 def _docx(raw: bytes) -> str:
     try:
-        import docx  # noqa: PLC0415
+        import docx
     except ImportError as e:
         raise RuntimeError('解析 docx 需要 python-docx,请 pip install python-docx') from e
     doc = docx.Document(io.BytesIO(raw))

@@ -18,10 +18,14 @@ class AthenaHandler(SqlConnector):
         sk = quote_plus(str(self.arg('aws_secret_access_key', default='')))
         region = self.arg('region_name', default='us-east-1')
         database = self.arg('database', default='default')
-        params = {k: v for k, v in {
-            's3_staging_dir': self.arg('results_output_location'),
-            'work_group': self.arg('workgroup'),
-            'catalog_name': self.arg('catalog'),
-        }.items() if v}
+        params = {
+            k: v
+            for k, v in {
+                's3_staging_dir': self.arg('results_output_location'),
+                'work_group': self.arg('workgroup'),
+                'catalog_name': self.arg('catalog'),
+            }.items()
+            if v
+        }
         qs = f'?{urlencode(params)}' if params else ''
         return f'awsathena+rest://{ak}:{sk}@athena.{region}.amazonaws.com:443/{database}{qs}'

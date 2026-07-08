@@ -27,24 +27,29 @@ def build_logger_config(task_uuid: str | None) -> dict | None:
     """
     if not task_uuid:
         return None
-    from config.env import TaskLogConfig  # noqa: PLC0415
+    from config.env import TaskLogConfig
 
     typ = TaskLogConfig.task_log_type
     cfg: dict[str, Any] = {'type': typ, 'task_uuid': task_uuid}
     if typ == 'db':
-        from config.database import build_sync_sqlalchemy_database_url  # noqa: PLC0415
+        from config.database import build_sync_sqlalchemy_database_url
 
         cfg['db_url'] = build_sync_sqlalchemy_database_url()
     elif typ == 'es':
-        cfg.update(hosts=TaskLogConfig.task_es_hosts, index=TaskLogConfig.task_es_index,
-                   user=TaskLogConfig.task_es_username, password=TaskLogConfig.task_es_password)
+        cfg.update(
+            hosts=TaskLogConfig.task_es_hosts,
+            index=TaskLogConfig.task_es_index,
+            user=TaskLogConfig.task_es_username,
+            password=TaskLogConfig.task_es_password,
+        )
     return cfg
 
 
 def _post(path: str, body: dict, timeout: int) -> dict[str, Any]:
     url = SandboxConfig.sandbox_api_url.rstrip('/') + path
     resp = requests.post(
-        url, json=body,
+        url,
+        json=body,
         headers={'Authorization': f'Bearer {SandboxConfig.sandbox_bearer_key}', 'Content-Type': 'application/json'},
         timeout=timeout,
     )
@@ -58,43 +63,60 @@ def transform_rows(code: str, rows: list[dict], timeout: int | None = None) -> d
     return _post('/transform', {'code': code, 'rows': rows, 'timeout': t}, t + 10)
 
 
-def run_python(code: str, variable_to_return: str | None = None,
-               timeout: int | None = None) -> dict[str, Any]:
+def run_python(code: str, variable_to_return: str | None = None, timeout: int | None = None) -> dict[str, Any]:
     """运行普通 python 代码(纯计算)。返回 {success, stdout, result, error}。"""
     t = int(timeout or SandboxConfig.sandbox_timeout)
     return _post('/python/run', {'code': code, 'variable_to_return': variable_to_return, 'timeout': t}, t + 10)
 
 
-def run_python_data(code: str, datasource: dict, variable_to_return: str | None = 'result',
-                    timeout: int | None = None) -> dict[str, Any]:
+def run_python_data(
+    code: str, datasource: dict, variable_to_return: str | None = 'result', timeout: int | None = None
+) -> dict[str, Any]:
     """运行数据源取数代码(沙箱注入 handler)。datasource={source_type, config, secrets(明文 dict)}。"""
     t = int(timeout or SandboxConfig.sandbox_timeout)
-    return _post('/python/data', {'code': code, 'datasource': datasource or {},
-                                  'variable_to_return': variable_to_return, 'timeout': t}, t + 50)
+    return _post(
+        '/python/data',
+        {'code': code, 'datasource': datasource or {}, 'variable_to_return': variable_to_return, 'timeout': t},
+        t + 50,
+    )
 
 
-def run_python_extract(code: str, datasources: dict | None = None, variable_to_return: str | None = 'result',
-                       timeout: int | None = None) -> dict[str, Any]:
+def run_python_extract(
+    code: str, datasources: dict | None = None, variable_to_return: str | None = 'result', timeout: int | None = None
+) -> dict[str, Any]:
     """运行代码取数/爬虫(沙箱注入 get_handler(code))。datasources={code:{source_type,config,secrets(明文)}}。
 
     code 产出 result(list[dict]);可用 get_handler(code) 取某数据源 handler。返回 {success, result, stdout, error}。
     """
     t = int(timeout or SandboxConfig.sandbox_timeout)
-    return _post('/python/extract', {'code': code, 'datasources': datasources or {},
-                                     'variable_to_return': variable_to_return, 'timeout': t}, t + 50)
+    return _post(
+        '/python/extract',
+        {'code': code, 'datasources': datasources or {}, 'variable_to_return': variable_to_return, 'timeout': t},
+        t + 50,
+    )
 
 
-def execute_task(template_code: str, params: dict, runner_type: int = 1, runner_code: str | None = None,
-                 datasources: dict | None = None, task_uuid: str | None = None,
-                 timeout: int | None = None) -> dict[str, Any]:
+def execute_task(
+    template_code: str,
+    params: dict,
+    runner_type: int = 1,
+    runner_code: str | None = None,
+    datasources: dict | None = None,
+    task_uuid: str | None = None,
+    timeout: int | None = None,
+) -> dict[str, Any]:
     """通用任务执行(沙箱即远程 executor)。返回 {success, result, output, logs, error}。
 
     datasources={code:{source_type, config, secrets(明文 dict)}} 仅 ETL 用,由调用方预解密。
     """
     t = int(timeout or SandboxConfig.sandbox_timeout)
     body = {
-        'template_code': template_code, 'runner_type': runner_type, 'runner_code': runner_code,
-        'params': params or {}, 'datasources': datasources or {},
-        'logger_config': build_logger_config(task_uuid), 'timeout': t,
+        'template_code': template_code,
+        'runner_type': runner_type,
+        'runner_code': runner_code,
+        'params': params or {},
+        'datasources': datasources or {},
+        'logger_config': build_logger_config(task_uuid),
+        'timeout': t,
     }
     return _post('/task/execute', body, t + 50)

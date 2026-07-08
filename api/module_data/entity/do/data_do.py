@@ -44,13 +44,17 @@ class DataModel(Base, TenantMixin):
         String(50), nullable=True, server_default='table', comment='table/collection/index/topic/custom_query'
     )
     object_name: Mapped[str | None] = mapped_column(String(200), nullable=True, comment='表/索引/集合名')
-    db_schema: Mapped[str | None] = mapped_column(String(200), nullable=True, server_default="''", comment='schema/库名')
+    db_schema: Mapped[str | None] = mapped_column(
+        String(200), nullable=True, server_default="''", comment='schema/库名'
+    )
     fields: Mapped[list | None] = mapped_column(JSON, nullable=True, comment='字段结构(introspect 缓存)')
     default_filters: Mapped[list | None] = mapped_column(JSON, nullable=True, comment='默认过滤条件')
     auth: Mapped[str | None] = mapped_column(
         String(200), nullable=True, server_default='query,extract', comment='授权位 query/extract/api/write(逗号)'
     )
-    status: Mapped[int | None] = mapped_column(SmallInteger, nullable=True, server_default='1', comment='状态 1启用 0停用')
+    status: Mapped[int | None] = mapped_column(
+        SmallInteger, nullable=True, server_default='1', comment='状态 1启用 0停用'
+    )
     remark: Mapped[str | None] = mapped_column(String(500), nullable=True, server_default="''", comment='备注')
     create_by: Mapped[str | None] = mapped_column(String(64), nullable=True, server_default="''", comment='创建者')
     create_time: Mapped[datetime | None] = mapped_column(default=datetime.now, nullable=True, comment='创建时间')

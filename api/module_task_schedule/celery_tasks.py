@@ -32,7 +32,7 @@ def _load_retry_conf(task_id: str) -> tuple[int, int]:
 @celery_app.task(bind=True, name='module_task_schedule.run_task')
 def run_task(self: Any, task_id: str) -> str:
     """执行模板任务(单任务)"""
-    from celery.exceptions import SoftTimeLimitExceeded  # noqa: PLC0415
+    from celery.exceptions import SoftTimeLimitExceeded
 
     instance_id = self.request.id
     worker = self.request.hostname
@@ -41,11 +41,11 @@ def run_task(self: Any, task_id: str) -> str:
         return execute_task(task_id, instance_id, worker=worker, retry_num=retries)
     except SoftTimeLimitExceeded as e:
         # 超时:视为失败,直接告警、不重试(重试大概率还会超时);硬超时会 SIGKILL 释放槽位
-        from module_task_schedule.alert_hook import trigger_task_fail_alert  # noqa: PLC0415
+        from module_task_schedule.alert_hook import trigger_task_fail_alert
 
         trigger_task_fail_alert(task_id, instance_id, worker, retries, e)
         raise
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         retry_count, retry_interval = _load_retry_conf(task_id)
         if retries < retry_count:
             raise self.retry(exc=e, countdown=retry_interval, max_retries=retry_count)
@@ -90,7 +90,7 @@ def run_dag_node(self: Any, dag_run_id: str, node_key: str) -> str:
         res = execute_dag_node(dag_run_id, node_key, instance_id, worker=worker, retry_num=retries)
         advance_dag(dag_run_id)  # 成功 -> 触发下游
         return res
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         retry_count, retry_interval = node_retry_conf(dag_run_id, node_key)
         if retries < retry_count:
             raise self.retry(exc=e, countdown=retry_interval, max_retries=retry_count)

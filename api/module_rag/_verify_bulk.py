@@ -22,7 +22,9 @@ PASS = FAIL = 0
 
 def check(label, cond, detail=''):
     global PASS, FAIL
-    ok = bool(cond); PASS += ok; FAIL += (not ok)
+    ok = bool(cond)
+    PASS += ok
+    FAIL += not ok
     print(f'  [{"PASS" if ok else "FAIL"}] {label}' + (f' — {detail}' if detail else ''))
 
 
@@ -31,13 +33,22 @@ def main():
     db = get_sync_session_local()()
     ds_id = uuid.uuid4().hex
     try:
-        db.add(RagDataset(id=ds_id, name='bulk-test', embedding_provider=RagConfig.embedding_type,
-                          embedding_model=RagConfig.embedding_model, vector_backend='elasticsearch',
-                          index_name=f'rag_ds_{ds_id}', status=1, create_time=datetime.now()))
+        db.add(
+            RagDataset(
+                id=ds_id,
+                name='bulk-test',
+                embedding_provider=RagConfig.embedding_type,
+                embedding_model=RagConfig.embedding_model,
+                vector_backend='elasticsearch',
+                index_name=f'rag_ds_{ds_id}',
+                status=1,
+                create_time=datetime.now(),
+            )
+        )
         db.commit()
 
-        qa_csv = 'question,answer\n公司年假有几天,每年15天带薪年假\n试用期多长,试用期为3个月\n'.encode('utf-8')
-        ch_csv = 'content\nezdata 数据集成基于 dlt 实现抽取与加载\n知识库向量库默认使用 ES8 的 kNN\n'.encode('utf-8')
+        qa_csv = 'question,answer\n公司年假有几天,每年15天带薪年假\n试用期多长,试用期为3个月\n'.encode()
+        ch_csv = 'content\nezdata 数据集成基于 dlt 实现抽取与加载\n知识库向量库默认使用 ES8 的 kNN\n'.encode()
         storage.save('upload/_bulk_qa.csv', qa_csv)
         storage.save('upload/_bulk_chunk.csv', ch_csv)
 
@@ -47,14 +58,17 @@ def main():
         check('分段 导入 2 条', r2.get('imported') == 2, str(r2))
 
         qa = retrieve(TENANT, '公司年假有几天', [ds_id], k=3, retrieval_type='hybrid')
-        check('QA 召回命中', any(x['chunk_type'] == 'qa' for x in qa['records']),
-              str([x['chunk_type'] for x in qa['records']]))
+        check(
+            'QA 召回命中',
+            any(x['chunk_type'] == 'qa' for x in qa['records']),
+            str([x['chunk_type'] for x in qa['records']]),
+        )
         ch = retrieve(TENANT, 'ES8 向量检索', [ds_id], k=3, retrieval_type='vector')
-        check('分段 向量召回命中', ch['total'] > 0, f"{ch['total']} 条")
+        check('分段 向量召回命中', ch['total'] > 0, f'{ch["total"]} 条')
 
         # 分数阈值过滤(高阈值应过滤掉弱匹配)
         hi = retrieve(TENANT, '完全不相关的随机内容xyz', [ds_id], k=5, retrieval_type='vector', score_threshold=0.9)
-        check('高分数阈值过滤生效', hi['total'] == 0, f"{hi['total']} 条")
+        check('高分数阈值过滤生效', hi['total'] == 0, f'{hi["total"]} 条')
     finally:
         try:
             build_store(db.execute(select(RagDataset).where(RagDataset.id == ds_id)).scalars().first()).drop()

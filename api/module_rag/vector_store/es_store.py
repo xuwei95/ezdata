@@ -70,8 +70,10 @@ class EsVectorStore(VectorStore):
                 'properties': {
                     'content': content_field,
                     'content_vector': {
-                        'type': 'dense_vector', 'dims': dims,
-                        'index': True, 'similarity': similarity,
+                        'type': 'dense_vector',
+                        'dims': dims,
+                        'index': True,
+                        'similarity': similarity,
                         'index_options': {'type': 'hnsw', 'm': 16, 'ef_construction': 100},
                     },
                     'tenant_id': {'type': 'keyword'},
@@ -111,11 +113,16 @@ class EsVectorStore(VectorStore):
             lines.append(json.dumps({'index': {'_index': self.index, '_id': c['chunk_id']}}))
             lines.append(json.dumps(c))
         ndjson = '\n'.join(lines) + '\n'
-        resp = requests.post(f'{self.base}/_bulk', data=ndjson.encode('utf-8'),
-                             headers={'Content-Type': 'application/x-ndjson',
-                                      **({'Authorization': self._headers['Authorization']}
-                                         if 'Authorization' in self._headers else {})},
-                             auth=self._auth, timeout=self.timeout)
+        resp = requests.post(
+            f'{self.base}/_bulk',
+            data=ndjson.encode('utf-8'),
+            headers={
+                'Content-Type': 'application/x-ndjson',
+                **({'Authorization': self._headers['Authorization']} if 'Authorization' in self._headers else {}),
+            },
+            auth=self._auth,
+            timeout=self.timeout,
+        )
         resp.raise_for_status()
         result = resp.json()
         if result.get('errors'):
@@ -139,10 +146,15 @@ class EsVectorStore(VectorStore):
         return int(self._req('POST', f'{self.index}/_delete_by_query?refresh=true', body).get('deleted', 0))
 
     # ---------------- 检索 ----------------
-    def vector_search(self, query_vector: list[float], k: int = 5, *,
-                      num_candidates: int = 100, filters: list[dict] | None = None) -> list[dict]:
-        knn: dict[str, Any] = {'field': 'content_vector', 'query_vector': query_vector,
-                               'k': k, 'num_candidates': max(num_candidates, k)}
+    def vector_search(
+        self, query_vector: list[float], k: int = 5, *, num_candidates: int = 100, filters: list[dict] | None = None
+    ) -> list[dict]:
+        knn: dict[str, Any] = {
+            'field': 'content_vector',
+            'query_vector': query_vector,
+            'k': k,
+            'num_candidates': max(num_candidates, k),
+        }
         if filters:
             knn['filter'] = {'bool': {'filter': filters}}
         body = {'knn': knn, 'size': k, '_source': {'excludes': ['content_vector']}}

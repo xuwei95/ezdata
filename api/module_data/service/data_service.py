@@ -8,6 +8,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.vo import CrudResponseModel
 from exceptions.exception import ServiceException
+from ezdata import prompts as ez_prompts
+from ezdata import services as ez_services
+from ezdata.handlers import Capability, create_handler, get_handler_cls
+from ezdata.utils.etl_util import (
+    assert_readonly_sql,
+    is_file_target,
+    json_safe_rows,
+    serialize_records,
+    short_err,
+    stream_statement,
+)
 from module_data.dao.data_dao import DataModelDao, DataSourceDao
 from module_data.entity.do.data_do import DataModel, DataSource
 from module_data.entity.vo.data_vo import (
@@ -19,17 +30,6 @@ from module_data.entity.vo.data_vo import (
     SearchReq,
     TestConnReq,
 )
-from ezdata import prompts as ez_prompts
-from ezdata import services as ez_services
-from ezdata.utils.etl_util import (
-    assert_readonly_sql,
-    is_file_target,
-    json_safe_rows,
-    serialize_records,
-    short_err,
-    stream_statement,
-)
-from ezdata.handlers import Capability, create_handler, get_handler_cls
 from utils.crypto_util import CryptoUtil
 
 MASK = '******'
@@ -57,14 +57,14 @@ def _source_structure_text(ds: DataSource, max_tables: int = 30, max_fields: int
     try:
         handler = _handler_from_ds(ds)
         tables = handler.list_tables() or []
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return f'(无法读取结构: {e})'
     is_api = getattr(handler, 'family', '') == 'api'
     lines = [f'共 {len(tables)} 张{"接口" if is_api else "表"}:']
     for t in tables[:max_tables]:
         try:
             cols = handler.get_columns(t)
-        except Exception:  # noqa: BLE001
+        except Exception:
             lines.append(f'- {t}')
             continue
         fs = ', '.join((f'{c.name}:{getattr(c, "type", "")}').rstrip(':') for c in cols[:max_fields])
@@ -81,30 +81,45 @@ async def _ai_resolve_cfg(db: AsyncSession) -> dict:
     这些入口没有"选模型"的 UI,统一用**系统兜底模型**(环境变量 LLM_*);
     仅当兜底未配置时,才回退到「AI 模型管理」里第一个启用的模型(便于纯库内配置的部署)。
     """
-    from config.env import AiConfig  # noqa: PLC0415
+    from config.env import AiConfig
 
     if AiConfig.enabled:  # 首选:系统兜底模型(api_key 明文)
-        return dict(provider=AiConfig.provider, model_code=AiConfig.llm_model, model_name=None,
-                    api_key=AiConfig.llm_api_key, base_url=AiConfig.llm_url or None,
-                    max_tokens=AiConfig.llm_max_tokens or 1024)
+        return dict(
+            provider=AiConfig.provider,
+            model_code=AiConfig.llm_model,
+            model_name=None,
+            api_key=AiConfig.llm_api_key,
+            base_url=AiConfig.llm_url or None,
+            max_tokens=AiConfig.llm_max_tokens or 1024,
+        )
 
     # 兜底未配置 → 回退库内第一个启用模型(api_key 为 AES 密文)
-    from sqlalchemy import select  # noqa: PLC0415
+    from sqlalchemy import select
 
-    from module_ai.entity.do.ai_model_do import AiModels  # noqa: PLC0415
+    from module_ai.entity.do.ai_model_do import AiModels
 
-    mc = (await db.execute(
-        select(AiModels).where(AiModels.status == '0').order_by(AiModels.model_sort))).scalars().first()
+    mc = (
+        (await db.execute(select(AiModels).where(AiModels.status == '0').order_by(AiModels.model_sort)))
+        .scalars()
+        .first()
+    )
     if mc:
         if not mc.api_key:  # 启用了但没填 key:给清楚提示,而不是暴露 provider 的环境变量名
             raise ServiceException(
                 message=f'启用的模型「{mc.model_name or mc.model_code}」未配置 API Key,'
-                        f'请在「AI 模型管理」补全,或配置环境变量兜底模型(LLM_TYPE/LLM_MODEL/LLM_API_KEY)')
-        return dict(provider=mc.provider, model_code=mc.model_code, model_name=mc.model_name,
-                    api_key=CryptoUtil.decrypt(mc.api_key),
-                    base_url=mc.base_url, max_tokens=mc.max_tokens or 1024)
+                f'请在「AI 模型管理」补全,或配置环境变量兜底模型(LLM_TYPE/LLM_MODEL/LLM_API_KEY)'
+            )
+        return dict(
+            provider=mc.provider,
+            model_code=mc.model_code,
+            model_name=mc.model_name,
+            api_key=CryptoUtil.decrypt(mc.api_key),
+            base_url=mc.base_url,
+            max_tokens=mc.max_tokens or 1024,
+        )
     raise ServiceException(
-        message='未配置可用 AI 模型:请配置环境变量兜底模型(LLM_TYPE/LLM_MODEL/LLM_API_KEY[/LLM_URL]),或在「AI 模型管理」启用一个')
+        message='未配置可用 AI 模型:请配置环境变量兜底模型(LLM_TYPE/LLM_MODEL/LLM_API_KEY[/LLM_URL]),或在「AI 模型管理」启用一个'
+    )
 
 
 def _strip_fence(text: str) -> str:
@@ -117,12 +132,12 @@ def _strip_fence(text: str) -> str:
 
 async def _ai_complete(db: AsyncSession, prompt: str) -> str:
     """一次性补全并返回文本(自动去围栏)。"""
-    from utils.ai_util import AiUtil  # noqa: PLC0415
+    from utils.ai_util import AiUtil
 
     cfg = await _ai_resolve_cfg(db)
 
     def _run() -> str:
-        from agno.agent import Agent  # noqa: PLC0415
+        from agno.agent import Agent
 
         out = Agent(model=AiUtil.get_model_from_factory(**cfg)).run(prompt)
         return _strip_fence(getattr(out, 'content', None) or str(out))
@@ -132,9 +147,10 @@ async def _ai_complete(db: AsyncSession, prompt: str) -> str:
 
 def _ai_stream(cfg: dict, prompt: str):
     """同步生成器:流式产出文本增量,供 StreamingResponse 使用(围栏由前端采用时再去除)。"""
-    from agno.agent import Agent  # noqa: PLC0415
+    from agno.agent import Agent
 
-    from utils.ai_util import AiUtil  # noqa: PLC0415
+    from utils.ai_util import AiUtil
+
     try:
         agent = Agent(model=AiUtil.get_model_from_factory(**cfg))
         produced = False
@@ -146,7 +162,7 @@ def _ai_stream(cfg: dict, prompt: str):
         if not produced:  # 个别模型/版本不产 content 增量事件,回退整段
             out = Agent(model=AiUtil.get_model_from_factory(**cfg)).run(prompt)
             yield getattr(out, 'content', None) or str(out)
-    except Exception as e:  # noqa: BLE001 把错误也流式回去,前端可见
+    except Exception as e:
         yield f'\n[生成出错] {short_err(e)}'
 
 
@@ -157,8 +173,12 @@ class DataMetaService:
     def source_types() -> list[dict]:
         # 委托 ezdata,再转 camelCase 对齐前端/接口约定(source_type -> sourceType)
         return [
-            {'sourceType': t['source_type'], 'title': t['title'],
-             'family': t['family'], 'capabilities': t['capabilities']}
+            {
+                'sourceType': t['source_type'],
+                'title': t['title'],
+                'family': t['family'],
+                'capabilities': t['capabilities'],
+            }
             for t in ez_services.list_source_types()
         ]
 
@@ -182,7 +202,7 @@ class DataSourceService:
     @classmethod
     async def get_list(cls, db: AsyncSession, q: DataSourceQuery, is_page: bool = False) -> Any:
         result = await DataSourceDao.get_list(db, q, is_page)
-        for row in (result.rows if is_page else result):
+        for row in result.rows if is_page else result:
             row['secrets'] = None  # 列表不回密文
         return result
 
@@ -193,9 +213,19 @@ class DataSourceService:
             raise ServiceException(message='数据源不存在')
         # 不读 DO 的密文 secrets,手动构造 + 脱敏
         vo = DataSourceVo(
-            id=ds.id, name=ds.name, code=ds.code, source_type=ds.source_type, family=ds.family,
-            config=ds.config, status=ds.status, last_test_at=ds.last_test_at, remark=ds.remark,
-            create_by=ds.create_by, create_time=ds.create_time, update_by=ds.update_by, update_time=ds.update_time,
+            id=ds.id,
+            name=ds.name,
+            code=ds.code,
+            source_type=ds.source_type,
+            family=ds.family,
+            config=ds.config,
+            status=ds.status,
+            last_test_at=ds.last_test_at,
+            remark=ds.remark,
+            create_by=ds.create_by,
+            create_time=ds.create_time,
+            update_by=ds.update_by,
+            update_time=ds.update_time,
         )
         secret_fields = get_handler_cls(ds.source_type).secret_fields() if ds.source_type else []
         vo.secrets = dict.fromkeys(secret_fields, MASK) if secret_fields else None
@@ -226,13 +256,16 @@ class DataSourceService:
         try:
             obj = {
                 'id': uuid.uuid4().hex,
-                'name': vo.name, 'code': vo.code or uuid.uuid4().hex[:8],
+                'name': vo.name,
+                'code': vo.code or uuid.uuid4().hex[:8],
                 'source_type': vo.source_type,
                 'family': get_handler_cls(vo.source_type).family if vo.source_type else None,
                 'config': vo.config or {},
                 'secrets': CryptoUtil.encrypt(json.dumps(vo.secrets)) if vo.secrets else None,
-                'status': 'untested', 'remark': vo.remark,
-                'create_by': operator, 'create_time': datetime.now(),
+                'status': 'untested',
+                'remark': vo.remark,
+                'create_by': operator,
+                'create_time': datetime.now(),
             }
             await DataSourceDao.add(db, obj)
             await db.commit()
@@ -283,8 +316,9 @@ class DataSourceService:
             handler = _build_handler(req.source_type, req.config, req.secrets, cache=False)  # 未保存配置不入缓存
         result = await run_in_threadpool(handler.test_connection)
         if req.id:
-            await DataSourceDao.edit(db, req.id, {
-                'status': 'ok' if result.success else 'failed', 'last_test_at': datetime.now()})
+            await DataSourceDao.edit(
+                db, req.id, {'status': 'ok' if result.success else 'failed', 'last_test_at': datetime.now()}
+            )
             await db.commit()
         return {'success': result.success, 'message': result.message, 'latencyMs': result.latency_ms}
 
@@ -328,14 +362,16 @@ class DataModelService:
                 if ds:
                     handler = _handler_from_ds(ds)
                     cols = await run_in_threadpool(handler.get_columns, m.object_name)
-            except Exception:  # noqa: BLE001  源不可达/索引不存在等:不阻断详情,字段保持空
+            except Exception:
                 cols = None
             if cols:
-                vo.fields = [{'name': c.name, 'type': c.type, 'nullable': c.nullable, 'comment': c.comment} for c in cols]
+                vo.fields = [
+                    {'name': c.name, 'type': c.type, 'nullable': c.nullable, 'comment': c.comment} for c in cols
+                ]
                 try:  # 回填缓存,下次直接读库;失败不影响本次返回
                     await DataModelDao.edit(db, m_id, {'fields': vo.fields})
                     await db.commit()
-                except Exception:  # noqa: BLE001
+                except Exception:
                     await db.rollback()
         return vo
 
@@ -343,8 +379,12 @@ class DataModelService:
     async def add(cls, db: AsyncSession, vo: DataModelVo, operator: str) -> CrudResponseModel:
         try:
             obj = vo.model_dump(exclude={'id', 'create_time', 'update_time', 'create_by', 'update_by'})
-            obj.update(id=uuid.uuid4().hex, code=vo.code or uuid.uuid4().hex[:8],
-                       create_by=operator, create_time=datetime.now())
+            obj.update(
+                id=uuid.uuid4().hex,
+                code=vo.code or uuid.uuid4().hex[:8],
+                create_by=operator,
+                create_time=datetime.now(),
+            )
             await DataModelDao.add(db, obj)
             await db.commit()
             return CrudResponseModel(is_success=True, message='新增成功')
@@ -429,28 +469,27 @@ class DataQueryService:
     async def _kb_context(cls, db: AsyncSession, m: Any, question: str) -> str:
         """取数前从该数据源的专属知识库召回业务知识(表义务/字段口径/QA),注入 prompt。无则空。"""
         try:
-            from common.context import RequestContext  # noqa: PLC0415
-            from module_rag.agent_tools import search_knowledge_base  # noqa: PLC0415
+            from common.context import RequestContext
+            from module_rag.agent_tools import search_knowledge_base
+
             ds = await DataSourceDao.get_by_code(db, m.datasource_code)
             if not ds:
                 return ''
             tenant = RequestContext.get_effective_tenant_id()
-            txt = await run_in_threadpool(search_knowledge_base, question,
-                                          source_id=ds.id, tenant_id=tenant, top_k=5)
+            txt = await run_in_threadpool(search_knowledge_base, question, source_id=ds.id, tenant_id=tenant, top_k=5)
             return '' if (not txt or txt.startswith(('未找到', '未检索', '未指定'))) else txt
-        except Exception:  # noqa: BLE001 KB 不影响取数主流程
+        except Exception:
             return ''
 
     @classmethod
     async def ai_query(cls, db: AsyncSession, m_id: str, question: str, limit: int = 200) -> dict:
         """AI 取数:NL + 表结构(+专属知识库)→ 生成只读原生查询 → 执行。复用 ai_models 配置 + Agno。"""
         m, handler = await cls._load(db, m_id)
-        cols = '\n'.join(f"- {f['name']} ({f.get('type', '')})" for f in (m.fields or []))
+        cols = '\n'.join(f'- {f["name"]} ({f.get("type", "")})' for f in (m.fields or []))
         kb = await cls._kb_context(db, m, question)
         kb_block = f'参考该数据源的业务知识(理解字段口径/表义务,可据此选字段写条件):\n{kb}\n\n' if kb else ''
         prompt = (
-            kb_block +
-            f'你是 {handler.name} 数据库的 SQL 专家。表名:`{m.object_name}`,字段:\n{cols}\n\n'
+            kb_block + f'你是 {handler.name} 数据库的 SQL 专家。表名:`{m.object_name}`,字段:\n{cols}\n\n'
             f'请根据下面的自然语言需求,写一条**只读 SELECT** 查询(单条语句、不要注释、不要 markdown 代码块、'
             f'不要修改数据)。只输出 SQL 本身:\n需求:{question}'
         )
@@ -464,17 +503,18 @@ class DataQueryService:
     async def prep_ai_query(cls, db: AsyncSession, m_id: str, question: str) -> tuple[dict, str]:
         """流式 AI 取数:解析模型配置 + 按源类型构造提示词(SQL 出 SELECT;ES 出 DSL JSON)。"""
         m, handler = await cls._load(db, m_id)
-        cols = '\n'.join(f"- {f['name']} ({f.get('type', '')})" for f in (m.fields or []))
+        cols = '\n'.join(f'- {f["name"]} ({f.get("type", "")})' for f in (m.fields or []))
         if getattr(handler, 'family', '') == 'search' or handler.name == 'elasticsearch':
-            fmt = (f'返回 Elasticsearch 查询 DSL 的 JSON,形如 '
-                   f'{{"index":"{m.object_name}","body":{{"query":{{...}},"size":50}}}};只输出 JSON,不要解释、不要 markdown 围栏。')
+            fmt = (
+                f'返回 Elasticsearch 查询 DSL 的 JSON,形如 '
+                f'{{"index":"{m.object_name}","body":{{"query":{{...}},"size":50}}}};只输出 JSON,不要解释、不要 markdown 围栏。'
+            )
         else:
             fmt = '写一条**只读 SELECT** 查询(单条语句、不要注释、不要 markdown 围栏);只输出 SQL 本身。'
         kb = await cls._kb_context(db, m, question)
         kb_block = f'参考该数据源的业务知识(理解字段口径/表义务):\n{kb}\n\n' if kb else ''
         prompt = (
-            kb_block +
-            f'你是 {handler.name} 数据查询专家。表/索引:`{m.object_name}`,字段:\n{cols}\n\n'
+            kb_block + f'你是 {handler.name} 数据查询专家。表/索引:`{m.object_name}`,字段:\n{cols}\n\n'
             f'请根据下面的自然语言需求,{fmt}\n需求:{question}'
         )
         cfg = await _ai_resolve_cfg(db)
@@ -524,7 +564,7 @@ class EtlService:
                 raise ServiceException(message=f'{handler.name} 不支持预览抽取')
         except ServiceException:
             raise
-        except Exception as e:  # noqa: BLE001 抽取报错截断后回给前端
+        except Exception as e:
             raise ServiceException(message=f'抽取失败:{short_err(e)}') from None
 
         transformed = None
@@ -532,8 +572,13 @@ class EtlService:
         if (req.transform_code or '').strip():
             transformed, transform_log = await run_in_threadpool(cls._apply_transform, req.transform_code, rows)
         cols = list((transformed or rows)[0].keys()) if (transformed or rows) else []
-        return {'records': json_safe_rows(rows), 'transformed': json_safe_rows(transformed), 'columns': cols,
-                'total': len(rows), 'transformLog': transform_log}
+        return {
+            'records': json_safe_rows(rows),
+            'transformed': json_safe_rows(transformed),
+            'columns': cols,
+            'total': len(rows),
+            'transformLog': transform_log,
+        }
 
     @classmethod
     async def _preview_code(cls, db: AsyncSession, req: Any) -> dict:
@@ -541,7 +586,7 @@ class EtlService:
 
         正式任务在 worker 跑(可访问任意外网);预览在沙箱(出网受白名单约束、隔离),用于安全调试。
         """
-        from module_data import sandbox_client  # noqa: PLC0415
+        from module_data import sandbox_client
 
         code = (req.code or '').strip()
         if not code:
@@ -550,7 +595,7 @@ class EtlService:
             raise ServiceException(message='沙箱未启用,无法预览代码取数(保存后正式任务仍可在 worker 运行)')
         # 预解密所选数据源(沙箱无凭据,连接随请求注入,仅限所选源)
         dsmap: dict[str, dict] = {}
-        for c in (req.datasource_codes or []):
+        for c in req.datasource_codes or []:
             ds = await DataSourceDao.get_by_code(db, c)
             if not ds:
                 raise ServiceException(message=f'数据源不存在: {c}')
@@ -571,8 +616,13 @@ class EtlService:
             transformed, tlog = await run_in_threadpool(cls._apply_transform, req.transform_code, rows)
             transform_log = (transform_log + '\n' + tlog).strip() if tlog else transform_log
         cols = list((transformed or rows)[0].keys()) if (transformed or rows) else []
-        return {'records': json_safe_rows(rows), 'transformed': json_safe_rows(transformed), 'columns': cols,
-                'total': len(rows), 'transformLog': transform_log}
+        return {
+            'records': json_safe_rows(rows),
+            'transformed': json_safe_rows(transformed),
+            'columns': cols,
+            'total': len(rows),
+            'transformLog': transform_log,
+        }
 
     @classmethod
     async def test_load(cls, db: AsyncSession, req: Any) -> dict:
@@ -592,15 +642,24 @@ class EtlService:
         def _write() -> Any:
             if to_file:  # 对象/文件存储:序列化为整对象写入 key=table
                 return handler.write(serialize_records(req.records, fmt), req.table, mode=req.mode or 'append')
-            return handler.write(req.records, req.table, mode=req.mode or 'append',
-                                 dataset=req.dataset or 'public', pipeline_name=f'etl_test_{req.table}')
+            return handler.write(
+                req.records,
+                req.table,
+                mode=req.mode or 'append',
+                dataset=req.dataset or 'public',
+                pipeline_name=f'etl_test_{req.table}',
+            )
 
         try:
             await run_in_threadpool(_write)
-        except Exception as e:  # noqa: BLE001 写入报错截断后回给前端
+        except Exception as e:
             raise ServiceException(message=f'写入失败:{short_err(e)}') from None
-        return {'written': len(req.records), 'table': req.table,
-                'dataset': req.dataset or 'public', 'target': 'file' if to_file else 'table'}
+        return {
+            'written': len(req.records),
+            'table': req.table,
+            'dataset': req.dataset or 'public',
+            'target': 'file' if to_file else 'table',
+        }
 
     @classmethod
     async def ai_query(cls, db: AsyncSession, req: Any) -> dict:
@@ -610,7 +669,7 @@ class EtlService:
             native = (await _ai_complete(db, prompt)).rstrip(';')
         except ServiceException:
             raise
-        except Exception as e:  # noqa: BLE001 模型调用报错截断
+        except Exception as e:
             raise ServiceException(message=f'AI 生成失败:{short_err(e)}') from None
         return {'native': native}
 
@@ -633,7 +692,7 @@ class EtlService:
             code = await _ai_complete(db, prompt)
         except ServiceException:
             raise
-        except Exception as e:  # noqa: BLE001 模型调用报错截断
+        except Exception as e:
             raise ServiceException(message=f'AI 生成失败:{short_err(e)}') from None
         return {'code': code}
 
@@ -658,7 +717,7 @@ class EtlService:
         沙箱开启(SANDBOX_ENABLED)时把「数据行 + 代码」发给独立沙箱容器执行(不传任何凭据),
         日志随响应回传;沙箱未开启时本地 exec 兜底(仅可信/单机调试)。
         """
-        from module_data import sandbox_client  # noqa: PLC0415
+        from module_data import sandbox_client
 
         if sandbox_client.enabled():
             res = sandbox_client.transform_rows(code, rows)
@@ -668,7 +727,7 @@ class EtlService:
 
         # 本地兜底:沙箱未启用
         ns: dict[str, Any] = {}
-        exec(compile(code, '<etl-transform>', 'exec'), ns)  # noqa: S102 内部调试用途(沙箱未启用时)
+        exec(compile(code, '<etl-transform>', 'exec'), ns)
         fn = ns.get('transform')
         if not callable(fn):
             raise ServiceException(message='转换代码必须定义 transform(row) 函数')
@@ -676,7 +735,7 @@ class EtlService:
         for r in rows:
             try:
                 out.append(fn(dict(r)))
-            except Exception as e:  # noqa: BLE001 预览容错:逐行报告
+            except Exception as e:
                 out.append({'_transform_error': str(e), **r})
         return out, ''
 
@@ -686,12 +745,12 @@ class OpenDataService:
 
     @classmethod
     async def public_query(cls, db: AsyncSession, model_code: str, params: dict) -> dict:
-        from sqlalchemy import select  # noqa: PLC0415
+        from sqlalchemy import select
 
-        from common.context import RequestContext  # noqa: PLC0415
-        from module_apitoken.service.api_token_service import ApiTokenService  # noqa: PLC0415
-        from module_data.entity.do.data_do import DataModel as DataModelDO  # noqa: PLC0415
-        from ezdata.utils.query import parse_query_params  # noqa: PLC0415
+        from common.context import RequestContext
+        from ezdata.utils.query import parse_query_params
+        from module_apitoken.service.api_token_service import ApiTokenService
+        from module_data.entity.do.data_do import DataModel as DataModelDO
 
         apikey = params.get('apikey') or params.get('api_key')
         tk = await ApiTokenService.validate(db, apikey, 'data_api', model_code)

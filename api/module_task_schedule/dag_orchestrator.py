@@ -52,16 +52,29 @@ def start_dag_run(dag_run_id: str, dag_task_id: str, source: str, worker: str | 
         run_type = int(task.run_type or 1)
         # 锁定版本
         if source == 'draft':
-            ver = db.execute(select(DagGraph).where(
-                DagGraph.dag_task_id == dag_task_id, DagGraph.version == 'draft')).scalars().first()
+            ver = (
+                db.execute(select(DagGraph).where(DagGraph.dag_task_id == dag_task_id, DagGraph.version == 'draft'))
+                .scalars()
+                .first()
+            )
         else:
             ver = db.execute(select(DagGraph).where(DagGraph.id == task.published_version_id)).scalars().first()
         if ver is None:
             raise ValueError('找不到可运行的图版本')
-        _upsert_instance(db, dag_run_id, {
-            'task_id': dag_task_id, 'name': task.name, 'status': 'STARTED', 'worker': worker,
-            'progress': 0, 'start_time': datetime.now(), 'closed': 0, 'dag_version_id': ver.id,
-        })
+        _upsert_instance(
+            db,
+            dag_run_id,
+            {
+                'task_id': dag_task_id,
+                'name': task.name,
+                'status': 'STARTED',
+                'worker': worker,
+                'progress': 0,
+                'start_time': datetime.now(),
+                'closed': 0,
+                'dag_version_id': ver.id,
+            },
+        )
         return run_type
     finally:
         if tenant_token is not None:
@@ -69,7 +82,9 @@ def start_dag_run(dag_run_id: str, dag_task_id: str, source: str, worker: str | 
         db.close()
 
 
-def _run_node_inline(dag_run_id: str, dag_task_id: str, node: dict, worker: str | None, tenant_id: Any) -> tuple[str, str]:
+def _run_node_inline(
+    dag_run_id: str, dag_task_id: str, node: dict, worker: str | None, tenant_id: Any
+) -> tuple[str, str]:
     """在独立线程 + 独立会话里执行一个节点,返回 (node_key, status)。线程内自带租户上下文。"""
     nk = node['node_key']
     db = _session()
@@ -77,24 +92,47 @@ def _run_node_inline(dag_run_id: str, dag_task_id: str, node: dict, worker: str 
     iid = uuid.uuid4().hex
     logger = None
     try:
-        _upsert_instance(db, iid, {'parent_id': dag_run_id, 'task_id': dag_task_id, 'node_id': nk,
-                                   'name': node.get('name') or nk, 'status': 'STARTED', 'worker': worker,
-                                   'start_time': datetime.now(), 'closed': 0})
+        _upsert_instance(
+            db,
+            iid,
+            {
+                'parent_id': dag_run_id,
+                'task_id': dag_task_id,
+                'node_id': nk,
+                'name': node.get('name') or nk,
+                'status': 'STARTED',
+                'worker': worker,
+                'start_time': datetime.now(),
+                'closed': 0,
+            },
+        )
         db.commit()
         logger = get_task_logger(iid)
         logger.info(f'[单机] 节点开始: {nk}')
         res = _build_and_run_node(db, node, logger)
-        _upsert_instance(db, iid, {'status': 'SUCCESS', 'progress': 100, 'end_time': datetime.now(),
-                                   'result': (str(res)[:500] if res is not None else '执行成功'), 'closed': 1})
+        _upsert_instance(
+            db,
+            iid,
+            {
+                'status': 'SUCCESS',
+                'progress': 100,
+                'end_time': datetime.now(),
+                'result': (str(res)[:500] if res is not None else '执行成功'),
+                'closed': 1,
+            },
+        )
         db.commit()
         return nk, 'SUCCESS'
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         try:
             (logger.exception if logger else (lambda *_: None))(str(e))
         except Exception:
             pass
-        _upsert_instance(db, iid, {'status': 'FAILURE', 'end_time': datetime.now(),
-                                   'result': ' '.join(str(e).split())[:1000], 'closed': 1})
+        _upsert_instance(
+            db,
+            iid,
+            {'status': 'FAILURE', 'end_time': datetime.now(), 'result': ' '.join(str(e).split())[:1000], 'closed': 1},
+        )
         db.commit()
         return nk, 'FAILURE'
     finally:
@@ -109,7 +147,7 @@ def _run_node_inline(dag_run_id: str, dag_task_id: str, node: dict, worker: str 
 
 def run_dag_single(dag_run_id: str, worker: str | None) -> None:
     """单机模式:本进程内用线程池并行执行就绪节点(尊重依赖,无需分发到其它 worker)。"""
-    from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait  # noqa: PLC0415
+    from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 
     db = _session()
     tenant_token = None
@@ -129,9 +167,19 @@ def run_dag_single(dag_run_id: str, worker: str | None) -> None:
         aborted = False
 
         def mark_skip(nk: str) -> None:
-            db.add(TaskInstance(id=uuid.uuid4().hex, parent_id=dag_run_id, task_id=dag_run.task_id, node_id=nk,
-                                name=nodes[nk].get('name') or nk, status='SKIPPED', closed=1,
-                                result='上游失败/终止,跳过', end_time=datetime.now()))
+            db.add(
+                TaskInstance(
+                    id=uuid.uuid4().hex,
+                    parent_id=dag_run_id,
+                    task_id=dag_run.task_id,
+                    node_id=nk,
+                    name=nodes[nk].get('name') or nk,
+                    status='SKIPPED',
+                    closed=1,
+                    result='上游失败/终止,跳过',
+                    end_time=datetime.now(),
+                )
+            )
             skipped.add(nk)
             db.commit()
 
@@ -149,7 +197,9 @@ def run_dag_single(dag_run_id: str, worker: str | None) -> None:
                         mark_skip(nk)
                     elif all(p in done for p in preds):
                         submitted.add(nk)
-                        futures[pool.submit(_run_node_inline, dag_run_id, dag_run.task_id, nodes[nk], worker, tenant_id)] = nk
+                        futures[
+                            pool.submit(_run_node_inline, dag_run_id, dag_run.task_id, nodes[nk], worker, tenant_id)
+                        ] = nk
 
             schedule()
             while futures:
@@ -158,7 +208,7 @@ def run_dag_single(dag_run_id: str, worker: str | None) -> None:
                     nk = futures.pop(fut)
                     try:
                         _, status = fut.result()
-                    except Exception:  # noqa: BLE001
+                    except Exception:
                         status = 'FAILURE'
                     (done if status == 'SUCCESS' else failed).add(nk)
                     if status == 'FAILURE' and (nodes[nk].get('error_policy') or 'fail_fast') == 'fail_fast':
@@ -171,9 +221,17 @@ def run_dag_single(dag_run_id: str, worker: str | None) -> None:
         for nk in nodes:
             if nk not in done and nk not in failed and nk not in skipped:
                 mark_skip(nk)
-        _upsert_instance(db, dag_run_id, {
-            'status': 'FAILURE' if failed else 'SUCCESS', 'closed': 1, 'progress': _progress(done, nodes),
-            'end_time': datetime.now(), 'result': (f'部分失败: {sorted(failed)}' if failed else '成功')})
+        _upsert_instance(
+            db,
+            dag_run_id,
+            {
+                'status': 'FAILURE' if failed else 'SUCCESS',
+                'closed': 1,
+                'progress': _progress(done, nodes),
+                'end_time': datetime.now(),
+                'result': (f'部分失败: {sorted(failed)}' if failed else '成功'),
+            },
+        )
         db.commit()
     finally:
         if tenant_token is not None:
@@ -184,15 +242,25 @@ def run_dag_single(dag_run_id: str, worker: str | None) -> None:
 def _dispatch_node(db: Session, dag_run: TaskInstance, node: dict, run_queue: str) -> None:
     """为节点预建实例(PENDING,防重)并投递 celery 节点任务。"""
     iid = uuid.uuid4().hex
-    db.add(TaskInstance(
-        id=iid, parent_id=dag_run.id, task_id=dag_run.task_id, node_id=node['node_key'],
-        name=node.get('name') or node['node_key'], status='PENDING', closed=0,
-    ))
+    db.add(
+        TaskInstance(
+            id=iid,
+            parent_id=dag_run.id,
+            task_id=dag_run.task_id,
+            node_id=node['node_key'],
+            name=node.get('name') or node['node_key'],
+            status='PENDING',
+            closed=0,
+        )
+    )
     db.commit()
-    from config.celery_app import celery_app  # noqa: PLC0415
+    from config.celery_app import celery_app
+
     celery_app.send_task(
         'module_task_schedule.run_dag_node',
-        args=[dag_run.id, node['node_key']], task_id=iid, queue=run_queue or 'default',
+        args=[dag_run.id, node['node_key']],
+        task_id=iid,
+        queue=run_queue or 'default',
     )
 
 
@@ -202,9 +270,9 @@ def advance_dag(dag_run_id: str) -> None:
     tenant_token = None
     try:
         # 行锁,串行化并发推进(菱形依赖多个上游同时完成时防重复派发)
-        dag_run = db.execute(
-            select(TaskInstance).where(TaskInstance.id == dag_run_id).with_for_update()
-        ).scalars().first()
+        dag_run = (
+            db.execute(select(TaskInstance).where(TaskInstance.id == dag_run_id).with_for_update()).scalars().first()
+        )
         if dag_run is None or dag_run.closed == 1:
             db.commit()
             return
@@ -216,8 +284,7 @@ def advance_dag(dag_run_id: str) -> None:
         nodes = _node_map(graph)
         dag = build_dag(graph)
 
-        insts = db.execute(
-            select(TaskInstance).where(TaskInstance.parent_id == dag_run_id)).scalars().all()
+        insts = db.execute(select(TaskInstance).where(TaskInstance.parent_id == dag_run_id)).scalars().all()
         inst_by_node = {i.node_id: i for i in insts}
         done = {nk for nk, i in inst_by_node.items() if i.status == 'SUCCESS'}
         failed = {nk for nk, i in inst_by_node.items() if i.status == 'FAILURE'}
@@ -226,24 +293,40 @@ def advance_dag(dag_run_id: str) -> None:
         def mark_skipped(keys: set, reason: str) -> None:
             for nk in keys:
                 if nk not in inst_by_node and nk in nodes:
-                    db.add(TaskInstance(
-                        id=uuid.uuid4().hex, parent_id=dag_run_id, task_id=dag_run.task_id, node_id=nk,
-                        name=nodes[nk].get('name') or nk, status='SKIPPED', closed=1,
-                        result=reason, end_time=datetime.now(),
-                    ))
+                    db.add(
+                        TaskInstance(
+                            id=uuid.uuid4().hex,
+                            parent_id=dag_run_id,
+                            task_id=dag_run.task_id,
+                            node_id=nk,
+                            name=nodes[nk].get('name') or nk,
+                            status='SKIPPED',
+                            closed=1,
+                            result=reason,
+                            end_time=datetime.now(),
+                        )
+                    )
                     inst_by_node[nk] = True
                     skipped.add(nk)
 
         # 失败处理:节点级策略 fail_fast(终止整图)/ continue(只跳过其下游)
         if failed:
             policy_fail_fast = any(
-                (nodes.get(nk, {}).get('error_policy') or 'fail_fast') == 'fail_fast' for nk in failed)
+                (nodes.get(nk, {}).get('error_policy') or 'fail_fast') == 'fail_fast' for nk in failed
+            )
             if policy_fail_fast:
                 mark_skipped(set(nodes) - set(inst_by_node), '上游失败,终止')
-                _upsert_instance(db, dag_run_id, {
-                    'status': 'FAILURE', 'closed': 1, 'end_time': datetime.now(),
-                    'result': f'节点失败(终止): {sorted(failed)}', 'progress': _progress(done, nodes),
-                })
+                _upsert_instance(
+                    db,
+                    dag_run_id,
+                    {
+                        'status': 'FAILURE',
+                        'closed': 1,
+                        'end_time': datetime.now(),
+                        'result': f'节点失败(终止): {sorted(failed)}',
+                        'progress': _progress(done, nodes),
+                    },
+                )
                 db.commit()
                 return
             # continue:把失败/已跳过节点的全部下游标 SKIPPED,其余分支继续
@@ -262,11 +345,17 @@ def advance_dag(dag_run_id: str) -> None:
         # 完成判定:所有节点到终态(成功/失败/跳过)
         terminal = done | failed | skipped
         if terminal == set(nodes.keys()):
-            _upsert_instance(db, dag_run_id, {
-                'status': 'FAILURE' if failed else 'SUCCESS', 'closed': 1,
-                'progress': _progress(done, nodes), 'end_time': datetime.now(),
-                'result': (f'部分失败: {sorted(failed)}' if failed else '成功'),
-            })
+            _upsert_instance(
+                db,
+                dag_run_id,
+                {
+                    'status': 'FAILURE' if failed else 'SUCCESS',
+                    'closed': 1,
+                    'progress': _progress(done, nodes),
+                    'end_time': datetime.now(),
+                    'result': (f'部分失败: {sorted(failed)}' if failed else '成功'),
+                },
+            )
         else:
             _upsert_instance(db, dag_run_id, {'progress': _progress(done, nodes)})
         db.commit()
@@ -298,8 +387,8 @@ def node_retry_conf(dag_run_id: str, node_key: str) -> tuple[int, int]:
 
 def _build_and_run_node(db: Session, node: dict, logger: Any) -> Any:
     """按节点配置选 runner 并执行,返回结果。"""
-    from module_task_schedule.runners.base import get_runner  # noqa: PLC0415
-    from module_task_schedule.runners.dynamic_runner import DynamicRunner  # noqa: PLC0415
+    from module_task_schedule.runners.base import get_runner
+    from module_task_schedule.runners.dynamic_runner import DynamicRunner
 
     template_code = node.get('template_code')
     params = node.get('params') or {}
@@ -316,8 +405,9 @@ def _build_and_run_node(db: Session, node: dict, logger: Any) -> Any:
     return runner.run()
 
 
-def execute_single_node(dag_task_id: str, node_key: str, instance_id: str, worker: str | None,
-                        source: str = 'draft') -> str:
+def execute_single_node(
+    dag_task_id: str, node_key: str, instance_id: str, worker: str | None, source: str = 'draft'
+) -> str:
     """单独运行 DAG 的某个节点(调试用,不参与编排)。图取自 draft 或 published。"""
     db = _session()
     tenant_token = None
@@ -329,18 +419,31 @@ def execute_single_node(dag_task_id: str, node_key: str, instance_id: str, worke
         if source == 'published':
             ver = db.execute(select(DagGraph).where(DagGraph.id == task.published_version_id)).scalars().first()
         else:
-            ver = db.execute(select(DagGraph).where(
-                DagGraph.dag_task_id == dag_task_id, DagGraph.version == 'draft')).scalars().first()
+            ver = (
+                db.execute(select(DagGraph).where(DagGraph.dag_task_id == dag_task_id, DagGraph.version == 'draft'))
+                .scalars()
+                .first()
+            )
         if ver is None or not ver.graph:
             raise ValueError('找不到图')
         node = _node_map(json.loads(ver.graph)).get(node_key)
         if node is None:
             raise ValueError(f'节点不存在: {node_key}')
-        _upsert_instance(db, instance_id, {
-            'task_id': dag_task_id, 'node_id': node_key, 'parent_id': 'single',
-            'name': (node.get('name') or node_key) + '(单节点)', 'status': 'STARTED', 'worker': worker,
-            'progress': 0, 'start_time': datetime.now(), 'closed': 0,
-        })
+        _upsert_instance(
+            db,
+            instance_id,
+            {
+                'task_id': dag_task_id,
+                'node_id': node_key,
+                'parent_id': 'single',
+                'name': (node.get('name') or node_key) + '(单节点)',
+                'status': 'STARTED',
+                'worker': worker,
+                'progress': 0,
+                'start_time': datetime.now(),
+                'closed': 0,
+            },
+        )
     except Exception:
         if tenant_token is not None:
             RequestContext.reset_current_tenant_id(tenant_token)
@@ -353,8 +456,11 @@ def execute_single_node(dag_task_id: str, node_key: str, instance_id: str, worke
         result = _build_and_run_node(db, node, logger)
         summary = str(result)[:500] if result is not None else '执行成功'
         logger.info(f'节点完成: {summary}')
-        _upsert_instance(db, instance_id, {
-            'status': 'SUCCESS', 'progress': 100, 'end_time': datetime.now(), 'result': summary, 'closed': 1})
+        _upsert_instance(
+            db,
+            instance_id,
+            {'status': 'SUCCESS', 'progress': 100, 'end_time': datetime.now(), 'result': summary, 'closed': 1},
+        )
         return summary
     except Exception as e:
         err = ' '.join(str(e).split())[:1000]
@@ -387,11 +493,22 @@ def execute_dag_node(dag_run_id: str, node_key: str, instance_id: str, worker: s
         node = _node_map(_load_graph(db, dag_run.dag_version_id)).get(node_key)
         if node is None:
             raise ValueError(f'节点不存在: {node_key}')
-        _upsert_instance(db, instance_id, {
-            'parent_id': dag_run_id, 'task_id': dag_run.task_id, 'node_id': node_key,
-            'name': node.get('name') or node_key, 'status': 'STARTED', 'worker': worker,
-            'retry_num': retry_num, 'progress': 0, 'start_time': datetime.now(), 'closed': 0,
-        })
+        _upsert_instance(
+            db,
+            instance_id,
+            {
+                'parent_id': dag_run_id,
+                'task_id': dag_run.task_id,
+                'node_id': node_key,
+                'name': node.get('name') or node_key,
+                'status': 'STARTED',
+                'worker': worker,
+                'retry_num': retry_num,
+                'progress': 0,
+                'start_time': datetime.now(),
+                'closed': 0,
+            },
+        )
     except Exception:
         if tenant_token is not None:
             RequestContext.reset_current_tenant_id(tenant_token)
@@ -404,9 +521,17 @@ def execute_dag_node(dag_run_id: str, node_key: str, instance_id: str, worker: s
         result = _build_and_run_node(db, node, logger)
         summary = str(result)[:500] if result is not None else '执行成功'
         logger.info(f'DAG 节点完成: {node_key} -> {summary}')
-        _upsert_instance(db, instance_id, {
-            'status': 'SUCCESS', 'progress': 100, 'end_time': datetime.now(), 'result': summary, 'closed': 1,
-        })
+        _upsert_instance(
+            db,
+            instance_id,
+            {
+                'status': 'SUCCESS',
+                'progress': 100,
+                'end_time': datetime.now(),
+                'result': summary,
+                'closed': 1,
+            },
+        )
         return summary
     except Exception as e:
         err = ' '.join(str(e).split())[:1000]
@@ -414,9 +539,16 @@ def execute_dag_node(dag_run_id: str, node_key: str, instance_id: str, worker: s
             logger.exception(f'DAG 节点失败: {node_key} {err}')
         except Exception:
             pass
-        _upsert_instance(db, instance_id, {
-            'status': 'FAILURE', 'end_time': datetime.now(), 'result': err, 'closed': 1,
-        })
+        _upsert_instance(
+            db,
+            instance_id,
+            {
+                'status': 'FAILURE',
+                'end_time': datetime.now(),
+                'result': err,
+                'closed': 1,
+            },
+        )
         raise
     finally:
         try:

@@ -19,7 +19,10 @@ class AiAppModel(BaseModel):
     description: str | None = Field(default=None, description='应用描述')
     app_type: str | None = Field(default=None, description='应用类型/分类')
     status: Literal['0', '1'] | None = Field(default=None, description='状态: 0发布 1草稿')
-    config: Any | None = Field(default=None, description='应用配置(对象):prompt/prologue/presetQuestions/quickCommands/toolIds/datasetIds/model')
+    config: Any | None = Field(
+        default=None,
+        description='应用配置(对象):prompt/prologue/presetQuestions/quickCommands/toolIds/datasetIds/model',
+    )
     user_id: int | None = Field(default=None, description='用户ID')
     dept_id: int | None = Field(default=None, description='部门ID')
     create_by: str | None = Field(default=None, description='创建者')

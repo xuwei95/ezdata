@@ -15,6 +15,13 @@ class PineconeHandler(VectorConnector):
 
     def _vectordb(self, collection: str) -> Any:
         vcls = self._agno_cls()
-        return vcls(**self._kw(name=collection, dimension=self.arg('dimension'),
-                 embedder=self._embedder(), api_key=self.arg('api_key'),
-                 environment=self.arg('environment'), metric=self.arg('metric')))
+        return vcls(
+            **self._kw(
+                name=collection,
+                dimension=self.arg('dimension'),
+                embedder=self._embedder(),
+                api_key=self.arg('api_key'),
+                environment=self.arg('environment'),
+                metric=self.arg('metric'),
+            )
+        )

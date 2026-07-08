@@ -34,7 +34,8 @@ def get_vector_store(backend: str, connection_data: dict[str, Any], index: str) 
         return builder(connection_data, index)
     if key in _PLANNED:
         raise NotImplementedError(
-            f'向量后端 {key} 尚未实现:新增 VectorStore 子类并在 vector_store/factory._BACKENDS 注册即可接入')
+            f'向量后端 {key} 尚未实现:新增 VectorStore 子类并在 vector_store/factory._BACKENDS 注册即可接入'
+        )
     raise ValueError(f'未知向量后端: {backend}')
 
 

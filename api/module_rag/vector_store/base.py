@@ -56,16 +56,25 @@ class VectorStore(abc.ABC):
 
     # ---- 检索原语 ----
     @abc.abstractmethod
-    def vector_search(self, query_vector: list[float], k: int = 5, *,
-                      num_candidates: int = 100, filters: list[dict] | None = None) -> list[dict]: ...
+    def vector_search(
+        self, query_vector: list[float], k: int = 5, *, num_candidates: int = 100, filters: list[dict] | None = None
+    ) -> list[dict]: ...
 
     @abc.abstractmethod
     def keyword_search(self, query_text: str, k: int = 5, *, filters: list[dict] | None = None) -> list[dict]: ...
 
     # ---- 混合检索(基类统一实现:应用层 RRF 融合)----
-    def hybrid_search(self, query_vector: list[float], query_text: str, k: int = 5, *,
-                      num_candidates: int = 100, filters: list[dict] | None = None,
-                      rrf_k: int = DEFAULT_RRF_K, score_threshold: float = 0.0) -> list[dict]:
+    def hybrid_search(
+        self,
+        query_vector: list[float],
+        query_text: str,
+        k: int = 5,
+        *,
+        num_candidates: int = 100,
+        filters: list[dict] | None = None,
+        rrf_k: int = DEFAULT_RRF_K,
+        score_threshold: float = 0.0,
+    ) -> list[dict]:
         pool = max(k * 4, 20)  # 各路多取一些再融合,提升召回
         vec = self.vector_search(query_vector, pool, num_candidates=num_candidates, filters=filters)
         if score_threshold:  # 阈值作用于向量腿(余弦相似度 0~1),弱向量匹配不参与融合

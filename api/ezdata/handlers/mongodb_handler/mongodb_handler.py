@@ -16,10 +16,7 @@ class MongoDBHandler(Connector):
     name = 'mongodb'
     title = 'MongoDB'
     family = 'document'
-    capabilities = (
-        Capability.READ | Capability.WRITE | Capability.EXTRACT
-        | Capability.SCHEMA | Capability.GEN_API
-    )
+    capabilities = Capability.READ | Capability.WRITE | Capability.EXTRACT | Capability.SCHEMA | Capability.GEN_API
     connection_args = connection_args
     connection_args_example = connection_args_example
 
@@ -39,7 +36,9 @@ class MongoDBHandler(Connector):
     def client(self) -> Any:
         def _make():
             from pymongo import MongoClient
+
             return MongoClient(self._uri(), serverSelectionTimeoutMS=5000)
+
         return self._lazy('_client', _make)
 
     @property
@@ -81,8 +80,9 @@ class MongoDBHandler(Connector):
             out.append(d)
         return out
 
-    def search(self, table: str, filters: list[dict] | None = None, page: int = 1,
-               pagesize: int = 20, **kwargs: Any) -> dict:
+    def search(
+        self, table: str, filters: list[dict] | None = None, page: int = 1, pagesize: int = 20, **kwargs: Any
+    ) -> dict:
         """分页查询:find(filter).skip().limit() + count_documents。"""
         from ezdata.utils.query import to_mongo
 
@@ -98,8 +98,15 @@ class MongoDBHandler(Connector):
             records.append(d)
         return {'records': records, 'total': total, 'page': page, 'pagesize': pagesize}
 
-    def extract(self, table: str, *, filter: dict | None = None,  # noqa: A002  对齐查询语义,filter 即 Mongo filter
-                filters: list[dict] | None = None, chunk_size: int = 1000, **kwargs: Any) -> Any:
+    def extract(
+        self,
+        table: str,
+        *,
+        filter: dict | None = None,
+        filters: list[dict] | None = None,
+        chunk_size: int = 1000,
+        **kwargs: Any,
+    ) -> Any:
         import dlt
 
         coll = self.db[table]
@@ -107,7 +114,7 @@ class MongoDBHandler(Connector):
         if filters and filter is None:
             from ezdata.utils.query import to_mongo
 
-            filter, _sort = to_mongo(filters)  # noqa: A001
+            filter, _sort = to_mongo(filters)
         flt = filter or {}
 
         @dlt.resource(name=table, write_disposition='append')

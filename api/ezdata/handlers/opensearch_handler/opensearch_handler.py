@@ -16,6 +16,7 @@ class OpenSearchHandler(ElasticsearchHandler):
     def client(self) -> Any:
         def _make():
             from opensearchpy import OpenSearch
+
             hosts = self.arg('hosts', default='https://127.0.0.1:9200')
             if isinstance(hosts, str):
                 hosts = [h.strip() for h in hosts.split(',') if h.strip()]
@@ -23,4 +24,5 @@ class OpenSearchHandler(ElasticsearchHandler):
             if self.arg('user'):
                 kw['http_auth'] = (self.arg('user'), self.arg('password', default=''))
             return OpenSearch(**kw)
+
         return self._lazy('_client', _make)
