@@ -1,0 +1,70 @@
+name: Build & Push Images
+
+# 触发逻辑:
+#   - 合并/推送到 master  → 打并推 `latest`
+#   - 推送 tag(如 v2.0.1)→ 打并推「该 tag 名」作为镜像 tag(不动 latest)
+#   - 也可在 Actions 页手动触发(workflow_dispatch,按当前分支/ref 走上面规则)
+# 需要在仓库 Settings → Secrets and variables → Actions 配置:
+#   DOCKERHUB_USERNAME / DOCKERHUB_TOKEN(Docker Hub 账号与 access token)
+on:
+  push:
+    branches: [master]
+    tags: ['v*']     # 只在 v 开头的版本 tag 触发(如 v2.0.1)
+  workflow_dispatch: {}
+
+concurrency:
+  group: build-images-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: ezdata123/ezdata          # 后端(MySQL 版)
+            context: ./api
+            dockerfile: ./api/Dockerfile.my
+          - image: ezdata123/ezdata_web       # 前端
+            context: ./web
+            dockerfile: ./web/Dockerfile
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Compute tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ matrix.image }}
+          # flavor latest=false:不自动给 tag 版本加 latest,latest 只在 master 由下面第一条规则控制
+          flavor: |
+            latest=false
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/master' }}
+            type=semver,pattern={{version}}
+          # 说明:master push → latest;打 tag v2.0.1 → 镜像 tag = 2.0.1(去掉 v 前缀)。
+          # semver 只认规范版本 tag(v1.2.3);故上面触发也限定 tags: ['v*']。
+
+      - name: Build & push
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          platforms: linux/amd64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
