@@ -1,16 +1,15 @@
 name: Build & Push Images
 
 # 触发逻辑:
-#   - 合并/推送到 master  → 打并推 `latest`
-#   - 推送 tag(如 v2.0.1)→ 打并推「该 tag 名」作为镜像 tag(不动 latest)
-#   - 也可在 Actions 页手动触发(workflow_dispatch,按当前分支/ref 走上面规则)
+#   - 打 tag(如 v2.0.1)→ 打并推「版本号(去 v,= 2.0.1)」+ latest
+#   - 手动触发(Actions 页 workflow_dispatch,按所选分支/ref)→ 打并推 latest
+#   - 合并/推送到 master:不再自动构建 / 不再打 latest(发布改由「打 tag」或「手动触发」)
 # 需要在仓库 Settings → Secrets and variables → Actions 配置:
 #   DOCKERHUB_USERNAME / DOCKERHUB_TOKEN(Docker Hub 账号与 access token)
 on:
   push:
-    branches: [master]
     tags: ['v*']     # 只在 v 开头的版本 tag 触发(如 v2.0.1)
-  workflow_dispatch: {}
+  workflow_dispatch: {}   # 手动触发:按所选分支/ref 构建并推 latest
 
 concurrency:
   group: build-images-${{ github.ref }}
@@ -48,14 +47,16 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ matrix.image }}
-          # flavor latest=false:不自动给 tag 版本加 latest,latest 只在 master 由下面第一条规则控制
+          # flavor latest=false:不让 metadata-action 自动加 latest,latest 完全由下面 raw 规则控制。
           flavor: |
             latest=false
           tags: |
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/master' }}
             type=semver,pattern={{version}}
-          # 说明:master push → latest;打 tag v2.0.1 → 镜像 tag = 2.0.1(去掉 v 前缀)。
-          # semver 只认规范版本 tag(v1.2.3);故上面触发也限定 tags: ['v*']。
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' }}
+          # 说明:
+          #   - 打 tag v2.0.1 → semver 出镜像 tag = 2.0.1(去 v 前缀),raw 再叠一个 latest;
+          #   - 手动触发(workflow_dispatch,非 tag)→ semver 不产出,只由 raw 打 latest;
+          #   semver 只认规范版本 tag(v1.2.3),故上面触发也限定 tags: ['v*']。
 
       - name: Build & push
         uses: docker/build-push-action@v6
