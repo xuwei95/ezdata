@@ -27,6 +27,23 @@ services:
     environment:
       TRANSPORT_CRYPTO_ENABLED: "false"
       TRANSPORT_CRYPTO_MODE: "off"
+      # 镜像内 .env.dockermy 默认指向 ezdata-* 生产坐标(测试网里不存在)→ 必须覆盖到测试中间件,
+      # 否则后端起来连不上库/缓存,/captchaImage 一直不响应,卡在“Wait for services to be ready”。
+      DB_TYPE: mysql
+      DB_HOST: ruoyi-mysql
+      DB_PORT: "3306"
+      DB_USERNAME: root
+      DB_PASSWORD: root
+      DB_DATABASE: ruoyi-fastapi
+      DB_ECHO: "false"
+      REDIS_HOST: ruoyi-redis
+      REDIS_PORT: "6379"
+      REDIS_USERNAME: ""
+      REDIS_PASSWORD: ""
+      REDIS_DATABASE: "0"
+      # 测试栈不起 ES / MinIO:任务日志走 DB、存储走本地,避免启动依赖外部服务。
+      TASK_LOG_TYPE: db
+      STORAGE_TYPE: local
     depends_on:
       ruoyi-mysql:
         condition: service_healthy
