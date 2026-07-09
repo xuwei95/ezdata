@@ -243,6 +243,18 @@ async def model_sample_query(
 
 
 @data_controller.post(
+    '/model/{m_id}/walker', summary='自助分析(PyGWalker HTML)', dependencies=[UserInterfaceAuthDependency('data:query')]
+)
+async def model_walker(
+    m_id: Annotated[str, Path()],
+    body: dict,
+    db: Annotated[AsyncSession, DBSessionDependency()],
+) -> Response:
+    html = await DataQueryService.walker_html(db, m_id, spec=body.get('spec', ''))
+    return ResponseUtil.success(data={'html': html})
+
+
+@data_controller.post(
     '/model/{m_id}/ai-query',
     summary='AI 取数(自然语言→原生查询)',
     dependencies=[UserInterfaceAuthDependency('data:query')],

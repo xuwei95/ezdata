@@ -71,6 +71,10 @@ export function aiQueryModel(id, data) {
 export function getSampleQuery(id) {
   return request({ url: `/data/model/${id}/sample-query`, method: 'get' })
 }
+// 自助分析:返回 PyGWalker 自包含 HTML(前端 iframe 内联);data.spec 可传上次的图表配置
+export function walkerHtml(id, data) {
+  return request({ url: `/data/model/${id}/walker`, method: 'post', data, timeout: 120000 })
+}
 
 // ---------------- ETL 调试 ----------------
 export function previewEtl(data) {
