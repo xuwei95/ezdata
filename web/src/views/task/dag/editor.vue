@@ -82,8 +82,11 @@
         </el-form-item>
       </el-form>
       <el-divider content-position="left">任务参数</el-divider>
-      <component v-if="curComp" :is="curComp" ref="nodeFormRef" :task-params="curParams" />
-      <el-alert v-else type="info" :closable="false" show-icon title="该模板无对应前端组件" />
+      <!-- 动态配置模板(type=2)按 schema 低代码渲染;内置组件模板(type=1)渲染其专属前端组件 -->
+      <schema-renderer v-if="curTemplateType === 2" ref="paramsRendererRef" :schema="curSchema" v-model="curParams" />
+      <component v-else-if="curComp" :is="curComp" ref="nodeFormRef" :task-params="curParams" :template-info="curTemplate" />
+      <el-alert v-else type="info" :closable="false" show-icon
+        title="该模板为「内置组件」类型,但未找到对应前端组件,请检查模板 component 配置" />
       <template #footer>
         <el-button type="primary" @click="applyNode">确定</el-button>
         <el-button @click="nodeDrawer = false">取消</el-button>
@@ -191,6 +194,7 @@ import Crontab from '@/components/Crontab'
 import { listTemplateAll } from '@/api/task/template'
 import { listTaskLog } from '@/api/task/log'
 import { getTaskComponent } from '@/views/task/components/templates'
+import SchemaRenderer from '@/views/task/components/SchemaRenderer.vue'
 import {
   getDraft, saveDraft, publishDag, listVersions, getVersionGraph, rollbackDag,
   runDag, debugDag, dagRunStatus, listRuns, nodeHistory, runNode, getDagDetail, saveDagSettings
@@ -230,8 +234,12 @@ const curNodeRetry = ref(0)
 const curNodeCountdown = ref(0)
 const curErrorPolicy = ref('fail_fast')
 const curParams = ref({})
+const curTemplateType = ref(1)      // 当前节点模板的表单类型:1内置组件 2动态配置
+const curSchema = ref([])           // 动态配置(type=2)的参数 schema(低代码渲染用)
+const curTemplate = shallowRef({})  // 当前节点对应的模板对象
 const curComp = shallowRef(null)
 const nodeFormRef = ref()
+const paramsRendererRef = ref()
 
 // 运行 / 监控
 const running = ref(false)
@@ -334,12 +342,46 @@ function openNodeConfig(node) {
   curNodeCountdown.value = d.countdown || 0
   curErrorPolicy.value = d.error_policy || 'fail_fast'
   curParams.value = JSON.parse(JSON.stringify(d.params || {}))
-  curComp.value = getTaskComponent(d.template_code) || null
+  // 按模板 type 分流:1=内置组件(getTaskComponent),2=动态配置(按 params schema 低代码渲染)
+  const tpl = templates.value.find((t) => t.code === d.template_code) || {}
+  curTemplate.value = tpl
+  curTemplateType.value = tpl.type || 1
+  if (curTemplateType.value === 2) {
+    curSchema.value = parseSchema(tpl.params)
+    curComp.value = null
+    // 补齐 schema 中定义、但当前参数缺失的字段默认值
+    const model = { ...(curParams.value || {}) }
+    curSchema.value.forEach((item) => {
+      if (model[item.field] === undefined) model[item.field] = item.default !== undefined ? item.default : undefined
+    })
+    curParams.value = model
+  } else {
+    curSchema.value = []
+    curComp.value = getTaskComponent(tpl.component || tpl.code || d.template_code) || null
+  }
   nodeDrawer.value = true
+}
+
+function parseSchema(raw) {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch (e) {
+    return []
+  }
 }
 function applyNode() {
   let params = curParams.value
-  if (nodeFormRef.value && nodeFormRef.value.genTaskParams) {
+  if (curTemplateType.value === 2) {
+    // 动态配置:校验低代码表单必填/JSON,参数即 v-model 收集到的 curParams
+    if (paramsRendererRef.value) {
+      const err = paramsRendererRef.value.validate()
+      if (err) { ElMessage.error(err); return }
+    }
+    params = curParams.value || {}
+  } else if (nodeFormRef.value && nodeFormRef.value.genTaskParams) {
+    // 内置组件:由其专属组件生成并校验参数
     const r = nodeFormRef.value.genTaskParams()
     if (r.error) { ElMessage.error(r.error); return }
     params = r.params || {}
