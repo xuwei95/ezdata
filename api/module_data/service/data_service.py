@@ -423,6 +423,9 @@ _WALKER_ROW_CAP = 1000  # PyGWalker 在浏览器端计算,取数上限;更大范
 
 def _build_walker_html(rows: list[dict], spec: str) -> str:
     """rows → DataFrame → PyGWalker 自包含 HTML(拖拽式自助分析)。pygwalker 为可选重依赖,懒加载。"""
+    # 空结果直接给友好提示:pygwalker 会按行数估算平均大小,0 行时除零崩(ZeroDivisionError)。
+    if not rows:
+        raise ServiceException(message='筛选结果为空(0 行),请调整筛选条件后重试')
     try:
         import pandas as pd
         import pygwalker as pyg
