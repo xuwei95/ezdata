@@ -25,17 +25,7 @@
     <!-- 条件筛选(平台内预览) -->
     <el-card shadow="never" class="sec">
       <template #header><span>条件筛选(平台内预览)</span></template>
-      <div v-for="(f, i) in filters" :key="i" class="filter-row">
-        <el-select v-model="f.field" placeholder="字段" filterable style="width: 170px">
-          <el-option v-for="c in fields" :key="c.name" :label="c.name" :value="c.name" />
-        </el-select>
-        <el-select v-model="f.op" placeholder="操作符" style="width: 120px">
-          <el-option v-for="o in operators" :key="o.op" :label="o.label" :value="o.op" />
-        </el-select>
-        <el-input v-model="f.value" placeholder="值" style="width: 180px" v-if="!isSort(f.op)" />
-        <el-button icon="Delete" link @click="filters.splice(i, 1)" />
-      </div>
-      <el-button size="small" icon="Plus" @click="filters.push({ field: '', op: 'eq', value: '' })">加条件</el-button>
+      <FilterBuilder v-model="filters" :fields="fields" :operators="operators" />
       <el-button size="small" type="primary" icon="Search" :loading="loading" @click="preview">预览</el-button>
     </el-card>
 
@@ -82,6 +72,7 @@ import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } from
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getOperators, searchModel } from '@/api/dataManage/data'
 import { listToken, addToken, delToken } from '@/api/apitoken/token'
+import FilterBuilder from './FilterBuilder.vue'
 
 const props = defineProps({ model: { type: Object, required: true } })
 
