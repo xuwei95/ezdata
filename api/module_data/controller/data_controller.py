@@ -250,7 +250,9 @@ async def model_walker(
     body: dict,
     db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
-    html = await DataQueryService.walker_html(db, m_id, spec=body.get('spec', ''))
+    html = await DataQueryService.walker_html(
+        db, m_id, spec=body.get('spec', ''), filters=body.get('filters')
+    )
     return ResponseUtil.success(data={'html': html})
 
 

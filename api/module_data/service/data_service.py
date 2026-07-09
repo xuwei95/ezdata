@@ -418,7 +418,7 @@ class DataModelService:
             raise e
 
 
-_WALKER_ROW_CAP = 10000  # PyGWalker 在浏览器端计算,取数上限;超大模型请先在模型层预聚合/限行
+_WALKER_ROW_CAP = 1000  # PyGWalker 在浏览器端计算,取数上限;更大范围请先用筛选器缩小
 
 
 def _build_walker_html(rows: list[dict], spec: str) -> str:
@@ -481,20 +481,30 @@ class DataQueryService:
         return {'native': handler.sample_query(m.object_name or '', 100)}
 
     @classmethod
-    async def walker_html(cls, db: AsyncSession, m_id: str, spec: str = '') -> str:
+    async def walker_html(
+        cls, db: AsyncSession, m_id: str, spec: str = '', filters: list[dict] | None = None
+    ) -> str:
         """数据模型 → PyGWalker 拖拽式自助分析,返回自包含 HTML(前端 iframe 内联)。
 
-        取数走该源的 sample_query(生成只读原生查询、带行数上限),与「数据查询」同一授权面;
-        PyGWalker 默认在浏览器端计算,故限行 _WALKER_ROW_CAP,超大模型请先在模型层预聚合。
+        取数与「数据查询」同一 _load 授权面,并限行 _WALKER_ROW_CAP(PyGWalker 在浏览器端计算):
+        - 传 filters([{field,op,value}]):走统一条件查询(需该源支持 GEN_API),先筛后进分析;
+        - 不传:走该源 sample_query(只读原生查询)取样本。
         spec 为用户上次拖拽出的图表配置(JSON,可选),空则空白画布。
         """
         m, handler = await cls._load(db, m_id)
-        native = handler.sample_query(m.object_name or '', _WALKER_ROW_CAP)
-        try:
-            assert_readonly_sql(native, handler.family)  # SQL 文本族只读护栏(非 SQL 源自动跳过)
-        except ValueError as e:
-            raise ServiceException(message=str(e)) from None
-        records = await run_in_threadpool(handler.query, native, None, _WALKER_ROW_CAP)
+        if filters:
+            cls._check_fields(m, filters)  # 字段白名单,防注入
+            if not handler.has(Capability.GEN_API):
+                raise ServiceException(message=f'{handler.name} 不支持条件筛选,请清空筛选后再分析')
+            res = await run_in_threadpool(handler.search, m.object_name, filters, 1, _WALKER_ROW_CAP)
+            records = res['records']
+        else:
+            native = handler.sample_query(m.object_name or '', _WALKER_ROW_CAP)
+            try:
+                assert_readonly_sql(native, handler.family)  # SQL 文本族只读护栏(非 SQL 源自动跳过)
+            except ValueError as e:
+                raise ServiceException(message=str(e)) from None
+            records = await run_in_threadpool(handler.query, native, None, _WALKER_ROW_CAP)
         return await run_in_threadpool(_build_walker_html, json_safe_rows(records), spec)
 
     @classmethod
