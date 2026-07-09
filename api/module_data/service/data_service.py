@@ -418,6 +418,20 @@ class DataModelService:
             raise e
 
 
+_WALKER_ROW_CAP = 10000  # PyGWalker 在浏览器端计算,取数上限;超大模型请先在模型层预聚合/限行
+
+
+def _build_walker_html(rows: list[dict], spec: str) -> str:
+    """rows → DataFrame → PyGWalker 自包含 HTML(拖拽式自助分析)。pygwalker 为可选重依赖,懒加载。"""
+    try:
+        import pandas as pd
+        import pygwalker as pyg
+    except ImportError as e:
+        raise ServiceException(message='未安装 pygwalker(pip install pygwalker),无法生成自助分析') from e
+    df = pd.DataFrame(rows or [])
+    return pyg.to_html(df, spec=spec or '')
+
+
 class DataQueryService:
     """数据查询/接口:基于模型 + 连接器。"""
 
@@ -464,6 +478,23 @@ class DataQueryService:
         """该模型的原生查询默认示例(前端预填,limit=100)。"""
         m, handler = await cls._load(db, m_id)
         return {'native': handler.sample_query(m.object_name or '', 100)}
+
+    @classmethod
+    async def walker_html(cls, db: AsyncSession, m_id: str, spec: str = '') -> str:
+        """数据模型 → PyGWalker 拖拽式自助分析,返回自包含 HTML(前端 iframe 内联)。
+
+        取数走该源的 sample_query(生成只读原生查询、带行数上限),与「数据查询」同一授权面;
+        PyGWalker 默认在浏览器端计算,故限行 _WALKER_ROW_CAP,超大模型请先在模型层预聚合。
+        spec 为用户上次拖拽出的图表配置(JSON,可选),空则空白画布。
+        """
+        m, handler = await cls._load(db, m_id)
+        native = handler.sample_query(m.object_name or '', _WALKER_ROW_CAP)
+        try:
+            assert_readonly_sql(native, handler.family)  # SQL 文本族只读护栏(非 SQL 源自动跳过)
+        except ValueError as e:
+            raise ServiceException(message=str(e)) from None
+        records = await run_in_threadpool(handler.query, native, None, _WALKER_ROW_CAP)
+        return await run_in_threadpool(_build_walker_html, json_safe_rows(records), spec)
 
     @classmethod
     async def _kb_context(cls, db: AsyncSession, m: Any, question: str) -> str:

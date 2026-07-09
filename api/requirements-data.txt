@@ -13,3 +13,7 @@ ccxt>=4.4               # CCXT 加密货币交易所统一接口(ccxt 源,公开
 duckdb>=0.10.0           # 文件源(s3/gcs/azure)DuckDB httpfs 查询 + Arrow 列式快路
 pymongo>=4               # mongodb 源
 neo4j>=5.0.0             # neo4j 源
+
+# 自助分析(BI):数据模型 → PyGWalker 拖拽式探索,生成自包含 HTML 供前端 iframe 内联。
+# 懒加载(用到才 import),会带 pandas;仅需该功能时装。
+pygwalker>=0.4
