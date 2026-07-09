@@ -200,8 +200,9 @@ docker exec -i ezdata-backend-my python - < api/demo_seed.py
 
 ### 7.1 定时任务时区
 
-- 调度器(APScheduler)按 **`SCHEDULER_TZ`(默认 `Asia/Shanghai`)** 解释 cron;compose 给 backend/worker 注入 **`TZ=Asia/Shanghai`** 统一容器 `date`/日志/`datetime.now()`。
-- **为何重要**:容器默认 UTC,若不设时区,cron 的 `hour=9-15`(意为北京交易时段)会在 **UTC 9-15 = 北京 17-23 点**触发 → 白天看着"定时任务完全不触发"。用了新镜像(时区已注入到每个 trigger)即正确;老镜像需 `docker compose pull` 更新。
+- **两层默认东八区**:① 镜像内置 `ENV TZ=Asia/Shanghai`(`api/Dockerfile.{dev,my,pg}`)——**默认即北京时间**,任何跑法(dev/prod/非 compose)都不回退 UTC;② dev 与 prod compose 均给 backend/worker 注入 `TZ=${TZ:-Asia/Shanghai}`(宿主 `TZ` 可覆盖),不重建镜像即刻生效。两者统一容器 `date`/日志/`datetime.now()`。
+- 调度器(APScheduler)另按 **`SCHEDULER_TZ`(默认 `Asia/Shanghai`)** 解释 cron,并把时区**显式注入每个 trigger**(不依赖容器 TZ);Celery `timezone` 同为 `Asia/Shanghai`。
+- **为何重要**:容器若为 UTC,naive `datetime.now()`(create_time/日志时间戳)会慢 8 小时;且 cron 的 `hour=9-15`(意为北京交易时段)会在 **UTC 9-15 = 北京 17-23 点**触发 → 白天看着"定时任务完全不触发"。上述两层默认已消除该问题;老镜像 `docker compose pull` / 重建后落地。
 - **cron 格式**:7 段 Quartz `秒 分 时 日 月 周 年`,与前端 cron 生成器一致 —— **步进用 `0/N`**(非 `*/N`,否则组件显示 NaN);**星期用数字**(Quartz 周日=1..周六=7,周一到周五=`2-6`,别用名称/0);**年写 `*`**;日与星期二选一(定了星期则日写 `?`)。例:交易时段每5分钟 `0 0/5 9-15 ? * 2-6 *`。后端会把 Quartz 数字星期自动转成 APScheduler 约定。
 - 非法 cron 在**创建/编辑时即被拒绝**(fail-fast 校验);即使存量脏数据,同步时也只跳过那一条、不影响其它任务与调度器。
 

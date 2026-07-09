@@ -13,7 +13,7 @@
   🌐 在线演示:<a href="http://124.220.57.72/"><b>http://124.220.57.72/</b></a>
 </p>
 
-> ezdata 是一个 AI 原生的数据平台:统一接入异构数据源,做 ETL 集成与任务编排,沉淀数据源专属知识库(RAG),并把知识喂给 AI 取数/分析。基于 [RuoYi-Vue3-FastAPI](https://github.com/insistence/RuoYi-Vue3-FastAPI) 重构(RBAC + 多租户 + 数据权限开箱即用)。
+> ezdata 是一个 AI 原生的数据平台:统一接入异构数据源,做 ETL 集成与任务编排,沉淀数据源专属知识库(RAG),并把知识喂给 AI 取数/分析。内置 RBAC + 多租户 + 数据权限(构建在 [RuoYi-Vue3-FastAPI](https://github.com/insistence/RuoYi-Vue3-FastAPI) 脚手架之上)。
 
 ## ✨ 核心能力
 
@@ -33,6 +33,43 @@
 | 任务 | Celery · APScheduler · dlt |
 | AI / RAG | Agno · DashScope/OpenAI embedding · chonkie · unstructured |
 | 存储 | MySQL 8 / PostgreSQL · Redis · **Elasticsearch 8** · MinIO/S3 |
+
+## 🏛 架构
+
+容器-per-service:前端(nginx + Vue3)反代 `/api` 到后端;后端(FastAPI)进程内跑 APScheduler(启动锁选主,多副本只一个实例调度),Celery worker 独立执行 ETL / Python / Shell / DAG 任务;调试态代码在隔离沙箱执行、出网经 egress 白名单。配置由同目录单份 `.env` 统一驱动。
+
+```mermaid
+flowchart TB
+  U["浏览器 / 轻量查数 UI"] --> FE["前端<br/>nginx + Vue3(反代 /api)"]
+  FE --> BE["后端 FastAPI<br/>+ APScheduler 选主调度"]
+  BE <-->|"派发任务 / 回写状态"| WK["Celery Worker<br/>ETL · Python · Shell · DAG"]
+
+  subgraph MOD["后端模块"]
+    direction LR
+    M1["module_data<br/>数据源/模型/ETL"]
+    M2["module_task_schedule<br/>调度 + DAG"]
+    M3["module_rag<br/>知识库/向量检索"]
+    M4["module_ai<br/>模型/对话/工具/应用"]
+    M5["module_admin<br/>用户/角色/多租户"]
+    M6["module_dashboard<br/>控制台"]
+  end
+  BE --- MOD
+  WK --- MOD
+
+  BE --> DB[("MySQL / PostgreSQL")]
+  BE --> RD[("Redis<br/>broker · 缓存 · 选主锁")]
+  BE --> ES[("Elasticsearch 8<br/>任务日志 + RAG 向量库")]
+  BE --> S3[("MinIO / S3<br/>对象存储")]
+  WK --> DB
+  WK --> ES
+  WK --> S3
+
+  BE -. "调试态代码执行" .-> SB["Sandbox 隔离执行"]
+  WK -. "调试态代码执行" .-> SB
+  SB -. "出网白名单" .-> EG["egress-proxy"]
+```
+
+> 部署形态、网络隔离与各服务职责详见 [docs/DEPLOY.md](docs/DEPLOY.md)。
 
 ## 🚀 快速开始(Docker)
 
@@ -71,8 +108,7 @@ docs/                设计与部署文档
 ## 📚 文档
 
 - [部署指南](docs/DEPLOY.md)
-- [平台重构计划](docs/REFACTOR_PLAN.md)
 - [数据模块设计](docs/DATA_MODULE_DESIGN.md)
-- [DAG 工作流方案](docs/DAG_REFACTOR_PLAN.md)
-- [知识库(RAG)方案](docs/KB_REFACTOR_PLAN.md)
-- [变更记录(模板)](docs/CHANGELOG.md)
+- [DAG 工作流设计](docs/DAG_WORKFLOW.md)
+- [知识库(RAG)设计](docs/RAG_MODULE.md)
+- [变更记录](docs/CHANGELOG.md)

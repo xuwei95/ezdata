@@ -1,6 +1,6 @@
-# 数据模块设计方案(数据管理 + 数据集成 + 数据接口)
+# 数据模块设计说明(数据管理 + 数据集成 + 数据接口)
 
-> 配套 REFACTOR_PLAN.md。基于已落地的 `module_data/handlers`(78 源连接器 + 能力位 + 统一 filters + connection_schema)。
+> 本文描述 `module_data`(数据管理 / 数据集成 / 数据接口)的设计与实现,以已落地代码为准:`module_data/handlers`(60+ 源连接器 + 能力位 + 统一 filters + connection_schema)。
 
 ## 0. 一句话
 
@@ -32,7 +32,7 @@
                 └──────────────────────────────────────────┘
 ```
 
-三条运行时(对齐 REFACTOR_PLAN §2.1):**批 ETL(写)= 任务调度**;**Data API(读)= 请求级 native**;**流式 = 长驻 worker**。
+三条运行时:**批 ETL(写)= 任务调度**;**Data API(读)= 请求级 native**;**流式 = 长驻 worker**。
 
 ---
 
@@ -132,7 +132,7 @@ status + TenantMixin
 - 与数据查询相反:对外接口**强制分页**(防止外部一次拉爆),走 `connector.search(filters, page, pagesize)` 返回 `{records, total, page, pagesize}`。
 - spec 落库 → **动态 FastAPI 路由**:校验声明参数 → 构造 filters(白名单)→ 分页 `search()` → 脱敏/缓存/限流 → 返回。
 - `pagination`:`{default, max}`(请求 pagesize 超 max 截断);默认带 `page`/`pagesize` 参数。
-- 复用现成积木:`ApiCache`/限流装饰器/RBAC+行级多租户/`crypto`/自动 OpenAPI(REFACTOR_PLAN §5.3)。
+- 复用现成积木:`ApiCache`/限流装饰器/RBAC+行级多租户/`crypto`/自动 OpenAPI。
 - 对外强制 `query_mode=filter`;native 仅内部接口。
 
 ---
@@ -161,7 +161,7 @@ status + TenantMixin
 
 | 用途 | 选型 | 说明 |
 |---|---|---|
-| 整体框架 | **Vue3 + Element Plus + TS** | 周边 UI(布局/按钮/弹窗/Tab/表单)统一 Element Plus(REFACTOR_PLAN §9.5);**不引 antd** |
+| 整体框架 | **Vue3 + Element Plus + TS** | 周边 UI(布局/按钮/弹窗/Tab/表单)统一 Element Plus;**不引 antd** |
 | **数据网格(渲染大量数据)** | **vxe-table 4.x + vxe-pc-ui** | 行/列**虚拟滚动**,上万行不卡;UI 框架无关,与 Element Plus 共存。自封 `DataGrid.vue` 薄封装。**数据查询场景:全量渲染不分页**(虚拟滚动扛);数据接口场景才分页 |
 | 左侧源/模型树 | Element Plus `el-tree`(lazy) | 懒加载:展开源 → introspect 表;节点 icon = 78 handler 的 `icon.svg`、状态点 |
 | 连接表单 | JSON-Schema 渲染器(`@form-create/element-ui` 或 form-render) | 由 `GET /data/source/schema/{type}` 驱动,新增源类型前端零改动 |

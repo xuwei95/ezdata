@@ -1,6 +1,8 @@
-# 知识库(RAG)模块 重构方案
+# 知识库(RAG)模块 设计说明
 
-> 目标:把 master(旧版 ezdata,Flask)里的 `api/web_apps/rag/` 知识库模块,移植/重构到 v2.0(RuoYi-Vue3-FastAPI 模板,FastAPI + async SQLAlchemy + Celery + Agno)上,作为 AI 原生数据平台的「知识层」。
+> 本文描述 `module_rag` 知识库(RAG)的设计与实现,作为 AI 原生数据平台的「知识层」。
+>
+> 注:本文含开发期的现状分析/演进记录(如与旧版 Flask ezdata 的迁移取舍);模块已落地,最新实际形态以代码与 README / [DEPLOY.md](DEPLOY.md) 为准。
 >
 > 核心思想与 DAG 一致:**复用 master 已跑通的成熟链路(extractor / cleaner / splitter / 混合检索 / rerank / QA),但把被写死的两处底座(向量库=ES、embedding/rerank=DashScope)换成 v2.0 已有的可插拔抽象**(`module_data` 向量 handler + `module_ai` 模型管理),并对齐 FastAPI / async / 多租户 / 数据权限 / 统一存储。
 
