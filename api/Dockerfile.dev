@@ -2,6 +2,10 @@
 # 说明：改用阿里云 PyPI 源——清华源缺部分包版本（如 mistralai==1.12.0）
 FROM python:3.10
 
+# 默认时区=东八区(北京):使容器 date / 日志 / naive datetime.now() 统一走北京时间。
+# 不设则回退 UTC(时间戳慢 8 小时)。compose 的 TZ 环境变量仍可覆盖。
+ENV TZ=Asia/Shanghai
+
 WORKDIR /app
 
 # 需要完整源码：requirements.txt 末尾的 "." 会把本项目作为包安装（提供 ruoyi CLI）

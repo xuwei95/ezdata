@@ -46,6 +46,7 @@ services:
         required: false
     environment:
       - APP_ENV=dev                       # 以 dev 配置运行（.env.dev：APP_RELOAD=true、Swagger 开启）
+      - TZ=${TZ:-Asia/Shanghai}           # 容器时区=北京:date/日志/datetime.now() 统一;不设则 UTC,时间戳慢 8 小时
       # dev 关闭传输层加解密(公网前后端流量加密才需要;本地开发免配 RSA 密钥,否则 lifespan 校验直接 fail)
       - TRANSPORT_CRYPTO_ENABLED=false
       - TRANSPORT_CRYPTO_MODE=off
@@ -119,6 +120,7 @@ services:
         required: false
     environment:
       - APP_ENV=dev
+      - TZ=${TZ:-Asia/Shanghai}           # 与后端一致:容器北京时区,任务执行/日志时间戳不慢 8 小时
       - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-}   # 透传宿主/.env → 容器;空=用 CPU 核数
       - DB_HOST=ezdata-mysql-dev
       - DB_PORT=3306
