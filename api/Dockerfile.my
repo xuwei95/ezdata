@@ -1,4 +1,6 @@
 FROM python:3.10
+# 默认时区=东八区(北京):容器 date / 日志 / naive datetime.now() 统一北京时间;不设则回退 UTC。compose TZ 可覆盖。
+ENV TZ=Asia/Shanghai
 WORKDIR /app
 
 # 复制源代码
