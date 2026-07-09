@@ -429,7 +429,8 @@ def _build_walker_html(rows: list[dict], spec: str) -> str:
     except ImportError as e:
         raise ServiceException(message='未安装 pygwalker(pip install pygwalker),无法生成自助分析') from e
     df = pd.DataFrame(rows or [])
-    return pyg.to_html(df, spec=spec or '')
+    # i18nLang='zh-CN':界面中文(经 extraConfig 透传给 graphic-walker,内核默认 en-US)
+    return pyg.to_html(df, spec=spec or '', i18nLang='zh-CN')
 
 
 class DataQueryService:
