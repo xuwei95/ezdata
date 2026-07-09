@@ -421,19 +421,25 @@ class DataModelService:
 _WALKER_ROW_CAP = 1000  # PyGWalker 在浏览器端计算,取数上限;更大范围请先用筛选器缩小
 
 
-def _build_walker_html(rows: list[dict], spec: str) -> str:
-    """rows → DataFrame → PyGWalker 自包含 HTML(拖拽式自助分析)。pygwalker 为可选重依赖,懒加载。"""
+def _build_walker_html(rows: list[dict], spec: str, gw_mode: str = 'explore') -> str:
+    """rows → DataFrame → PyGWalker 自包含 HTML(拖拽式自助分析)。pygwalker 为可选重依赖,懒加载。
+
+    gw_mode:explore=全功能编辑器(默认);renderer=纯图只展示不可配;filter_renderer=图+筛选栏无配置面板;
+    table=纯表。renderer/filter_renderer 需配合已保存的 spec 才有图可展示。
+    """
     # 空结果直接给友好提示:pygwalker 会按行数估算平均大小,0 行时除零崩(ZeroDivisionError)。
     if not rows:
         raise ServiceException(message='筛选结果为空(0 行),请调整筛选条件后重试')
+    if gw_mode not in ('explore', 'renderer', 'filter_renderer', 'table'):
+        gw_mode = 'explore'
     try:
         import pandas as pd
         import pygwalker as pyg
     except ImportError as e:
         raise ServiceException(message='未安装 pygwalker(pip install pygwalker),无法生成自助分析') from e
-    df = pd.DataFrame(rows or [])
+    df = pd.DataFrame(rows)
     # i18nLang='zh-CN':界面中文(经 extraConfig 透传给 graphic-walker,内核默认 en-US)
-    return pyg.to_html(df, spec=spec or '', i18nLang='zh-CN')
+    return pyg.to_html(df, spec=spec or '', gw_mode=gw_mode, i18nLang='zh-CN')
 
 
 class DataQueryService:
@@ -485,7 +491,8 @@ class DataQueryService:
 
     @classmethod
     async def walker_html(
-        cls, db: AsyncSession, m_id: str, spec: str = '', filters: list[dict] | None = None
+        cls, db: AsyncSession, m_id: str, spec: str = '', filters: list[dict] | None = None,
+        gw_mode: str = 'explore',
     ) -> str:
         """数据模型 → PyGWalker 拖拽式自助分析,返回自包含 HTML(前端 iframe 内联)。
 
@@ -508,7 +515,7 @@ class DataQueryService:
             except ValueError as e:
                 raise ServiceException(message=str(e)) from None
             records = await run_in_threadpool(handler.query, native, None, _WALKER_ROW_CAP)
-        return await run_in_threadpool(_build_walker_html, json_safe_rows(records), spec)
+        return await run_in_threadpool(_build_walker_html, json_safe_rows(records), spec, gw_mode)
 
     @classmethod
     async def _kb_context(cls, db: AsyncSession, m: Any, question: str) -> str:

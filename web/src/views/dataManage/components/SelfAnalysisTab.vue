@@ -6,7 +6,7 @@
       <div class="filter-bar">
         <el-button size="small" type="primary" icon="Search" :loading="loading" @click="load">应用筛选并分析</el-button>
         <el-button size="small" icon="RefreshLeft" :disabled="!filters.length" @click="clearFilters">清空</el-button>
-        <span class="tip">拖拽字段即可分析(PyGWalker);最多取 1000 行,更大范围请先筛选。</span>
+        <span class="tip">拖拽字段即可分析(PyGWalker);最多取 1000 行,更大范围请先筛选。做好的图在图表右上角工具栏可导出 PNG/SVG/配置。</span>
       </div>
     </el-card>
 
