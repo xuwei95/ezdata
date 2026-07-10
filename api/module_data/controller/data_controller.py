@@ -251,8 +251,30 @@ async def model_walker(
     db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     html = await DataQueryService.walker_html(
-        db, m_id, spec=body.get('spec', ''), filters=body.get('filters'), rows=body.get('rows'),
+        db,
+        m_id,
+        spec=body.get('spec', ''),
+        filters=body.get('filters'),
+        rows=body.get('rows'),
         gw_mode=body.get('mode') or 'explore',  # explore(默认) / renderer / filter_renderer / table
+    )
+    return ResponseUtil.success(data={'html': html})
+
+
+@data_controller.post(
+    '/model/{m_id}/walker/ai', summary='自助分析·AI 生成图表', dependencies=[UserInterfaceAuthDependency('data:query')]
+)
+async def model_walker_ai(
+    m_id: Annotated[str, Path()],
+    body: dict,
+    db: Annotated[AsyncSession, DBSessionDependency()],
+) -> Response:
+    html = await DataQueryService.walker_ai_html(
+        db,
+        m_id,
+        question=body.get('question', ''),
+        rows=body.get('rows'),
+        gw_mode=body.get('mode') or 'explore',
     )
     return ResponseUtil.success(data={'html': html})
 

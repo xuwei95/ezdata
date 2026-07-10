@@ -71,9 +71,13 @@ export function aiQueryModel(id, data) {
 export function getSampleQuery(id) {
   return request({ url: `/data/model/${id}/sample-query`, method: 'get' })
 }
-// 自助分析:返回 PyGWalker 自包含 HTML(前端 iframe 内联);data.spec 可传上次的图表配置
+// 自助分析:返回 PyGWalker 自包含 HTML(前端 iframe 内联);data.rows 传查询结果作数据源
 export function walkerHtml(id, data) {
   return request({ url: `/data/model/${id}/walker`, method: 'post', data, timeout: 120000 })
+}
+// 自助分析·AI 生成图表:data={question, rows};系统 LLM 生成图表配置并预填,返回可编辑 HTML
+export function walkerAiHtml(id, data) {
+  return request({ url: `/data/model/${id}/walker/ai`, method: 'post', data, timeout: 120000 })
 }
 
 // ---------------- ETL 调试 ----------------

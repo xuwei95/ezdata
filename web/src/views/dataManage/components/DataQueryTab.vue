@@ -47,8 +47,13 @@
 
       <el-tab-pane label="可视化" name="viz">
         <div class="viz-bar">
-          <span class="muted">用本次查询结果拖拽分析(PyGWalker);最多取前 {{ VIZ_CAP }} 行。图表工具栏可导出 PNG/SVG/配置。</span>
-          <el-button size="small" icon="Refresh" :loading="vizLoading" :disabled="!rows.length" @click="loadViz">刷新</el-button>
+          <el-input v-model="vizQ" size="small" class="viz-q" clearable
+            placeholder="一句话生成图表,如:按城市看销售额柱状图" @keyup.enter="genViz" />
+          <el-button size="small" type="primary" icon="MagicStick" :loading="vizLoading"
+            :disabled="!rows.length" @click="genViz">AI 生成图表</el-button>
+          <el-button size="small" icon="Refresh" :loading="vizLoading" :disabled="!rows.length"
+            @click="loadViz">空白拖拽</el-button>
+          <span class="muted">用本次查询结果(前 {{ VIZ_CAP }} 行);图表工具栏可导出 PNG/SVG/配置。</span>
         </div>
         <div ref="vizWrap" class="viz-wrap" v-loading="vizLoading" element-loading-text="生成分析视图中…">
           <iframe v-if="vizHtml" :srcdoc="vizHtml" class="pyg-frame" :style="{ height: vizH + 'px' }"
@@ -64,7 +69,7 @@
 import { ref, reactive, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import * as XLSX from 'xlsx'
-import { queryModel, getSampleQuery, walkerHtml } from '@/api/dataManage/data'
+import { queryModel, getSampleQuery, walkerHtml, walkerAiHtml } from '@/api/dataManage/data'
 import { getToken } from '@/utils/auth'
 
 const props = defineProps({ model: { type: Object, required: true } })
@@ -83,6 +88,7 @@ const AI_BASE = import.meta.env.VITE_APP_BASE_API || ''
 const vizHtml = ref('')
 const vizLoading = ref(false)
 const vizErr = ref('')
+const vizQ = ref('')
 const vizWrap = ref()
 const vizH = ref(500)
 
@@ -190,6 +196,23 @@ async function loadViz() {
   }
 }
 
+// AI 一句话生成图表(用当前查询结果作数据源;系统 LLM 生成配置,预填后仍可拖拽微调)
+async function genViz() {
+  if (!rows.value.length) { ElMessage.warning('先执行查询获取数据'); return }
+  if (!vizQ.value.trim()) { ElMessage.warning('请描述你想要的图表'); return }
+  vizLoading.value = true; vizErr.value = ''; vizHtml.value = ''
+  try {
+    const res = await walkerAiHtml(props.model.id, { question: vizQ.value, rows: rows.value.slice(0, VIZ_CAP) })
+    vizHtml.value = res.data.html || ''
+    await computeVizH()
+  } catch (e) {
+    vizErr.value = e?.msg || e?.message || '生成失败'
+    ElMessage.error(vizErr.value)
+  } finally {
+    vizLoading.value = false
+  }
+}
+
 // AI 流式生成查询(辅助:打在下方,确认后采用到查询框)
 async function genQuery() {
   if (!aiq.question.trim()) { ElMessage.warning('请描述你想查什么'); return }
@@ -217,8 +240,9 @@ function applyQuery() {
 .result-tabs { margin-top: 8px; }
 .result-bar { display: flex; align-items: center; justify-content: space-between; margin: 2px 0 6px; }
 .count { color: #909399; font-size: 13px; }
-.viz-bar { display: flex; align-items: center; justify-content: space-between; margin: 2px 0 8px; }
-.viz-bar .muted { color: #909399; font-size: 12px; }
+.viz-bar { display: flex; align-items: center; gap: 8px; margin: 2px 0 8px; flex-wrap: wrap; }
+.viz-bar .viz-q { max-width: 340px; }
+.viz-bar .muted { color: #909399; font-size: 12px; margin-left: auto; }
 .viz-wrap { min-height: 360px; }
 .pyg-frame { width: 100%; border: 1px solid #ebeef5; border-radius: 6px; background: #fff; }
 .ai-out {

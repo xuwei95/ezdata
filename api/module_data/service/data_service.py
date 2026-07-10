@@ -442,6 +442,37 @@ def _build_walker_html(rows: list[dict], spec: str, gw_mode: str = 'explore') ->
     return pyg.to_html(df, spec=spec or '', gw_mode=gw_mode, i18nLang='zh-CN')
 
 
+def _vega_chart_prompt(columns: list[str], question: str) -> str:
+    """让 LLM 依据数据列 + 自然语言需求,产出一个 Vega-Lite 图表规格(只输出 JSON)。"""
+    return (
+        '你是数据可视化专家。现有数据列(必须严格使用这些列名,不要杜撰):\n'
+        f'{", ".join(columns)}\n\n'
+        f'用户需求:{question}\n\n'
+        '请只输出一个 Vega-Lite (v5) 图表规格 JSON:选合适的 mark(bar/line/point/arc/area 等)与 '
+        'encoding(x/y/color/theta/size…),需要汇总时用 aggregate(sum/mean/count/max/min)。'
+        '只用上面列出的真实列名。**只输出 JSON 本身,不要 markdown 代码块、不要任何解释文字。**'
+    )
+
+
+def _vega_to_gw_spec(rows: list[dict], vega_text: str) -> str:
+    """LLM 产出的 Vega-Lite 文本 → 校验/清洗 → vega_to_dsl → graphic-walker spec(JSON 串)。"""
+    try:
+        vega = json.loads(_strip_fence(vega_text))
+    except Exception as e:
+        raise ServiceException(message='AI 生成的图表配置不是合法 JSON,请换个说法重试') from e
+    try:
+        import pandas as pd
+        from pygwalker.services.data_parsers import get_parser
+        from pygwalker.utils.dsl_transform import vega_to_dsl
+    except ImportError as e:
+        raise ServiceException(message='未安装 pygwalker,无法生成图表') from e
+    try:
+        gw = vega_to_dsl(vega, get_parser(pd.DataFrame(rows)).raw_fields)
+    except Exception as e:
+        raise ServiceException(message=f'图表配置转换失败(请换个说法):{short_err(e)}') from e
+    return json.dumps(gw)
+
+
 class DataQueryService:
     """数据查询/接口:基于模型 + 连接器。"""
 
@@ -491,8 +522,13 @@ class DataQueryService:
 
     @classmethod
     async def walker_html(
-        cls, db: AsyncSession, m_id: str, spec: str = '', filters: list[dict] | None = None,
-        rows: list[dict] | None = None, gw_mode: str = 'explore',
+        cls,
+        db: AsyncSession,
+        m_id: str,
+        spec: str = '',
+        filters: list[dict] | None = None,
+        rows: list[dict] | None = None,
+        gw_mode: str = 'explore',
     ) -> str:
         """数据模型 → PyGWalker 拖拽式自助分析,返回自包含 HTML(前端 iframe 内联)。
 
@@ -519,6 +555,30 @@ class DataQueryService:
                 except ValueError as e:
                     raise ServiceException(message=str(e)) from None
                 records = await run_in_threadpool(handler.query, native, None, _WALKER_ROW_CAP)
+        return await run_in_threadpool(_build_walker_html, json_safe_rows(records), spec, gw_mode)
+
+    @classmethod
+    async def walker_ai_html(
+        cls,
+        db: AsyncSession,
+        m_id: str,
+        question: str,
+        rows: list[dict] | None = None,
+        gw_mode: str = 'explore',
+    ) -> str:
+        """自然语言 + 查询结果 → 复用系统 LLM 生成 Vega-Lite → 转 graphic-walker spec → 出可编辑图。
+
+        全程走 ezdata 自己的模型(_ai_complete,库内兜底 LLM_*),不依赖 Kanaries 云、数据不外发;
+        生成的 spec 以 explore 模式预填,用户可继续拖拽微调。
+        """
+        if not (question or '').strip():
+            raise ServiceException(message='请描述你想要的图表')
+        records = (rows or [])[:_WALKER_ROW_CAP]
+        if not records:
+            raise ServiceException(message='没有可分析的数据,请先执行查询')
+        columns = list(records[0].keys())
+        vega_text = await _ai_complete(db, _vega_chart_prompt(columns, question))
+        spec = await run_in_threadpool(_vega_to_gw_spec, records, vega_text)
         return await run_in_threadpool(_build_walker_html, json_safe_rows(records), spec, gw_mode)
 
     @classmethod
