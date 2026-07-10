@@ -49,22 +49,46 @@
           <span class="tip">改完图后点图内「保存」按钮捕获配置,再点这里「保存」入库</span>
         </div>
         <div class="ed-query">
-          <el-input v-model="ed.native" type="textarea" :rows="3"
-            placeholder="原生查询(SQL / ES DSL);选择模型后自动预填" />
-          <el-button type="primary" icon="Search" :loading="ed.loading" :disabled="!ed.modelId" @click="runQuery">查询</el-button>
+          <div class="q-main">
+            <el-input v-model="ed.native" type="textarea" :rows="3"
+              placeholder="原生查询(SQL / ES DSL);选择模型后自动预填,或点「AI 生成查询」" />
+            <div v-if="aiq.open" class="q-panel">
+              <el-input v-model="aiq.question" type="textarea" :rows="2"
+                placeholder="用自然语言描述你想查什么,如:各城市销售额 top10" @keyup.enter.stop="genQuery" />
+              <div class="q-panel-bar">
+                <el-button size="small" type="primary" :loading="aiq.loading" @click="genQuery">
+                  {{ aiq.output ? '重新生成' : '生成' }}</el-button>
+                <el-button v-if="aiq.output && !aiq.loading" size="small" type="success" @click="applyQuery">采用到查询</el-button>
+                <el-button v-if="aiq.output" size="small" @click="aiq.output = ''">清空</el-button>
+              </div>
+              <pre v-if="aiq.output" class="ai-out">{{ aiq.output }}<span v-if="aiq.loading" class="cursor">▋</span></pre>
+            </div>
+          </div>
+          <div class="q-btns">
+            <el-button icon="MagicStick" :disabled="!ed.modelId" @click="aiq.open = !aiq.open">AI 生成查询</el-button>
+            <el-button type="primary" icon="Search" :loading="ed.loading" :disabled="!ed.modelId" @click="runQuery">查询</el-button>
+          </div>
+        </div>
+        <div class="ed-viz-bar">
+          <el-input v-model="ed.chartQ" size="small" style="max-width: 320px" clearable
+            placeholder="一句话生成图表(AI),如:按城市看销售额柱状图" @keyup.enter="genChart" />
+          <el-button size="small" type="primary" icon="MagicStick" :loading="ed.vizLoading"
+            :disabled="!ed.rows.length" @click="genChart">AI 生成图表</el-button>
+          <el-button size="small" icon="Refresh" :disabled="!ed.rows.length" @click="renderEditor('')">重置图表</el-button>
         </div>
         <div class="ed-viz" v-loading="ed.vizLoading" element-loading-text="生成中…">
           <iframe v-if="ed.html" :srcdoc="ed.html" class="pyg-frame"
             sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-downloads" />
-          <el-empty v-else :description="ed.rows.length ? '点上方查询后拖拽分析' : '选模型 → 查询 → 拖拽/AI 生成图,点图内保存捕获配置'" />
+          <el-empty v-else :description="ed.rows.length ? '拖拽分析 或 上方 AI 生成图;改完点图内「保存」捕获配置' : '选模型 → 查询 → 拖拽/AI 生成图'" />
         </div>
       </div>
     </el-dialog>
 
-    <!-- 预览:全屏纯图(无配置项) -->
-    <el-dialog v-model="pv.visible" :title="'预览 - ' + pv.name" fullscreen append-to-body class="viz-preview-dialog">
+    <!-- 预览:纯图(无配置项),普通弹窗 -->
+    <el-dialog v-model="pv.visible" :title="'预览 - ' + pv.name" width="900px" top="6vh" append-to-body
+      class="viz-preview-dialog">
       <div class="preview" v-loading="pv.loading" element-loading-text="渲染中…">
-        <iframe v-if="pv.html" :srcdoc="pv.html" class="pyg-frame"
+        <iframe v-if="pv.html" :srcdoc="pv.html" class="pyg-frame" style="height: 560px"
           sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-downloads" />
         <el-empty v-else :description="pv.err || '无图表配置,无法纯图预览(该模板仅存了查询)'" />
       </div>
@@ -77,8 +101,9 @@ import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   listModel, listAnalysisTemplate, saveAnalysisTemplate, delAnalysisTemplate,
-  getSampleQuery, queryModel, walkerHtml
+  getSampleQuery, queryModel, walkerHtml, walkerAiHtml
 } from '@/api/dataManage/data'
+import { getToken } from '@/utils/auth'
 
 const VIZ_CAP = 1000
 const loading = ref(false)
@@ -88,9 +113,27 @@ const filterModel = ref('')
 
 const ed = reactive({
   visible: false, id: '', name: '', modelId: '', modelName: '', remark: '',
-  native: '', rows: [], spec: '', html: '', loading: false, vizLoading: false
+  native: '', chartQ: '', rows: [], spec: '', html: '', loading: false, vizLoading: false
 })
+const aiq = reactive({ open: false, question: '', output: '', loading: false })
 const pv = reactive({ visible: false, name: '', html: '', loading: false, err: '' })
+const AI_BASE = import.meta.env.VITE_APP_BASE_API || ''
+
+function stripFence(t) {
+  let s = (t || '').trim()
+  if (s.startsWith('```')) s = s.replace(/^```[^\n]*\n/, '').replace(/```\s*$/, '').trim()
+  return s
+}
+async function streamAi(url, body, onChunk) {
+  const resp = await fetch(AI_BASE + url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() },
+    body: JSON.stringify(body)
+  })
+  if (!resp.ok || !resp.body) throw new Error('HTTP ' + resp.status)
+  const reader = resp.body.getReader(); const dec = new TextDecoder()
+  for (;;) { const { done, value } = await reader.read(); if (done) break; onChunk(dec.decode(value, { stream: true })) }
+}
 
 async function loadModels() {
   try { models.value = (await listModel({ pageNum: 1, pageSize: 1000 })).rows || [] } catch (e) { /* 忽略 */ }
@@ -105,11 +148,36 @@ async function loadList() {
 async function openEditor(row) {
   Object.assign(ed, {
     visible: true, id: row?.id || '', name: row?.name || '', modelId: row?.modelId || '',
-    modelName: row?.modelName || '', remark: row?.remark || '',
+    modelName: row?.modelName || '', remark: row?.remark || '', chartQ: '',
     native: (row?.query && row.query.native) || '', rows: [], html: '', vizLoading: false,
     spec: row?.chartSpec ? JSON.stringify(row.chartSpec) : ''
   })
+  aiq.open = false; aiq.question = ''; aiq.output = ''
   if (ed.modelId) { await runQuery(); if (ed.rows.length) await renderEditor(ed.spec) }
+}
+// AI 生成查询(流式 NL→SQL,采用到查询框)
+async function genQuery() {
+  if (!ed.modelId) { ElMessage.warning('请先选择数据模型'); return }
+  if (!aiq.question.trim()) { ElMessage.warning('请描述你想查什么'); return }
+  aiq.output = ''; aiq.loading = true
+  try { await streamAi(`/data/model/${ed.modelId}/ai-query/stream`, { question: aiq.question }, (c) => { aiq.output += c }) }
+  catch (e) { ElMessage.error('生成失败: ' + e.message) } finally { aiq.loading = false }
+}
+function applyQuery() {
+  ed.native = stripFence(aiq.output).replace(/;\s*$/, '')
+  aiq.open = false
+  ElMessage.success('已采用到查询框,点「查询」执行')
+}
+// AI 一句话生成图表(用当前查询结果;系统 LLM 生成配置,预填可继续拖)
+async function genChart() {
+  if (!ed.rows.length) { ElMessage.warning('先查询获取数据'); return }
+  if (!ed.chartQ.trim()) { ElMessage.warning('请描述你想要的图表'); return }
+  ed.vizLoading = true
+  try {
+    const res = await walkerAiHtml(ed.modelId, { question: ed.chartQ, rows: ed.rows.slice(0, VIZ_CAP) })
+    ed.html = res.data.html || ''
+    ed.spec = res.data.spec || ed.spec
+  } catch (e) { ElMessage.error(e?.msg || e?.message || '生成失败') } finally { ed.vizLoading = false }
 }
 async function onModelChange(mId) {
   const m = models.value.find(x => x.id === mId)
@@ -188,8 +256,20 @@ onUnmounted(() => window.removeEventListener('message', onPygMsg))
 .ed-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
 .ed-head .tip { font-size: 12px; color: #909399; }
 .ed-query { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 8px; }
-.ed-query .el-textarea { flex: 1; }
+.q-main { flex: 1; }
+.q-panel { margin-top: 6px; padding: 8px 10px; border: 1px dashed #c0c4cc; border-radius: 6px; background: #fafafa; }
+.q-panel-bar { margin-top: 6px; display: flex; gap: 6px; }
+.q-btns { display: flex; flex-direction: column; gap: 6px; }
+.ed-viz-bar { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
 .ed-viz { flex: 1; min-height: 300px; }
+.ai-out {
+  margin: 8px 0 0; padding: 8px 10px; max-height: 160px; overflow: auto;
+  background: #1e1e1e; color: #d4d4d4; border-radius: 4px;
+  font-family: Consolas, Monaco, monospace; font-size: 12px; white-space: pre-wrap; word-break: break-all;
+}
+.cursor { animation: blink 1s steps(1) infinite; color: #67c23a; }
+@keyframes blink { 50% { opacity: 0; } }
+.ed-viz { flex: 1; min-height: 260px; }
 .preview { height: calc(100vh - 110px); }
 .pyg-frame { width: 100%; height: 100%; border: 1px solid #ebeef5; border-radius: 6px; background: #fff; }
 </style>
