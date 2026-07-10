@@ -57,7 +57,7 @@
         </div>
         <div ref="vizWrap" class="viz-wrap" v-loading="vizLoading" element-loading-text="生成分析视图中…">
           <iframe v-if="vizHtml" :srcdoc="vizHtml" class="pyg-frame" :style="{ height: vizH + 'px' }"
-            sandbox="allow-scripts allow-same-origin allow-popups allow-forms" />
+            sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-downloads" />
           <el-empty v-else-if="!vizLoading" :description="vizErr || '先在上方执行查询,再切到本页可视化'" />
         </div>
       </el-tab-pane>

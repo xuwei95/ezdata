@@ -438,8 +438,9 @@ def _build_walker_html(rows: list[dict], spec: str, gw_mode: str = 'explore') ->
     except ImportError as e:
         raise ServiceException(message='未安装 pygwalker(pip install pygwalker),无法生成自助分析') from e
     df = pd.DataFrame(rows)
-    # i18nLang='zh-CN':界面中文(经 extraConfig 透传给 graphic-walker,内核默认 en-US)
-    return pyg.to_html(df, spec=spec or '', gw_mode=gw_mode, i18nLang='zh-CN')
+    # i18nLang='zh-CN':界面中文;toolbar.exclude 去掉跳 kanaries.net 的云/AI 按钮(自托管无用)。
+    # 均经 extraConfig 透传给 graphic-walker。保留 export_chart/code/dataframe 导出项。
+    return pyg.to_html(df, spec=spec or '', gw_mode=gw_mode, i18nLang='zh-CN', toolbar={'exclude': ['kanaries']})
 
 
 def _vega_chart_prompt(columns: list[str], question: str) -> str:
