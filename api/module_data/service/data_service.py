@@ -445,11 +445,19 @@ def _build_walker_html(rows: list[dict], spec: str, gw_mode: str = 'explore') ->
     # 往内层文档注入 CSS 隐藏:外链锚点 + runcell/kanaries 的 logo 图标及其直接父容器(连点击区)。
     # 保留 export_chart/code/dataframe 导出项。
     hide = (
+        # 即时隐藏 logo 图标/外链,避免渲染时闪一下
         '&lt;style&gt;'
-        'a[href*=&quot;kanaries&quot;],a[href*=&quot;runcell&quot;],'
-        ':has(&gt;img[src*=&quot;runcell&quot;]),:has(&gt;img[src*=&quot;kanaries&quot;]),'
-        'img[src*=&quot;runcell&quot;],img[src*=&quot;kanaries&quot;]'
-        '{display:none!important}&lt;/style&gt;'
+        'img[src*=&quot;runcell&quot;],img[src*=&quot;kanaries&quot;],'
+        'a[href*=&quot;runcell&quot;],a[href*=&quot;kanaries&quot;]{display:none!important}'
+        '&lt;/style&gt;'
+        # 兜底:动态渲染后,把含 runcell/kanaries 的图标连同其可点父容器一并移除(MutationObserver)
+        '&lt;script&gt;(function(){function k(){'
+        'document.querySelectorAll(&quot;img[src*=runcell],img[src*=kanaries],a[href*=runcell],a[href*=kanaries]&quot;)'
+        '.forEach(function(e){var b=e.closest(&quot;button,a,li,[role=button]&quot;)||e.parentElement||e;'
+        'if(b){b.style.display=&quot;none&quot;;}});}'
+        'try{k();}catch(e){}'
+        'new MutationObserver(function(){try{k();}catch(e){}})'
+        '.observe(document.documentElement,{childList:true,subtree:true});})();&lt;/script&gt;'
     )
     return html.replace('&lt;body&gt;', '&lt;body&gt;' + hide, 1)
 
