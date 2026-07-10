@@ -421,6 +421,27 @@ class DataModelService:
 
 _WALKER_ROW_CAP = 1000  # PyGWalker 在浏览器端计算,取数上限;更大范围请先用筛选器缩小
 
+# 占位 comm 路径:graphic-walker「保存」时会往 communicationUrl 发 comm 请求;我们不真起后端,
+# 而是注入下面的脚本在前端拦截该路径,把 visSpec postMessage 给父窗口(见调研:spec 在请求体里)。
+_WALKER_COMM_MARK = '/__pyg_comm__'
+
+# 注入到 pygwalker 内层 iframe 的桥接脚本:覆盖 window.fetch,拦截发往 _WALKER_COMM_MARK 的
+# update_spec/save_chart,取出 data.visSpec → window.parent.postMessage;并回一个假的 {} 响应,
+# 使 pygwalker 保存流程不报错。(fetch 是全局的,不受 graphic-walker 的 Shadow DOM 影响。)
+# 注:内容按 srcdoc 单层实体转义(&lt; &gt;);JS 内只用单引号、无 < > & ",避免二次转义。
+_WALKER_SPEC_BRIDGE = (
+    """&lt;script&gt;(function(){var M='/__pyg_comm__';"""
+    """function P(b){try{var m=JSON.parse(b);if(!m){return;}"""
+    """if(m.action!=='update_spec'){if(m.action!=='save_chart'){return;}}"""
+    """var d=m.data;if(!d){return;}if(!d.visSpec){return;}"""
+    """window.parent.postMessage({__pygSpec:true,visSpec:d.visSpec},'*');}catch(e){}}"""
+    """var F=window.fetch;window.fetch=function(i,o){var u=i?(i.url||i):i;"""
+    """if(typeof u==='string'){if(u.indexOf(M)!==-1){var b=o?(o.body||''):'';"""
+    """P(typeof b==='string'?b:'');"""
+    """return Promise.resolve(new Response('{}',{status:200,headers:{'Content-Type':'application/json'}}));}}"""
+    """return F.apply(this,arguments);};})();&lt;/script&gt;"""
+)
+
 
 def _build_walker_html(rows: list[dict], spec: str, gw_mode: str = 'explore') -> str:
     """rows → DataFrame → PyGWalker 自包含 HTML(拖拽式自助分析)。pygwalker 为可选重依赖,懒加载。
@@ -435,14 +456,37 @@ def _build_walker_html(rows: list[dict], spec: str, gw_mode: str = 'explore') ->
         gw_mode = 'explore'
     try:
         import pandas as pd
-        import pygwalker as pyg
+        from pygwalker.api.pygwalker import PygWalker
+        from pygwalker.utils.randoms import generate_hash_code
     except ImportError as e:
         raise ServiceException(message='未安装 pygwalker(pip install pygwalker),无法生成自助分析') from e
     df = pd.DataFrame(rows)
-    # i18nLang='zh-CN':界面中文(经 extraConfig 透传给 graphic-walker,内核默认 en-US)。
-    # pygwalker 固定 0.4.9.9:该版本工具栏无 runcell「AI Agent」促销按钮(0.5+ 才加,注入 CSS/JS
-    # 因 graphic-walker 用 Shadow DOM 压不住),见 requirements-data.txt 的版本锁定说明。
-    return pyg.to_html(df, spec=spec or '', gw_mode=gw_mode, i18nLang='zh-CN')
+    # 自建 PygWalker(裸 to_html 把 use_save_tool/communicationUrl 写死关掉,拿不到 spec):
+    # 开保存按钮 + 设 communicationUrl(占位路径,由注入脚本在前端拦截),使「保存」时前端能捕获 visSpec。
+    walker = PygWalker(
+        gid=generate_hash_code(),
+        dataset=df,
+        field_specs=[],
+        spec=spec or '',
+        source_invoke_code='',
+        theme_key='g2',
+        appearance='media',
+        show_cloud_tool=False,
+        use_preview=False,
+        kernel_computation=False,
+        use_save_tool=True,
+        gw_mode=gw_mode,
+        is_export_dataframe=False,
+        kanaries_api_key='',
+        default_tab='vis',
+        cloud_computation=False,
+    )
+    props = walker._get_props('web')
+    props['communicationUrl'] = _WALKER_COMM_MARK  # 占位:前端拦截该路径的 comm 请求,不真发网络
+    props['i18nLang'] = 'zh-CN'  # 界面中文(内核默认 en-US)
+    html = walker._get_render_iframe(props)
+    # 注入桥接脚本到内层 iframe:拦 comm 的 update_spec/save_chart,把 visSpec postMessage 给父窗口
+    return html.replace('&lt;body&gt;', '&lt;body&gt;' + _WALKER_SPEC_BRIDGE, 1)
 
 
 def _vega_chart_prompt(columns: list[str], question: str) -> str:

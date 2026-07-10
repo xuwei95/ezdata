@@ -60,7 +60,7 @@
           </el-select>
           <el-button size="small" icon="Star" :disabled="!rows.length" @click="openSaveTpl">存为模板</el-button>
           <el-button v-if="curTpl" size="small" icon="Delete" link type="danger" @click="delTpl">删</el-button>
-          <span class="muted">前 {{ VIZ_CAP }} 行;图表工具栏可导出 PNG/SVG/配置。</span>
+          <span class="muted">前 {{ VIZ_CAP }} 行;拖好后点图内「保存」按钮捕获配置,再「存为模板」。</span>
         </div>
         <div ref="vizWrap" class="viz-wrap" v-loading="vizLoading" element-loading-text="生成分析视图中…">
           <iframe v-if="vizHtml" :srcdoc="vizHtml" class="pyg-frame" :style="{ height: vizH + 'px' }"
@@ -80,7 +80,7 @@
           <el-input v-model="tplDlg.remark" type="textarea" :rows="2" />
         </el-form-item>
         <el-alert v-if="!currentSpec" type="info" :closable="false" show-icon
-          title="当前无 AI 生成的图表配置:模板只存查询,应用时恢复数据到空白画布再自行拖拽" />
+          title="当前未捕获图表配置:AI 生成 或 手拖后点图内「保存」按钮 即可捕获;否则模板只存查询,应用时回到空白画布" />
         <el-alert v-else type="success" :closable="false" show-icon title="将保存:本次查询 + 当前图表配置" />
       </el-form>
       <template #footer>
@@ -188,9 +188,24 @@ watch(() => aiq.open, computeH)
 watch(() => aiq.loading, computeH)
 // 切到可视化子页:有数据且尚未生成则自动生成
 watch(subTab, (v) => { if (v === 'viz' && rows.value.length && !vizHtml.value) loadViz() })
-onMounted(() => { syncModel(); computeH(); window.addEventListener('resize', onResize) })
-onUnmounted(() => window.removeEventListener('resize', onResize))
+onMounted(() => {
+  syncModel(); computeH()
+  window.addEventListener('resize', onResize)
+  window.addEventListener('message', onPygMsg)  // 接收 pygwalker 桥接回传的图表配置
+})
+onUnmounted(() => {
+  window.removeEventListener('resize', onResize)
+  window.removeEventListener('message', onPygMsg)
+})
 function onResize() { computeH(); computeVizH() }
+// pygwalker 内层 iframe「保存」时,注入的桥接脚本把 visSpec postMessage 上来 → 记为当前图表配置
+function onPygMsg(e) {
+  const d = e && e.data
+  if (d && d.__pygSpec === true) {
+    currentSpec.value = JSON.stringify(d.visSpec || [])
+    ElMessage.success('已捕获当前图表配置,可「存为模板」')
+  }
+}
 
 let suppressAutoViz = false  // 应用模板时抑制 fill 的自动空白渲染,避免与模板 spec 渲染竞态
 function fill(records) {
