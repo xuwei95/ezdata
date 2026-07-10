@@ -16,4 +16,6 @@ neo4j>=5.0.0             # neo4j 源
 
 # 自助分析(BI):数据模型 → PyGWalker 拖拽式探索,生成自包含 HTML 供前端 iframe 内联。
 # 懒加载(用到才 import),会带 pandas;仅需该功能时装。
-pygwalker>=0.4
+# 锁 0.4.9.9:0.5+ 工具栏加了跳 runcell.dev 的「AI Agent」促销按钮,且 graphic-walker 用 Shadow DOM
+# 渲染,外部注入 CSS/JS 压不掉;0.4.9.9 无此按钮,且 gw_mode/spec/i18nLang/vega_to_dsl 均已支持。
+pygwalker==0.4.9.9

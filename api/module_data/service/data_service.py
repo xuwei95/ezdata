@@ -438,28 +438,10 @@ def _build_walker_html(rows: list[dict], spec: str, gw_mode: str = 'explore') ->
     except ImportError as e:
         raise ServiceException(message='未安装 pygwalker(pip install pygwalker),无法生成自助分析') from e
     df = pd.DataFrame(rows)
-    # i18nLang='zh-CN':界面中文(经 extraConfig 透传给 graphic-walker)。
-    html = pyg.to_html(df, spec=spec or '', gw_mode=gw_mode, i18nLang='zh-CN')
-    # 工具栏里跳 kanaries.net(文档,<a href>)/ runcell.dev(agent 图标,<img>+window.open)的按钮
-    # 都在 pygwalker 内层 iframe 的 srcdoc 里,graphic-walker 的 toolbar.exclude 拦不到 →
-    # 往内层文档注入 CSS 隐藏:外链锚点 + runcell/kanaries 的 logo 图标及其直接父容器(连点击区)。
-    # 保留 export_chart/code/dataframe 导出项。
-    hide = (
-        # 即时隐藏 logo 图标/外链,避免渲染时闪一下
-        '&lt;style&gt;'
-        'img[src*=&quot;runcell&quot;],img[src*=&quot;kanaries&quot;],'
-        'a[href*=&quot;runcell&quot;],a[href*=&quot;kanaries&quot;]{display:none!important}'
-        '&lt;/style&gt;'
-        # 兜底:动态渲染后,把含 runcell/kanaries 的图标连同其可点父容器一并移除(MutationObserver)
-        '&lt;script&gt;(function(){function k(){'
-        'document.querySelectorAll(&quot;img[src*=runcell],img[src*=kanaries],a[href*=runcell],a[href*=kanaries]&quot;)'
-        '.forEach(function(e){var b=e.closest(&quot;button,a,li,[role=button]&quot;)||e.parentElement||e;'
-        'if(b){b.style.display=&quot;none&quot;;}});}'
-        'try{k();}catch(e){}'
-        'new MutationObserver(function(){try{k();}catch(e){}})'
-        '.observe(document.documentElement,{childList:true,subtree:true});})();&lt;/script&gt;'
-    )
-    return html.replace('&lt;body&gt;', '&lt;body&gt;' + hide, 1)
+    # i18nLang='zh-CN':界面中文(经 extraConfig 透传给 graphic-walker,内核默认 en-US)。
+    # pygwalker 固定 0.4.9.9:该版本工具栏无 runcell「AI Agent」促销按钮(0.5+ 才加,注入 CSS/JS
+    # 因 graphic-walker 用 Shadow DOM 压不住),见 requirements-data.txt 的版本锁定说明。
+    return pyg.to_html(df, spec=spec or '', gw_mode=gw_mode, i18nLang='zh-CN')
 
 
 def _vega_chart_prompt(columns: list[str], question: str) -> str:
