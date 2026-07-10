@@ -60,7 +60,7 @@
           </el-select>
           <el-button size="small" icon="Star" :disabled="!rows.length" @click="openSaveTpl">存为模板</el-button>
           <el-button v-if="curTpl" size="small" icon="Delete" link type="danger" @click="delTpl">删</el-button>
-          <span class="muted">前 {{ VIZ_CAP }} 行;拖好后点图内「保存」按钮捕获配置,再「存为模板」。</span>
+          <span class="muted">前 {{ VIZ_CAP }} 行;「AI 生成图表」的结果可「存为模板」;图表工具栏可导出 PNG/SVG。</span>
         </div>
         <div ref="vizWrap" class="viz-wrap" v-loading="vizLoading" element-loading-text="生成分析视图中…">
           <iframe v-if="vizHtml" :srcdoc="vizHtml" class="pyg-frame" :style="{ height: vizH + 'px' }"
@@ -80,7 +80,7 @@
           <el-input v-model="tplDlg.remark" type="textarea" :rows="2" />
         </el-form-item>
         <el-alert v-if="!currentSpec" type="info" :closable="false" show-icon
-          title="当前未捕获图表配置:AI 生成 或 手拖后点图内「保存」按钮 即可捕获;否则模板只存查询,应用时回到空白画布" />
+          title="当前无图表配置:用「AI 生成图表」得到图后再存,即带配置;否则模板只存查询,应用时回到空白画布自行拖拽" />
         <el-alert v-else type="success" :closable="false" show-icon title="将保存:本次查询 + 当前图表配置" />
       </el-form>
       <template #footer>

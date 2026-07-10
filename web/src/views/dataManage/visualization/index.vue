@@ -46,7 +46,7 @@
           </el-select>
           <el-input v-model="ed.remark" placeholder="说明(可选)" style="width: 240px" />
           <el-button type="primary" icon="Check" :disabled="!ed.modelId || !ed.name" @click="save">保存</el-button>
-          <span class="tip">改完图后点图内「保存」按钮捕获配置,再点这里「保存」入库</span>
+          <span class="tip">用「AI 生成图表」得到图后点「保存」入库(手拖的图暂不带配置,后续支持)</span>
         </div>
         <div class="ed-query">
           <div class="q-main">
@@ -79,7 +79,7 @@
         <div class="ed-viz" v-loading="ed.vizLoading" element-loading-text="生成中…">
           <iframe v-if="ed.html" :srcdoc="ed.html" class="pyg-frame"
             sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-downloads" />
-          <el-empty v-else :description="ed.rows.length ? '拖拽分析 或 上方 AI 生成图;改完点图内「保存」捕获配置' : '选模型 → 查询 → 拖拽/AI 生成图'" />
+          <el-empty v-else :description="ed.rows.length ? '拖拽分析 或 上方「AI 生成图表」;AI 生成的图可保存入库' : '选模型 → 查询 → 拖拽/AI 生成图'" />
         </div>
       </div>
     </el-dialog>
