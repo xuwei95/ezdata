@@ -440,10 +440,17 @@ def _build_walker_html(rows: list[dict], spec: str, gw_mode: str = 'explore') ->
     df = pd.DataFrame(rows)
     # i18nLang='zh-CN':界面中文(经 extraConfig 透传给 graphic-walker)。
     html = pyg.to_html(df, spec=spec or '', gw_mode=gw_mode, i18nLang='zh-CN')
-    # 那个跳 kanaries.net 的「agent/文档」按钮在 pygwalker 内层 iframe 的 srcdoc 里,
-    # graphic-walker 的 toolbar.exclude 拦不到 → 往内层文档注入 CSS,隐藏所有指向 kanaries 的外链
-    # (含 docs 按钮 / askviz 促销链接)。保留 export_chart/code/dataframe 导出项。
-    hide = '&lt;style&gt;a[href*=&quot;kanaries&quot;]{display:none!important}&lt;/style&gt;'
+    # 工具栏里跳 kanaries.net(文档,<a href>)/ runcell.dev(agent 图标,<img>+window.open)的按钮
+    # 都在 pygwalker 内层 iframe 的 srcdoc 里,graphic-walker 的 toolbar.exclude 拦不到 →
+    # 往内层文档注入 CSS 隐藏:外链锚点 + runcell/kanaries 的 logo 图标及其直接父容器(连点击区)。
+    # 保留 export_chart/code/dataframe 导出项。
+    hide = (
+        '&lt;style&gt;'
+        'a[href*=&quot;kanaries&quot;],a[href*=&quot;runcell&quot;],'
+        ':has(&gt;img[src*=&quot;runcell&quot;]),:has(&gt;img[src*=&quot;kanaries&quot;]),'
+        'img[src*=&quot;runcell&quot;],img[src*=&quot;kanaries&quot;]'
+        '{display:none!important}&lt;/style&gt;'
+    )
     return html.replace('&lt;body&gt;', '&lt;body&gt;' + hide, 1)
 
 
