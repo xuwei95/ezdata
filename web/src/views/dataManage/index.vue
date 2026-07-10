@@ -78,11 +78,6 @@
               <DataQueryTab :model="current.raw" />
             </el-tab-pane>
 
-            <el-tab-pane label="自助分析" name="walker"
-              v-if="current.nodeType === 'model' && capsOf(current.sourceType).includes('READ')">
-              <SelfAnalysisTab :model="current.raw" />
-            </el-tab-pane>
-
             <el-tab-pane label="数据接口" name="api"
               v-if="current.nodeType === 'model' && capsOf(current.sourceType).includes('GEN_API')">
               <DataInterfaceTab :model="current.raw" />
@@ -134,7 +129,6 @@ import { Splitpanes, Pane } from 'splitpanes'
 import 'splitpanes/dist/splitpanes.css'
 import DataSourceModal from './components/DataSourceModal.vue'
 import DataQueryTab from './components/DataQueryTab.vue'
-import SelfAnalysisTab from './components/SelfAnalysisTab.vue'
 import DataInterfaceTab from './components/DataInterfaceTab.vue'
 import KnowledgeBaseTab from './components/KnowledgeBaseTab.vue'
 import {
@@ -220,7 +214,6 @@ async function onNodeClick(data) {
   const tabOk = {
     info: true, rag: true,
     query: isModel && caps.includes('READ'),
-    walker: isModel && caps.includes('READ'),
     api: isModel && caps.includes('GEN_API'),
   }
   if (!tabOk[activeTab.value]) activeTab.value = 'info'

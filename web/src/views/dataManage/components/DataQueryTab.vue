@@ -27,21 +27,36 @@
       <el-button type="primary" icon="Search" :loading="loading" @click="runNative" style="margin-top: 8px">查询</el-button>
     </div>
 
-    <div class="result-bar">
-      <span class="count" v-if="rows.length">共 {{ rows.length }} 行(虚拟滚动,不分页)</span>
-      <span class="count" v-else>暂无数据</span>
-      <el-button size="small" icon="Download" :disabled="!rows.length" @click="exportExcel">导出 Excel</el-button>
-    </div>
+    <!-- 结果:数据表格 / 可视化 两个子页,数据源都是本次查询结果 -->
+    <el-tabs v-model="subTab" class="result-tabs">
+      <el-tab-pane label="数据表格" name="grid">
+        <div class="result-bar">
+          <span class="count" v-if="rows.length">共 {{ rows.length }} 行(虚拟滚动,不分页)</span>
+          <span class="count" v-else>暂无数据</span>
+          <el-button size="small" icon="Download" :disabled="!rows.length" @click="exportExcel">导出 Excel</el-button>
+        </div>
+        <div class="grid-wrap" ref="gridWrap">
+          <vxe-table :data="rows" :height="gridH" border stripe show-overflow
+            :scroll-y="{ enabled: true, gt: 50 }" :scroll-x="{ enabled: true, gt: 20 }"
+            :column-config="{ resizable: true }" :loading="loading">
+            <vxe-column type="seq" width="60" fixed="left" />
+            <vxe-column v-for="c in columns" :key="c" :field="c" :title="c" :width="170" :resizable="true" />
+          </vxe-table>
+        </div>
+      </el-tab-pane>
 
-    <!-- vxe-table 数据网格:行/列虚拟滚动 + 列可拖宽 + 高度占满底部 -->
-    <div class="grid-wrap" ref="gridWrap">
-      <vxe-table :data="rows" :height="gridH" border stripe show-overflow
-        :scroll-y="{ enabled: true, gt: 50 }" :scroll-x="{ enabled: true, gt: 20 }"
-        :column-config="{ resizable: true }" :loading="loading">
-        <vxe-column type="seq" width="60" fixed="left" />
-        <vxe-column v-for="c in columns" :key="c" :field="c" :title="c" :width="170" :resizable="true" />
-      </vxe-table>
-    </div>
+      <el-tab-pane label="可视化" name="viz">
+        <div class="viz-bar">
+          <span class="muted">用本次查询结果拖拽分析(PyGWalker);最多取前 {{ VIZ_CAP }} 行。图表工具栏可导出 PNG/SVG/配置。</span>
+          <el-button size="small" icon="Refresh" :loading="vizLoading" :disabled="!rows.length" @click="loadViz">刷新</el-button>
+        </div>
+        <div ref="vizWrap" class="viz-wrap" v-loading="vizLoading" element-loading-text="生成分析视图中…">
+          <iframe v-if="vizHtml" :srcdoc="vizHtml" class="pyg-frame" :style="{ height: vizH + 'px' }"
+            sandbox="allow-scripts allow-same-origin allow-popups allow-forms" />
+          <el-empty v-else-if="!vizLoading" :description="vizErr || '先在上方执行查询,再切到本页可视化'" />
+        </div>
+      </el-tab-pane>
+    </el-tabs>
   </div>
 </template>
 
@@ -49,18 +64,27 @@
 import { ref, reactive, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import * as XLSX from 'xlsx'
-import { queryModel, getSampleQuery } from '@/api/dataManage/data'
+import { queryModel, getSampleQuery, walkerHtml } from '@/api/dataManage/data'
 import { getToken } from '@/utils/auth'
 
 const props = defineProps({ model: { type: Object, required: true } })
 
+const VIZ_CAP = 1000
 const native = ref('')
 const rows = ref([])
 const columns = ref([])
 const loading = ref(false)
+const subTab = ref('grid')
 // AI 辅助生成
 const aiq = reactive({ open: false, question: '', output: '', loading: false })
 const AI_BASE = import.meta.env.VITE_APP_BASE_API || ''
+
+// 可视化子页
+const vizHtml = ref('')
+const vizLoading = ref(false)
+const vizErr = ref('')
+const vizWrap = ref()
+const vizH = ref(500)
 
 // 表格高度:按表格实际位置算,正好贴到视口底部(留出横向滚动条空间)
 const gridH = ref(400)
@@ -69,6 +93,11 @@ async function computeH() {
   await nextTick()
   const top = gridWrap.value ? gridWrap.value.getBoundingClientRect().top : 240
   gridH.value = Math.max(240, Math.floor(window.innerHeight - top - 24))
+}
+async function computeVizH() {
+  await nextTick()
+  const top = vizWrap.value ? vizWrap.value.getBoundingClientRect().top : 240
+  vizH.value = Math.max(360, Math.floor(window.innerHeight - top - 16))
 }
 
 function stripFence(t) {
@@ -104,6 +133,7 @@ function exportExcel() {
 async function syncModel() {
   native.value = ''; rows.value = []; columns.value = []
   aiq.open = false; aiq.question = ''; aiq.output = ''
+  vizHtml.value = ''; vizErr.value = ''; subTab.value = 'grid'
   if (!props.model || !props.model.id) return
   // 预填原生查询默认示例(各源对应方言,limit 100)
   try {
@@ -112,15 +142,19 @@ async function syncModel() {
   } catch (e) { /* 忽略 */ }
 }
 watch(() => props.model && props.model.id, syncModel)
-// AI 面板展开/收起、生成开始结束都会改变表格起点,重算高度
 watch(() => aiq.open, computeH)
 watch(() => aiq.loading, computeH)
-onMounted(() => { syncModel(); computeH(); window.addEventListener('resize', computeH) })
-onUnmounted(() => window.removeEventListener('resize', computeH))
+// 切到可视化子页:有数据且尚未生成则自动生成
+watch(subTab, (v) => { if (v === 'viz' && rows.value.length && !vizHtml.value) loadViz() })
+onMounted(() => { syncModel(); computeH(); window.addEventListener('resize', onResize) })
+onUnmounted(() => window.removeEventListener('resize', onResize))
+function onResize() { computeH(); computeVizH() }
 
 function fill(records) {
   rows.value = records || []
   columns.value = rows.value.length ? Object.keys(rows.value[0]) : []
+  vizHtml.value = ''  // 查询结果变了,作废旧可视化
+  if (subTab.value === 'viz' && rows.value.length) loadViz()
 }
 
 // 执行原生查询(SQL 串或 ES DSL JSON,自动识别)
@@ -137,6 +171,22 @@ async function runNative() {
     ElMessage.error('查询失败')
   } finally {
     loading.value = false
+  }
+}
+
+// 用当前查询结果作数据源生成 PyGWalker 分析视图
+async function loadViz() {
+  if (!rows.value.length) { vizErr.value = '先执行查询获取数据'; return }
+  vizLoading.value = true; vizErr.value = ''; vizHtml.value = ''
+  try {
+    const res = await walkerHtml(props.model.id, { rows: rows.value.slice(0, VIZ_CAP) })
+    vizHtml.value = res.data.html || ''
+    await computeVizH()
+  } catch (e) {
+    vizErr.value = e?.msg || e?.message || '生成失败'
+    ElMessage.error(vizErr.value)
+  } finally {
+    vizLoading.value = false
   }
 }
 
@@ -164,8 +214,13 @@ function applyQuery() {
 .native-bar .bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
 .native-bar .muted { color: #909399; font-size: 12px; }
 .ai-panel { margin-top: 8px; padding: 10px; border: 1px dashed #c0c4cc; border-radius: 6px; background: #fafafa; }
-.result-bar { display: flex; align-items: center; justify-content: space-between; margin: 10px 0 6px; }
+.result-tabs { margin-top: 8px; }
+.result-bar { display: flex; align-items: center; justify-content: space-between; margin: 2px 0 6px; }
 .count { color: #909399; font-size: 13px; }
+.viz-bar { display: flex; align-items: center; justify-content: space-between; margin: 2px 0 8px; }
+.viz-bar .muted { color: #909399; font-size: 12px; }
+.viz-wrap { min-height: 360px; }
+.pyg-frame { width: 100%; border: 1px solid #ebeef5; border-radius: 6px; background: #fff; }
 .ai-out {
   margin: 8px 0; padding: 8px 10px; max-height: 220px; overflow: auto;
   background: #1e1e1e; color: #d4d4d4; border-radius: 4px;

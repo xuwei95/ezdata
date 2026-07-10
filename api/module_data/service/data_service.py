@@ -492,29 +492,33 @@ class DataQueryService:
     @classmethod
     async def walker_html(
         cls, db: AsyncSession, m_id: str, spec: str = '', filters: list[dict] | None = None,
-        gw_mode: str = 'explore',
+        rows: list[dict] | None = None, gw_mode: str = 'explore',
     ) -> str:
         """数据模型 → PyGWalker 拖拽式自助分析,返回自包含 HTML(前端 iframe 内联)。
 
-        取数与「数据查询」同一 _load 授权面,并限行 _WALKER_ROW_CAP(PyGWalker 在浏览器端计算):
-        - 传 filters([{field,op,value}]):走统一条件查询(需该源支持 GEN_API),先筛后进分析;
-        - 不传:走该源 sample_query(只读原生查询)取样本。
-        spec 为用户上次拖拽出的图表配置(JSON,可选),空则空白画布。
+        取数(限行 _WALKER_ROW_CAP,PyGWalker 在浏览器端计算),优先级 rows > filters > 样本:
+        - 传 rows:直接用前端传来的「查询结果」作数据源(数据查询 Tab 的可视化子页用);
+        - 传 filters([{field,op,value}]):统一条件查询(需该源支持 GEN_API);
+        - 都不传:该源 sample_query(只读原生查询)取样本。
+        spec=已保存的图表配置(可选);gw_mode=explore/renderer/filter_renderer/table。
         """
-        m, handler = await cls._load(db, m_id)
-        if filters:
-            cls._check_fields(m, filters)  # 字段白名单,防注入
-            if not handler.has(Capability.GEN_API):
-                raise ServiceException(message=f'{handler.name} 不支持条件筛选,请清空筛选后再分析')
-            res = await run_in_threadpool(handler.search, m.object_name, filters, 1, _WALKER_ROW_CAP)
-            records = res['records']
+        if rows is not None:
+            records = rows[:_WALKER_ROW_CAP]  # 用查询结果作数据源,不再回查
         else:
-            native = handler.sample_query(m.object_name or '', _WALKER_ROW_CAP)
-            try:
-                assert_readonly_sql(native, handler.family)  # SQL 文本族只读护栏(非 SQL 源自动跳过)
-            except ValueError as e:
-                raise ServiceException(message=str(e)) from None
-            records = await run_in_threadpool(handler.query, native, None, _WALKER_ROW_CAP)
+            m, handler = await cls._load(db, m_id)
+            if filters:
+                cls._check_fields(m, filters)  # 字段白名单,防注入
+                if not handler.has(Capability.GEN_API):
+                    raise ServiceException(message=f'{handler.name} 不支持条件筛选,请清空筛选后再分析')
+                res = await run_in_threadpool(handler.search, m.object_name, filters, 1, _WALKER_ROW_CAP)
+                records = res['records']
+            else:
+                native = handler.sample_query(m.object_name or '', _WALKER_ROW_CAP)
+                try:
+                    assert_readonly_sql(native, handler.family)  # SQL 文本族只读护栏(非 SQL 源自动跳过)
+                except ValueError as e:
+                    raise ServiceException(message=str(e)) from None
+                records = await run_in_threadpool(handler.query, native, None, _WALKER_ROW_CAP)
         return await run_in_threadpool(_build_walker_html, json_safe_rows(records), spec, gw_mode)
 
     @classmethod
