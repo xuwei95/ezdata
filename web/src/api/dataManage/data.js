@@ -75,9 +75,20 @@ export function getSampleQuery(id) {
 export function walkerHtml(id, data) {
   return request({ url: `/data/model/${id}/walker`, method: 'post', data, timeout: 120000 })
 }
-// 自助分析·AI 生成图表:data={question, rows};系统 LLM 生成图表配置并预填,返回可编辑 HTML
+// 自助分析·AI 生成图表:data={question, rows};返回 {html, spec},spec 可存为模板复用
 export function walkerAiHtml(id, data) {
   return request({ url: `/data/model/${id}/walker/ai`, method: 'post', data, timeout: 120000 })
+}
+
+// ---------------- 分析模板(取数 + 图表配置,可复用)----------------
+export function listAnalysisTemplate(modelId) {
+  return request({ url: '/data/analysis-template/list', method: 'get', params: { modelId } })
+}
+export function saveAnalysisTemplate(data) {
+  return request({ url: '/data/analysis-template', method: 'post', data })
+}
+export function delAnalysisTemplate(ids) {
+  return request({ url: '/data/analysis-template/' + ids, method: 'delete' })
 }
 
 // ---------------- ETL 调试 ----------------

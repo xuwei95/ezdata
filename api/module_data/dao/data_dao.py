@@ -4,7 +4,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.vo import PageModel
-from module_data.entity.do.data_do import DataModel, DataSource
+from module_data.entity.do.data_do import DataAnalysisTemplate, DataModel, DataSource
 from module_data.entity.vo.data_vo import DataModelQuery, DataSourceQuery
 from utils.page_util import PageUtil
 
@@ -93,3 +93,36 @@ class DataModelDao:
     @classmethod
     async def remove(cls, db: AsyncSession, ids: list[str]) -> None:
         await db.execute(delete(DataModel).where(DataModel.id.in_(ids)))
+
+
+class AnalysisTemplateDao:
+    """数据分析模板 CRUD(租户隔离由 TenantMixin/会话过滤自动处理)。"""
+
+    @classmethod
+    async def get_by_id(cls, db: AsyncSession, tid: str) -> DataAnalysisTemplate | None:
+        return (await db.execute(select(DataAnalysisTemplate).where(DataAnalysisTemplate.id == tid))).scalars().first()
+
+    @classmethod
+    async def get_list(cls, db: AsyncSession, model_id: str | None = None) -> list[DataAnalysisTemplate]:
+        stmt = select(DataAnalysisTemplate).order_by(DataAnalysisTemplate.update_time.desc())
+        if model_id:
+            stmt = stmt.where(DataAnalysisTemplate.model_id == model_id)
+        return list((await db.execute(stmt)).scalars().all())
+
+    @classmethod
+    async def add(cls, db: AsyncSession, obj: dict[str, Any]) -> DataAnalysisTemplate:
+        do = DataAnalysisTemplate(**obj)
+        db.add(do)
+        await db.flush()
+        return do
+
+    @classmethod
+    async def edit(cls, db: AsyncSession, tid: str, data: dict[str, Any]) -> None:
+        do = await cls.get_by_id(db, tid)
+        if do:
+            for k, v in data.items():
+                setattr(do, k, v)
+
+    @classmethod
+    async def remove(cls, db: AsyncSession, ids: list[str]) -> None:
+        await db.execute(delete(DataAnalysisTemplate).where(DataAnalysisTemplate.id.in_(ids)))

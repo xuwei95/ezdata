@@ -60,3 +60,21 @@ class DataModel(Base, TenantMixin):
     create_time: Mapped[datetime | None] = mapped_column(default=datetime.now, nullable=True, comment='创建时间')
     update_by: Mapped[str | None] = mapped_column(String(64), nullable=True, server_default="''", comment='更新者')
     update_time: Mapped[datetime | None] = mapped_column(default=datetime.now, nullable=True, comment='更新时间')
+
+
+class DataAnalysisTemplate(Base, TenantMixin):
+    """数据分析模板:保存一次「取数 + 图表配置」,可复用/复现(后续大屏 widget 的原子)。"""
+
+    __tablename__ = 'data_analysis_template'
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, comment='主键')
+    name: Mapped[str | None] = mapped_column(String(200), nullable=True, server_default="''", comment='模板名称')
+    model_id: Mapped[str | None] = mapped_column(String(36), nullable=True, comment='数据模型ID')
+    model_name: Mapped[str | None] = mapped_column(String(200), nullable=True, comment='数据模型名(冗余,展示用)')
+    query: Mapped[dict | None] = mapped_column(JSON, nullable=True, comment='取数配置 {type,native/filters/question}')
+    chart_spec: Mapped[dict | None] = mapped_column(JSON, nullable=True, comment='graphic-walker 图表配置(visSpec)')
+    remark: Mapped[str | None] = mapped_column(String(500), nullable=True, server_default="''", comment='备注')
+    create_by: Mapped[str | None] = mapped_column(String(64), nullable=True, server_default="''", comment='创建者')
+    create_time: Mapped[datetime | None] = mapped_column(default=datetime.now, nullable=True, comment='创建时间')
+    update_by: Mapped[str | None] = mapped_column(String(64), nullable=True, server_default="''", comment='更新者')
+    update_time: Mapped[datetime | None] = mapped_column(default=datetime.now, nullable=True, comment='更新时间')

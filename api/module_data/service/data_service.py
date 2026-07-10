@@ -19,9 +19,10 @@ from ezdata.utils.etl_util import (
     short_err,
     stream_statement,
 )
-from module_data.dao.data_dao import DataModelDao, DataSourceDao
+from module_data.dao.data_dao import AnalysisTemplateDao, DataModelDao, DataSourceDao
 from module_data.entity.do.data_do import DataModel, DataSource
 from module_data.entity.vo.data_vo import (
+    AnalysisTemplateVo,
     DataModelQuery,
     DataModelVo,
     DataSourceQuery,
@@ -567,7 +568,7 @@ class DataQueryService:
         question: str,
         rows: list[dict] | None = None,
         gw_mode: str = 'explore',
-    ) -> str:
+    ) -> tuple[str, str]:
         """自然语言 + 查询结果 → 复用系统 LLM 生成 Vega-Lite → 转 graphic-walker spec → 出可编辑图。
 
         全程走 ezdata 自己的模型(_ai_complete,库内兜底 LLM_*),不依赖 Kanaries 云、数据不外发;
@@ -581,7 +582,8 @@ class DataQueryService:
         columns = list(records[0].keys())
         vega_text = await _ai_complete(db, _vega_chart_prompt(columns, question))
         spec = await run_in_threadpool(_vega_to_gw_spec, records, vega_text)
-        return await run_in_threadpool(_build_walker_html, json_safe_rows(records), spec, gw_mode)
+        html = await run_in_threadpool(_build_walker_html, json_safe_rows(records), spec, gw_mode)
+        return html, spec  # spec(graphic-walker visSpec JSON 串)供前端「存为模板」复用
 
     @classmethod
     async def _kb_context(cls, db: AsyncSession, m: Any, question: str) -> str:
@@ -891,3 +893,41 @@ class OpenDataService:
         page = int(params.get('page', 1))
         pagesize = min(int(params.get('pagesize', 20)), 200)  # 对外强制上限
         return await run_in_threadpool(handler.search, m.object_name, filters, page, pagesize)
+
+
+class AnalysisTemplateService:
+    """数据分析模板:保存/复用「取数 + 图表配置」。"""
+
+    @classmethod
+    async def get_list(cls, db: AsyncSession, model_id: str | None = None) -> list[AnalysisTemplateVo]:
+        rows = await AnalysisTemplateDao.get_list(db, model_id)
+        return [AnalysisTemplateVo.model_validate(r) for r in rows]
+
+    @classmethod
+    async def save(cls, db: AsyncSession, vo: AnalysisTemplateVo, operator: str) -> str:
+        if not (vo.name or '').strip():
+            raise ServiceException(message='请填写模板名称')
+        data = {
+            'name': vo.name,
+            'model_id': vo.model_id,
+            'model_name': vo.model_name,
+            'query': vo.query,
+            'chart_spec': vo.chart_spec,
+            'remark': vo.remark,
+        }
+        if vo.id:
+            data['update_by'] = operator
+            await AnalysisTemplateDao.edit(db, vo.id, data)
+            tid = vo.id
+        else:
+            data['id'] = uuid.uuid4().hex
+            data['create_by'] = operator
+            await AnalysisTemplateDao.add(db, data)
+            tid = data['id']
+        await db.commit()
+        return tid
+
+    @classmethod
+    async def delete(cls, db: AsyncSession, ids: list[str]) -> None:
+        await AnalysisTemplateDao.remove(db, [i for i in ids if i])
+        await db.commit()

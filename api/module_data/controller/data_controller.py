@@ -12,6 +12,7 @@ from common.vo import PageResponseModel
 from module_admin.entity.vo.user_vo import CurrentUserModel
 from module_data.entity.vo.data_vo import (
     AiQueryReq,
+    AnalysisTemplateVo,
     DataModelQuery,
     DataModelVo,
     DataSourceQuery,
@@ -26,6 +27,7 @@ from module_data.entity.vo.data_vo import (
     TestConnReq,
 )
 from module_data.service.data_service import (
+    AnalysisTemplateService,
     DataMetaService,
     DataModelService,
     DataQueryService,
@@ -269,14 +271,48 @@ async def model_walker_ai(
     body: dict,
     db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
-    html = await DataQueryService.walker_ai_html(
+    html, spec = await DataQueryService.walker_ai_html(
         db,
         m_id,
         question=body.get('question', ''),
         rows=body.get('rows'),
         gw_mode=body.get('mode') or 'explore',
     )
-    return ResponseUtil.success(data={'html': html})
+    return ResponseUtil.success(data={'html': html, 'spec': spec})
+
+
+# ---------------- 数据分析模板(取数 + 图表配置,可复用)----------------
+@data_controller.get(
+    '/analysis-template/list', summary='分析模板列表', dependencies=[UserInterfaceAuthDependency('data:query')]
+)
+async def analysis_template_list(
+    db: Annotated[AsyncSession, DBSessionDependency()],
+    model_id: Annotated[str, Query()] = '',
+) -> Response:
+    return ResponseUtil.success(data=await AnalysisTemplateService.get_list(db, model_id or None))
+
+
+@data_controller.post(
+    '/analysis-template', summary='保存分析模板', dependencies=[UserInterfaceAuthDependency('data:query')]
+)
+async def analysis_template_save(
+    vo: AnalysisTemplateVo,
+    db: Annotated[AsyncSession, DBSessionDependency()],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
+) -> Response:
+    tid = await AnalysisTemplateService.save(db, vo, current_user.user.user_name)
+    return ResponseUtil.success(data={'id': tid}, msg='已保存')
+
+
+@data_controller.delete(
+    '/analysis-template/{ids}', summary='删除分析模板', dependencies=[UserInterfaceAuthDependency('data:query')]
+)
+async def analysis_template_delete(
+    ids: Annotated[str, Path()],
+    db: Annotated[AsyncSession, DBSessionDependency()],
+) -> Response:
+    await AnalysisTemplateService.delete(db, ids.split(','))
+    return ResponseUtil.success(msg='已删除')
 
 
 @data_controller.post(

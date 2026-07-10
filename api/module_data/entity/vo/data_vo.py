@@ -178,3 +178,20 @@ class DeleteReq(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     ids: str = Field(description='逗号分隔的主键')
+
+
+class AnalysisTemplateVo(BaseModel):
+    """数据分析模板 VO。"""
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True, from_attributes=True)
+
+    id: str | None = Field(default=None, description='主键')
+    name: str | None = Field(default=None, description='模板名称')
+    model_id: str | None = Field(default=None, description='数据模型ID')
+    model_name: str | None = Field(default=None, description='数据模型名')
+    query: dict | None = Field(default=None, description='取数配置 {type,native/filters/question}')
+    chart_spec: Any | None = Field(default=None, description='graphic-walker 图表配置(visSpec)')
+    remark: str | None = Field(default=None, description='备注')
+    create_by: str | None = Field(default=None, description='创建者')
+    create_time: datetime | None = Field(default=None, description='创建时间')
+    update_time: datetime | None = Field(default=None, description='更新时间')

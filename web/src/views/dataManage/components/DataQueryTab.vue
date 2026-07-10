@@ -53,7 +53,14 @@
             :disabled="!rows.length" @click="genViz">AI 生成图表</el-button>
           <el-button size="small" icon="Refresh" :loading="vizLoading" :disabled="!rows.length"
             @click="loadViz">重置图表</el-button>
-          <span class="muted">用本次查询结果(前 {{ VIZ_CAP }} 行);图表工具栏可导出 PNG/SVG/配置。</span>
+          <el-divider direction="vertical" />
+          <el-select v-model="curTpl" size="small" placeholder="应用模板" clearable filterable style="width: 150px"
+            :disabled="!templates.length" @change="applyTemplate">
+            <el-option v-for="t in templates" :key="t.id" :label="t.name" :value="t.id" />
+          </el-select>
+          <el-button size="small" icon="Star" :disabled="!rows.length" @click="openSaveTpl">存为模板</el-button>
+          <el-button v-if="curTpl" size="small" icon="Delete" link type="danger" @click="delTpl">删</el-button>
+          <span class="muted">前 {{ VIZ_CAP }} 行;图表工具栏可导出 PNG/SVG/配置。</span>
         </div>
         <div ref="vizWrap" class="viz-wrap" v-loading="vizLoading" element-loading-text="生成分析视图中…">
           <iframe v-if="vizHtml" :srcdoc="vizHtml" class="pyg-frame" :style="{ height: vizH + 'px' }"
@@ -62,14 +69,36 @@
         </div>
       </el-tab-pane>
     </el-tabs>
+
+    <!-- 存为分析模板 -->
+    <el-dialog v-model="tplDlg.visible" title="保存为分析模板" width="440px" append-to-body>
+      <el-form label-width="72px">
+        <el-form-item label="模板名称" required>
+          <el-input v-model="tplDlg.name" placeholder="如:各城市销售额柱状图" />
+        </el-form-item>
+        <el-form-item label="说明">
+          <el-input v-model="tplDlg.remark" type="textarea" :rows="2" />
+        </el-form-item>
+        <el-alert v-if="!currentSpec" type="info" :closable="false" show-icon
+          title="当前无 AI 生成的图表配置:模板只存查询,应用时恢复数据到空白画布再自行拖拽" />
+        <el-alert v-else type="success" :closable="false" show-icon title="将保存:本次查询 + 当前图表配置" />
+      </el-form>
+      <template #footer>
+        <el-button type="primary" @click="doSaveTpl">保存</el-button>
+        <el-button @click="tplDlg.visible = false">取消</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup name="DataQueryTab">
 import { ref, reactive, watch, onMounted, onUnmounted, nextTick } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import * as XLSX from 'xlsx'
-import { queryModel, getSampleQuery, walkerHtml, walkerAiHtml } from '@/api/dataManage/data'
+import {
+  queryModel, getSampleQuery, walkerHtml, walkerAiHtml,
+  listAnalysisTemplate, saveAnalysisTemplate, delAnalysisTemplate
+} from '@/api/dataManage/data'
 import { getToken } from '@/utils/auth'
 
 const props = defineProps({ model: { type: Object, required: true } })
@@ -91,6 +120,11 @@ const vizErr = ref('')
 const vizQ = ref('')
 const vizWrap = ref()
 const vizH = ref(500)
+const currentSpec = ref('')   // 当前图表配置(AI 生成的 gw spec JSON 串;空=空白/手拖)
+// 分析模板
+const templates = ref([])
+const curTpl = ref('')
+const tplDlg = reactive({ visible: false, name: '', remark: '' })
 
 // 表格高度:按表格实际位置算,正好贴到视口底部(留出横向滚动条空间)
 const gridH = ref(400)
@@ -140,7 +174,9 @@ async function syncModel() {
   native.value = ''; rows.value = []; columns.value = []
   aiq.open = false; aiq.question = ''; aiq.output = ''
   vizHtml.value = ''; vizErr.value = ''; subTab.value = 'grid'
+  currentSpec.value = ''; curTpl.value = ''; templates.value = []
   if (!props.model || !props.model.id) return
+  loadTemplates()
   // 预填原生查询默认示例(各源对应方言,limit 100)
   try {
     const q = (await getSampleQuery(props.model.id)).data.native
@@ -156,11 +192,12 @@ onMounted(() => { syncModel(); computeH(); window.addEventListener('resize', onR
 onUnmounted(() => window.removeEventListener('resize', onResize))
 function onResize() { computeH(); computeVizH() }
 
+let suppressAutoViz = false  // 应用模板时抑制 fill 的自动空白渲染,避免与模板 spec 渲染竞态
 function fill(records) {
   rows.value = records || []
   columns.value = rows.value.length ? Object.keys(rows.value[0]) : []
   vizHtml.value = ''  // 查询结果变了,作废旧可视化
-  if (subTab.value === 'viz' && rows.value.length) loadViz()
+  if (subTab.value === 'viz' && rows.value.length && !suppressAutoViz) loadViz()
 }
 
 // 执行原生查询(SQL 串或 ES DSL JSON,自动识别)
@@ -180,23 +217,24 @@ async function runNative() {
   }
 }
 
-// 用当前查询结果作数据源生成 PyGWalker 分析视图
-async function loadViz() {
+// 渲染 PyGWalker 视图:spec 为空=空白画布,否则预填该图表配置(仍可继续拖)
+async function renderViz(spec = '') {
   if (!rows.value.length) { vizErr.value = '先执行查询获取数据'; return }
   vizLoading.value = true; vizErr.value = ''; vizHtml.value = ''
   try {
-    const res = await walkerHtml(props.model.id, { rows: rows.value.slice(0, VIZ_CAP) })
+    const res = await walkerHtml(props.model.id, { rows: rows.value.slice(0, VIZ_CAP), spec })
     vizHtml.value = res.data.html || ''
+    currentSpec.value = spec || ''
     await computeVizH()
   } catch (e) {
-    vizErr.value = e?.msg || e?.message || '生成失败'
-    ElMessage.error(vizErr.value)
-  } finally {
-    vizLoading.value = false
-  }
+    vizErr.value = e?.msg || e?.message || '生成失败'; ElMessage.error(vizErr.value)
+  } finally { vizLoading.value = false }
 }
 
-// AI 一句话生成图表(用当前查询结果作数据源;系统 LLM 生成配置,预填后仍可拖拽微调)
+// 重置图表:用当前数据回到空白画布(清掉图表配置/模板选择)
+function loadViz() { curTpl.value = ''; renderViz('') }
+
+// AI 一句话生成图表(系统 LLM 生成配置,预填后仍可拖;记下 spec 以便存模板)
 async function genViz() {
   if (!rows.value.length) { ElMessage.warning('先执行查询获取数据'); return }
   if (!vizQ.value.trim()) { ElMessage.warning('请描述你想要的图表'); return }
@@ -204,13 +242,50 @@ async function genViz() {
   try {
     const res = await walkerAiHtml(props.model.id, { question: vizQ.value, rows: rows.value.slice(0, VIZ_CAP) })
     vizHtml.value = res.data.html || ''
+    currentSpec.value = res.data.spec || ''
     await computeVizH()
   } catch (e) {
-    vizErr.value = e?.msg || e?.message || '生成失败'
-    ElMessage.error(vizErr.value)
-  } finally {
-    vizLoading.value = false
-  }
+    vizErr.value = e?.msg || e?.message || '生成失败'; ElMessage.error(vizErr.value)
+  } finally { vizLoading.value = false }
+}
+
+// ---------------- 分析模板 ----------------
+async function loadTemplates() {
+  if (!props.model || !props.model.id) { templates.value = []; return }
+  try { templates.value = (await listAnalysisTemplate(props.model.id)).data || [] } catch (e) { /* 忽略 */ }
+}
+function openSaveTpl() { tplDlg.name = ''; tplDlg.remark = ''; tplDlg.visible = true }
+async function doSaveTpl() {
+  if (!tplDlg.name.trim()) { ElMessage.warning('请填写模板名称'); return }
+  await saveAnalysisTemplate({
+    name: tplDlg.name.trim(),
+    modelId: props.model.id,
+    modelName: props.model.name,
+    query: { type: 'native', native: native.value },
+    chartSpec: currentSpec.value ? JSON.parse(currentSpec.value) : null,
+    remark: tplDlg.remark
+  })
+  ElMessage.success('已保存为模板')
+  tplDlg.visible = false
+  loadTemplates()
+}
+// 应用模板:回填查询 → 取数 → 用模板图表配置渲染
+async function applyTemplate(tid) {
+  if (!tid) return
+  const t = templates.value.find(x => x.id === tid)
+  if (!t) return
+  native.value = (t.query && t.query.native) || native.value
+  subTab.value = 'viz'
+  suppressAutoViz = true
+  await runNative()
+  suppressAutoViz = false
+  if (rows.value.length) await renderViz(t.chartSpec ? JSON.stringify(t.chartSpec) : '')
+}
+async function delTpl() {
+  if (!curTpl.value) return
+  try { await ElMessageBox.confirm('删除该模板?', '提示', { type: 'warning' }) } catch (e) { return }
+  await delAnalysisTemplate(curTpl.value)
+  ElMessage.success('已删除'); curTpl.value = ''; loadTemplates()
 }
 
 // AI 流式生成查询(辅助:打在下方,确认后采用到查询框)
