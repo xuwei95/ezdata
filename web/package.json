@@ -28,6 +28,7 @@
     "@antv/x6-plugin-snapline": "^2.1.7",
     "@antv/x6-vue-shape": "^2.1.2",
     "@element-plus/icons-vue": "2.3.2",
+    "@kanaries/vue-graphic-walker": "^0.0.1",
     "@vueup/vue-quill": "1.2.0",
     "@vueuse/core": "14.1.0",
     "ant-design-vue": "^4.1.1",
