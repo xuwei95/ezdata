@@ -52,7 +52,7 @@
           <el-button size="small" type="primary" icon="MagicStick" :loading="vizLoading"
             :disabled="!rows.length" @click="genViz">AI 生成图表</el-button>
           <el-button size="small" icon="Refresh" :loading="vizLoading" :disabled="!rows.length"
-            @click="loadViz">空白拖拽</el-button>
+            @click="loadViz">重置图表</el-button>
           <span class="muted">用本次查询结果(前 {{ VIZ_CAP }} 行);图表工具栏可导出 PNG/SVG/配置。</span>
         </div>
         <div ref="vizWrap" class="viz-wrap" v-loading="vizLoading" element-loading-text="生成分析视图中…">
