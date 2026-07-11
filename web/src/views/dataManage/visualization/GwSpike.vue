@@ -1,23 +1,27 @@
 <template>
   <div class="gw-spike">
     <div class="spike-tip">
-      <el-tag type="warning" size="small">试验:原生 graphic-walker(Vue 组件,非 iframe)</el-tag>
-      <span class="muted">验证点:能否拖拽出图 / 中文 / 比 iframe 快</span>
+      <el-tag type="warning" size="small">试验:原生 graphic-walker 0.4(veaury 引 React 组件)</el-tag>
+      <span class="muted">验证点:能渲染 / 中文 / 样式正常 / 比 iframe 快</span>
     </div>
-    <VueGraphicWalker v-if="rows.length" :key="rows.length" :dataSource="rows" :rawFields="fields"
-      i18nLang="zh-CN" :toolbar="toolbar" style="height: 520px" />
+    <GW v-if="rows.length" :key="rows.length" :data="rows" :fields="fields"
+      i18nLang="zh-CN" appearance="light" :style="{ height: '520px' }" />
     <el-empty v-else description="先查询出数据" />
   </div>
 </template>
 
 <script setup name="GwSpike">
 import { computed } from 'vue'
-import { VueGraphicWalker } from '@kanaries/vue-graphic-walker'
+import { applyPureReactInVue } from 'veaury'
+import { GraphicWalker } from '@kanaries/graphic-walker'
+import '@kanaries/graphic-walker/dist/style.css'
+
+// 用 veaury 把 React 组件 GraphicWalker 包成 Vue 组件(预构建 npm 包,无需改 vite 插件)
+const GW = applyPureReactInVue(GraphicWalker)
 
 const props = defineProps({ rows: { type: Array, default: () => [] } })
-const toolbar = { exclude: [] }
 
-// 由行数据首行推断字段类型:数字→度量(quantitative),其余→维度(nominal)
+// 由首行推断字段:数字→度量,其余→维度(graphic-walker 0.4 用 data + fields)
 const fields = computed(() => {
   const r = props.rows[0] || {}
   return Object.keys(r).map((k) => {
