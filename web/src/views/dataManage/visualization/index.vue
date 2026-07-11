@@ -75,16 +75,11 @@
           <el-button size="small" type="primary" icon="MagicStick" :loading="ed.vizLoading"
             :disabled="!ed.rows.length" @click="genChart">AI 生成图表</el-button>
           <el-button size="small" icon="Refresh" :disabled="!ed.rows.length" @click="renderEditor('')">重置图表</el-button>
-          <el-button size="small" :type="ed.spike ? 'warning' : 'default'" @click="ed.spike = !ed.spike">
-            {{ ed.spike ? '← 回 iframe' : '🧪 原生渲染试验' }}</el-button>
         </div>
         <div class="ed-viz" v-loading="ed.vizLoading" element-loading-text="生成中…">
-          <GwSpike v-if="ed.spike" :rows="ed.rows" />
-          <template v-else>
-            <iframe v-if="ed.html" :srcdoc="ed.html" class="pyg-frame"
-              sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-downloads" />
-            <el-empty v-else :description="ed.rows.length ? '拖拽分析 或 上方「AI 生成图表」;AI 生成的图可保存入库' : '选模型 → 查询 → 拖拽/AI 生成图'" />
-          </template>
+          <iframe v-if="ed.html" :srcdoc="ed.html" class="pyg-frame"
+            sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-downloads" />
+          <el-empty v-else :description="ed.rows.length ? '拖拽分析 或 上方「AI 生成图表」;AI 生成的图可保存入库' : '选模型 → 查询 → 拖拽/AI 生成图'" />
         </div>
       </div>
     </el-dialog>
@@ -102,10 +97,8 @@
 </template>
 
 <script setup name="Visualization">
-import { ref, reactive, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-// 懒加载:原生 graphic-walker 试验组件(若该 alpha 包构建失败,只影响此区、不拖垮页面)
-const GwSpike = defineAsyncComponent(() => import('./GwSpike.vue'))
 import {
   listModel, listAnalysisTemplate, saveAnalysisTemplate, delAnalysisTemplate,
   getSampleQuery, queryModel, walkerHtml, walkerAiHtml
@@ -120,7 +113,7 @@ const filterModel = ref('')
 
 const ed = reactive({
   visible: false, id: '', name: '', modelId: '', modelName: '', remark: '',
-  native: '', chartQ: '', rows: [], spec: '', html: '', loading: false, vizLoading: false, spike: false
+  native: '', chartQ: '', rows: [], spec: '', html: '', loading: false, vizLoading: false
 })
 const aiq = reactive({ open: false, question: '', output: '', loading: false })
 const pv = reactive({ visible: false, name: '', html: '', loading: false, err: '' })
@@ -155,7 +148,7 @@ async function loadList() {
 async function openEditor(row) {
   Object.assign(ed, {
     visible: true, id: row?.id || '', name: row?.name || '', modelId: row?.modelId || '',
-    modelName: row?.modelName || '', remark: row?.remark || '', chartQ: '', spike: false,
+    modelName: row?.modelName || '', remark: row?.remark || '', chartQ: '',
     native: (row?.query && row.query.native) || '', rows: [], html: '', vizLoading: false,
     spec: row?.chartSpec ? JSON.stringify(row.chartSpec) : ''
   })
