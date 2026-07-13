@@ -12,6 +12,7 @@ from common.vo import PageResponseModel
 from module_admin.entity.vo.user_vo import CurrentUserModel
 from module_data.entity.vo.data_vo import (
     AiQueryReq,
+    AnalysisTemplateVo,
     DataModelQuery,
     DataModelVo,
     DataSourceQuery,
@@ -26,6 +27,7 @@ from module_data.entity.vo.data_vo import (
     TestConnReq,
 )
 from module_data.service.data_service import (
+    AnalysisTemplateService,
     DataMetaService,
     DataModelService,
     DataQueryService,
@@ -243,15 +245,76 @@ async def model_sample_query(
 
 
 @data_controller.post(
-    '/model/{m_id}/walker', summary='自助分析(PyGWalker HTML)', dependencies=[UserInterfaceAuthDependency('data:query')]
+    '/model/{m_id}/ai-chart',
+    summary='AI 生成图表配置(自然语言 + 数据列 → EchartsBuilder cfg)',
+    dependencies=[UserInterfaceAuthDependency('data:query')],
 )
-async def model_walker(
+async def model_ai_chart(
     m_id: Annotated[str, Path()],
     body: dict,
     db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
-    html = await DataQueryService.walker_html(db, m_id, spec=body.get('spec', ''))
-    return ResponseUtil.success(data={'html': html})
+    cfg = await DataQueryService.ai_chart(db, m_id, body.get('question', ''), body.get('columns') or [])
+    return ResponseUtil.success(data={'cfg': cfg})
+
+
+# ---------------- 数据分析模板(取数 + 图表配置,可复用)----------------
+@data_controller.get(
+    '/analysis-template/list', summary='分析模板列表', dependencies=[UserInterfaceAuthDependency('data:query')]
+)
+async def analysis_template_list(
+    db: Annotated[AsyncSession, DBSessionDependency()],
+    model_id: Annotated[str, Query()] = '',
+) -> Response:
+    return ResponseUtil.success(data=await AnalysisTemplateService.get_list(db, model_id or None))
+
+
+@data_controller.post(
+    '/analysis-template', summary='保存分析模板', dependencies=[UserInterfaceAuthDependency('data:query')]
+)
+async def analysis_template_save(
+    vo: AnalysisTemplateVo,
+    db: Annotated[AsyncSession, DBSessionDependency()],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
+) -> Response:
+    tid = await AnalysisTemplateService.save(db, vo, current_user.user.user_name)
+    return ResponseUtil.success(data={'id': tid}, msg='已保存')
+
+
+@data_controller.post(
+    '/analysis-template/from-chart',
+    summary='对话图表存为看板(自动挂 custom_query 模型)',
+    dependencies=[UserInterfaceAuthDependency('data:query')],
+)
+async def analysis_template_from_chart(
+    body: dict,
+    db: Annotated[AsyncSession, DBSessionDependency()],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
+) -> Response:
+    """统一存看板入口:带 code(代码取数的图)→ LLM 转;否则用 native+chartSpec(plot_chart 声明式图)直存。"""
+    operator = current_user.user.user_name
+    if body.get('code'):
+        tid = await AnalysisTemplateService.save_from_code(
+            db, body.get('name', ''), body.get('datasourceCode', ''),
+            body['code'], body.get('question', ''), body.get('remark', ''), operator,
+        )
+    else:
+        tid = await AnalysisTemplateService.save_from_chart(
+            db, body.get('name', ''), body.get('datasourceCode', ''),
+            body.get('native'), body.get('chartSpec'), body.get('remark', ''), operator,
+        )
+    return ResponseUtil.success(data={'id': tid}, msg='已存为看板')
+
+
+@data_controller.delete(
+    '/analysis-template/{ids}', summary='删除分析模板', dependencies=[UserInterfaceAuthDependency('data:query')]
+)
+async def analysis_template_delete(
+    ids: Annotated[str, Path()],
+    db: Annotated[AsyncSession, DBSessionDependency()],
+) -> Response:
+    await AnalysisTemplateService.delete(db, ids.split(','))
+    return ResponseUtil.success(msg='已删除')
 
 
 @data_controller.post(

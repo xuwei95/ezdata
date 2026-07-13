@@ -54,7 +54,18 @@
         <!-- 产物:图表(iframe echarts) / 表格(vxe-table) -->
         <div v-else-if="b.type === 'artifact'" class="ai-artifact">
           <div class="artifact-bar">
-            <span class="artifact-kind">{{ b.artifact.kind === "chart" ? "图表" : "表格" }}</span>
+            <span class="artifact-kind">{{ b.artifact.kind === "table" ? "表格" : "图表" }}</span>
+            <el-button
+              v-if="b.artifact.saveable && (b.artifact.kind === 'echart' || b.artifact.kind === 'chart')"
+              link
+              size="small"
+              :type="b.artifact.saved ? 'success' : 'primary'"
+              :icon="b.artifact.saved ? 'Select' : 'DocumentAdd'"
+              :loading="!!savingChart[i]"
+              :disabled="b.artifact.saved"
+              @click="saveDashboard(b.artifact, i)"
+              >{{ b.artifact.saved ? "已存看板" : "存为看板" }}</el-button
+            >
             <el-button
               v-if="b.artifact.kind === 'chart'"
               link
@@ -63,10 +74,17 @@
               @click="exportChart(b.artifact)"
               >导出 HTML</el-button
             >
-            <el-button v-else link size="small" icon="Download" @click="exportTable(b.artifact)">导出 Excel</el-button>
+            <el-button v-else-if="b.artifact.kind === 'table'" link size="small" icon="Download" @click="exportTable(b.artifact)">导出 Excel</el-button>
           </div>
+          <EchartsBuilder
+            v-if="b.artifact.kind === 'echart'"
+            :rows="b.artifact.rows"
+            :config="b.artifact.cfg"
+            :show-controls="false"
+            :height="360"
+          />
           <iframe
-            v-if="b.artifact.kind === 'chart'"
+            v-else-if="b.artifact.kind === 'chart'"
             class="artifact-chart"
             :srcdoc="fitChart(b.artifact.html)"
             sandbox="allow-scripts"
@@ -125,12 +143,14 @@
 
 <script setup>
 import { computed, ref } from "vue";
-import { ElMessage } from "element-plus";
+import { ElMessage, ElMessageBox } from "element-plus";
 import { Star, StarFilled } from "@element-plus/icons-vue";
 import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
 import TaskProposalCard from "./TaskProposalCard.vue";
+import EchartsBuilder from "@/views/dataManage/visualization/EchartsBuilder.vue";
 import { saveRecipe } from "@/api/ai/chat";
+import { saveChartAsBoard } from "@/api/dataManage/data";
 import { MarkdownRender } from "markstream-vue";
 import { useDark } from "@vueuse/core";
 import { enableKatex, enableMermaid } from "markstream-vue";
@@ -184,6 +204,40 @@ async function saveRecipeOf(b) {
   }
 }
 
+// 统一「存为看板」:plot_chart 的图带 native+chartSpec 直存;代码路径的图带 code → 后端 LLM 转看板。
+const savingChart = ref({});
+async function saveDashboard(art, i) {
+  if (!art || !art.saveable || art.saved) return;
+  let name;
+  try {
+    const r = await ElMessageBox.prompt("给看板起个名字", "存为看板", {
+      confirmButtonText: "保存",
+      cancelButtonText: "取消",
+      inputValue: art.saveable.title || "",
+      inputPlaceholder: "看板名称",
+      inputValidator: (v) => (v && v.trim() ? true : "请输入名称"),
+    });
+    name = r.value;
+  } catch (e) {
+    return; // 取消
+  }
+  const sv = art.saveable;
+  const payload =
+    sv.mode === "code"
+      ? { name: name.trim(), datasourceCode: sv.datasourceCode, code: sv.code }
+      : { name: name.trim(), datasourceCode: sv.datasourceCode, native: sv.native, chartSpec: sv.chartSpec };
+  savingChart.value[i] = true;
+  try {
+    await saveChartAsBoard(payload);
+    art.saved = true;
+    ElMessage.success("已存为看板,可在「数据管理 → 数据看板」查看");
+  } catch (e) {
+    ElMessage.error("保存失败: " + (e?.msg || e?.message || e));
+  } finally {
+    savingChart.value[i] = false;
+  }
+}
+
 // 工具名 → 友好中文
 const TOOL_LABELS = {
   list_datasources: "发现数据源",
@@ -191,6 +245,7 @@ const TOOL_LABELS = {
   search_datasource_knowledge: "检索知识库",
   run_python_code: "运行代码",
   run_datasource_query: "取数查询",
+  plot_chart: "生成图表",
   delegate_task_to_member: "委派成员",
 };
 function toolLabel(name) {

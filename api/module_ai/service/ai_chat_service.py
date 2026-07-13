@@ -69,6 +69,9 @@ _DATA_AGENT_INSTRUCTIONS: list[str] = [
     '   - 命中可复用解法:**直接复用、或仅按本次差异微调后运行**,不要从零重写,也不必再逐个 get_table_schema;',
     '   - 未命中:才进入第 3 步自行发现+编写。',
     '3. 没有可用解法时:用 get_table_schema 查清目标表字段/调用参数 → run_datasource_query 编写取数代码。',
+    '3.5 【出图优先用 plot_chart】用户要图表时,优先调 plot_chart(datasource_code, native=单条只读查询, chart_type, x, ys, ...):'
+    '把聚合做进查询里(SQL→GROUP BY、ES→aggs、Mongo→$group),对应度量的 agg 填 none;'
+    '产出的图用户可一键「存为看板」复用。仅当需要复杂多步 pandas 加工时,才改用 run_datasource_query 里 pyecharts 画(那类图仅展示、不可存看板)。',
     '4. 取数/计算成功后正常作答;无需声称”已存入知识库”(由用户点”收藏到知识库”决定)。',
     '一句话:先复用已验证解法,不行再发现现写;能省一轮工具调用就省一轮。',
     '取数注意(尤其 Elasticsearch 源):'
@@ -368,7 +371,13 @@ class AiChatService:
             'baidu_search': _make_baidu_tools,  # 百度搜索(免鉴权、国内可达)
         }
         codes = list(builtin_map.keys()) if builtin_codes is None else [c for c in builtin_codes if c in builtin_map]
-        tools: list = [builtin_map[c]() for c in codes]
+        # 单个内置工具构造失败(如可选依赖未装:baidusearch 等)只跳过并告警,不能让整段对话崩掉。
+        tools: list = []
+        for c in codes:
+            try:
+                tools.append(builtin_map[c]())
+            except Exception as e:
+                logger.warning(f'内置工具 {c} 加载失败,已跳过: {e}')
         if kb_tool is not None:
             tools.append(kb_tool)
         tools.extend(extra_tools or [])
@@ -1255,3 +1264,4 @@ class AiChatService:
             'datasourceCode': datasource_code,
             'question': question,
         }
+

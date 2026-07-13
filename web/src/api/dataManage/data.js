@@ -71,9 +71,24 @@ export function aiQueryModel(id, data) {
 export function getSampleQuery(id) {
   return request({ url: `/data/model/${id}/sample-query`, method: 'get' })
 }
-// 自助分析:返回 PyGWalker 自包含 HTML(前端 iframe 内联);data.spec 可传上次的图表配置
-export function walkerHtml(id, data) {
-  return request({ url: `/data/model/${id}/walker`, method: 'post', data, timeout: 120000 })
+// AI 生成 EchartsBuilder 图表配置:data={question, columns};返回 {cfg}
+export function aiChart(id, data) {
+  return request({ url: `/data/model/${id}/ai-chart`, method: 'post', data, timeout: 120000 })
+}
+
+// ---------------- 分析模板(取数 + 图表配置,可复用)----------------
+export function listAnalysisTemplate(modelId) {
+  return request({ url: '/data/analysis-template/list', method: 'get', params: { modelId } })
+}
+export function saveAnalysisTemplate(data) {
+  return request({ url: '/data/analysis-template', method: 'post', data })
+}
+// 对话图表存为看板:data={name, datasourceCode, native, chartSpec};后端自动挂 custom_query 模型
+export function saveChartAsBoard(data) {
+  return request({ url: '/data/analysis-template/from-chart', method: 'post', data })
+}
+export function delAnalysisTemplate(ids) {
+  return request({ url: '/data/analysis-template/' + ids, method: 'delete' })
 }
 
 // ---------------- ETL 调试 ----------------
