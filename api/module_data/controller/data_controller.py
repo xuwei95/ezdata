@@ -245,40 +245,17 @@ async def model_sample_query(
 
 
 @data_controller.post(
-    '/model/{m_id}/walker', summary='自助分析(PyGWalker HTML)', dependencies=[UserInterfaceAuthDependency('data:query')]
+    '/model/{m_id}/ai-chart',
+    summary='AI 生成图表配置(自然语言 + 数据列 → EchartsBuilder cfg)',
+    dependencies=[UserInterfaceAuthDependency('data:query')],
 )
-async def model_walker(
+async def model_ai_chart(
     m_id: Annotated[str, Path()],
     body: dict,
     db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
-    html = await DataQueryService.walker_html(
-        db,
-        m_id,
-        spec=body.get('spec', ''),
-        filters=body.get('filters'),
-        rows=body.get('rows'),
-        gw_mode=body.get('mode') or 'explore',  # explore(默认) / renderer / filter_renderer / table
-    )
-    return ResponseUtil.success(data={'html': html})
-
-
-@data_controller.post(
-    '/model/{m_id}/walker/ai', summary='自助分析·AI 生成图表', dependencies=[UserInterfaceAuthDependency('data:query')]
-)
-async def model_walker_ai(
-    m_id: Annotated[str, Path()],
-    body: dict,
-    db: Annotated[AsyncSession, DBSessionDependency()],
-) -> Response:
-    html, spec = await DataQueryService.walker_ai_html(
-        db,
-        m_id,
-        question=body.get('question', ''),
-        rows=body.get('rows'),
-        gw_mode=body.get('mode') or 'explore',
-    )
-    return ResponseUtil.success(data={'html': html, 'spec': spec})
+    cfg = await DataQueryService.ai_chart(db, m_id, body.get('question', ''), body.get('columns') or [])
+    return ResponseUtil.success(data={'cfg': cfg})
 
 
 # ---------------- 数据分析模板(取数 + 图表配置,可复用)----------------
@@ -302,6 +279,31 @@ async def analysis_template_save(
 ) -> Response:
     tid = await AnalysisTemplateService.save(db, vo, current_user.user.user_name)
     return ResponseUtil.success(data={'id': tid}, msg='已保存')
+
+
+@data_controller.post(
+    '/analysis-template/from-chart',
+    summary='对话图表存为看板(自动挂 custom_query 模型)',
+    dependencies=[UserInterfaceAuthDependency('data:query')],
+)
+async def analysis_template_from_chart(
+    body: dict,
+    db: Annotated[AsyncSession, DBSessionDependency()],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
+) -> Response:
+    """统一存看板入口:带 code(代码取数的图)→ LLM 转;否则用 native+chartSpec(plot_chart 声明式图)直存。"""
+    operator = current_user.user.user_name
+    if body.get('code'):
+        tid = await AnalysisTemplateService.save_from_code(
+            db, body.get('name', ''), body.get('datasourceCode', ''),
+            body['code'], body.get('question', ''), body.get('remark', ''), operator,
+        )
+    else:
+        tid = await AnalysisTemplateService.save_from_chart(
+            db, body.get('name', ''), body.get('datasourceCode', ''),
+            body.get('native'), body.get('chartSpec'), body.get('remark', ''), operator,
+        )
+    return ResponseUtil.success(data={'id': tid}, msg='已存为看板')
 
 
 @data_controller.delete(

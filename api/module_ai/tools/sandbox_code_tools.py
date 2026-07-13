@@ -15,7 +15,36 @@ from typing import Any
 
 from agno.tools import Toolkit
 
-_ROW_CAP = 500  # 表格产物最多回传行数(避免大表撑爆传输;LLM 文本摘要已含总数)
+_ROW_CAP = 500  # 表格/图表产物最多回传行数(避免大表撑爆传输;LLM 文本摘要已含总数)
+_CHART_ROW_CAP = 5000  # plot_chart 查询取数上限(引导聚合查询,结果通常很小)
+# 与 EchartsBuilder / 后端 _normalize_chart_cfg 对齐(此处轻量构造,存看板时后端再规整)
+_CHART_TYPES = frozenset({
+    'bar', 'bar_stack', 'bar_percent', 'hbar', 'line', 'area', 'line_stack',
+    'pie', 'donut', 'rose', 'scatter', 'radar', 'funnel', 'gauge', 'kpi', 'table',
+})
+_CHART_AGGS = frozenset({'sum', 'avg', 'count', 'max', 'min', 'none'})
+
+
+def _chart_cfg(chart_type: str, x: str, ys: list | None, series: str, sort: dict | None,
+               top_n: int, title: str) -> dict:
+    """把 plot_chart 入参组成 EchartsBuilder cfg(schema 与前端一致)。"""
+    norm_ys = []
+    for m in ys or []:
+        if isinstance(m, dict) and m.get('field'):
+            agg = m.get('agg')
+            norm_ys.append({'field': str(m['field']), 'agg': agg if agg in _CHART_AGGS else 'none'})
+    if not norm_ys:
+        norm_ys = [{'field': '', 'agg': 'none'}]
+    s = sort if isinstance(sort, dict) else {}
+    return {
+        'type': chart_type if chart_type in _CHART_TYPES else 'bar',
+        'x': str(x or ''),
+        'ys': norm_ys,
+        'series': str(series or ''),
+        'sort': {'by': str(s.get('by') or ''), 'dir': 'asc' if s.get('dir') == 'asc' else 'desc'},
+        'topN': max(0, int(top_n or 0)),
+        'style': {'title': str(title or '')},
+    }
 
 
 class SandboxCodeTools(Toolkit):
@@ -38,10 +67,14 @@ class SandboxCodeTools(Toolkit):
         tools = [self.run_python_code]
         if enable_datasource:
             tools.append(self.run_datasource_query)
+            tools.append(self.plot_chart)
         super().__init__(name='sandbox_code', tools=tools, **kwargs)
 
-    def _collect(self, res: dict) -> None:
-        """把沙箱结果里的 html/dataframe 归一成前端可渲染的产物,append 到收集器。"""
+    def _collect(self, res: dict, saveable: dict | None = None) -> None:
+        """把沙箱结果里的 html/dataframe 归一成前端可渲染的产物,append 到收集器。
+
+        saveable:数据源取数的图可带上 {mode:'code', datasourceCode, code},供前端「存为看板」时经 LLM 转看板。
+        """
         if not (res and res.get('success')):
             return
         result = res.get('result')
@@ -49,7 +82,10 @@ class SandboxCodeTools(Toolkit):
             return
         t, val = result['type'], result['value']
         if t == 'html':
-            self.artifacts.append({'kind': 'chart', 'html': str(val)})
+            art = {'kind': 'chart', 'html': str(val)}
+            if saveable:  # 代码取数产出的图 → 可存看板(存时 convert_code_to_board 转)
+                art['saveable'] = saveable
+            self.artifacts.append(art)
         elif t == 'dataframe':
             rows = val if isinstance(val, list) else []
             self.artifacts.append({'kind': 'table', 'rows': rows[:_ROW_CAP], 'total': len(rows)})
@@ -109,8 +145,91 @@ class SandboxCodeTools(Toolkit):
             res = sandbox_client.run_python_data(code, datasource, variable_to_return)
         except Exception as e:
             return f'调用沙箱失败: {e}'
-        self._collect(res)
+        # 代码取数产出的图带上 code,前端「存为看板」时经 convert_code_to_board 转成可复用看板
+        self._collect(res, saveable={'mode': 'code', 'datasourceCode': datasource_code, 'code': code})
         return _format_result(res)
+
+    def plot_chart(
+        self,
+        datasource_code: str,
+        native: Any,
+        chart_type: str = 'bar',
+        x: str = '',
+        ys: list | None = None,
+        series: str = '',
+        sort: dict | None = None,
+        top_n: int = 0,
+        title: str = '',
+    ) -> str:
+        """按一条只读查询出图,产出可「存为看板」的图表(EchartsBuilder 配置 + 数据)。
+
+        与 run_datasource_query 不同:本工具只跑**单条只读查询** + 声明式图表配置,产出的图用户可一键存为
+        可复用看板。**能聚合就在查询里做**(SQL 用 GROUP BY、ES 用 aggs、Mongo 用 $group),对应度量 agg 用 'none'
+        直接画;需要复杂多步 pandas 加工时才改用 run_datasource_query(那类图仅展示、不可存)。
+
+        :param datasource_code: 数据源编码(平台已配置)
+        :param native: 该源的查询语句——SQL 字符串,或 ES DSL / Mongo pipeline 的 dict(也可传 JSON 字符串)
+        :param chart_type: 图表类型 bar/hbar/bar_stack/line/area/pie/donut/rose/scatter/radar/funnel/gauge/kpi
+        :param x: 类别/维度列名
+        :param ys: 度量数组,每项 {"field":"列名","agg":"sum|avg|count|max|min|none"};查询已聚合则用 none
+        :param series: 分组/拆分列名(可选)
+        :param sort: {"by":"" 或 "__x__" 或某度量field,"dir":"desc|asc"}(可选)
+        :param top_n: 只取前 N(0=不限)
+        :param title: 图表标题
+        :return: 结果摘要(图表展示给用户;LLM 只见此文本)
+        """
+        from ezdata.utils.etl_util import assert_readonly_sql
+        from module_data import sandbox_client
+
+        if self.allowed_codes is not None and datasource_code not in self.allowed_codes:
+            return f'该应用未授权访问数据源: {datasource_code}(仅可用: {", ".join(self.allowed_codes)})'
+        stmt = native
+        if isinstance(stmt, str):
+            s = stmt.strip()
+            stmt = json.loads(s) if s[:1] in '{[' and _try_json(s) else s  # dict 语句可能以 JSON 串传入
+        if isinstance(stmt, str):
+            try:
+                assert_readonly_sql(stmt, 'rdbms')  # SQL 文本只读护栏;ES/Mongo(dict)天然只读免检
+            except Exception as e:
+                return f'查询被拦截(仅允许只读查询): {e}'
+        try:
+            datasource = _resolve_datasource(datasource_code)
+        except Exception as e:
+            return f'数据源解析失败: {e}'
+        code = f'result = handler.query({stmt!r}, None, {_CHART_ROW_CAP})'
+        try:
+            res = sandbox_client.run_python_data(code, datasource, 'result')
+        except Exception as e:
+            return f'调用沙箱失败: {e}'
+        if not res.get('success'):
+            return f'查询失败: {res.get("error") or "未知错误"}'
+        rows = res.get('result')
+        if isinstance(rows, dict) and 'value' in rows:  # 若被规整成 {type,value}
+            rows = rows['value']
+        if not isinstance(rows, list):
+            rows = []
+        cfg = _chart_cfg(chart_type, x, ys, series, sort, top_n, title)
+        self.artifacts.append({
+            'kind': 'echart',
+            'cfg': cfg,
+            'rows': rows[:_ROW_CAP],
+            'total': len(rows),
+            'saveable': {'datasourceCode': datasource_code, 'native': stmt, 'chartSpec': cfg, 'title': title},
+        })
+        dims = ', '.join([x] + ([series] if series else [])) or '(无)'
+        ms = ', '.join(f'{(m or {}).get("agg", "")}({(m or {}).get("field", "")})' for m in (ys or [])) or '(无)'
+        return (
+            f'已生成图表({chart_type}):维度 {dims},度量 {ms},{len(rows)} 行数据,'
+            f'已展示给用户(用户可点「存为看板」保存复用)。'
+        )
+
+
+def _try_json(s: str) -> bool:
+    try:
+        json.loads(s)
+        return True
+    except (json.JSONDecodeError, ValueError):
+        return False
 
 
 def _resolve_datasource(code: str) -> dict:

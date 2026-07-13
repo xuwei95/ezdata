@@ -8,7 +8,7 @@
         </el-select>
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" icon="Plus" @click="openEditor()">新建可视化</el-button>
+        <el-button type="primary" icon="Plus" @click="openEditor()">新建看板</el-button>
         <el-button icon="Refresh" @click="loadList">刷新</el-button>
       </el-form-item>
     </el-form>
@@ -31,15 +31,15 @@
           <el-button link type="danger" icon="Delete" @click="del(s.row)">删除</el-button>
         </template>
       </el-table-column>
-      <template #empty>暂无可视化模板,点「新建可视化」创建</template>
+      <template #empty>暂无看板,点「新建看板」创建</template>
     </el-table>
 
     <!-- 编辑器:全屏 -->
-    <el-dialog v-model="ed.visible" :title="ed.id ? '编辑可视化' : '新建可视化'" fullscreen append-to-body
+    <el-dialog v-model="ed.visible" :title="ed.id ? '编辑看板' : '新建看板'" fullscreen append-to-body
       :close-on-click-modal="false" class="viz-editor-dialog">
       <div class="editor">
         <div class="ed-head">
-          <el-input v-model="ed.name" placeholder="模板名称" style="width: 220px" />
+          <el-input v-model="ed.name" placeholder="看板名称" style="width: 220px" />
           <el-select v-model="ed.modelId" filterable placeholder="选择数据模型" style="width: 220px" @change="onModelChange">
             <el-option v-for="m in models" :key="m.id" :label="m.name" :value="m.id" />
           </el-select>
@@ -49,7 +49,7 @@
         </div>
         <div class="ed-query">
           <div class="q-main">
-            <el-input v-model="ed.native" type="textarea" :rows="3"
+            <el-input v-model="ed.native" type="textarea" :rows="7" :autosize="{ minRows: 7, maxRows: 16 }"
               placeholder="原生查询(SQL / ES DSL);选择模型后自动预填,或点「AI 生成查询」" />
             <div v-if="aiq.open" class="q-panel">
               <el-input v-model="aiq.question" type="textarea" :rows="2"
@@ -70,6 +70,7 @@
         </div>
         <div class="ed-viz">
           <EchartsBuilder v-if="ed.rows.length" :rows="ed.rows" :config="ed.cfg" :height="edChartH"
+            ai-enabled :ai-loading="aic.loading" @ai-generate="onAiChart"
             @update:config="(c) => (ed.cfg = c)" />
           <el-empty v-else description="选模型 → 查询,再选图表类型/字段出图" />
         </div>
@@ -91,13 +92,17 @@ import { ref, reactive } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   listModel, listAnalysisTemplate, saveAnalysisTemplate, delAnalysisTemplate,
-  getSampleQuery, queryModel
+  getSampleQuery, queryModel, aiChart
 } from '@/api/dataManage/data'
 import { getToken } from '@/utils/auth'
 import EchartsBuilder from './EchartsBuilder.vue'
 
 const QUERY_CAP = 5000
-const CHART_TYPES = ['bar', 'line', 'area', 'pie', 'scatter']
+// 与 EchartsBuilder 的类型清单保持一致(用于 isEchartsCfg 守卫,区分旧 pygwalker 数组格式)
+const CHART_TYPES = [
+  'bar', 'bar_stack', 'bar_percent', 'hbar', 'line', 'area', 'line_stack',
+  'pie', 'donut', 'rose', 'scatter', 'radar', 'funnel', 'gauge', 'kpi', 'table'
+]
 const loading = ref(false)
 const list = ref([])
 const models = ref([])
@@ -109,6 +114,7 @@ const ed = reactive({
   native: '', rows: [], cfg: null, loading: false
 })
 const aiq = reactive({ open: false, question: '', output: '', loading: false })
+const aic = reactive({ loading: false }) // AI 生成图表配置
 const pv = reactive({ visible: false, name: '', rows: [], cfg: null, loading: false, err: '' })
 const AI_BASE = import.meta.env.VITE_APP_BASE_API || ''
 
@@ -181,8 +187,20 @@ function applyQuery() {
   aiq.open = false
   ElMessage.success('已采用到查询框,点「查询」执行')
 }
+// AI 生成图表配置:一句话 + 当前结果列 → cfg,回填后 EchartsBuilder 自动应用
+async function onAiChart(question) {
+  if (!ed.modelId) { ElMessage.warning('请先选择数据模型'); return }
+  const columns = ed.rows.length ? Object.keys(ed.rows[0]) : []
+  if (!columns.length) { ElMessage.warning('请先查询出数据'); return }
+  aic.loading = true
+  try {
+    const res = await aiChart(ed.modelId, { question, columns })
+    ed.cfg = res.data.cfg
+    ElMessage.success('已生成图表配置')
+  } catch (e) { ElMessage.error(e?.msg || e?.message || '生成失败') } finally { aic.loading = false }
+}
 async function save() {
-  if (!ed.name.trim()) { ElMessage.warning('请填写模板名称'); return }
+  if (!ed.name.trim()) { ElMessage.warning('请填写看板名称'); return }
   if (!ed.modelId) { ElMessage.warning('请选择数据模型'); return }
   await saveAnalysisTemplate({
     id: ed.id || undefined, name: ed.name.trim(), modelId: ed.modelId, modelName: ed.modelName,
@@ -195,7 +213,7 @@ async function save() {
 
 // ---- 预览:纯图 ----
 async function openPreview(row) {
-  if (!isEchartsCfg(row.chartSpec)) { ElMessage.info('该模板无图表配置(或为旧格式),请编辑后重新保存'); return }
+  if (!isEchartsCfg(row.chartSpec)) { ElMessage.info('该看板无图表配置(或为旧格式),请编辑后重新保存'); return }
   Object.assign(pv, { visible: true, name: row.name, rows: [], cfg: null, loading: true, err: '' })
   try {
     let n = (row.query && row.query.native) || ''
@@ -209,7 +227,7 @@ async function openPreview(row) {
 }
 
 async function del(row) {
-  try { await ElMessageBox.confirm(`删除可视化「${row.name}」?`, '提示', { type: 'warning' }) } catch (e) { return }
+  try { await ElMessageBox.confirm(`删除看板「${row.name}」?`, '提示', { type: 'warning' }) } catch (e) { return }
   await delAnalysisTemplate(row.id)
   ElMessage.success('已删除'); loadList()
 }

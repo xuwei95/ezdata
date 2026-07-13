@@ -5,7 +5,7 @@
         <span class="muted">原生查询(SQL 字符串 / ES DSL JSON)</span>
         <el-button size="small" icon="MagicStick" @click="aiq.open = !aiq.open">AI 生成查询</el-button>
       </div>
-      <el-input v-model="native" type="textarea" :rows="4"
+      <el-input v-model="native" type="textarea" :rows="6" :autosize="{ minRows: 6, maxRows: 14 }"
         placeholder="例如:SELECT * FROM xxx WHERE ...;或点「AI 生成查询」用自然语言生成" />
 
       <!-- AI 辅助生成:流式打印 → 确认采用到查询框 -->
@@ -47,41 +47,32 @@
 
       <el-tab-pane label="可视化" name="viz">
         <div class="viz-bar">
-          <el-input v-model="vizQ" size="small" class="viz-q" clearable
-            placeholder="一句话生成图表,如:按城市看销售额柱状图" @keyup.enter="genViz" />
-          <el-button size="small" type="primary" icon="MagicStick" :loading="vizLoading"
-            :disabled="!rows.length" @click="genViz">AI 生成图表</el-button>
-          <el-button size="small" icon="Refresh" :loading="vizLoading" :disabled="!rows.length"
-            @click="loadViz">重置图表</el-button>
-          <el-divider direction="vertical" />
-          <el-select v-model="curTpl" size="small" placeholder="应用模板" clearable filterable style="width: 150px"
+          <el-select v-model="curTpl" size="small" placeholder="应用看板" clearable filterable style="width: 160px"
             :disabled="!templates.length" @change="applyTemplate">
             <el-option v-for="t in templates" :key="t.id" :label="t.name" :value="t.id" />
           </el-select>
-          <el-button size="small" icon="Star" :disabled="!rows.length" @click="openSaveTpl">存为模板</el-button>
+          <el-button size="small" icon="Star" :disabled="!rows.length" @click="openSaveTpl">存为看板</el-button>
           <el-button v-if="curTpl" size="small" icon="Delete" link type="danger" @click="delTpl">删</el-button>
-          <span class="muted">前 {{ VIZ_CAP }} 行;「AI 生成图表」的结果可「存为模板」;图表工具栏可导出 PNG/SVG。</span>
+          <span class="muted">左侧「AI 生成图表」可一句话出图,或自选类型/字段;配置可「存为看板」。</span>
         </div>
-        <div ref="vizWrap" class="viz-wrap" v-loading="vizLoading" element-loading-text="生成分析视图中…">
-          <iframe v-if="vizHtml" :srcdoc="vizHtml" class="pyg-frame" :style="{ height: vizH + 'px' }"
-            sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-downloads" />
-          <el-empty v-else-if="!vizLoading" :description="vizErr || '先在上方执行查询,再切到本页可视化'" />
+        <div ref="vizWrap" class="viz-wrap">
+          <EchartsBuilder v-if="rows.length" :rows="rows" :config="vizCfg" :height="vizH"
+            ai-enabled :ai-loading="aic.loading" @ai-generate="onAiChart" @update:config="(c) => (vizCfg = c)" />
+          <el-empty v-else description="先在上方执行查询,再切到本页可视化" />
         </div>
       </el-tab-pane>
     </el-tabs>
 
-    <!-- 存为分析模板 -->
-    <el-dialog v-model="tplDlg.visible" title="保存为分析模板" width="440px" append-to-body>
+    <!-- 存为看板 -->
+    <el-dialog v-model="tplDlg.visible" title="保存为看板" width="440px" append-to-body>
       <el-form label-width="72px">
-        <el-form-item label="模板名称" required>
+        <el-form-item label="看板名称" required>
           <el-input v-model="tplDlg.name" placeholder="如:各城市销售额柱状图" />
         </el-form-item>
         <el-form-item label="说明">
           <el-input v-model="tplDlg.remark" type="textarea" :rows="2" />
         </el-form-item>
-        <el-alert v-if="!currentSpec" type="info" :closable="false" show-icon
-          title="当前无图表配置:用「AI 生成图表」得到图后再存,即带配置;否则模板只存查询,应用时回到空白画布自行拖拽" />
-        <el-alert v-else type="success" :closable="false" show-icon title="将保存:本次查询 + 当前图表配置" />
+        <el-alert type="success" :closable="false" show-icon title="将保存:本次原生查询 + 当前图表配置(类型/字段/聚合/样式)" />
       </el-form>
       <template #footer>
         <el-button type="primary" @click="doSaveTpl">保存</el-button>
@@ -96,32 +87,29 @@ import { ref, reactive, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as XLSX from 'xlsx'
 import {
-  queryModel, getSampleQuery, walkerHtml, walkerAiHtml,
+  queryModel, getSampleQuery, aiChart,
   listAnalysisTemplate, saveAnalysisTemplate, delAnalysisTemplate
 } from '@/api/dataManage/data'
 import { getToken } from '@/utils/auth'
+import EchartsBuilder from '@/views/dataManage/visualization/EchartsBuilder.vue'
 
 const props = defineProps({ model: { type: Object, required: true } })
 
-const VIZ_CAP = 1000
 const native = ref('')
 const rows = ref([])
 const columns = ref([])
 const loading = ref(false)
 const subTab = ref('grid')
-// AI 辅助生成
+// AI 辅助生成查询
 const aiq = reactive({ open: false, question: '', output: '', loading: false })
 const AI_BASE = import.meta.env.VITE_APP_BASE_API || ''
 
-// 可视化子页
-const vizHtml = ref('')
-const vizLoading = ref(false)
-const vizErr = ref('')
-const vizQ = ref('')
+// 可视化子页(EchartsBuilder)
 const vizWrap = ref()
 const vizH = ref(500)
-const currentSpec = ref('')   // 当前图表配置(AI 生成的 gw spec JSON 串;空=空白/手拖)
-// 分析模板
+const vizCfg = ref(null)           // 当前图表配置(EchartsBuilder cfg)
+const aic = reactive({ loading: false }) // AI 生成图表配置
+// 看板(取数 + 图表配置,可复用)
 const templates = ref([])
 const curTpl = ref('')
 const tplDlg = reactive({ visible: false, name: '', remark: '' })
@@ -173,8 +161,7 @@ function exportExcel() {
 async function syncModel() {
   native.value = ''; rows.value = []; columns.value = []
   aiq.open = false; aiq.question = ''; aiq.output = ''
-  vizHtml.value = ''; vizErr.value = ''; subTab.value = 'grid'
-  currentSpec.value = ''; curTpl.value = ''; templates.value = []
+  subTab.value = 'grid'; vizCfg.value = null; curTpl.value = ''; templates.value = []
   if (!props.model || !props.model.id) return
   loadTemplates()
   // 预填原生查询默认示例(各源对应方言,limit 100)
@@ -186,33 +173,17 @@ async function syncModel() {
 watch(() => props.model && props.model.id, syncModel)
 watch(() => aiq.open, computeH)
 watch(() => aiq.loading, computeH)
-// 切到可视化子页:有数据且尚未生成则自动生成
-watch(subTab, (v) => { if (v === 'viz' && rows.value.length && !vizHtml.value) loadViz() })
+watch(subTab, (v) => { if (v === 'viz') computeVizH() })
 onMounted(() => {
   syncModel(); computeH()
   window.addEventListener('resize', onResize)
-  window.addEventListener('message', onPygMsg)  // 接收 pygwalker 桥接回传的图表配置
 })
-onUnmounted(() => {
-  window.removeEventListener('resize', onResize)
-  window.removeEventListener('message', onPygMsg)
-})
+onUnmounted(() => { window.removeEventListener('resize', onResize) })
 function onResize() { computeH(); computeVizH() }
-// pygwalker 内层 iframe「保存」时,注入的桥接脚本把 visSpec postMessage 上来 → 记为当前图表配置
-function onPygMsg(e) {
-  const d = e && e.data
-  if (d && d.__pygSpec === true) {
-    currentSpec.value = JSON.stringify(d.visSpec || [])
-    ElMessage.success('已捕获当前图表配置,可「存为模板」')
-  }
-}
 
-let suppressAutoViz = false  // 应用模板时抑制 fill 的自动空白渲染,避免与模板 spec 渲染竞态
 function fill(records) {
   rows.value = records || []
   columns.value = rows.value.length ? Object.keys(rows.value[0]) : []
-  vizHtml.value = ''  // 查询结果变了,作废旧可视化
-  if (subTab.value === 'viz' && rows.value.length && !suppressAutoViz) loadViz()
 }
 
 // 执行原生查询(SQL 串或 ES DSL JSON,自动识别)
@@ -224,6 +195,7 @@ async function runNative() {
     try { n = JSON.parse(n) } catch (e) { /* 当作 SQL 字符串 */ }
     const res = await queryModel(props.model.id, { native: n })
     fill(res.data.records)
+    if (subTab.value === 'viz') computeVizH()
     ElMessage.success(`查询到 ${res.data.total} 行`)
   } catch (e) {
     ElMessage.error('查询失败')
@@ -232,36 +204,18 @@ async function runNative() {
   }
 }
 
-// 渲染 PyGWalker 视图:spec 为空=空白画布,否则预填该图表配置(仍可继续拖)
-async function renderViz(spec = '') {
-  if (!rows.value.length) { vizErr.value = '先执行查询获取数据'; return }
-  vizLoading.value = true; vizErr.value = ''; vizHtml.value = ''
+// AI 一句话生成图表配置:当前结果列 + 需求 → cfg,回填后 EchartsBuilder 自动应用
+async function onAiChart(question) {
+  const cols = rows.value.length ? Object.keys(rows.value[0]) : []
+  if (!cols.length) { ElMessage.warning('先执行查询获取数据'); return }
+  aic.loading = true
   try {
-    const res = await walkerHtml(props.model.id, { rows: rows.value.slice(0, VIZ_CAP), spec })
-    vizHtml.value = res.data.html || ''
-    currentSpec.value = spec || ''
-    await computeVizH()
+    const res = await aiChart(props.model.id, { question, columns: cols })
+    vizCfg.value = res.data.cfg
+    ElMessage.success('已生成图表配置')
   } catch (e) {
-    vizErr.value = e?.msg || e?.message || '生成失败'; ElMessage.error(vizErr.value)
-  } finally { vizLoading.value = false }
-}
-
-// 重置图表:用当前数据回到空白画布(清掉图表配置/模板选择)
-function loadViz() { curTpl.value = ''; renderViz('') }
-
-// AI 一句话生成图表(系统 LLM 生成配置,预填后仍可拖;记下 spec 以便存模板)
-async function genViz() {
-  if (!rows.value.length) { ElMessage.warning('先执行查询获取数据'); return }
-  if (!vizQ.value.trim()) { ElMessage.warning('请描述你想要的图表'); return }
-  vizLoading.value = true; vizErr.value = ''; vizHtml.value = ''
-  try {
-    const res = await walkerAiHtml(props.model.id, { question: vizQ.value, rows: rows.value.slice(0, VIZ_CAP) })
-    vizHtml.value = res.data.html || ''
-    currentSpec.value = res.data.spec || ''
-    await computeVizH()
-  } catch (e) {
-    vizErr.value = e?.msg || e?.message || '生成失败'; ElMessage.error(vizErr.value)
-  } finally { vizLoading.value = false }
+    ElMessage.error(e?.msg || e?.message || '生成失败')
+  } finally { aic.loading = false }
 }
 
 // ---------------- 分析模板 ----------------
@@ -271,16 +225,16 @@ async function loadTemplates() {
 }
 function openSaveTpl() { tplDlg.name = ''; tplDlg.remark = ''; tplDlg.visible = true }
 async function doSaveTpl() {
-  if (!tplDlg.name.trim()) { ElMessage.warning('请填写模板名称'); return }
+  if (!tplDlg.name.trim()) { ElMessage.warning('请填写看板名称'); return }
   await saveAnalysisTemplate({
     name: tplDlg.name.trim(),
     modelId: props.model.id,
     modelName: props.model.name,
     query: { type: 'native', native: native.value },
-    chartSpec: currentSpec.value ? JSON.parse(currentSpec.value) : null,
+    chartSpec: vizCfg.value || null,
     remark: tplDlg.remark
   })
-  ElMessage.success('已保存为模板')
+  ElMessage.success('已保存为看板')
   tplDlg.visible = false
   loadTemplates()
 }
@@ -291,14 +245,12 @@ async function applyTemplate(tid) {
   if (!t) return
   native.value = (t.query && t.query.native) || native.value
   subTab.value = 'viz'
-  suppressAutoViz = true
   await runNative()
-  suppressAutoViz = false
-  if (rows.value.length) await renderViz(t.chartSpec ? JSON.stringify(t.chartSpec) : '')
+  if (rows.value.length) vizCfg.value = t.chartSpec || null
 }
 async function delTpl() {
   if (!curTpl.value) return
-  try { await ElMessageBox.confirm('删除该模板?', '提示', { type: 'warning' }) } catch (e) { return }
+  try { await ElMessageBox.confirm('删除该看板?', '提示', { type: 'warning' }) } catch (e) { return }
   await delAnalysisTemplate(curTpl.value)
   ElMessage.success('已删除'); curTpl.value = ''; loadTemplates()
 }
@@ -331,10 +283,8 @@ function applyQuery() {
 .result-bar { display: flex; align-items: center; justify-content: space-between; margin: 2px 0 6px; }
 .count { color: #909399; font-size: 13px; }
 .viz-bar { display: flex; align-items: center; gap: 8px; margin: 2px 0 8px; flex-wrap: wrap; }
-.viz-bar .viz-q { max-width: 340px; }
 .viz-bar .muted { color: #909399; font-size: 12px; margin-left: auto; }
 .viz-wrap { min-height: 360px; }
-.pyg-frame { width: 100%; border: 1px solid #ebeef5; border-radius: 6px; background: #fff; }
 .ai-out {
   margin: 8px 0; padding: 8px 10px; max-height: 220px; overflow: auto;
   background: #1e1e1e; color: #d4d4d4; border-radius: 4px;

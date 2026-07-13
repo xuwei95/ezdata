@@ -72,7 +72,7 @@ class DataAnalysisTemplate(Base, TenantMixin):
     model_id: Mapped[str | None] = mapped_column(String(36), nullable=True, comment='数据模型ID')
     model_name: Mapped[str | None] = mapped_column(String(200), nullable=True, comment='数据模型名(冗余,展示用)')
     query: Mapped[dict | None] = mapped_column(JSON, nullable=True, comment='取数配置 {type,native/filters/question}')
-    chart_spec: Mapped[dict | None] = mapped_column(JSON, nullable=True, comment='graphic-walker 图表配置(visSpec)')
+    chart_spec: Mapped[dict | None] = mapped_column(JSON, nullable=True, comment='图表配置(EchartsBuilder cfg:type/x/ys/series/sort/style)')
     remark: Mapped[str | None] = mapped_column(String(500), nullable=True, server_default="''", comment='备注')
     create_by: Mapped[str | None] = mapped_column(String(64), nullable=True, server_default="''", comment='创建者')
     create_time: Mapped[datetime | None] = mapped_column(default=datetime.now, nullable=True, comment='创建时间')

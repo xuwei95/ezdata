@@ -190,7 +190,7 @@ class AnalysisTemplateVo(BaseModel):
     model_id: str | None = Field(default=None, description='数据模型ID')
     model_name: str | None = Field(default=None, description='数据模型名')
     query: dict | None = Field(default=None, description='取数配置 {type,native/filters/question}')
-    chart_spec: Any | None = Field(default=None, description='graphic-walker 图表配置(visSpec)')
+    chart_spec: Any | None = Field(default=None, description='图表配置(EchartsBuilder cfg:type/x/ys/series/sort/style)')
     remark: str | None = Field(default=None, description='备注')
     create_by: str | None = Field(default=None, description='创建者')
     create_time: datetime | None = Field(default=None, description='创建时间')

@@ -76,6 +76,18 @@ class DataModelDao:
         return await PageUtil.paginate(db, query, q.page_num, q.page_size, is_page)
 
     @classmethod
+    async def get_custom_query(cls, db: AsyncSession, datasource_code: str) -> DataModel | None:
+        """取该数据源的 custom_query 模型(对话图表存看板复用,每源一个)。"""
+        return (
+            await db.execute(
+                select(DataModel).where(
+                    DataModel.datasource_code == datasource_code,
+                    DataModel.kind == 'custom_query',
+                )
+            )
+        ).scalars().first()
+
+    @classmethod
     async def add(cls, db: AsyncSession, obj: dict[str, Any]) -> DataModel:
         do = DataModel(**obj)
         db.add(do)
