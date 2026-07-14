@@ -1099,6 +1099,7 @@ insert into sys_menu values('2222', '记录删除', '2202', '3', '#', '', '', ''
 -- ----------------------------
 insert into sys_menu values('2300', '数据管理', '0',    '0', 'data',   null,               '', '', 1, 0, 'M', '0', '0', '',                  'database', 'admin', sysdate(), '', null, '数据管理目录(置顶)');
 insert into sys_menu values('2301', '数据管理', '2300', '1', 'manage', 'dataManage/index', '', '', 1, 0, 'C', '0', '0', 'data:source:list',  'database', 'admin', sysdate(), '', null, '数据管理菜单');
+insert into sys_menu values('2302', '数据看板', '2300', '2', 'dashboard', 'dataManage/visualization/index', '', '', 1, 0, 'C', '0', '0', 'data:query',        'chart',    'admin', sysdate(), '', null, 'ECharts 看板管理(取数+声明式图表,可复用)');
 insert into sys_menu values('2310', '数据源查询', '2301', '1',  '#', '', '', '', 1, 0, 'F', '0', '0', 'data:source:list',   '#', 'admin', sysdate(), '', null, '');
 insert into sys_menu values('2311', '数据源新增', '2301', '2',  '#', '', '', '', 1, 0, 'F', '0', '0', 'data:source:add',    '#', 'admin', sysdate(), '', null, '');
 insert into sys_menu values('2312', '数据源修改', '2301', '3',  '#', '', '', '', 1, 0, 'F', '0', '0', 'data:source:edit',   '#', 'admin', sysdate(), '', null, '');
@@ -1117,6 +1118,7 @@ insert into sys_menu values('2323', '令牌删除',   '2301', '14', '#', '', '',
 -- 数据管理员角色(role_id=3)分配数据管理全部菜单/权限
 insert into sys_role_menu values('3', '2300');
 insert into sys_role_menu values('3', '2301');
+insert into sys_role_menu values('3', '2302');
 insert into sys_role_menu values('3', '2310');
 insert into sys_role_menu values('3', '2311');
 insert into sys_role_menu values('3', '2312');

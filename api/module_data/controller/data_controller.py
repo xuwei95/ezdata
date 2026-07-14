@@ -269,6 +269,16 @@ async def analysis_template_list(
     return ResponseUtil.success(data=await AnalysisTemplateService.get_list(db, model_id or None))
 
 
+@data_controller.get(
+    '/analysis-template/detail/{tid}', summary='看板/模板详情', dependencies=[UserInterfaceAuthDependency('data:query')]
+)
+async def analysis_template_detail(
+    tid: Annotated[str, Path()],
+    db: Annotated[AsyncSession, DBSessionDependency()],
+) -> Response:
+    return ResponseUtil.success(data=await AnalysisTemplateService.get(db, tid))
+
+
 @data_controller.post(
     '/analysis-template', summary='保存分析模板', dependencies=[UserInterfaceAuthDependency('data:query')]
 )
@@ -304,6 +314,39 @@ async def analysis_template_from_chart(
             body.get('native'), body.get('chartSpec'), body.get('remark', ''), operator,
         )
     return ResponseUtil.success(data={'id': tid}, msg='已存为看板')
+
+
+@data_controller.post(
+    '/analysis-template/code-to-board/stream',
+    summary='代码转看板(流式生成 native + 图表配置)',
+    dependencies=[UserInterfaceAuthDependency('data:query')],
+)
+async def analysis_template_code_to_board_stream(
+    body: dict,
+    db: Annotated[AsyncSession, DBSessionDependency()],
+) -> StreamingResponse:
+    """流式产出 LLM 把取数代码转成的 {native, cfg} JSON(前端实时打印,再自行预览取数画图、确认存看板)。"""
+    cfg, prompt = await DataQueryService.prep_code_to_board(
+        db, body.get('datasourceCode', ''), body.get('code', ''), body.get('question', ''), body.get('hint', '')
+    )
+    return StreamingResponse(
+        _ai_stream(cfg, prompt),
+        media_type='text/event-stream',
+        headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'},
+    )
+
+
+@data_controller.post(
+    '/analysis-template/preview-native',
+    summary='按数据源 + native 只读预览取数(转看板画图/校验用)',
+    dependencies=[UserInterfaceAuthDependency('data:query')],
+)
+async def analysis_template_preview_native(
+    body: dict,
+    db: Annotated[AsyncSession, DBSessionDependency()],
+) -> Response:
+    data = await DataQueryService.preview_native(db, body.get('datasourceCode', ''), body.get('native'))
+    return ResponseUtil.success(data=data)
 
 
 @data_controller.delete(

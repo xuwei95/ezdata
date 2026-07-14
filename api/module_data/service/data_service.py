@@ -449,7 +449,8 @@ class DataModelService:
 
 _CHART_TYPES = frozenset({
     'bar', 'bar_stack', 'bar_percent', 'hbar', 'line', 'area', 'line_stack',
-    'pie', 'donut', 'rose', 'scatter', 'radar', 'funnel', 'gauge', 'kpi', 'table',
+    'pie', 'donut', 'rose', 'scatter', 'radar', 'funnel', 'gauge', 'kline',
+    'combo', 'waterfall', 'heatmap', 'boxplot', 'treemap', 'sankey', 'kpi', 'table',
 })
 _CHART_AGGS = frozenset({'sum', 'avg', 'count', 'max', 'min', 'none'})
 
@@ -463,15 +464,24 @@ def _chart_cfg_prompt(columns: list[str], question: str) -> str:
         '请输出一个图表配置 JSON,字段说明:\n'
         '- type: 图表类型,取值之一 bar(柱)/bar_stack(堆叠柱)/bar_percent(百分比堆叠)/hbar(横向条)/'
         'line(折线)/area(面积)/line_stack(堆叠面积)/pie(饼)/donut(环形)/rose(玫瑰)/scatter(散点)/'
-        'radar(雷达)/funnel(漏斗)/gauge(仪表盘)/kpi(指标卡)/table(明细表)\n'
-        '- x: 类别/维度列名(kpi/table 可留空)\n'
+        'radar(雷达)/funnel(漏斗)/gauge(仪表盘)/kline(K 线/蜡烛图,行情)/'
+        'combo(双轴组合)/waterfall(瀑布)/heatmap(热力)/boxplot(箱线)/treemap(矩形树图)/sankey(桑基)/'
+        'kpi(指标卡)/table(明细表)\n'
+        '- x: 类别/维度列名(kpi/table 可留空;kline 填时间列;heatmap 填 X 轴类别列;sankey 不用 x)\n'
         '- ys: 度量数组,每项 {"field":"列名","agg":"sum|avg|count|max|min|none"},可多个;'
-        '若该列本身已是聚合结果(如查询里已写 SUM(x)/COUNT(*) 算好),agg 用 none 直接画,不要再二次聚合\n'
-        '- series: 分组拆分列名(不需要则空字符串)\n'
+        '若该列本身已是聚合结果(如查询里已写 SUM(x)/COUNT(*) 算好),agg 用 none 直接画,不要再二次聚合;'
+        'combo 里每个度量可加 "mark":"bar|line"(柱或线)与 "axis":"left|right"(左/右轴);'
+        'heatmap/boxplot/treemap/waterfall 只用第一个度量\n'
+        '- ohlc: 仅 kline 需要,四列映射 {"o":"开盘列","h":"最高列","l":"最低列","c":"收盘列"}(此时 ys 可省)\n'
+        '- link: 仅 sankey 需要,三列映射 {"source":"源节点列","target":"目标节点列","value":"流量值列"}(此时 x/ys 可省)\n'
+        '- series: 分组拆分列名(不需要则空字符串;heatmap 时它是 Y 轴类别列,必填)\n'
         '- sort: {"by":"" 或 "__x__" 或某度量列名,"dir":"desc|asc"}\n'
         '- topN: 整数,只取前 N(不限填 0)\n'
         '- style: 可选,可含 {"title":"图表标题"}\n'
-        '选型建议:占比看 pie/donut;趋势随时间看 line;类别对比看 bar;单一汇总指标看 kpi。'
+        '选型建议:占比看 pie/donut;趋势随时间看 line;类别对比看 bar;单一汇总指标看 kpi;'
+        '股票/期货 OHLC 行情看 kline;两个量级差很大的指标同图对比看 combo(双轴);'
+        '累计增减/构成看 waterfall;两个维度交叉的热度看 heatmap;数值分布/离群看 boxplot;'
+        '层级占比看 treemap;节点间流向/转化看 sankey。'
         '只用上面列出的真实列名。**只输出 JSON 本身,不要 markdown 代码块、不要任何解释文字。**'
     )
 
@@ -483,14 +493,21 @@ def _normalize_chart_cfg(cfg: Any) -> dict:
     if cfg.get('type') not in _CHART_TYPES:
         cfg['type'] = 'bar'
     ys = cfg.get('ys')
-    if isinstance(ys, dict):
+    if isinstance(ys, (dict, str)):
         ys = [ys]
     if not isinstance(ys, list) or not ys:
         ys = [{'field': cfg['y'], 'agg': cfg.get('agg')}] if cfg.get('y') else []
     norm = []
     for it in ys:
         if isinstance(it, dict) and it.get('field'):
-            norm.append({'field': str(it['field']), 'agg': it.get('agg') if it.get('agg') in _CHART_AGGS else 'sum'})
+            m = {'field': str(it['field']), 'agg': it.get('agg') if it.get('agg') in _CHART_AGGS else 'sum'}
+            if it.get('mark') in ('bar', 'line'):  # 双轴组合:该度量画柱还是线
+                m['mark'] = it['mark']
+            if it.get('axis') in ('left', 'right'):  # 双轴组合:该度量走左轴还是右轴
+                m['axis'] = it['axis']
+            norm.append(m)
+        elif isinstance(it, str) and it.strip():  # LLM 常把 ys 直接写成列名字符串
+            norm.append({'field': it.strip(), 'agg': 'sum'})
     cfg['ys'] = norm or [{'field': '', 'agg': 'sum'}]
     cfg['x'] = str(cfg.get('x') or '')
     cfg['series'] = str(cfg.get('series') or '')
@@ -502,36 +519,89 @@ def _normalize_chart_cfg(cfg: Any) -> dict:
         cfg['topN'] = 0
     if not isinstance(cfg.get('style'), dict):
         cfg.pop('style', None)
+    # K 线:保留 OHLC 四列映射;非 kline 不带 ohlc
+    if cfg['type'] == 'kline':
+        o = cfg.get('ohlc') if isinstance(cfg.get('ohlc'), dict) else {}
+        cfg['ohlc'] = {k: str(o.get(k) or '') for k in ('o', 'h', 'l', 'c')}
+    else:
+        cfg.pop('ohlc', None)
+    # 桑基:保留 源/目标/值 三列映射;非 sankey 不带 link
+    if cfg['type'] == 'sankey':
+        lk = cfg.get('link') if isinstance(cfg.get('link'), dict) else {}
+        cfg['link'] = {k: str(lk.get(k) or '') for k in ('source', 'target', 'value')}
+    else:
+        cfg.pop('link', None)
     cfg.pop('y', None)
     cfg.pop('agg', None)
     return cfg
 
 
-def _code_to_board_prompt(code: str, question: str) -> str:
-    """把 agent 的「取数+绘图」代码转成看板配置 {native, cfg} 的提示词。"""
+_CFG_SCHEMA_LINE = (
+    ' "cfg": {"type": 图表类型(bar/hbar/bar_stack/line/area/pie/donut/rose/scatter/radar/funnel/gauge/kline/'
+    'combo(双轴组合)/waterfall(瀑布)/heatmap(热力)/boxplot(箱线)/treemap(矩形树图)/sankey(桑基)/kpi),'
+    '"x": 维度列(heatmap=X轴类别;sankey 不用), "ys": [{"field": 度量列, "agg": "sum|avg|count|max|min|none"'
+    '(, combo 可加 "mark":"bar|line","axis":"left|right")}], '
+    '"series": 分组列或空串(heatmap=Y轴类别列), "sort": {"by":"","dir":"desc"}, "topN": 0, "style": {"title": 标题}'
+    ',(仅 kline)"ohlc": {"o":"开盘列","h":"最高列","l":"最低列","c":"收盘列"}'
+    ',(仅 sankey)"link": {"source":"源列","target":"目标列","value":"流量值列"}}}\n'
+)
+
+
+def _code_to_board_prompt(code: str, question: str, source_type: str = '', family: str = '') -> str:
+    """把 agent 的「取数+绘图」代码转成看板配置 {native, cfg} 的提示词。
+
+    native 形态随数据源族不同:SQL/ES/Mongo 是查询语句且可下推聚合;api 族(akshare/ccxt 等接口源)
+    是**接口函数调用** {"func","params"},返回固定结构表、不能下推聚合——分别给对应指引,否则接口源必转失败。
+    """
+    if family == 'api':  # akshare / ccxt 等接口源:native = 接口函数调用,不是查询语句
+        native_block = (
+            '{"native": <一次只读接口调用,形如 {"func":"接口函数名","params":{参数}}——'
+            '直接从代码里 handler.query(...) 的第一个入参**原样提取**(字符串函数名,或 {func,params} 字典);'
+            '不要改写成 SQL、不要杜撰函数名或参数>,\n'
+            + _CFG_SCHEMA_LINE
+            + f'该数据源是「{source_type or "akshare/ccxt"}」接口源,务必注意:\n'
+            '- native 必须是 {"func":..,"params":..} 形态(或纯函数名字符串),**照抄代码里的 handler.query 调用**,'
+            'params 原样复制,别改别编;\n'
+            '- 这类源返回**固定结构的表,无法把聚合下推到 native**——需要汇总/排序/取前 N 时一律用 cfg 完成:'
+            '聚合用 cfg.ys 的 agg(sum/avg/count/max/min),排序用 cfg.sort,取前 N 用 cfg.topN;'
+            '某列本身就是要直接画的原始值时 agg 用 none;\n'
+            '- 只读:此类源天然只读,无需改写;\n'
+            '- cfg 的列名必须是接口返回的真实列名(akshare 多为中文,如 日期/开盘/最高/最低/收盘/成交量/成交额/名称/最新价/涨跌幅)。\n'
+            '示例(akshare):\n'
+            '- 个股日 K:  native={"func":"stock_zh_a_hist","params":{"symbol":"600519","period":"daily","adjust":"qfq"}},'
+            ' cfg.type=kline, x="日期", ohlc={"o":"开盘","h":"最高","l":"最低","c":"收盘"}\n'
+            '- 实时行情按最新价 Top10:  native={"func":"stock_zh_a_spot_em","params":{}},'
+            ' cfg.type=hbar, x="名称", ys=[{"field":"最新价","agg":"none"}], sort={"by":"最新价","dir":"desc"}, topN=10\n'
+            '- 按行业汇总成交额:  native 取实时行情明细接口(不带聚合), cfg.x="行业", ys=[{"field":"成交额","agg":"sum"}]'
+            '(聚合放 cfg,别放 native)\n'
+        )
+    else:  # SQL / ES / Mongo:native 是查询语句,尽量把聚合下推
+        native_block = (
+            '{"native": <一条只读、单条、可独立重跑的查询,返回图表所需数据集;SQL 源用 SQL 字符串,'
+            'ES 用查询 DSL 对象,Mongo 用 pipeline 对象;尽量把聚合放进查询:GROUP BY / aggs / $group>,\n'
+            + _CFG_SCHEMA_LINE
+            + '要求:native 必须**只读**、不依赖代码里的 pandas 中间变量、能独立重跑;'
+            'cfg 里的列名必须是 native 结果的真实列名;若聚合已在查询里做,对应度量 agg 用 none。\n'
+            '【聚合务必下推到 native,别只靠 pandas】常见写法示例:\n'
+            '- SQL 分组求和:  native="SELECT city, SUM(amount) AS amount FROM t GROUP BY city ORDER BY amount DESC LIMIT 10",'
+            ' cfg.x=city, ys=[{"field":"amount","agg":"none"}]\n'
+            '- SQL 单指标:    native="SELECT MAX(price) AS max_price FROM t", cfg.type=kpi, ys=[{"field":"max_price","agg":"none"}]\n'
+            '- ES 桶+指标:    native={"index":"idx","body":{"size":0,"aggs":{"by_ind":{"terms":{"field":"industry.keyword","size":10},'
+            '"aggs":{"amt":{"sum":{"field":"amount"}}}}}}}(handler 会拍平成 by_ind/amt 两列),cfg.x=by_ind, ys=[{"field":"amt","agg":"none"}]\n'
+            '- ES 单指标:     native={"index":"idx","body":{"size":0,"aggs":{"max_price":{"max":{"field":"price"}}}}},'
+            ' cfg.type=kpi, ys=[{"field":"max_price","agg":"none"}]\n'
+            '- Mongo 分组:    native={"collection":"c","pipeline":[{"$group":{"_id":"$city","amount":{"$sum":"$amount"}}}]},'
+            ' cfg.x=_id, ys=[{"field":"amount","agg":"none"}]\n'
+            '- Top-N 明细(非聚合):SQL 用 ORDER BY+LIMIT;ES 用 {"body":{"sort":[{"amount":"desc"}],"size":10,"_source":[...]}}。\n'
+            '- K 线(行情):native 按时间升序取 明细(含 时间/开/高/低/收 列),'
+            'cfg.type=kline, x=时间列, ohlc={"o":"open","h":"high","l":"low","c":"close"}(ys 可省)\n'
+        )
     return (
         '你是数据看板转换器。下面是一段在数据源上「取数+绘图」的 Python 代码'
         '(用 handler.query 取数,可能用 pandas 加工,用 pyecharts 画图)。请把它转换成可复用看板配置,输出 JSON:\n'
-        '{"native": <一条只读、单条、可独立重跑的查询,返回图表所需数据集;SQL 源用 SQL 字符串,'
-        'ES 用查询 DSL 对象,Mongo 用 pipeline 对象;尽量把聚合放进查询:GROUP BY / aggs / $group>,\n'
-        ' "cfg": {"type": 图表类型(bar/hbar/bar_stack/line/area/pie/donut/rose/scatter/radar/funnel/gauge/kpi),'
-        '"x": 维度列, "ys": [{"field": 度量列, "agg": "sum|avg|count|max|min|none"}], '
-        '"series": 分组列或空串, "sort": {"by":"","dir":"desc"}, "topN": 0, "style": {"title": 标题}}}\n'
-        '要求:native 必须**只读**、不依赖代码里的 pandas 中间变量、能独立重跑;'
-        'cfg 里的列名必须是 native 结果的真实列名;若聚合已在查询里做,对应度量 agg 用 none。\n'
-        '【聚合务必下推到 native,别只靠 pandas】常见写法示例:\n'
-        '- SQL 分组求和:  native="SELECT city, SUM(amount) AS amount FROM t GROUP BY city ORDER BY amount DESC LIMIT 10",'
-        ' cfg.x=city, ys=[{"field":"amount","agg":"none"}]\n'
-        '- SQL 单指标:    native="SELECT MAX(price) AS max_price FROM t", cfg.type=kpi, ys=[{"field":"max_price","agg":"none"}]\n'
-        '- ES 桶+指标:    native={"index":"idx","body":{"size":0,"aggs":{"by_ind":{"terms":{"field":"industry.keyword","size":10},'
-        '"aggs":{"amt":{"sum":{"field":"amount"}}}}}}}(handler 会拍平成 by_ind/amt 两列),cfg.x=by_ind, ys=[{"field":"amt","agg":"none"}]\n'
-        '- ES 单指标:     native={"index":"idx","body":{"size":0,"aggs":{"max_price":{"max":{"field":"price"}}}}},'
-        ' cfg.type=kpi, ys=[{"field":"max_price","agg":"none"}]\n'
-        '- Mongo 分组:    native={"collection":"c","pipeline":[{"$group":{"_id":"$city","amount":{"$sum":"$amount"}}}]},'
-        ' cfg.x=_id, ys=[{"field":"amount","agg":"none"}]\n'
-        '- Top-N 明细(非聚合):SQL 用 ORDER BY+LIMIT;ES 用 {"body":{"sort":[{"amount":"desc"}],"size":10,"_source":[...]}}。\n'
-        '**只输出 JSON 本身,不要解释、不要 markdown 围栏。**\n'
-        f'原始需求:{question or "(未知)"}\n代码:\n{code}'
+        + native_block
+        + '**只输出 JSON 本身,不要解释、不要 markdown 围栏。**\n'
+        + f'原始需求:{question or "(未知)"}\n代码:\n{code}'
     )
 
 
@@ -612,7 +682,7 @@ class DataQueryService:
         if not ds:
             raise ServiceException(message='数据源不存在')
         handler = _handler_from_ds(ds)
-        base = _code_to_board_prompt(code, question)
+        base = _code_to_board_prompt(code, question, ds.source_type, getattr(handler, 'family', ''))
         prompt, last_err = base, ''
         for _ in range(cls._QUERY_MAX_TRIES):
             text = await _ai_complete(db, prompt)
@@ -650,6 +720,48 @@ class DataQueryService:
                 continue
             return {'native': stmt, 'cfg': cfg}
         raise ServiceException(message=f'代码转看板失败(已自动纠错 {cls._QUERY_MAX_TRIES} 次):{last_err}')
+
+    @classmethod
+    async def prep_code_to_board(
+        cls, db: AsyncSession, datasource_code: str, code: str, question: str, hint: str = ''
+    ) -> tuple[dict, str]:
+        """流式代码转看板的准备:校验源存在,返回 (AI 模型 cfg, prompt)。
+
+        流式版不在服务端跑校验/纠错(会阻塞、易超时);LLM 产出的 {native, cfg} 由前端 preview_native
+        实跑取数来验证并画图,失败让用户「重新生成」——把慢过程可视化,而不是一个可能超时的阻塞请求。
+        """
+        if not (code or '').strip():
+            raise ServiceException(message='无取数代码可转换')
+        ds = await DataSourceDao.get_by_code(db, datasource_code)
+        if not ds:
+            raise ServiceException(message='数据源不存在')
+        family = ''
+        try:
+            family = getattr(_handler_from_ds(ds), 'family', '')  # 仅取 family 分派 prompt,不建连接
+        except Exception:
+            pass
+        cfg = await _ai_resolve_cfg(db)
+        prompt = _code_to_board_prompt(code, question, ds.source_type, family)
+        if (hint or '').strip():  # 用户在转换对话框手输的纠偏提示,追加到末尾(权重高,放最后)
+            prompt += f'\n\n【用户补充要求,务必优先遵循】{hint.strip()}'
+        return cfg, prompt
+
+    @classmethod
+    async def preview_native(cls, db: AsyncSession, datasource_code: str, native: Any, limit: int = 500) -> dict:
+        """按 数据源编码 + native 只读取数(转看板预览/校验用)。SQL 文本走只读护栏,ES/Mongo(dict)天然只读。"""
+        if native is None or (isinstance(native, str) and not native.strip()):
+            raise ServiceException(message='缺少查询语句')
+        ds = await DataSourceDao.get_by_code(db, datasource_code)
+        if not ds:
+            raise ServiceException(message='数据源不存在')
+        handler = _handler_from_ds(ds)
+        if isinstance(native, str):
+            try:
+                assert_readonly_sql(native, handler.family)
+            except ValueError as e:
+                raise ServiceException(message=str(e)) from None
+        records = await run_in_threadpool(handler.query, native, None, limit)
+        return {'records': json_safe_rows(records), 'total': len(records)}
 
     @classmethod
     async def _kb_context(cls, db: AsyncSession, m: Any, question: str) -> str:
@@ -1029,6 +1141,14 @@ class AnalysisTemplateService:
     async def get_list(cls, db: AsyncSession, model_id: str | None = None) -> list[AnalysisTemplateVo]:
         rows = await AnalysisTemplateDao.get_list(db, model_id)
         return [AnalysisTemplateVo.model_validate(r) for r in rows]
+
+    @classmethod
+    async def get(cls, db: AsyncSession, tid: str) -> AnalysisTemplateVo:
+        """按 id 取单个看板/模板(独立预览页用)。"""
+        row = await AnalysisTemplateDao.get_by_id(db, tid)
+        if not row:
+            raise ServiceException(message='看板不存在')
+        return AnalysisTemplateVo.model_validate(row)
 
     @classmethod
     async def save(cls, db: AsyncSession, vo: AnalysisTemplateVo, operator: str) -> str:

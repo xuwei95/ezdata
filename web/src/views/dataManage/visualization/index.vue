@@ -77,8 +77,12 @@
       </div>
     </el-dialog>
 
-    <!-- 预览:纯图(无配置项),普通弹窗 -->
-    <el-dialog v-model="pv.visible" :title="'预览 - ' + pv.name" width="900px" top="6vh" append-to-body>
+    <!-- 预览:弹窗展示纯图;右上「新标签全屏」跳无壳独立页 -->
+    <el-dialog v-model="pv.visible" width="900px" top="6vh" append-to-body>
+      <template #header>
+        <span style="font-weight: 600">预览 - {{ pv.name }}</span>
+        <el-button link type="primary" icon="FullScreen" style="margin-left: 12px" @click="openFull">新标签全屏</el-button>
+      </template>
       <div class="preview" v-loading="pv.loading" element-loading-text="加载中…">
         <EchartsBuilder v-if="pv.rows.length && pv.cfg" :rows="pv.rows" :config="pv.cfg" :show-controls="false" :height="520" />
         <el-empty v-else :description="pv.err || '无图表配置,无法预览'" />
@@ -89,6 +93,7 @@
 
 <script setup name="Visualization">
 import { ref, reactive } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   listModel, listAnalysisTemplate, saveAnalysisTemplate, delAnalysisTemplate,
@@ -101,8 +106,21 @@ const QUERY_CAP = 5000
 // 与 EchartsBuilder 的类型清单保持一致(用于 isEchartsCfg 守卫,区分旧 pygwalker 数组格式)
 const CHART_TYPES = [
   'bar', 'bar_stack', 'bar_percent', 'hbar', 'line', 'area', 'line_stack',
-  'pie', 'donut', 'rose', 'scatter', 'radar', 'funnel', 'gauge', 'kpi', 'table'
+  'pie', 'donut', 'rose', 'scatter', 'radar', 'funnel', 'gauge', 'kline',
+  'combo', 'waterfall', 'heatmap', 'boxplot', 'treemap', 'sankey', 'kpi', 'table'
 ]
+// native 可能是 SQL 字符串,也可能是 dict(ES DSL / Mongo pipeline,由代码转看板生成);
+// 文本框显示统一转成字符串(dict → 缩进 JSON),否则 v-model 到对象会渲染成 [object Object]。
+function nativeToText(n) {
+  if (n === null || n === undefined) return ''
+  return typeof n === 'string' ? n : JSON.stringify(n, null, 2)
+}
+// 文本框内容 → 执行用的 native:能 JSON.parse 成对象/数组就用对象(ES/Mongo),否则原样当 SQL 串。
+function parseNative(t) {
+  const s = (typeof t === 'string' ? t : nativeToText(t)).trim()
+  if (s[0] === '{' || s[0] === '[') { try { return JSON.parse(s) } catch (e) { /* 非法 JSON,当 SQL */ } }
+  return s
+}
 const loading = ref(false)
 const list = ref([])
 const models = ref([])
@@ -115,8 +133,9 @@ const ed = reactive({
 })
 const aiq = reactive({ open: false, question: '', output: '', loading: false })
 const aic = reactive({ loading: false }) // AI 生成图表配置
-const pv = reactive({ visible: false, name: '', rows: [], cfg: null, loading: false, err: '' })
+const pv = reactive({ visible: false, name: '', id: '', rows: [], cfg: null, loading: false, err: '' })
 const AI_BASE = import.meta.env.VITE_APP_BASE_API || ''
+const router = useRouter()
 
 // 判断是否为 ECharts 图表配置(区分旧 pygwalker 格式/仅查询)
 function isEchartsCfg(c) {
@@ -152,7 +171,7 @@ async function openEditor(row) {
   Object.assign(ed, {
     visible: true, id: row?.id || '', name: row?.name || '', modelId: row?.modelId || '',
     modelName: row?.modelName || '', remark: row?.remark || '',
-    native: (row?.query && row.query.native) || '', rows: [], loading: false,
+    native: nativeToText(row?.query && row.query.native), rows: [], loading: false,
     cfg: isEchartsCfg(row?.chartSpec) ? { ...row.chartSpec } : null
   })
   aiq.open = false; aiq.question = ''; aiq.output = ''
@@ -166,11 +185,10 @@ async function onModelChange(mId) {
 }
 async function runQuery() {
   if (!ed.modelId) { ElMessage.warning('请先选择数据模型'); return }
-  if (!ed.native.trim()) { ElMessage.warning('请输入查询语句'); return }
+  if (!nativeToText(ed.native).trim()) { ElMessage.warning('请输入查询语句'); return }
   ed.loading = true
   try {
-    let n = ed.native.trim(); try { n = JSON.parse(n) } catch (e) { /* SQL 串 */ }
-    const res = await queryModel(ed.modelId, { native: n })
+    const res = await queryModel(ed.modelId, { native: parseNative(ed.native) })
     ed.rows = (res.data.records || []).slice(0, QUERY_CAP)
     ElMessage.success(`查询到 ${res.data.total} 行`)
   } catch (e) { ElMessage.error('查询失败') } finally { ed.loading = false }
@@ -204,26 +222,30 @@ async function save() {
   if (!ed.modelId) { ElMessage.warning('请选择数据模型'); return }
   await saveAnalysisTemplate({
     id: ed.id || undefined, name: ed.name.trim(), modelId: ed.modelId, modelName: ed.modelName,
-    query: { type: 'native', native: ed.native }, chartSpec: ed.cfg || null, remark: ed.remark
+    query: { type: 'native', native: parseNative(ed.native) }, chartSpec: ed.cfg || null, remark: ed.remark
   })
   ElMessage.success('已保存')
   ed.visible = false
   loadList()
 }
 
-// ---- 预览:纯图 ----
+// ---- 预览:弹窗展示纯图 ----
 async function openPreview(row) {
   if (!isEchartsCfg(row.chartSpec)) { ElMessage.info('该看板无图表配置(或为旧格式),请编辑后重新保存'); return }
-  Object.assign(pv, { visible: true, name: row.name, rows: [], cfg: null, loading: true, err: '' })
+  Object.assign(pv, { visible: true, name: row.name, id: row.id, rows: [], cfg: null, loading: true, err: '' })
   try {
-    let n = (row.query && row.query.native) || ''
-    try { n = JSON.parse(n) } catch (e) { /* SQL 串 */ }
-    const q = await queryModel(row.modelId, { native: n })
+    const q = await queryModel(row.modelId, { native: parseNative(row.query && row.query.native) })
     const rows = (q.data.records || []).slice(0, QUERY_CAP)
     if (!rows.length) { pv.err = '查询无数据'; return }
     pv.rows = rows
     pv.cfg = { ...row.chartSpec }
   } catch (e) { pv.err = e?.msg || e?.message || '加载失败'; ElMessage.error(pv.err) } finally { pv.loading = false }
+}
+// 「完全只有图」的独立全屏页(无菜单/导航),在新标签打开,可分享
+function openFull() {
+  if (!pv.id) return
+  const { href } = router.resolve({ name: 'BoardView', params: { id: pv.id } })
+  window.open(href, '_blank')
 }
 
 async function del(row) {

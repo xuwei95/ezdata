@@ -22,35 +22,63 @@
           </div>
 
           <template v-if="cfg.type !== 'table'">
-            <div class="fld">
-              <label>{{ cfg.type === 'kpi' ? '标签维度(可选)' : '类别 / 维度' }}</label>
+            <div v-if="!isSankey" class="fld">
+              <label>{{ xLabel }}</label>
               <el-select v-model="cfg.x" size="small" filterable clearable placeholder="选择字段" style="width: 100%">
                 <el-option v-for="f in fields" :key="f" :label="f" :value="f" />
               </el-select>
             </div>
 
-            <div class="fld">
-              <label>度量 / 指标</label>
+            <!-- K 线:开/高/低/收 四列映射(数据需为每类别一行的 OHLC) -->
+            <template v-if="isKline">
+              <div v-for="o in OHLC_FIELDS" :key="o.k" class="fld">
+                <label>{{ o.l }}</label>
+                <el-select v-model="cfg.ohlc[o.k]" size="small" filterable clearable placeholder="选择字段" style="width: 100%">
+                  <el-option v-for="f in fields" :key="f" :label="f" :value="f" />
+                </el-select>
+              </div>
+            </template>
+
+            <!-- 桑基图:源 / 目标 / 流量值 三列映射 -->
+            <template v-if="isSankey">
+              <div v-for="l in LINK_FIELDS" :key="l.k" class="fld">
+                <label>{{ l.l }}</label>
+                <el-select v-model="cfg.link[l.k]" size="small" filterable clearable placeholder="选择字段" style="width: 100%">
+                  <el-option v-for="f in fields" :key="f" :label="f" :value="f" />
+                </el-select>
+              </div>
+            </template>
+
+            <div v-if="!isKline && !isSankey" class="fld">
+              <label>{{ isHeatmap ? '值(颜色深浅)' : '度量 / 指标' }}</label>
               <div v-for="(m, i) in cfg.ys" :key="i" class="ys-row">
                 <el-select v-model="m.field" size="small" filterable placeholder="字段" style="flex: 1">
                   <el-option v-for="f in fields" :key="f" :label="f" :value="f" />
                 </el-select>
-                <el-select v-model="m.agg" size="small" style="width: 82px">
+                <el-select v-model="m.agg" size="small" style="width: 76px">
                   <el-option v-for="a in AGGS" :key="a.v" :label="a.l" :value="a.v" />
                 </el-select>
+                <template v-if="isCombo">
+                  <el-select v-model="m.mark" size="small" style="width: 62px">
+                    <el-option v-for="o in MARKS" :key="o.v" :label="o.l" :value="o.v" />
+                  </el-select>
+                  <el-select v-model="m.axis" size="small" style="width: 68px">
+                    <el-option v-for="o in AXES" :key="o.v" :label="o.l" :value="o.v" />
+                  </el-select>
+                </template>
                 <el-button size="small" icon="Delete" text :disabled="cfg.ys.length <= 1" @click="removeY(i)" />
               </div>
-              <el-button size="small" text type="primary" icon="Plus" @click="addY">添加度量</el-button>
+              <el-button v-if="allowMultiY" size="small" text type="primary" icon="Plus" @click="addY">添加度量</el-button>
             </div>
 
-            <div v-if="allowSeries" class="fld">
-              <label>分组 / 拆分(可选)</label>
-              <el-select v-model="cfg.series" size="small" filterable clearable placeholder="按此字段拆多系列" style="width: 100%">
+            <div v-if="allowSeries || isHeatmap" class="fld">
+              <label>{{ isHeatmap ? 'Y 轴类别' : '分组 / 拆分(可选)' }}</label>
+              <el-select v-model="cfg.series" size="small" filterable clearable :placeholder="isHeatmap ? '选择 Y 轴字段' : '按此字段拆多系列'" style="width: 100%">
                 <el-option v-for="f in fields" :key="f" :label="f" :value="f" />
               </el-select>
             </div>
 
-            <div v-if="cfg.type !== 'kpi' && cfg.type !== 'gauge'" class="fld">
+            <div v-if="showSortTopN" class="fld">
               <label>排序</label>
               <div class="row2">
                 <el-select v-model="cfg.sort.by" size="small" style="flex: 1">
@@ -65,7 +93,7 @@
               </div>
             </div>
 
-            <div v-if="cfg.type !== 'kpi' && cfg.type !== 'gauge'" class="fld">
+            <div v-if="showSortTopN" class="fld">
               <label>Top-N(0 = 不限)</label>
               <el-input-number v-model="cfg.topN" :min="0" :max="1000" size="small" controls-position="right" style="width: 100%" />
             </div>
@@ -109,18 +137,18 @@
               </el-select>
             </div>
 
-            <div v-if="isCartesian" class="fld inline">
+            <div v-if="hasAxis" class="fld inline">
               <label>轴名</label>
               <el-input v-model="cfg.style.xName" size="small" placeholder="X" style="width: 44%" />
               <el-input v-model="cfg.style.yName" size="small" placeholder="Y" style="width: 44%; margin-left: auto" />
             </div>
 
-            <div v-if="isCartesian" class="fld inline">
+            <div v-if="hasAxis" class="fld inline">
               <label>X 标签旋转</label>
               <el-input-number v-model="cfg.style.rotate" :min="0" :max="90" :step="15" size="small" controls-position="right" style="width: 110px; margin-left: auto" />
             </div>
 
-            <div v-if="isCartesian" class="fld inline">
+            <div v-if="hasAxis" class="fld inline">
               <label>Y 轴范围</label>
               <el-input v-model="cfg.style.yMin" size="small" placeholder="min" style="width: 44%" />
               <el-input v-model="cfg.style.yMax" size="small" placeholder="max" style="width: 44%; margin-left: auto" />
@@ -215,6 +243,13 @@ const TYPE_GROUPS = [
     { v: 'scatter', l: '散点图' }, { v: 'radar', l: '雷达图' },
     { v: 'funnel', l: '漏斗图' }, { v: 'gauge', l: '仪表盘' }
   ] },
+  { label: 'K 线', items: [
+    { v: 'kline', l: 'K 线图(OHLC)' }
+  ] },
+  { label: '组合 / 进阶', items: [
+    { v: 'combo', l: '双轴组合' }, { v: 'waterfall', l: '瀑布图' }, { v: 'heatmap', l: '热力图' },
+    { v: 'boxplot', l: '箱线图' }, { v: 'treemap', l: '矩形树图' }, { v: 'sankey', l: '桑基图' }
+  ] },
   { label: '纯展示', items: [
     { v: 'kpi', l: '指标卡' }, { v: 'table', l: '明细表' }
   ] }
@@ -224,6 +259,13 @@ const AGGS = [
   { v: 'max', l: '最大' }, { v: 'min', l: '最小' }, { v: 'none', l: '不聚合(已聚合直接画)' }
 ]
 const AGG_LABEL = { sum: '总', avg: '均', count: '数', max: '最大', min: '最小' }
+// K 线的四个度量列(顺序=面板展示顺序);guess=按列名关键词自动匹配
+const OHLC_FIELDS = [
+  { k: 'o', l: '开盘价', guess: ['open', '开盘', '开'] },
+  { k: 'h', l: '最高价', guess: ['high', '最高', '高'] },
+  { k: 'l', l: '最低价', guess: ['low', '最低', '低'] },
+  { k: 'c', l: '收盘价', guess: ['close', '收盘', '收'] }
+]
 const PALETTES = {
   default: { label: '默认', colors: ['#5470c6', '#91cc75', '#fac858', '#ee6666', '#73c0de', '#3ba272', '#fc8452', '#9a60b4', '#ea7ccc'] },
   tech: { label: '科技蓝', colors: ['#1f6feb', '#2ea6ff', '#00c2ff', '#0ad4c8', '#5b8ff9', '#5ad8a6', '#3b5bdb', '#748ffc'] },
@@ -237,8 +279,18 @@ const DEFAULT_STYLE = {
   decimals: 2, thousands: true, unit: '', percent: false,
   xName: '', yName: '', rotate: 0, yMin: null, yMax: null, donutInner: 50
 }
+// 双轴组合每个度量可选:mark(bar/line)、axis(left/right)
+const MARKS = [{ v: '', l: '默认' }, { v: 'bar', l: '柱' }, { v: 'line', l: '线' }]
+const AXES = [{ v: '', l: '左轴' }, { v: 'right', l: '右轴' }]
+// 桑基图三列映射(源→目标,值=流量)
+const LINK_FIELDS = [
+  { k: 'source', l: '源节点', guess: ['source', 'from', '源', '起'] },
+  { k: 'target', l: '目标节点', guess: ['target', 'to', '目标', '止', '终'] },
+  { k: 'value', l: '流量值', guess: ['value', 'amount', 'weight', 'count', '值', '量'] }
+]
 function newCfg() {
-  return { type: 'bar', x: '', ys: [{ field: '', agg: 'sum' }], series: '', sort: { by: '', dir: 'desc' }, topN: 0, style: { ...DEFAULT_STYLE } }
+  return { type: 'bar', x: '', ys: [{ field: '', agg: 'sum', mark: '', axis: '' }], series: '', sort: { by: '', dir: 'desc' }, topN: 0,
+    ohlc: { o: '', h: '', l: '', c: '' }, link: { source: '', target: '', value: '' }, style: { ...DEFAULT_STYLE } }
 }
 
 const panelTab = ref('data')
@@ -254,7 +306,17 @@ const isCanvasType = computed(() => !['kpi', 'table'].includes(cfg.type))
 const isCartesian = computed(() => ['bar', 'bar_stack', 'bar_percent', 'hbar', 'line', 'area', 'line_stack'].includes(cfg.type))
 const isLineFamily = computed(() => ['line', 'area', 'line_stack'].includes(cfg.type))
 const isPieFamily = computed(() => ['pie', 'donut', 'rose'].includes(cfg.type))
-const allowSeries = computed(() => isCartesian.value) // 分组仅对直角坐标类有意义
+const isKline = computed(() => cfg.type === 'kline')
+const isCombo = computed(() => cfg.type === 'combo')
+const isHeatmap = computed(() => cfg.type === 'heatmap')
+const isSankey = computed(() => cfg.type === 'sankey')
+// 有直角轴(共用轴名/旋转/范围样式):直角坐标 + K线/组合/瀑布/箱线/热力
+const hasAxis = computed(() => isCartesian.value || ['kline', 'combo', 'waterfall', 'boxplot', 'heatmap'].includes(cfg.type))
+const allowSeries = computed(() => isCartesian.value || isCombo.value) // 分组:直角坐标 + 组合图(热力单独用 series 当 Y 轴)
+const showSortTopN = computed(() => !['kpi', 'gauge', 'kline', 'sankey', 'heatmap', 'boxplot'].includes(cfg.type))
+const allowMultiY = computed(() => isCartesian.value || isCombo.value || cfg.type === 'radar') // 支持多度量的类型
+const xLabel = computed(() => cfg.type === 'kpi' ? '标签维度(可选)'
+  : isKline.value ? '时间 / 类别(X 轴)' : isHeatmap.value ? 'X 轴类别' : '类别 / 维度')
 const tableRows = computed(() => (props.rows || []).slice(0, 1000))
 const kpiItems = computed(() => cfg.ys.filter((m) => m.field).map((m) => ({
   label: `${AGG_LABEL[m.agg] || ''} ${m.field}`,
@@ -269,19 +331,51 @@ function migrate(c) {
   out.x = c.x || ''
   out.series = c.series || ''
   if (Array.isArray(c.ys) && c.ys.length) {
-    out.ys = c.ys.map((m) => ({ field: m.field || '', agg: m.agg || 'sum' }))
+    out.ys = c.ys.map((m) => ({ field: m.field || '', agg: m.agg || 'sum', mark: m.mark || '', axis: m.axis || '' }))
   } else if (c.y) { // 旧结构 {y, agg}
-    out.ys = [{ field: c.y, agg: c.agg || 'sum' }]
+    out.ys = [{ field: c.y, agg: c.agg || 'sum', mark: '', axis: '' }]
   }
   if (c.sort && typeof c.sort === 'object') out.sort = { by: c.sort.by || '', dir: c.sort.dir || 'desc' }
   out.topN = c.topN || 0
+  if (c.ohlc && typeof c.ohlc === 'object') out.ohlc = { o: c.ohlc.o || '', h: c.ohlc.h || '', l: c.ohlc.l || '', c: c.ohlc.c || '' }
+  if (c.link && typeof c.link === 'object') out.link = { source: c.link.source || '', target: c.link.target || '', value: c.link.value || '' }
   out.style = { ...DEFAULT_STYLE, ...(c.style || {}) }
   return out
 }
 function applyCfg(c) {
   const m = migrate(c)
   cfg.type = m.type; cfg.x = m.x; cfg.ys = m.ys; cfg.series = m.series
-  cfg.sort = m.sort; cfg.topN = m.topN; cfg.style = m.style
+  cfg.sort = m.sort; cfg.topN = m.topN; cfg.ohlc = m.ohlc; cfg.link = m.link; cfg.style = m.style
+}
+// K 线:为空的 OHLC 列按列名关键词猜,猜不到则顺次取未用的数值列;x 未设时另取一列(通常日期)
+function ensureOhlc() {
+  const r = props.rows[0] || {}
+  const nums = fields.value.filter((k) => typeof r[k] === 'number')
+  const used = new Set([cfg.x])
+  for (const o of OHLC_FIELDS) {
+    let f = cfg.ohlc[o.k]
+    if (f && fields.value.includes(f)) { used.add(f); continue }
+    f = fields.value.find((k) => !used.has(k) && o.guess.some((g) => k.toLowerCase().includes(g)))
+    if (!f) f = nums.find((k) => !used.has(k)) || ''
+    cfg.ohlc[o.k] = f
+    if (f) used.add(f)
+  }
+}
+// 桑基:源/目标猜文本列、值猜数值列;猜不到顺次取列
+function ensureLink() {
+  const cols = fields.value
+  const r = props.rows[0] || {}
+  const nonNum = cols.filter((k) => typeof r[k] !== 'number')
+  const nums = cols.filter((k) => typeof r[k] === 'number')
+  const L = cfg.link
+  const pick = (cur, guess, pool, used) => {
+    if (cur && cols.includes(cur)) return cur
+    return pool.find((k) => !used.has(k) && guess.some((g) => k.toLowerCase().includes(g))) || pool.find((k) => !used.has(k)) || ''
+  }
+  const used = new Set()
+  L.source = pick(L.source, LINK_FIELDS[0].guess, nonNum.length ? nonNum : cols, used); used.add(L.source)
+  L.target = pick(L.target, LINK_FIELDS[1].guess, nonNum.length ? nonNum : cols, used); used.add(L.target)
+  L.value = pick(L.value, LINK_FIELDS[2].guess, nums.length ? nums : cols, used)
 }
 function inferFields() {
   const r = props.rows[0] || {}
@@ -290,14 +384,20 @@ function inferFields() {
   if (!cfg.x || !fields.value.includes(cfg.x)) {
     cfg.x = fields.value.find((k) => typeof r[k] !== 'number') || fields.value[0] || ''
   }
-  if (!cfg.ys.length) cfg.ys = [{ field: '', agg: 'sum' }]
+  if (!cfg.ys.length) cfg.ys = [{ field: '', agg: 'sum', mark: '', axis: '' }]
   cfg.ys.forEach((m) => { if (!m.field || !fields.value.includes(m.field)) m.field = nums[0] || fields.value[1] || fields.value[0] || '' })
+  if (cfg.type === 'kline') ensureOhlc()
+  if (cfg.type === 'sankey') ensureLink()
+  // 热力:series 当 Y 轴类别,必须有;缺则另取一列(非 x、优先文本)
+  if (cfg.type === 'heatmap' && (!cfg.series || !fields.value.includes(cfg.series))) {
+    cfg.series = fields.value.find((k) => k !== cfg.x && typeof r[k] !== 'number') || fields.value.find((k) => k !== cfg.x) || ''
+  }
 }
 
 function addY() {
   const r = props.rows[0] || {}
   const nums = fields.value.filter((k) => typeof r[k] === 'number')
-  cfg.ys.push({ field: nums[0] || fields.value[0] || '', agg: 'sum' })
+  cfg.ys.push({ field: nums[0] || fields.value[0] || '', agg: 'sum', mark: '', axis: '' })
 }
 function removeY(i) { if (cfg.ys.length > 1) cfg.ys.splice(i, 1) }
 
@@ -331,6 +431,20 @@ function numOrNull(v) {
   if (v === null || v === undefined || v === '') return null
   const n = Number(v)
   return Number.isNaN(n) ? null : n
+}
+// 分位数(线性插值)+ 箱线五数概括 [min,Q1,中位,Q3,max]
+function quantile(sorted, p) {
+  if (!sorted.length) return 0
+  const idx = (sorted.length - 1) * p
+  const lo = Math.floor(idx); const hi = Math.ceil(idx)
+  return lo === hi ? sorted[lo] : sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo)
+}
+function boxOf(sorted) {
+  return [sorted[0] || 0, quantile(sorted, 0.25), quantile(sorted, 0.5), quantile(sorted, 0.75), sorted[sorted.length - 1] || 0]
+}
+// 按 x 分组取某度量(none=取该组首值,其余按 agg 汇总)——组合/瀑布/热力/箱线/树图共用
+function catAgg(rows, cat, field, mode) {
+  return agg(rows.filter((r) => String(r[cfg.x]) === String(cat)).map((r) => r[field]), mode)
 }
 
 // 按 sort + topN 对类别裁剪排序,同步重排各系列 data
@@ -401,6 +515,26 @@ function buildOption() {
   const color = paletteColors()
   const s = cfg.style
 
+  // ---- K 线(candlestick):x=时间/类别,每行一组 OHLC ----
+  if (T === 'kline') {
+    const o = cfg.ohlc || {}
+    const cats = rows.map((r) => String(r[cfg.x]))
+    // ECharts candlestick 每项顺序为 [开, 收, 低, 高]
+    const data = rows.map((r) => [numOrNull(r[o.o]), numOrNull(r[o.c]), numOrNull(r[o.l]), numOrNull(r[o.h])])
+    return {
+      title: titleCfg(),
+      tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
+      grid: { left: 56, right: 24, bottom: 54, top: s.title ? 40 : 24, containLabel: true },
+      xAxis: { type: 'category', data: cats, name: s.xName, boundaryGap: true, axisLabel: { rotate: s.rotate } },
+      yAxis: { type: 'value', name: s.yName, scale: true, min: numOrNull(s.yMin), max: numOrNull(s.yMax),
+        axisLabel: { formatter: (v) => fmtNumber(v) } },
+      dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 6, height: 16 }],
+      series: [{ type: 'candlestick', data,
+        // 红涨绿跌(A 股习惯);color=阳线 color0=阴线
+        itemStyle: { color: '#ef232a', color0: '#14b143', borderColor: '#ef232a', borderColor0: '#14b143' } }]
+    }
+  }
+
   // ---- 饼 / 环形 / 玫瑰 ----
   if (isPieFamily.value) {
     const y = cfg.ys[0]
@@ -465,6 +599,130 @@ function buildOption() {
     }
   }
 
+  // ---- 双轴组合:每个度量可选 柱/线 与 左/右轴 ----
+  if (T === 'combo') {
+    const cats0 = [...new Set(rows.map((r) => r[cfg.x]))]
+    let seriesList = cfg.ys.filter((y) => y.field).map((y) => ({
+      name: y.field, data: cats0.map((c) => catAgg(rows, c, y.field, y.agg))
+    }))
+    const sorted = applySortTopN(cats0, seriesList)
+    const cats = sorted.cats; seriesList = sorted.seriesList
+    const measures = cfg.ys.filter((y) => y.field)
+    const hasRight = measures.some((y) => y.axis === 'right')
+    const series = seriesList.map((s2, i) => {
+      const y = measures[i] || {}
+      const mark = y.mark === 'line' ? 'line' : (y.mark === 'bar' ? 'bar' : (i === 0 ? 'bar' : 'line'))
+      return {
+        name: s2.name, type: mark, yAxisIndex: y.axis === 'right' ? 1 : 0,
+        smooth: mark === 'line' ? s.smooth : undefined,
+        label: { show: s.label, position: 'top', formatter: (p) => fmtNumber(p.value) }, data: s2.data
+      }
+    })
+    const yL = { type: 'value', name: s.yName, min: numOrNull(s.yMin), max: numOrNull(s.yMax), axisLabel: { formatter: (v) => fmtNumber(v) } }
+    const yR = { type: 'value', axisLabel: { formatter: (v) => fmtNumber(v) } }
+    return {
+      color, title: titleCfg(), legend: legendCfg(), tooltip: { trigger: 'axis', valueFormatter: (v) => fmtNumber(v) },
+      grid: { left: 56, right: hasRight ? 56 : 24, bottom: s.rotate ? 60 : 40, top: (s.title || cfg.style.legend) ? 48 : 28, containLabel: true },
+      xAxis: { type: 'category', data: cats.map(String), name: s.xName, axisLabel: { rotate: s.rotate } },
+      yAxis: hasRight ? [yL, yR] : [yL], series
+    }
+  }
+
+  // ---- 瀑布图:x 一个度量,累计升降(透明底座 + 增/减两段)----
+  if (T === 'waterfall') {
+    const y = cfg.ys[0]
+    let items = [...new Set(rows.map((r) => r[cfg.x]))].map((c) => ({ c: String(c), v: Number(catAgg(rows, c, y.field, y.agg)) || 0 }))
+    if (cfg.sort.by) items.sort((a, b) => (cfg.sort.dir === 'asc' ? a.v - b.v : b.v - a.v))
+    if (cfg.topN > 0) items = items.slice(0, cfg.topN)
+    const base = []; const rise = []; const fall = []; let run = 0
+    for (const it of items) {
+      const start = run; run += it.v
+      base.push(Math.min(start, run))
+      const h = Math.abs(it.v)
+      rise.push(it.v >= 0 ? h : '-'); fall.push(it.v < 0 ? h : '-')
+    }
+    return {
+      title: titleCfg(), legend: legendCfg(), tooltip: { trigger: 'axis', valueFormatter: (v) => fmtNumber(v) },
+      grid: { left: 56, right: 24, bottom: s.rotate ? 60 : 40, top: (s.title || cfg.style.legend) ? 48 : 28, containLabel: true },
+      xAxis: { type: 'category', data: items.map((it) => it.c), name: s.xName, axisLabel: { rotate: s.rotate } },
+      yAxis: { type: 'value', name: s.yName, axisLabel: { formatter: (v) => fmtNumber(v) } },
+      series: [
+        { type: 'bar', stack: 'wf', itemStyle: { color: 'transparent' }, emphasis: { itemStyle: { color: 'transparent' } }, data: base, silent: true },
+        { name: '增加', type: 'bar', stack: 'wf', itemStyle: { color: '#ef232a' }, data: rise, label: { show: s.label, position: 'top', formatter: (p) => fmtNumber(p.value) } },
+        { name: '减少', type: 'bar', stack: 'wf', itemStyle: { color: '#14b143' }, data: fall, label: { show: s.label, position: 'bottom', formatter: (p) => fmtNumber(p.value) } }
+      ]
+    }
+  }
+
+  // ---- 热力图:x=X轴类别,series=Y轴类别,ys[0]=值(颜色深浅)----
+  if (T === 'heatmap') {
+    const y = cfg.ys[0]
+    const xcats = [...new Set(rows.map((r) => String(r[cfg.x])))]
+    const ycats = [...new Set(rows.map((r) => String(r[cfg.series])))]
+    const data = []; let minV = Infinity; let maxV = -Infinity
+    for (let xi = 0; xi < xcats.length; xi++) {
+      for (let yi = 0; yi < ycats.length; yi++) {
+        const sub = rows.filter((r) => String(r[cfg.x]) === xcats[xi] && String(r[cfg.series]) === ycats[yi])
+        if (!sub.length) continue
+        const v = agg(sub.map((r) => r[y.field]), y.agg)
+        data.push([xi, yi, v]); if (v < minV) minV = v; if (v > maxV) maxV = v
+      }
+    }
+    return {
+      title: titleCfg(), tooltip: { position: 'top', formatter: (p) => `${xcats[p.value[0]]} / ${ycats[p.value[1]]}: ${fmtNumber(p.value[2])}` },
+      grid: { left: 80, right: 24, bottom: 60, top: s.title ? 40 : 24, containLabel: true },
+      xAxis: { type: 'category', data: xcats, name: s.xName, axisLabel: { rotate: s.rotate } },
+      yAxis: { type: 'category', data: ycats, name: s.yName },
+      visualMap: { min: isFinite(minV) ? minV : 0, max: isFinite(maxV) ? maxV : 1, calculable: true, orient: 'horizontal', left: 'center', bottom: 4, inRange: { color: ['#e0f3f8', '#4575b4'] } },
+      series: [{ type: 'heatmap', data, label: { show: s.label, formatter: (p) => fmtNumber(p.value[2]) } }]
+    }
+  }
+
+  // ---- 箱线图:x=类别,ys[0]=原始值列,按类别算五数概括 ----
+  if (T === 'boxplot') {
+    const y = cfg.ys[0]
+    const cats = [...new Set(rows.map((r) => String(r[cfg.x])))]
+    const boxData = cats.map((c) => boxOf(
+      rows.filter((r) => String(r[cfg.x]) === c).map((r) => Number(r[y.field])).filter((v) => !Number.isNaN(v)).sort((a, b) => a - b)
+    ))
+    return {
+      color, title: titleCfg(), tooltip: { trigger: 'item' },
+      grid: { left: 56, right: 24, bottom: s.rotate ? 60 : 40, top: s.title ? 40 : 24, containLabel: true },
+      xAxis: { type: 'category', data: cats, name: s.xName, axisLabel: { rotate: s.rotate } },
+      yAxis: { type: 'value', name: s.yName, scale: true, axisLabel: { formatter: (v) => fmtNumber(v) } },
+      series: [{ type: 'boxplot', data: boxData }]
+    }
+  }
+
+  // ---- 矩形树图:name=x,value=ys[0](单层)----
+  if (T === 'treemap') {
+    const y = cfg.ys[0]
+    let data = [...new Set(rows.map((r) => r[cfg.x]))].map((c) => ({ name: String(c), value: catAgg(rows, c, y.field, y.agg) }))
+    if (cfg.sort.by) data.sort((a, b) => (cfg.sort.dir === 'asc' ? a.value - b.value : b.value - a.value))
+    if (cfg.topN > 0) data = data.slice(0, cfg.topN)
+    return {
+      color, title: titleCfg(), tooltip: { formatter: (p) => `${p.name}: ${fmtNumber(p.value)}` },
+      series: [{ type: 'treemap', data, breadcrumb: { show: false }, roam: false,
+        label: { show: true, formatter: (p) => `${p.name}\n${fmtNumber(p.value)}` } }]
+    }
+  }
+
+  // ---- 桑基图:link{source,target,value} 三列 → 节点 + 边 ----
+  if (T === 'sankey') {
+    const lk = cfg.link || {}
+    const nodes = new Set(); const links = []
+    for (const r of rows) {
+      const src = String(r[lk.source] ?? ''); const tgt = String(r[lk.target] ?? ''); const val = Number(r[lk.value])
+      if (!src || !tgt || Number.isNaN(val)) continue
+      nodes.add(src); nodes.add(tgt); links.push({ source: src, target: tgt, value: val })
+    }
+    return {
+      color, title: titleCfg(), tooltip: { trigger: 'item', valueFormatter: (v) => fmtNumber(v) },
+      series: [{ type: 'sankey', data: [...nodes].map((n) => ({ name: n })), links, emphasis: { focus: 'adjacency' },
+        label: { show: s.label !== false }, lineStyle: { color: 'gradient', curveness: 0.5 } }]
+    }
+  }
+
   // ---- 直角坐标:柱 / 条 / 线 / 面 ----
   const isBar = ['bar', 'bar_stack', 'bar_percent', 'hbar'].includes(T)
   const stacked = ['bar_stack', 'bar_percent', 'line_stack'].includes(T)
@@ -524,6 +782,7 @@ watch(cfg, () => {
   render()
 }, { deep: true })
 
+watch(() => cfg.type, () => inferFields()) // 切类型时按新类型补齐所需字段映射(OHLC/桑基 link/热力 Y 等)
 watch(() => props.rows, () => { inferFields(); render() })
 watch(() => props.config, (c) => { applyCfg(c); lastCfgJson = JSON.stringify(cfg); inferFields(); render() })
 

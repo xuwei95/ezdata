@@ -80,12 +80,21 @@ export function aiChart(id, data) {
 export function listAnalysisTemplate(modelId) {
   return request({ url: '/data/analysis-template/list', method: 'get', params: { modelId } })
 }
+// 看板详情(独立预览页按 id 拉取)
+export function getAnalysisTemplate(id) {
+  return request({ url: `/data/analysis-template/detail/${id}`, method: 'get' })
+}
 export function saveAnalysisTemplate(data) {
   return request({ url: '/data/analysis-template', method: 'post', data })
 }
 // 对话图表存为看板:data={name, datasourceCode, native, chartSpec};后端自动挂 custom_query 模型
 export function saveChartAsBoard(data) {
   return request({ url: '/data/analysis-template/from-chart', method: 'post', data })
+}
+// 代码转看板预览:按 数据源 + native 只读取数,返回 {records,total} 供画图。data={datasourceCode, native}
+// (代码转看板的「流式生成 native+cfg」用 fetch 直连 /data/analysis-template/code-to-board/stream)
+export function previewNative(data) {
+  return request({ url: '/data/analysis-template/preview-native', method: 'post', data, timeout: 120000 })
 }
 export function delAnalysisTemplate(ids) {
   return request({ url: '/data/analysis-template/' + ids, method: 'delete' })

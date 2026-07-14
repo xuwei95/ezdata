@@ -69,9 +69,15 @@ _DATA_AGENT_INSTRUCTIONS: list[str] = [
     '   - 命中可复用解法:**直接复用、或仅按本次差异微调后运行**,不要从零重写,也不必再逐个 get_table_schema;',
     '   - 未命中:才进入第 3 步自行发现+编写。',
     '3. 没有可用解法时:用 get_table_schema 查清目标表字段/调用参数 → run_datasource_query 编写取数代码。',
-    '3.5 【出图优先用 plot_chart】用户要图表时,优先调 plot_chart(datasource_code, native=单条只读查询, chart_type, x, ys, ...):'
-    '把聚合做进查询里(SQL→GROUP BY、ES→aggs、Mongo→$group),对应度量的 agg 填 none;'
-    '产出的图用户可一键「存为看板」复用。仅当需要复杂多步 pandas 加工时,才改用 run_datasource_query 里 pyecharts 画(那类图仅展示、不可存看板)。',
+    '3.5 【出图工具怎么选——按聚合复杂度分流,别一律用同一个】'
+    '· 简单图优先用 plot_chart(datasource_code, native=单条只读查询, chart_type, x, ys, …):适用「单表 + 单一维度 + 单一/无聚合」的高频图——'
+    'Top-N 柱/条、占比饼、时间趋势线、K 线、以及一条 SQL GROUP BY 就能算清的图。关键:让 native **直接返回要画的最终值**'
+    '(SQL 写 GROUP BY / ORDER BY / LIMIT,度量 agg 填 none),不要依赖前端对采样数据再做 sum/max/avg——'
+    'plot_chart 取数有行数上限,靠前端二次聚合会把总和/极值算错。这类图天生可「存为看板」,稳、可复用,能用就用它。'
+    '· 复杂图改用 run_datasource_query 写代码:涉及**多重/多层聚合、跨多次查询、pandas 关联/透视/多步计算**,'
+    '或 **ES 只有指标、无分桶的单值 KPI(size:0 + 仅 metric aggs,声明式常取不到值)** → 在沙箱里用代码算准、再用 pyecharts 出图,正确率明显更高'
+    '(这类图仅展示;用户点「存为看板」时由后端转换成可复用配置)。'
+    '· 拿不准就自问「一条查询能不能把要画的值算清」:能 → plot_chart;不能(要多步/多聚合)→ 代码。',
     '4. 取数/计算成功后正常作答;无需声称”已存入知识库”(由用户点”收藏到知识库”决定)。',
     '一句话:先复用已验证解法,不行再发现现写;能省一轮工具调用就省一轮。',
     '取数注意(尤其 Elasticsearch 源):'
