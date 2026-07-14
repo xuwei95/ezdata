@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import JSON, SmallInteger, String, Text
+from sqlalchemy import JSON, Integer, SmallInteger, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from config.database import Base, TenantMixin
@@ -73,6 +73,9 @@ class DataAnalysisTemplate(Base, TenantMixin):
     model_name: Mapped[str | None] = mapped_column(String(200), nullable=True, comment='数据模型名(冗余,展示用)')
     query: Mapped[dict | None] = mapped_column(JSON, nullable=True, comment='取数配置 {type,native/filters/question}')
     chart_spec: Mapped[dict | None] = mapped_column(JSON, nullable=True, comment='图表配置(EchartsBuilder cfg:type/x/ys/series/sort/style)')
+    params: Mapped[list | None] = mapped_column(JSON, nullable=True, comment='看板变量定义+当前值 [{name,label,type,default,value,options}]')
+    refresh_interval: Mapped[int | None] = mapped_column(Integer, nullable=True, server_default='0', comment='自动刷新间隔(秒,0=不刷新)')
+    share_token: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True, comment='匿名分享令牌(空=未开启)')
     remark: Mapped[str | None] = mapped_column(String(500), nullable=True, server_default="''", comment='备注')
     create_by: Mapped[str | None] = mapped_column(String(64), nullable=True, server_default="''", comment='创建者')
     create_time: Mapped[datetime | None] = mapped_column(default=datetime.now, nullable=True, comment='创建时间')

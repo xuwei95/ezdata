@@ -349,6 +349,30 @@ async def analysis_template_preview_native(
     return ResponseUtil.success(data=data)
 
 
+@data_controller.post(
+    '/analysis-template/{tid}/share', summary='开启/重置看板匿名分享', dependencies=[UserInterfaceAuthDependency('data:query')]
+)
+async def analysis_template_share(
+    tid: Annotated[str, Path()],
+    db: Annotated[AsyncSession, DBSessionDependency()],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
+) -> Response:
+    token = await AnalysisTemplateService.gen_share(db, tid, current_user.user.user_name)
+    return ResponseUtil.success(data={'token': token}, msg='已开启分享')
+
+
+@data_controller.delete(
+    '/analysis-template/{tid}/share', summary='关闭看板匿名分享', dependencies=[UserInterfaceAuthDependency('data:query')]
+)
+async def analysis_template_unshare(
+    tid: Annotated[str, Path()],
+    db: Annotated[AsyncSession, DBSessionDependency()],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
+) -> Response:
+    await AnalysisTemplateService.revoke_share(db, tid, current_user.user.user_name)
+    return ResponseUtil.success(msg='已关闭分享')
+
+
 @data_controller.delete(
     '/analysis-template/{ids}', summary='删除分析模板', dependencies=[UserInterfaceAuthDependency('data:query')]
 )

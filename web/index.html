@@ -209,6 +209,16 @@
       <div class="load_title">正在加载系统资源，请耐心等待</div>
     </div>
   </div>
+  <script>
+    // 纯图/分享等对外看板页:Vue 挂载前就移除系统级启动 loading(避免那块紫色转圈突兀闪现)
+    (function () {
+      var p = location.pathname || ''
+      if (p.indexOf('/share/board/') === 0 || p.indexOf('/data/board-view/') === 0) {
+        var el = document.getElementById('loader-wrapper')
+        if (el) el.parentNode.removeChild(el)
+      }
+    })()
+  </script>
   <script type="module" src="/src/main.js"></script>
 </body>
 

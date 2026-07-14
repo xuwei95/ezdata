@@ -93,6 +93,7 @@ class QueryReq(BaseModel):
 
     filters: list[dict] | None = Field(default=None, description='统一过滤结构 [{field,op,value}]')
     native: Any | None = Field(default=None, description='原生查询(SQL 串 / DSL dict / pipeline)')
+    params: dict | None = Field(default=None, description='看板变量取值 {name: value},取数前替换 native 里的 {{name}}')
     limit: int | None = Field(default=5000, description='安全上限')
 
 
@@ -191,6 +192,9 @@ class AnalysisTemplateVo(BaseModel):
     model_name: str | None = Field(default=None, description='数据模型名')
     query: dict | None = Field(default=None, description='取数配置 {type,native/filters/question}')
     chart_spec: Any | None = Field(default=None, description='图表配置(EchartsBuilder cfg:type/x/ys/series/sort/style)')
+    params: Any | None = Field(default=None, description='看板变量定义+当前值 [{name,label,type,default,value,options}]')
+    refresh_interval: int | None = Field(default=None, description='自动刷新间隔(秒,0=不刷新)')
+    share_token: str | None = Field(default=None, description='匿名分享令牌(空=未开启)')
     remark: str | None = Field(default=None, description='备注')
     create_by: str | None = Field(default=None, description='创建者')
     create_time: datetime | None = Field(default=None, description='创建时间')

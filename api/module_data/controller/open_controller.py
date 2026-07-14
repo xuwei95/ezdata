@@ -21,3 +21,11 @@ async def open_data(
     # 形如 /open/data/demo_ord?apikey=sk_xxx&eq[status]=PAID&gt[amount]=100&page=1&pagesize=20
     params = dict(request.query_params)
     return ResponseUtil.success(data=await OpenDataService.public_query(db, model_code, params))
+
+
+@open_controller.get('/board/{token}', summary='匿名分享看板(免登录,凭 share_token 出图)')
+async def open_board(
+    token: Annotated[str, Path()],
+    db: Annotated[AsyncSession, DBSessionDependency()],
+) -> Response:
+    return ResponseUtil.success(data=await OpenDataService.public_board(db, token))

@@ -53,12 +53,20 @@ export const constantRoutes = [
     hidden: true
   },
   {
-    // 数据看板 → 单图独立预览页:全屏纯图(不套 Layout,无侧边栏/导航),供新标签打开/分享
+    // 数据看板 → 单图独立预览页:全屏纯图(不套 Layout,无侧边栏/导航),供新标签打开
     path: '/data/board-view/:id',
     component: () => import('@/views/dataManage/visualization/preview.vue'),
     name: 'BoardView',
     hidden: true,
     meta: { title: '看板预览' }
+  },
+  {
+    // 匿名分享看板:免登录全屏纯图(凭 share_token,见 permission.js whiteList)
+    path: '/share/board/:token',
+    component: () => import('@/views/dataManage/visualization/share.vue'),
+    name: 'BoardShare',
+    hidden: true,
+    meta: { title: '看板分享' }
   },
   {
     path: "/:pathMatch(.*)*",

@@ -99,6 +99,17 @@ export function previewNative(data) {
 export function delAnalysisTemplate(ids) {
   return request({ url: '/data/analysis-template/' + ids, method: 'delete' })
 }
+// 看板匿名分享:开启/重置 → 返回 {token};关闭 → 置空
+export function genBoardShare(id) {
+  return request({ url: `/data/analysis-template/${id}/share`, method: 'post' })
+}
+export function revokeBoardShare(id) {
+  return request({ url: `/data/analysis-template/${id}/share`, method: 'delete' })
+}
+// 公开看板(免登录,凭 token):isToken:false 不带鉴权头
+export function getSharedBoard(token) {
+  return request({ url: `/open/board/${token}`, method: 'get', headers: { isToken: false } })
+}
 
 // ---------------- ETL 调试 ----------------
 export function previewEtl(data) {

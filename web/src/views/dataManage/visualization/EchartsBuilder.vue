@@ -66,6 +66,7 @@
                     <el-option v-for="o in AXES" :key="o.v" :label="o.l" :value="o.v" />
                   </el-select>
                 </template>
+                <el-color-picker v-model="m.color" size="small" title="该度量颜色(留空走配色方案)" />
                 <el-button size="small" icon="Delete" text :disabled="cfg.ys.length <= 1" @click="removeY(i)" />
               </div>
               <el-button v-if="allowMultiY" size="small" text type="primary" icon="Plus" @click="addY">添加度量</el-button>
@@ -97,6 +98,11 @@
               <label>Top-N(0 = 不限)</label>
               <el-input-number v-model="cfg.topN" :min="0" :max="1000" size="small" controls-position="right" style="width: 100%" />
             </div>
+
+            <div v-if="showSortTopN && cfg.topN > 0" class="fld inline">
+              <label>余下归并「其他」</label>
+              <el-switch v-model="cfg.style.othersGroup" size="small" />
+            </div>
           </template>
           <el-alert v-else type="info" :closable="false" show-icon title="明细表直接展示查询结果的所有字段,无需配置维度/度量" />
         </el-tab-pane>
@@ -106,6 +112,12 @@
           <div class="fld">
             <label>标题</label>
             <el-input v-model="cfg.style.title" size="small" clearable placeholder="留空不显示" />
+          </div>
+
+          <div class="fld inline">
+            <label>图上导出按钮</label>
+            <el-switch v-model="cfg.style.showExport" size="small" />
+            <span class="tip" style="margin-left: 8px">导出 PNG / Excel(默认关)</span>
           </div>
 
           <template v-if="cfg.type !== 'table'">
@@ -123,6 +135,11 @@
             <div v-if="cfg.type !== 'kpi'" class="fld inline">
               <label>数据标签</label>
               <el-switch v-model="cfg.style.label" size="small" />
+            </div>
+
+            <div v-if="isCartesian || isCombo || cfg.type === 'scatter'" class="fld inline">
+              <label>缩放条</label>
+              <el-switch v-model="cfg.style.dataZoom" size="small" />
             </div>
 
             <div v-if="isLineFamily" class="fld inline">
@@ -158,6 +175,17 @@
               <label>环形内径 %</label>
               <el-slider v-model="cfg.style.donutInner" :min="0" :max="80" size="small" style="width: 130px; margin-left: auto" />
             </div>
+
+            <!-- 参考/目标线(仅直角坐标 / 组合图) -->
+            <div v-if="isCartesian || isCombo" class="fld">
+              <label>参考线 / 目标线</label>
+              <div v-for="(ml, i) in cfg.style.markLines" :key="i" class="ml-row">
+                <el-input v-model="ml.value" size="small" placeholder="值" style="width: 92px" />
+                <el-input v-model="ml.label" size="small" placeholder="标签(可选)" style="flex: 1" />
+                <el-button size="small" icon="Delete" text @click="cfg.style.markLines.splice(i, 1)" />
+              </div>
+              <el-button size="small" text type="primary" icon="Plus" @click="cfg.style.markLines.push({ value: '', label: '' })">添加参考线</el-button>
+            </div>
           </template>
 
           <el-divider content-position="left">数值格式</el-divider>
@@ -183,6 +211,11 @@
 
     <!-- 右侧渲染区:图表 / 指标卡 / 明细表 -->
     <div class="eb-main">
+      <!-- 导出工具条(悬浮右上,默认关;PNG 仅画布类,数据任意有行时可导) -->
+      <div v-if="cfg.style.showExport && (rows || []).length" class="eb-tools">
+        <el-button v-if="isCanvasType" size="small" text bg icon="Picture" @click="exportPng">PNG</el-button>
+        <el-button size="small" text bg icon="Download" @click="exportData">数据</el-button>
+      </div>
       <!-- ECharts 画布(始终在 DOM,用 v-show 控制,便于实例复用) -->
       <div v-show="isCanvasType" ref="chartEl" class="eb-chart" :style="{ height: height + 'px' }"></div>
 
@@ -209,6 +242,8 @@
 <script setup name="EchartsBuilder">
 import { ref, reactive, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import * as echarts from 'echarts'
+import * as XLSX from 'xlsx'
+import { CFG_VERSION } from './board.js'
 
 const props = defineProps({
   rows: { type: Array, default: () => [] },
@@ -277,7 +312,8 @@ const PALETTES = {
 const DEFAULT_STYLE = {
   title: '', legend: true, legendPos: 'top', label: false, smooth: false, palette: 'default',
   decimals: 2, thousands: true, unit: '', percent: false,
-  xName: '', yName: '', rotate: 0, yMin: null, yMax: null, donutInner: 50
+  xName: '', yName: '', rotate: 0, yMin: null, yMax: null, donutInner: 50,
+  othersGroup: false, dataZoom: false, showExport: false // othersGroup:Top-N 归并"其他";dataZoom:缩放条;showExport:图上导出按钮(默认关)
 }
 // 双轴组合每个度量可选:mark(bar/line)、axis(left/right)
 const MARKS = [{ v: '', l: '默认' }, { v: 'bar', l: '柱' }, { v: 'line', l: '线' }]
@@ -289,8 +325,8 @@ const LINK_FIELDS = [
   { k: 'value', l: '流量值', guess: ['value', 'amount', 'weight', 'count', '值', '量'] }
 ]
 function newCfg() {
-  return { type: 'bar', x: '', ys: [{ field: '', agg: 'sum', mark: '', axis: '' }], series: '', sort: { by: '', dir: 'desc' }, topN: 0,
-    ohlc: { o: '', h: '', l: '', c: '' }, link: { source: '', target: '', value: '' }, style: { ...DEFAULT_STYLE } }
+  return { version: CFG_VERSION, type: 'bar', x: '', ys: [{ field: '', agg: 'sum', mark: '', axis: '', color: '' }], series: '', sort: { by: '', dir: 'desc' }, topN: 0,
+    ohlc: { o: '', h: '', l: '', c: '' }, link: { source: '', target: '', value: '' }, style: { ...DEFAULT_STYLE, markLines: [] } }
 }
 
 const panelTab = ref('data')
@@ -331,15 +367,19 @@ function migrate(c) {
   out.x = c.x || ''
   out.series = c.series || ''
   if (Array.isArray(c.ys) && c.ys.length) {
-    out.ys = c.ys.map((m) => ({ field: m.field || '', agg: m.agg || 'sum', mark: m.mark || '', axis: m.axis || '' }))
+    out.ys = c.ys.map((m) => ({ field: m.field || '', agg: m.agg || 'sum', mark: m.mark || '', axis: m.axis || '', color: m.color || '' }))
   } else if (c.y) { // 旧结构 {y, agg}
-    out.ys = [{ field: c.y, agg: c.agg || 'sum', mark: '', axis: '' }]
+    out.ys = [{ field: c.y, agg: c.agg || 'sum', mark: '', axis: '', color: '' }]
   }
   if (c.sort && typeof c.sort === 'object') out.sort = { by: c.sort.by || '', dir: c.sort.dir || 'desc' }
   out.topN = c.topN || 0
   if (c.ohlc && typeof c.ohlc === 'object') out.ohlc = { o: c.ohlc.o || '', h: c.ohlc.h || '', l: c.ohlc.l || '', c: c.ohlc.c || '' }
   if (c.link && typeof c.link === 'object') out.link = { source: c.link.source || '', target: c.link.target || '', value: c.link.value || '' }
   out.style = { ...DEFAULT_STYLE, ...(c.style || {}) }
+  // markLines 用全新数组(避免 DEFAULT_STYLE 引用被共享/污染)
+  out.style.markLines = Array.isArray(c.style && c.style.markLines)
+    ? c.style.markLines.map((m) => ({ value: m.value, label: m.label || '' }))
+    : []
   return out
 }
 function applyCfg(c) {
@@ -397,7 +437,7 @@ function inferFields() {
 function addY() {
   const r = props.rows[0] || {}
   const nums = fields.value.filter((k) => typeof r[k] === 'number')
-  cfg.ys.push({ field: nums[0] || fields.value[0] || '', agg: 'sum', mark: '', axis: '' })
+  cfg.ys.push({ field: nums[0] || fields.value[0] || '', agg: 'sum', mark: '', axis: '', color: '' })
 }
 function removeY(i) { if (cfg.ys.length > 1) cfg.ys.splice(i, 1) }
 
@@ -445,6 +485,27 @@ function boxOf(sorted) {
 // 按 x 分组取某度量(none=取该组首值,其余按 agg 汇总)——组合/瀑布/热力/箱线/树图共用
 function catAgg(rows, cat, field, mode) {
   return agg(rows.filter((r) => String(r[cfg.x]) === String(cat)).map((r) => r[field]), mode)
+}
+// 对 name/value 列表应用 Top-N(topN>0);othersGroup 时把余下项汇总成「其他」
+function topNData(data) {
+  if (!(cfg.topN > 0) || data.length <= cfg.topN) return data
+  const head = data.slice(0, cfg.topN)
+  if (!cfg.style.othersGroup) return head
+  const rest = data.slice(cfg.topN).reduce((a, d) => a + (Number(d.value) || 0), 0)
+  return [...head, { name: '其他', value: rest }]
+}
+// 参考/目标线 → 某系列的 markLine;axisKey='yAxis'(纵值轴)或 'xAxis'(横值轴,如 hbar)
+function markLineOpt(axisKey) {
+  const ml = (cfg.style.markLines || []).filter((m) => numOrNull(m.value) !== null)
+  if (!ml.length) return undefined
+  return {
+    silent: true, symbol: 'none',
+    data: ml.map((m) => ({ [axisKey]: Number(m.value), label: { formatter: m.label || fmtNumber(m.value) } }))
+  }
+}
+// 缩放条(dataZoom):开启后给直角坐标/组合/散点加 inside+slider
+function zoomOpt() {
+  return cfg.style.dataZoom ? [{ type: 'inside' }, { type: 'slider', height: 16, bottom: 4 }] : undefined
 }
 
 // 按 sort + topN 对类别裁剪排序,同步重排各系列 data
@@ -541,7 +602,7 @@ function buildOption() {
     let cats = [...new Set(rows.map((r) => r[cfg.x]))]
     let data = cats.map((c) => ({ name: String(c), value: agg(rows.filter((r) => r[cfg.x] === c).map((r) => r[y.field]), y.agg) }))
     if (cfg.sort.by) data.sort((a, b) => (cfg.sort.dir === 'asc' ? a.value - b.value : b.value - a.value))
-    if (cfg.topN > 0) data = data.slice(0, cfg.topN)
+    data = topNData(data)
     const radius = T === 'donut' ? [`${s.donutInner}%`, '70%'] : (T === 'rose' ? ['12%', '72%'] : '65%')
     return {
       color, title: titleCfg(), tooltip: { trigger: 'item', valueFormatter: (v) => fmtNumber(v) }, legend: legendCfg(),
@@ -556,6 +617,7 @@ function buildOption() {
     return {
       color, title: titleCfg(), tooltip: { trigger: 'item' },
       grid: { left: 56, right: 24, bottom: 40, top: s.title ? 40 : 24 },
+      dataZoom: zoomOpt(),
       xAxis: { name: s.xName || cfg.x, type: 'value' }, yAxis: { name: s.yName || y.field, type: 'value', axisLabel: { formatter: (v) => fmtNumber(v) } },
       series: [{ type: 'scatter', data: rows.map((r) => [Number(r[cfg.x]), Number(r[y.field])]) }]
     }
@@ -580,7 +642,7 @@ function buildOption() {
     let cats = [...new Set(rows.map((r) => r[cfg.x]))]
     let data = cats.map((c) => ({ name: String(c), value: agg(rows.filter((r) => r[cfg.x] === c).map((r) => r[y.field]), y.agg) }))
     data.sort((a, b) => b.value - a.value)
-    if (cfg.topN > 0) data = data.slice(0, cfg.topN)
+    data = topNData(data)
     return {
       color, title: titleCfg(), tooltip: { trigger: 'item', valueFormatter: (v) => fmtNumber(v) }, legend: legendCfg(),
       series: [{ type: 'funnel', data, label: { show: s.label !== false, formatter: (p) => `${p.name}: ${fmtNumber(p.value)}` } }]
@@ -615,7 +677,11 @@ function buildOption() {
       return {
         name: s2.name, type: mark, yAxisIndex: y.axis === 'right' ? 1 : 0,
         smooth: mark === 'line' ? s.smooth : undefined,
-        label: { show: s.label, position: 'top', formatter: (p) => fmtNumber(p.value) }, data: s2.data
+        itemStyle: y.color ? { color: y.color } : undefined,
+        lineStyle: (mark === 'line' && y.color) ? { color: y.color } : undefined,
+        label: { show: s.label, position: 'top', formatter: (p) => fmtNumber(p.value) },
+        markLine: i === 0 ? markLineOpt('yAxis') : undefined,
+        data: s2.data
       }
     })
     const yL = { type: 'value', name: s.yName, min: numOrNull(s.yMin), max: numOrNull(s.yMax), axisLabel: { formatter: (v) => fmtNumber(v) } }
@@ -623,6 +689,7 @@ function buildOption() {
     return {
       color, title: titleCfg(), legend: legendCfg(), tooltip: { trigger: 'axis', valueFormatter: (v) => fmtNumber(v) },
       grid: { left: 56, right: hasRight ? 56 : 24, bottom: s.rotate ? 60 : 40, top: (s.title || cfg.style.legend) ? 48 : 28, containLabel: true },
+      dataZoom: zoomOpt(),
       xAxis: { type: 'category', data: cats.map(String), name: s.xName, axisLabel: { rotate: s.rotate } },
       yAxis: hasRight ? [yL, yR] : [yL], series
     }
@@ -699,7 +766,7 @@ function buildOption() {
     const y = cfg.ys[0]
     let data = [...new Set(rows.map((r) => r[cfg.x]))].map((c) => ({ name: String(c), value: catAgg(rows, c, y.field, y.agg) }))
     if (cfg.sort.by) data.sort((a, b) => (cfg.sort.dir === 'asc' ? a.value - b.value : b.value - a.value))
-    if (cfg.topN > 0) data = data.slice(0, cfg.topN)
+    data = topNData(data)
     return {
       color, title: titleCfg(), tooltip: { formatter: (p) => `${p.name}: ${fmtNumber(p.value)}` },
       series: [{ type: 'treemap', data, breadcrumb: { show: false }, roam: false,
@@ -738,14 +805,21 @@ function buildOption() {
     seriesList = seriesList.map((s2) => ({ ...s2, data: s2.data.map((v, i) => (totals[i] ? +(v / totals[i] * 100).toFixed(2) : 0)) }))
   }
 
-  const series = seriesList.map((s2) => ({
-    name: s2.name, type: isBar ? 'bar' : 'line',
-    stack: stacked ? 'total' : undefined,
-    smooth: !isBar ? s.smooth : undefined,
-    areaStyle: area ? {} : undefined,
-    label: { show: s.label, position: horizontal ? 'right' : 'top', formatter: (p) => (percent ? `${p.value}%` : fmtNumber(p.value)) },
-    data: s2.data
-  }))
+  const series = seriesList.map((s2, i2) => {
+    // 每度量单独配色仅在"未分组"(seriesList 按 ys 展开)时生效;分组时走调色板
+    const clr = (!cfg.series && cfg.ys[i2] && cfg.ys[i2].color) ? cfg.ys[i2].color : ''
+    return {
+      name: s2.name, type: isBar ? 'bar' : 'line',
+      stack: stacked ? 'total' : undefined,
+      smooth: !isBar ? s.smooth : undefined,
+      areaStyle: area ? {} : undefined,
+      itemStyle: clr ? { color: clr } : undefined,
+      lineStyle: (!isBar && clr) ? { color: clr } : undefined,
+      label: { show: s.label, position: horizontal ? 'right' : 'top', formatter: (p) => (percent ? `${p.value}%` : fmtNumber(p.value)) },
+      markLine: i2 === 0 ? markLineOpt(horizontal ? 'xAxis' : 'yAxis') : undefined,
+      data: s2.data
+    }
+  })
 
   const catAxis = { type: 'category', data: cats.map(String), name: horizontal ? '' : s.xName,
     axisLabel: { rotate: horizontal ? 0 : s.rotate } }
@@ -757,6 +831,7 @@ function buildOption() {
     color, title: titleCfg(), legend: legendCfg(),
     tooltip: { trigger: 'axis', valueFormatter: (v) => (percent ? `${v}%` : fmtNumber(v)) },
     grid: { left: 56, right: 24, bottom: s.rotate ? 60 : 40, top: (s.title || cfg.style.legend) ? 48 : 28, containLabel: true },
+    dataZoom: zoomOpt(),
     xAxis: horizontal ? valAxis : catAxis,
     yAxis: horizontal ? catAxis : valAxis,
     series
@@ -805,7 +880,25 @@ onBeforeUnmount(() => {
   chart && chart.dispose()
 })
 
-defineExpose({ getConfig: () => JSON.parse(JSON.stringify(cfg)) })
+// 导出:PNG(仅画布类)/ 数据(当前 rows → xlsx)
+function exportPng() {
+  if (!chart || !isCanvasType.value) return
+  const url = chart.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: '#fff' })
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${cfg.style.title || 'chart'}_${Date.now()}.png`
+  a.click()
+}
+function exportData() {
+  const rows = props.rows || []
+  if (!rows.length) return
+  const ws = XLSX.utils.json_to_sheet(rows)
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'data')
+  XLSX.writeFile(wb, `${cfg.style.title || 'data'}_${Date.now()}.xlsx`)
+}
+
+defineExpose({ getConfig: () => JSON.parse(JSON.stringify(cfg)), exportPng, exportData })
 </script>
 
 <style scoped>
@@ -813,7 +906,8 @@ defineExpose({ getConfig: () => JSON.parse(JSON.stringify(cfg)) })
 .echarts-builder.no-ctrl { display: block; }
 .eb-panel { width: 300px; flex: none; overflow-y: auto; overflow-x: hidden; border-right: 1px solid #ebeef5; padding-right: 10px; }
 .eb-tabs :deep(.el-tabs__content) { padding-top: 4px; }
-.eb-main { flex: 1; min-width: 0; }
+.eb-main { flex: 1; min-width: 0; position: relative; }
+.eb-tools { position: absolute; top: 4px; right: 8px; z-index: 5; display: flex; gap: 4px; }
 .eb-chart { width: 100%; border: 1px solid #ebeef5; border-radius: 6px; }
 
 .fld { margin-bottom: 12px; }
@@ -822,6 +916,8 @@ defineExpose({ getConfig: () => JSON.parse(JSON.stringify(cfg)) })
 .fld.inline > label { display: inline; margin-bottom: 0; }
 .row2 { display: flex; gap: 8px; }
 .ys-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.ml-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.eb-panel .tip { font-size: 12px; color: #909399; }
 .ai-fld { padding: 8px 10px; margin-bottom: 14px; border: 1px dashed #c0c4cc; border-radius: 6px; background: #fafcff; }
 
 .eb-kpi { display: flex; flex-wrap: wrap; gap: 16px; align-content: flex-start; align-items: stretch;

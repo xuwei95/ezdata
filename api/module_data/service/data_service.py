@@ -53,6 +53,59 @@ def _handler_from_ds(ds: DataSource) -> Any:
     return _build_handler(ds.source_type, ds.config or {}, _decrypt_secrets(ds))
 
 
+def _apply_params(native: Any, params: dict | None) -> Any:
+    """把看板变量 {{name}} 替换进 native。
+
+    - 字符串 native(SQL):字符串值做安全引用(转义单引号),数字原样;
+    - dict/list native(ES DSL / Mongo pipeline):在 JSON 串上替换——`"{{k}}"` 整体换成 JSON 值,
+      裸 `{{k}}` 兜底按字符串替换,再 json.loads 还原。
+    无 params 原样返回。(分析师本就能写任意 native,此替换不新增越权面。)
+    """
+    if not params:
+        return native
+
+    def _sql_quote(v: Any) -> str:
+        if v is None:
+            return 'NULL'
+        if isinstance(v, bool):
+            return '1' if v else '0'
+        if isinstance(v, (int, float)):
+            return str(v)
+        return "'" + str(v).replace("'", "''") + "'"
+
+    if isinstance(native, str):
+        out = native
+        for k, v in params.items():
+            out = out.replace('{{' + str(k) + '}}', _sql_quote(v))
+        return out
+    txt = json.dumps(native, ensure_ascii=False)
+    for k, v in params.items():
+        token = '"{{' + str(k) + '}}"'
+        if token in txt:
+            txt = txt.replace(token, json.dumps(v, ensure_ascii=False))
+        else:
+            txt = txt.replace('{{' + str(k) + '}}', str(v))
+    return json.loads(txt)
+
+
+def _board_param_values(defs: Any) -> dict:
+    """看板变量定义数组(存储态 [{name,label,type,default,value}])→ 取数用 {name: value}。
+    与前端 board.js paramsToValues 一致:空值回退默认,daterange 展开 名_start/名_end。"""
+    out: dict = {}
+    for p in (defs or []):
+        if not isinstance(p, dict) or not p.get('name'):
+            continue
+        val = p.get('value')
+        if val in (None, ''):
+            val = p.get('default')
+        if p.get('type') == 'daterange' and isinstance(val, list) and len(val) == 2:
+            out[p['name'] + '_start'] = val[0]
+            out[p['name'] + '_end'] = val[1]
+        else:
+            out[p['name']] = val
+    return out
+
+
 def _source_structure_text(ds: DataSource, max_tables: int = 30, max_fields: int = 40) -> str:
     """采集数据源结构文本(表 + 字段),供 AI 分析业务上下文。有上限,避免超大库把 prompt 撑爆。同步阻塞,由调用方 threadpool 包裹。"""
     try:
@@ -505,6 +558,8 @@ def _normalize_chart_cfg(cfg: Any) -> dict:
                 m['mark'] = it['mark']
             if it.get('axis') in ('left', 'right'):  # 双轴组合:该度量走左轴还是右轴
                 m['axis'] = it['axis']
+            if it.get('color'):  # 该度量单独配色
+                m['color'] = str(it['color'])
             norm.append(m)
         elif isinstance(it, str) and it.strip():  # LLM 常把 ys 直接写成列名字符串
             norm.append({'field': it.strip(), 'agg': 'sum'})
@@ -633,11 +688,12 @@ class DataQueryService:
         """数据查询(不分页):native 或 filter,查出多少返回多少。"""
         m, handler = await cls._load(db, m_id)
         if req.native is not None:
+            native = _apply_params(req.native, req.params)  # 看板变量 {{var}} 替换
             try:
-                assert_readonly_sql(req.native, handler.family)  # 只读护栏(仅 SQL 文本族):拦截 DML/DDL
+                assert_readonly_sql(native, handler.family)  # 只读护栏(仅 SQL 文本族):拦截 DML/DDL
             except ValueError as e:
                 raise ServiceException(message=str(e)) from None
-            records = await run_in_threadpool(handler.query, req.native, None, req.limit)
+            records = await run_in_threadpool(handler.query, native, None, req.limit)
         else:
             cls._check_fields(m, req.filters)
             if not handler.has(Capability.GEN_API):
@@ -747,10 +803,13 @@ class DataQueryService:
         return cfg, prompt
 
     @classmethod
-    async def preview_native(cls, db: AsyncSession, datasource_code: str, native: Any, limit: int = 500) -> dict:
-        """按 数据源编码 + native 只读取数(转看板预览/校验用)。SQL 文本走只读护栏,ES/Mongo(dict)天然只读。"""
+    async def preview_native(
+        cls, db: AsyncSession, datasource_code: str, native: Any, limit: int = 500, params: dict | None = None
+    ) -> dict:
+        """按 数据源编码 + native 只读取数(转看板预览/校验/公开分享用)。SQL 文本走只读护栏,ES/Mongo(dict)天然只读。"""
         if native is None or (isinstance(native, str) and not native.strip()):
             raise ServiceException(message='缺少查询语句')
+        native = _apply_params(native, params)  # 看板变量 {{var}} 替换
         ds = await DataSourceDao.get_by_code(db, datasource_code)
         if not ds:
             raise ServiceException(message='数据源不存在')
@@ -1133,6 +1192,39 @@ class OpenDataService:
         pagesize = min(int(params.get('pagesize', 20)), 200)  # 对外强制上限
         return await run_in_threadpool(handler.search, m.object_name, filters, page, pagesize)
 
+    @classmethod
+    async def public_board(cls, db: AsyncSession, token: str) -> dict:
+        """匿名分享看板:据 share_token 出图(免登录)。
+
+        token(不可猜)即为授权:定位到唯一一个看板,只跑该看板自己的 native,故全程走 tenant_bypass
+        (无登录上下文;且历史看板 tenant_id 可能为 None,租户过滤会拦 HTTP 空租户)。只暴露该图数据,不会越租户。
+        """
+        from sqlalchemy import select
+
+        from common.context import tenant_bypass
+        from module_data.entity.do.data_do import DataAnalysisTemplate
+
+        if not (token or '').strip():
+            raise ServiceException(message='缺少分享令牌')
+        with tenant_bypass():
+            row = (
+                await db.execute(select(DataAnalysisTemplate).where(DataAnalysisTemplate.share_token == token))
+            ).scalars().first()
+            if not row or not row.share_token:
+                raise ServiceException(message='分享不存在或已关闭')
+            cfg = row.chart_spec
+            if not (isinstance(cfg, dict) and cfg.get('type')):
+                raise ServiceException(message='该看板无图表配置')
+            native = (row.query or {}).get('native')
+            if native is None or not row.model_id:
+                raise ServiceException(message='该看板无有效查询')
+            req = QueryReq(native=native, params=_board_param_values(row.params), limit=5000)
+            data = await DataQueryService.query(db, row.model_id, req)
+            return {
+                'name': row.name, 'chartSpec': cfg, 'rows': data['records'],
+                'refreshInterval': row.refresh_interval or 0,
+            }
+
 
 class AnalysisTemplateService:
     """数据分析模板:保存/复用「取数 + 图表配置」。"""
@@ -1151,6 +1243,28 @@ class AnalysisTemplateService:
         return AnalysisTemplateVo.model_validate(row)
 
     @classmethod
+    async def gen_share(cls, db: AsyncSession, tid: str, operator: str) -> str:
+        """开启/重置匿名分享:生成不可猜 token 存到看板,返回 token。"""
+        import secrets
+
+        row = await AnalysisTemplateDao.get_by_id(db, tid)
+        if not row:
+            raise ServiceException(message='看板不存在')
+        token = 'bd_' + secrets.token_urlsafe(24)
+        await AnalysisTemplateDao.edit(db, tid, {'share_token': token, 'update_by': operator})
+        await db.commit()
+        return token
+
+    @classmethod
+    async def revoke_share(cls, db: AsyncSession, tid: str, operator: str) -> None:
+        """关闭匿名分享:清空 token(旧链接立即失效)。"""
+        row = await AnalysisTemplateDao.get_by_id(db, tid)
+        if not row:
+            raise ServiceException(message='看板不存在')
+        await AnalysisTemplateDao.edit(db, tid, {'share_token': None, 'update_by': operator})
+        await db.commit()
+
+    @classmethod
     async def save(cls, db: AsyncSession, vo: AnalysisTemplateVo, operator: str) -> str:
         if not (vo.name or '').strip():
             raise ServiceException(message='请填写模板名称')
@@ -1160,6 +1274,8 @@ class AnalysisTemplateService:
             'model_name': vo.model_name,
             'query': vo.query,
             'chart_spec': vo.chart_spec,
+            'params': vo.params,
+            'refresh_interval': vo.refresh_interval or 0,
             'remark': vo.remark,
         }
         if vo.id:
