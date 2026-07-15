@@ -19,10 +19,16 @@ from ezdata.utils.etl_util import (
     short_err,
     stream_statement,
 )
-from module_data.dao.data_dao import AnalysisTemplateDao, DataModelDao, DataSourceDao
+from module_data.dao.data_dao import (
+    DashboardCanvasDao,
+    DashboardDao,
+    DataModelDao,
+    DataSourceDao,
+)
 from module_data.entity.do.data_do import DataModel, DataSource
 from module_data.entity.vo.data_vo import (
     AnalysisTemplateVo,
+    DashboardVo,
     DataModelQuery,
     DataModelVo,
     DataSourceQuery,
@@ -1194,99 +1200,127 @@ class OpenDataService:
 
     @classmethod
     async def public_board(cls, db: AsyncSession, token: str) -> dict:
-        """匿名分享看板:据 share_token 出图(免登录)。
+        """匿名分享单图看板:据 share_token 出图(免登录)。
 
-        token(不可猜)即为授权:定位到唯一一个看板,只跑该看板自己的 native,故全程走 tenant_bypass
-        (无登录上下文;且历史看板 tenant_id 可能为 None,租户过滤会拦 HTTP 空租户)。只暴露该图数据,不会越租户。
+        token(不可猜)即授权:定位唯一看板,只跑其自己的 native,故全程 tenant_bypass(无登录上下文,
+        且租户过滤会拦 HTTP 空租户)。只暴露该图数据,不会越租户。存储已统一到 data_dashboard(dash_type='chart')。
         """
-        from sqlalchemy import select
-
         from common.context import tenant_bypass
-        from module_data.entity.do.data_do import DataAnalysisTemplate
 
         if not (token or '').strip():
             raise ServiceException(message='缺少分享令牌')
         with tenant_bypass():
-            row = (
-                await db.execute(select(DataAnalysisTemplate).where(DataAnalysisTemplate.share_token == token))
-            ).scalars().first()
-            if not row or not row.share_token:
+            base = await DashboardDao.get_by_token(db, token)
+            if not base or not base.share_token:
                 raise ServiceException(message='分享不存在或已关闭')
-            cfg = row.chart_spec
+            canvas = await DashboardCanvasDao.get_by_dashboard(db, base.id)
+            content = (canvas.content if canvas else None) or {}
+            comps = content.get('components') or []
+            inline = (comps[0].get('inline') if comps and isinstance(comps[0], dict) else None) or {}
+            cfg = inline.get('chartSpec')
+            native = inline.get('native')
+            model_id = inline.get('modelId') or base.model_id
             if not (isinstance(cfg, dict) and cfg.get('type')):
                 raise ServiceException(message='该看板无图表配置')
-            native = (row.query or {}).get('native')
-            if native is None or not row.model_id:
+            if native is None or not model_id:
                 raise ServiceException(message='该看板无有效查询')
-            req = QueryReq(native=native, params=_board_param_values(row.params), limit=5000)
-            data = await DataQueryService.query(db, row.model_id, req)
+            req = QueryReq(native=native, params=_board_param_values(content.get('filters') or []), limit=5000)
+            data = await DataQueryService.query(db, model_id, req)
             return {
-                'name': row.name, 'chartSpec': cfg, 'rows': data['records'],
-                'refreshInterval': row.refresh_interval or 0,
+                'name': base.name, 'chartSpec': cfg, 'rows': data['records'],
+                'refreshInterval': base.refresh_interval or 0,
             }
 
 
 class AnalysisTemplateService:
-    """数据分析模板:保存/复用「取数 + 图表配置」。"""
+    """单图看板(保存/复用「取数 + 图表配置」)。
+
+    存储已统一到 `data_dashboard`(dash_type='chart')+ `data_dashboard_canvas`;对外仍返回 `AnalysisTemplateVo`、
+    接口路径不变,前端与 AI「存为看板」无需改动。单图 = 一个 chart 组件的画布,变量=画布 filters。
+    """
+
+    @staticmethod
+    def _content_of(vo: AnalysisTemplateVo) -> dict:
+        """AnalysisTemplateVo → 画布 content(单图=一个 chart 组件 + filters=变量定义)。"""
+        native = (vo.query or {}).get('native') if isinstance(vo.query, dict) else None
+        return {
+            'canvas': {'mode': 'single'},
+            'components': [{
+                'id': 'c1', 'type': 'chart',
+                'inline': {'modelId': vo.model_id, 'native': native, 'chartSpec': vo.chart_spec},
+            }],
+            'filters': vo.params or [],
+        }
+
+    @staticmethod
+    def _to_vo(base: Any, canvas: Any) -> AnalysisTemplateVo:
+        """(base + canvas) → AnalysisTemplateVo(还原单图看板视图)。"""
+        content = (canvas.content if canvas else None) or {}
+        comps = content.get('components') or []
+        inline = (comps[0].get('inline') if comps and isinstance(comps[0], dict) else None) or {}
+        return AnalysisTemplateVo(
+            id=base.id, name=base.name, model_id=base.model_id, model_name=base.model_name,
+            query={'type': 'native', 'native': inline.get('native')},
+            chart_spec=inline.get('chartSpec'),
+            params=content.get('filters') or [],
+            refresh_interval=base.refresh_interval or 0,
+            share_token=base.share_token,
+            remark=base.remark, create_time=base.create_time, update_time=base.update_time,
+        )
 
     @classmethod
     async def get_list(cls, db: AsyncSession, model_id: str | None = None) -> list[AnalysisTemplateVo]:
-        rows = await AnalysisTemplateDao.get_list(db, model_id)
-        return [AnalysisTemplateVo.model_validate(r) for r in rows]
+        bases = await DashboardDao.get_list(db, dash_type='chart', model_id=model_id)
+        canvases = await DashboardCanvasDao.list_by_dashboards(db, [b.id for b in bases])
+        return [cls._to_vo(b, canvases.get(b.id)) for b in bases]
 
     @classmethod
     async def get(cls, db: AsyncSession, tid: str) -> AnalysisTemplateVo:
-        """按 id 取单个看板/模板(独立预览页用)。"""
-        row = await AnalysisTemplateDao.get_by_id(db, tid)
-        if not row:
+        """按 id 取单个看板(独立预览页用)。"""
+        base = await DashboardDao.get_by_id(db, tid)
+        if not base:
             raise ServiceException(message='看板不存在')
-        return AnalysisTemplateVo.model_validate(row)
+        return cls._to_vo(base, await DashboardCanvasDao.get_by_dashboard(db, tid))
 
     @classmethod
     async def gen_share(cls, db: AsyncSession, tid: str, operator: str) -> str:
         """开启/重置匿名分享:生成不可猜 token 存到看板,返回 token。"""
         import secrets
 
-        row = await AnalysisTemplateDao.get_by_id(db, tid)
-        if not row:
+        if not await DashboardDao.get_by_id(db, tid):
             raise ServiceException(message='看板不存在')
         token = 'bd_' + secrets.token_urlsafe(24)
-        await AnalysisTemplateDao.edit(db, tid, {'share_token': token, 'update_by': operator})
+        await DashboardDao.edit(db, tid, {'share_token': token, 'update_by': operator})
         await db.commit()
         return token
 
     @classmethod
     async def revoke_share(cls, db: AsyncSession, tid: str, operator: str) -> None:
         """关闭匿名分享:清空 token(旧链接立即失效)。"""
-        row = await AnalysisTemplateDao.get_by_id(db, tid)
-        if not row:
+        if not await DashboardDao.get_by_id(db, tid):
             raise ServiceException(message='看板不存在')
-        await AnalysisTemplateDao.edit(db, tid, {'share_token': None, 'update_by': operator})
+        await DashboardDao.edit(db, tid, {'share_token': None, 'update_by': operator})
         await db.commit()
 
     @classmethod
     async def save(cls, db: AsyncSession, vo: AnalysisTemplateVo, operator: str) -> str:
         if not (vo.name or '').strip():
             raise ServiceException(message='请填写模板名称')
-        data = {
-            'name': vo.name,
-            'model_id': vo.model_id,
-            'model_name': vo.model_name,
-            'query': vo.query,
-            'chart_spec': vo.chart_spec,
-            'params': vo.params,
-            'refresh_interval': vo.refresh_interval or 0,
-            'remark': vo.remark,
-        }
+        base_data = {
+            'name': vo.name, 'dash_type': 'chart',
+            'model_id': vo.model_id, 'model_name': vo.model_name,
+            'refresh_interval': vo.refresh_interval or 0, 'remark': vo.remark,
+        }  # 不含 share_token:开关分享单独管、保存不动它
         if vo.id:
-            data['update_by'] = operator
-            await AnalysisTemplateDao.edit(db, vo.id, data)
+            base_data['update_by'] = operator
+            await DashboardDao.edit(db, vo.id, base_data)
             tid = vo.id
         else:
-            data['id'] = uuid.uuid4().hex
-            data['create_by'] = operator
-            await AnalysisTemplateDao.add(db, data)
-            tid = data['id']
+            tid = uuid.uuid4().hex
+            base_data['id'] = tid
+            base_data['create_by'] = operator
+            await DashboardDao.add(db, base_data)
+        await DashboardCanvasDao.upsert(db, tid, cls._content_of(vo), operator)
         await db.commit()
         return tid
 
@@ -1345,5 +1379,137 @@ class AnalysisTemplateService:
 
     @classmethod
     async def delete(cls, db: AsyncSession, ids: list[str]) -> None:
-        await AnalysisTemplateDao.remove(db, [i for i in ids if i])
+        ids = [i for i in ids if i]
+        await DashboardCanvasDao.remove_by_dashboards(db, ids)
+        await DashboardDao.remove(db, ids)
         await db.commit()
+
+
+class DashboardService:
+    """多图看板 / 大屏(dash_type=board/screen):基础信息 data_dashboard + 画布 data_dashboard_canvas。
+
+    组件 chart 复用单图看板作原子:引用(ref.boardId 指向 dash_type='chart' 的看板)或内嵌(inline)。
+    """
+
+    @staticmethod
+    def _base_vo(b: Any) -> DashboardVo:
+        return DashboardVo(
+            id=b.id, name=b.name, dash_type=b.dash_type, share_token=b.share_token,
+            refresh_interval=b.refresh_interval or 0, thumbnail=b.thumbnail, remark=b.remark,
+            create_time=b.create_time, update_time=b.update_time,
+        )
+
+    @classmethod
+    async def get_list(cls, db: AsyncSession, dash_type: str | None = None) -> list[DashboardVo]:
+        """列表只返回基础字段(不带 canvas 大 JSON);dash_type 为空返回全部类型(单图/多图/大屏统一列表)。"""
+        bases = await DashboardDao.get_list(db, dash_type=dash_type)
+        return [cls._base_vo(b) for b in bases]
+
+    @classmethod
+    async def get(cls, db: AsyncSession, did: str) -> DashboardVo:
+        base = await DashboardDao.get_by_id(db, did)
+        if not base:
+            raise ServiceException(message='看板不存在')
+        canvas = await DashboardCanvasDao.get_by_dashboard(db, did)
+        content = (canvas.content if canvas else None) or {}
+        vo = cls._base_vo(base)
+        vo.canvas = content.get('canvas') or {}
+        vo.components = content.get('components') or []
+        vo.filters = content.get('filters') or []
+        return vo
+
+    @classmethod
+    async def save(cls, db: AsyncSession, vo: DashboardVo, operator: str) -> str:
+        if not (vo.name or '').strip():
+            raise ServiceException(message='请填写看板名称')
+        base_data = {
+            'name': vo.name, 'dash_type': vo.dash_type or 'board', 'model_id': None,
+            'refresh_interval': vo.refresh_interval or 0, 'thumbnail': vo.thumbnail, 'remark': vo.remark,
+        }  # 不含 share_token:分享单独管
+        if vo.id:
+            base_data['update_by'] = operator
+            await DashboardDao.edit(db, vo.id, base_data)
+            did = vo.id
+        else:
+            did = uuid.uuid4().hex
+            base_data['id'] = did
+            base_data['create_by'] = operator
+            await DashboardDao.add(db, base_data)
+        content = {'canvas': vo.canvas or {}, 'components': vo.components or [], 'filters': vo.filters or []}
+        await DashboardCanvasDao.upsert(db, did, content, operator)
+        await db.commit()
+        return did
+
+    @classmethod
+    async def delete(cls, db: AsyncSession, ids: list[str]) -> None:
+        ids = [i for i in ids if i]
+        await DashboardCanvasDao.remove_by_dashboards(db, ids)
+        await DashboardDao.remove(db, ids)
+        await db.commit()
+
+    @classmethod
+    async def gen_share(cls, db: AsyncSession, did: str, operator: str) -> str:
+        import secrets
+
+        if not await DashboardDao.get_by_id(db, did):
+            raise ServiceException(message='看板不存在')
+        token = 'db_' + secrets.token_urlsafe(24)
+        await DashboardDao.edit(db, did, {'share_token': token, 'update_by': operator})
+        await db.commit()
+        return token
+
+    @classmethod
+    async def revoke_share(cls, db: AsyncSession, did: str, operator: str) -> None:
+        if not await DashboardDao.get_by_id(db, did):
+            raise ServiceException(message='看板不存在')
+        await DashboardDao.edit(db, did, {'share_token': None, 'update_by': operator})
+        await db.commit()
+
+    @classmethod
+    async def _resolve_chart(cls, db: AsyncSession, comp: dict) -> dict | None:
+        """取一个 chart 组件的 {modelId,native,chartSpec}:内嵌直接用;引用则读那条 chart 看板的组件。"""
+        inline = comp.get('inline') if isinstance(comp.get('inline'), dict) else None
+        if inline and inline.get('native') is not None:
+            return inline
+        bid = (comp.get('ref') or {}).get('boardId')
+        if not bid:
+            return None
+        canvas = await DashboardCanvasDao.get_by_dashboard(db, bid)
+        c = (canvas.content if canvas else None) or {}
+        comps = c.get('components') or []
+        return comps[0].get('inline') if comps and isinstance(comps[0], dict) else None
+
+    @classmethod
+    async def public_dashboard(cls, db: AsyncSession, token: str) -> dict:
+        """匿名分享多图看板/大屏:token 定位 → 各 chart 组件出数 → 返回画布+数据(全程 tenant_bypass)。"""
+        from common.context import tenant_bypass
+
+        if not (token or '').strip():
+            raise ServiceException(message='缺少分享令牌')
+        with tenant_bypass():
+            base = await DashboardDao.get_by_token(db, token)
+            if not base or not base.share_token:
+                raise ServiceException(message='分享不存在或已关闭')
+            canvas = await DashboardCanvasDao.get_by_dashboard(db, base.id)
+            content = (canvas.content if canvas else None) or {}
+            filt_vals = _board_param_values(content.get('filters') or [])
+            out_comps = []
+            for comp in (content.get('components') or []):
+                item = dict(comp)
+                if comp.get('type') == 'chart':
+                    chart = await cls._resolve_chart(db, comp)
+                    rows: list = []
+                    if chart and chart.get('native') is not None and chart.get('modelId'):
+                        try:
+                            req = QueryReq(native=chart['native'], params=filt_vals, limit=5000)
+                            rows = (await DataQueryService.query(db, chart['modelId'], req))['records']
+                        except Exception:
+                            rows = []
+                    item['rows'] = rows
+                    item['chartSpec'] = (chart or {}).get('chartSpec')
+                out_comps.append(item)
+            return {
+                'name': base.name, 'dashType': base.dash_type,
+                'canvas': content.get('canvas') or {}, 'components': out_comps,
+                'filters': content.get('filters') or [], 'refreshInterval': base.refresh_interval or 0,
+            }

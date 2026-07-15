@@ -50,9 +50,10 @@ export function paramsToValues(defs) {
 }
 
 // 按数据模型 + native(+ 看板变量 params)取数,返回裁剪后的行。统一编辑/预览的取数逻辑。
-export async function fetchBoardRows(modelId, native, params, cap = 5000) {
+// silent=true:预览/展示模式,取数失败不弹 msg(改打 console),由调用方决定如何呈现。
+export async function fetchBoardRows(modelId, native, params, cap = 5000, silent = false) {
   const body = { native: parseNative(native) }
   if (params && Object.keys(params).length) body.params = params
-  const res = await queryModel(modelId, body)
+  const res = await queryModel(modelId, body, silent)
   return (res.data.records || []).slice(0, cap)
 }

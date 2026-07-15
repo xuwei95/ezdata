@@ -13,6 +13,7 @@ from module_admin.entity.vo.user_vo import CurrentUserModel
 from module_data.entity.vo.data_vo import (
     AiQueryReq,
     AnalysisTemplateVo,
+    DashboardVo,
     DataModelQuery,
     DataModelVo,
     DataSourceQuery,
@@ -28,6 +29,7 @@ from module_data.entity.vo.data_vo import (
 )
 from module_data.service.data_service import (
     AnalysisTemplateService,
+    DashboardService,
     DataMetaService,
     DataModelService,
     DataQueryService,
@@ -381,6 +383,72 @@ async def analysis_template_delete(
     db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     await AnalysisTemplateService.delete(db, ids.split(','))
+    return ResponseUtil.success(msg='已删除')
+
+
+# ---------------- 多图看板 / 大屏(dash_type=board/screen)----------------
+@data_controller.get(
+    '/dashboard/list', summary='看板/大屏列表', dependencies=[UserInterfaceAuthDependency('data:query')]
+)
+async def dashboard_list(
+    db: Annotated[AsyncSession, DBSessionDependency()],
+    dash_type: Annotated[str, Query()] = '',
+) -> Response:
+    return ResponseUtil.success(data=await DashboardService.get_list(db, dash_type or None))
+
+
+@data_controller.get(
+    '/dashboard/detail/{did}', summary='看板/大屏详情(含画布)', dependencies=[UserInterfaceAuthDependency('data:query')]
+)
+async def dashboard_detail(
+    did: Annotated[str, Path()],
+    db: Annotated[AsyncSession, DBSessionDependency()],
+) -> Response:
+    return ResponseUtil.success(data=await DashboardService.get(db, did))
+
+
+@data_controller.post('/dashboard', summary='保存看板/大屏', dependencies=[UserInterfaceAuthDependency('data:query')])
+async def dashboard_save(
+    vo: DashboardVo,
+    db: Annotated[AsyncSession, DBSessionDependency()],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
+) -> Response:
+    did = await DashboardService.save(db, vo, current_user.user.user_name)
+    return ResponseUtil.success(data={'id': did}, msg='已保存')
+
+
+@data_controller.post(
+    '/dashboard/{did}/share', summary='开启/重置看板匿名分享', dependencies=[UserInterfaceAuthDependency('data:query')]
+)
+async def dashboard_share(
+    did: Annotated[str, Path()],
+    db: Annotated[AsyncSession, DBSessionDependency()],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
+) -> Response:
+    token = await DashboardService.gen_share(db, did, current_user.user.user_name)
+    return ResponseUtil.success(data={'token': token}, msg='已开启分享')
+
+
+@data_controller.delete(
+    '/dashboard/{did}/share', summary='关闭看板匿名分享', dependencies=[UserInterfaceAuthDependency('data:query')]
+)
+async def dashboard_unshare(
+    did: Annotated[str, Path()],
+    db: Annotated[AsyncSession, DBSessionDependency()],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
+) -> Response:
+    await DashboardService.revoke_share(db, did, current_user.user.user_name)
+    return ResponseUtil.success(msg='已关闭分享')
+
+
+@data_controller.delete(
+    '/dashboard/{ids}', summary='删除看板/大屏', dependencies=[UserInterfaceAuthDependency('data:query')]
+)
+async def dashboard_delete(
+    ids: Annotated[str, Path()],
+    db: Annotated[AsyncSession, DBSessionDependency()],
+) -> Response:
+    await DashboardService.delete(db, ids.split(','))
     return ResponseUtil.success(msg='已删除')
 
 

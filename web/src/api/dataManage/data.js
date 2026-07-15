@@ -59,11 +59,13 @@ export function delModel(ids) {
 }
 
 // ---------------- 查询 / 接口 ----------------
-export function queryModel(id, data) {
-  return request({ url: `/data/model/${id}/query`, method: 'post', data })
+// 查询/检索是幂等读操作:多图看板会并发发出相同 native 的取数,须关闭"防重复提交"拦截,否则第二个组件被 request.js 拦成「数据正在处理,请勿重复提交」。
+// silent=true(预览/展示模式):失败不弹 msg,改打 console(见 request.js)。
+export function queryModel(id, data, silent = false) {
+  return request({ url: `/data/model/${id}/query`, method: 'post', data, headers: { repeatSubmit: false }, silent })
 }
-export function searchModel(id, data) {
-  return request({ url: `/data/model/${id}/search`, method: 'post', data })
+export function searchModel(id, data, silent = false) {
+  return request({ url: `/data/model/${id}/search`, method: 'post', data, headers: { repeatSubmit: false }, silent })
 }
 export function aiQueryModel(id, data) {
   return request({ url: `/data/model/${id}/ai-query`, method: 'post', data })
@@ -81,8 +83,8 @@ export function listAnalysisTemplate(modelId) {
   return request({ url: '/data/analysis-template/list', method: 'get', params: { modelId } })
 }
 // 看板详情(独立预览页按 id 拉取)
-export function getAnalysisTemplate(id) {
-  return request({ url: `/data/analysis-template/detail/${id}`, method: 'get' })
+export function getAnalysisTemplate(id, silent = false) {
+  return request({ url: `/data/analysis-template/detail/${id}`, method: 'get', silent })
 }
 export function saveAnalysisTemplate(data) {
   return request({ url: '/data/analysis-template', method: 'post', data })
@@ -109,6 +111,30 @@ export function revokeBoardShare(id) {
 // 公开看板(免登录,凭 token):isToken:false 不带鉴权头
 export function getSharedBoard(token) {
   return request({ url: `/open/board/${token}`, method: 'get', headers: { isToken: false } })
+}
+
+// ---------------- 多图看板 / 大屏(dash_type=board/screen)----------------
+export function listDashboards(dashType) {
+  return request({ url: '/data/dashboard/list', method: 'get', params: { dashType } })
+}
+export function getDashboard(id, silent = false) {
+  return request({ url: `/data/dashboard/detail/${id}`, method: 'get', silent })
+}
+export function saveDashboard(data) {
+  return request({ url: '/data/dashboard', method: 'post', data })
+}
+export function delDashboard(ids) {
+  return request({ url: '/data/dashboard/' + ids, method: 'delete' })
+}
+export function genDashboardShare(id) {
+  return request({ url: `/data/dashboard/${id}/share`, method: 'post' })
+}
+export function revokeDashboardShare(id) {
+  return request({ url: `/data/dashboard/${id}/share`, method: 'delete' })
+}
+// 公开多图看板/大屏(免登录):返回 {name,canvas,components(含 rows/chartSpec),filters}
+export function getSharedDashboard(token) {
+  return request({ url: `/open/dashboard/${token}`, method: 'get', headers: { isToken: false } })
 }
 
 // ---------------- ETL 调试 ----------------

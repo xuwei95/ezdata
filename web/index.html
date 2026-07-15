@@ -211,9 +211,11 @@
   </div>
   <script>
     // 纯图/分享等对外看板页:Vue 挂载前就移除系统级启动 loading(避免那块紫色转圈突兀闪现)
+    // 覆盖:单图/多图·大屏 的纯图预览页 + 匿名分享页
     (function () {
       var p = location.pathname || ''
-      if (p.indexOf('/share/board/') === 0 || p.indexOf('/data/board-view/') === 0) {
+      var pure = ['/share/board/', '/share/dashboard/', '/data/board-view/', '/data/dashboard-view/']
+      if (pure.some(function (x) { return p.indexOf(x) === 0 })) {
         var el = document.getElementById('loader-wrapper')
         if (el) el.parentNode.removeChild(el)
       }

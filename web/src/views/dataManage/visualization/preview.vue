@@ -16,7 +16,6 @@
 <script setup name="BoardView">
 import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
 import { getAnalysisTemplate } from '@/api/dataManage/data'
 import EchartsBuilder from './EchartsBuilder.vue'
 import { isEchartsCfg, fetchBoardRows, paramsToValues } from './board.js'
@@ -39,7 +38,7 @@ async function load() {
   loading.value = true
   err.value = ''
   try {
-    const t = (await getAnalysisTemplate(id)).data || {}
+    const t = (await getAnalysisTemplate(id, true)).data || {}
     board.name = t.name || ''
     board.modelName = t.modelName || ''
     board.modelId = t.modelId || ''
@@ -49,7 +48,7 @@ async function load() {
     board.refreshInterval = t.refreshInterval || 0
     if (!isEchartsCfg(board.chartSpec)) { err.value = '该看板无图表配置(或为旧格式)'; rows.value = []; return }
     if (!board.modelId) { err.value = '看板未关联数据模型'; rows.value = []; return }
-    const data = await fetchBoardRows(board.modelId, board.native, paramsToValues(board.params), QUERY_CAP)
+    const data = await fetchBoardRows(board.modelId, board.native, paramsToValues(board.params), QUERY_CAP, true)
     if (!data.length) { err.value = '查询无数据'; rows.value = []; return }
     rows.value = data
     cfg.value = { ...board.chartSpec }
@@ -57,7 +56,7 @@ async function load() {
     setupTimer()
   } catch (e) {
     err.value = e?.msg || e?.message || '加载失败'
-    ElMessage.error(err.value)
+    console.warn('[BoardView] 预览加载失败', err.value)
   } finally {
     loading.value = false
   }

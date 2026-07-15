@@ -1,5 +1,5 @@
 <template>
-  <div class="echarts-builder" :class="{ 'no-ctrl': !showControls }">
+  <div class="echarts-builder" :class="{ 'no-ctrl': !showControls, dark: dark }">
     <!-- 左侧配置面板:数据 / 样式 -->
     <div v-if="showControls" class="eb-panel" :style="{ maxHeight: height + 'px' }">
       <el-tabs v-model="panelTab" class="eb-tabs">
@@ -251,7 +251,8 @@ const props = defineProps({
   showControls: { type: Boolean, default: true },
   height: { type: Number, default: 460 },
   aiEnabled: { type: Boolean, default: false }, // 显示「AI 生成图表」输入
-  aiLoading: { type: Boolean, default: false }  // 由宿主控制生成中状态
+  aiLoading: { type: Boolean, default: false }, // 由宿主控制生成中状态
+  dark: { type: Boolean, default: false }       // 大屏暗底:透明背景 + 明色轴/文字/网格
 })
 const emit = defineEmits(['update:config', 'ai-generate'])
 
@@ -839,11 +840,40 @@ function buildOption() {
 }
 
 // ---- 渲染 & 同步 ----
+// 大屏暗底:把默认深色文字/轴线改成明色,并让画布透明(透出大屏背景)
+function applyDark(opt) {
+  if (!opt) return opt
+  const text = '#c9d4e3', line = 'rgba(201,212,227,0.35)', split = 'rgba(201,212,227,0.12)'
+  opt.backgroundColor = 'transparent'
+  opt.textStyle = { color: text, ...(opt.textStyle || {}) }
+  if (opt.legend) {
+    const ls = Array.isArray(opt.legend) ? opt.legend : [opt.legend]
+    ls.forEach((l) => { l.textStyle = { color: text, ...(l.textStyle || {}) } })
+  }
+  if (opt.title) {
+    const ts = Array.isArray(opt.title) ? opt.title : [opt.title]
+    ts.forEach((t) => { t.textStyle = { color: text, ...(t.textStyle || {}) } })
+  }
+  const decorate = (ax) => {
+    if (!ax) return ax
+    ;(Array.isArray(ax) ? ax : [ax]).forEach((a) => {
+      a.axisLine = { ...(a.axisLine || {}), lineStyle: { ...((a.axisLine && a.axisLine.lineStyle) || {}), color: line } }
+      a.axisLabel = { ...(a.axisLabel || {}), color: text }
+      a.splitLine = { ...(a.splitLine || {}), lineStyle: { ...((a.splitLine && a.splitLine.lineStyle) || {}), color: split } }
+      a.nameTextStyle = { ...(a.nameTextStyle || {}), color: text }
+    })
+    return ax
+  }
+  opt.xAxis = decorate(opt.xAxis)
+  opt.yAxis = decorate(opt.yAxis)
+  return opt
+}
 async function render() {
   if (!isCanvasType.value) return
   await nextTick()
   if (!chart) return
-  chart.setOption(buildOption(), true)
+  const opt = buildOption()
+  chart.setOption(props.dark ? applyDark(opt) : opt, true)
   chart.resize()
 }
 function onResize() { chart && chart.resize() }
@@ -859,6 +889,7 @@ watch(cfg, () => {
 
 watch(() => cfg.type, () => inferFields()) // 切类型时按新类型补齐所需字段映射(OHLC/桑基 link/热力 Y 等)
 watch(() => props.rows, () => { inferFields(); render() })
+watch(() => props.dark, () => render()) // 暗底模式切换时重渲
 watch(() => props.config, (c) => { applyCfg(c); lastCfgJson = JSON.stringify(cfg); inferFields(); render() })
 
 onMounted(async () => {
@@ -909,6 +940,9 @@ defineExpose({ getConfig: () => JSON.parse(JSON.stringify(cfg)), exportPng, expo
 .eb-main { flex: 1; min-width: 0; position: relative; }
 .eb-tools { position: absolute; top: 4px; right: 8px; z-index: 5; display: flex; gap: 4px; }
 .eb-chart { width: 100%; border: 1px solid #ebeef5; border-radius: 6px; }
+/* 大屏暗底:去掉浅色边框(否则深色底上会显出突兀的白框),背景透明 */
+.echarts-builder.dark .eb-chart { border-color: transparent; background: transparent; }
+.echarts-builder.dark .eb-kpi { border-color: transparent; }
 
 .fld { margin-bottom: 12px; }
 .fld > label { display: block; font-size: 12px; color: #606266; margin-bottom: 4px; }

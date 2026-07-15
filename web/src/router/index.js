@@ -61,10 +61,26 @@ export const constantRoutes = [
     meta: { title: '看板预览' }
   },
   {
+    // 数据看板 → 多图/大屏独立预览页:全屏纯图(不套 Layout),供新标签打开
+    path: '/data/dashboard-view/:id',
+    component: () => import('@/views/dataManage/dashboard/DashView.vue'),
+    name: 'DashViewPage',
+    hidden: true,
+    meta: { title: '看板预览' }
+  },
+  {
     // 匿名分享看板:免登录全屏纯图(凭 share_token,见 permission.js whiteList)
     path: '/share/board/:token',
     component: () => import('@/views/dataManage/visualization/share.vue'),
     name: 'BoardShare',
+    hidden: true,
+    meta: { title: '看板分享' }
+  },
+  {
+    // 匿名分享多图看板/大屏:免登录(凭 share_token,见 permission.js whiteList)
+    path: '/share/dashboard/:token',
+    component: () => import('@/views/dataManage/dashboard/share.vue'),
+    name: 'DashShare',
     hidden: true,
     meta: { title: '看板分享' }
   },
