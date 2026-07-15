@@ -20,24 +20,39 @@ _CHART_ROW_CAP = 5000  # plot_chart 查询取数上限(引导聚合查询,结果
 # 与 EchartsBuilder / 后端 _normalize_chart_cfg 对齐(此处轻量构造,存看板时后端再规整)
 _CHART_TYPES = frozenset({
     'bar', 'bar_stack', 'bar_percent', 'hbar', 'line', 'area', 'line_stack',
-    'pie', 'donut', 'rose', 'scatter', 'radar', 'funnel', 'gauge', 'kpi', 'table',
+    'pie', 'donut', 'rose', 'scatter', 'radar', 'funnel', 'gauge', 'kline',
+    'combo', 'waterfall', 'heatmap', 'boxplot', 'treemap', 'sankey', 'kpi', 'table',
 })
 _CHART_AGGS = frozenset({'sum', 'avg', 'count', 'max', 'min', 'none'})
 
 
-def _chart_cfg(chart_type: str, x: str, ys: list | None, series: str, sort: dict | None,
-               top_n: int, title: str) -> dict:
-    """把 plot_chart 入参组成 EchartsBuilder cfg(schema 与前端一致)。"""
-    norm_ys = []
-    for m in ys or []:
+def _coerce_ys(ys: Any) -> list[dict]:
+    """把 LLM 可能传的多种 ys 形态归一为 [{'field','agg'}]:list[dict] / list[str] /
+    单个 str / 单个 dict 都兼容(LLM 常直接传列名字符串,旧实现会崩或丢度量)。取不到则占位。"""
+    items = ys if isinstance(ys, list) else ([ys] if ys not in (None, '') else [])
+    norm = []
+    for m in items:
         if isinstance(m, dict) and m.get('field'):
             agg = m.get('agg')
-            norm_ys.append({'field': str(m['field']), 'agg': agg if agg in _CHART_AGGS else 'none'})
-    if not norm_ys:
-        norm_ys = [{'field': '', 'agg': 'none'}]
+            d = {'field': str(m['field']), 'agg': agg if agg in _CHART_AGGS else 'none'}
+            if m.get('mark') in ('bar', 'line'):  # 双轴组合:柱/线
+                d['mark'] = m['mark']
+            if m.get('axis') in ('left', 'right'):  # 双轴组合:左/右轴
+                d['axis'] = m['axis']
+            norm.append(d)
+        elif isinstance(m, str) and m.strip():
+            norm.append({'field': m.strip(), 'agg': 'none'})
+    return norm or [{'field': '', 'agg': 'none'}]
+
+
+def _chart_cfg(chart_type: str, x: str, ys: list | None, series: str, sort: dict | None,
+               top_n: int, title: str, ohlc: dict | None = None, link: dict | None = None) -> dict:
+    """把 plot_chart 入参组成 EchartsBuilder cfg(schema 与前端一致)。"""
+    norm_ys = _coerce_ys(ys)
     s = sort if isinstance(sort, dict) else {}
-    return {
-        'type': chart_type if chart_type in _CHART_TYPES else 'bar',
+    ctype = chart_type if chart_type in _CHART_TYPES else 'bar'
+    cfg = {
+        'type': ctype,
         'x': str(x or ''),
         'ys': norm_ys,
         'series': str(series or ''),
@@ -45,6 +60,13 @@ def _chart_cfg(chart_type: str, x: str, ys: list | None, series: str, sort: dict
         'topN': max(0, int(top_n or 0)),
         'style': {'title': str(title or '')},
     }
+    if ctype == 'kline':  # K 线附带 OHLC 四列映射
+        o = ohlc if isinstance(ohlc, dict) else {}
+        cfg['ohlc'] = {k: str(o.get(k) or '') for k in ('o', 'h', 'l', 'c')}
+    if ctype == 'sankey':  # 桑基附带 源/目标/值 三列映射
+        lk = link if isinstance(link, dict) else {}
+        cfg['link'] = {k: str(lk.get(k) or '') for k in ('source', 'target', 'value')}
+    return cfg
 
 
 class SandboxCodeTools(Toolkit):
@@ -160,6 +182,8 @@ class SandboxCodeTools(Toolkit):
         sort: dict | None = None,
         top_n: int = 0,
         title: str = '',
+        ohlc: dict | None = None,
+        link: dict | None = None,
     ) -> str:
         """按一条只读查询出图,产出可「存为看板」的图表(EchartsBuilder 配置 + 数据)。
 
@@ -169,13 +193,17 @@ class SandboxCodeTools(Toolkit):
 
         :param datasource_code: 数据源编码(平台已配置)
         :param native: 该源的查询语句——SQL 字符串,或 ES DSL / Mongo pipeline 的 dict(也可传 JSON 字符串)
-        :param chart_type: 图表类型 bar/hbar/bar_stack/line/area/pie/donut/rose/scatter/radar/funnel/gauge/kpi
-        :param x: 类别/维度列名
-        :param ys: 度量数组,每项 {"field":"列名","agg":"sum|avg|count|max|min|none"};查询已聚合则用 none
-        :param series: 分组/拆分列名(可选)
+        :param chart_type: 图表类型 bar/hbar/bar_stack/line/area/pie/donut/rose/scatter/radar/funnel/gauge/kline(K线)/
+            combo(双轴组合)/waterfall(瀑布)/heatmap(热力)/boxplot(箱线)/treemap(矩形树图)/sankey(桑基)/kpi
+        :param x: 类别/维度列名(kline 填时间列;heatmap 填 X 轴类别列;sankey 不用)
+        :param ys: 度量数组,每项 {"field":"列名","agg":"sum|avg|count|max|min|none"};查询已聚合则用 none;
+            combo 每项可加 "mark":"bar|line" 与 "axis":"left|right";heatmap/boxplot/treemap/waterfall 只用第一个
+        :param series: 分组/拆分列名(可选;heatmap 时它是 Y 轴类别列)
         :param sort: {"by":"" 或 "__x__" 或某度量field,"dir":"desc|asc"}(可选)
         :param top_n: 只取前 N(0=不限)
         :param title: 图表标题
+        :param ohlc: 仅 kline 需要,四列映射 {"o":"开盘列","h":"最高列","l":"最低列","c":"收盘列"}
+        :param link: 仅 sankey 需要,三列映射 {"source":"源列","target":"目标列","value":"流量值列"}
         :return: 结果摘要(图表展示给用户;LLM 只见此文本)
         """
         from ezdata.utils.etl_util import assert_readonly_sql
@@ -208,7 +236,7 @@ class SandboxCodeTools(Toolkit):
             rows = rows['value']
         if not isinstance(rows, list):
             rows = []
-        cfg = _chart_cfg(chart_type, x, ys, series, sort, top_n, title)
+        cfg = _chart_cfg(chart_type, x, ys, series, sort, top_n, title, ohlc, link)
         self.artifacts.append({
             'kind': 'echart',
             'cfg': cfg,
@@ -217,7 +245,14 @@ class SandboxCodeTools(Toolkit):
             'saveable': {'datasourceCode': datasource_code, 'native': stmt, 'chartSpec': cfg, 'title': title},
         })
         dims = ', '.join([x] + ([series] if series else [])) or '(无)'
-        ms = ', '.join(f'{(m or {}).get("agg", "")}({(m or {}).get("field", "")})' for m in (ys or [])) or '(无)'
+        if cfg['type'] == 'kline':
+            o = cfg.get('ohlc') or {}
+            ms = f'OHLC({o.get("o", "")}/{o.get("h", "")}/{o.get("l", "")}/{o.get("c", "")})'
+        elif cfg['type'] == 'sankey':
+            lk = cfg.get('link') or {}
+            ms = f'{lk.get("source", "")}→{lk.get("target", "")} (值 {lk.get("value", "")})'
+        else:  # 用已归一的 cfg['ys'](dict),别用原始入参 ys(可能是字符串列表,会 .get 崩)
+            ms = ', '.join(f'{m.get("agg", "")}({m.get("field", "")})' for m in cfg['ys']) or '(无)'
         return (
             f'已生成图表({chart_type}):维度 {dims},度量 {ms},{len(rows)} 行数据,'
             f'已展示给用户(用户可点「存为看板」保存复用)。'

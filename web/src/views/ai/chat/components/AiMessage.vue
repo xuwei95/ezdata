@@ -138,11 +138,74 @@
       <span></span>
       <span></span>
     </div>
+
+    <!-- 代码取数的图「存为看板」:流式生成 native+配置 → 预览取数画图 → 确认落库(避免一次性阻塞超时) -->
+    <el-dialog
+      v-model="conv.visible"
+      title="AI 转看板"
+      width="920px"
+      top="5vh"
+      append-to-body
+      :close-on-click-modal="false"
+      class="conv-dialog"
+    >
+      <div class="conv-body">
+        <div class="conv-gen">
+          <div class="conv-head">
+            <span>生成配置<span v-if="conv.streaming" class="conv-ing"> · 生成中…</span></span>
+          </div>
+          <pre class="conv-out">{{ conv.text || (conv.streaming ? '' : '(空)') }}<span v-if="conv.streaming" class="cursor">▋</span></pre>
+          <div v-if="conv.err" class="conv-err">{{ conv.err }}</div>
+          <!-- 手输补充提示纠偏后重新生成(失败/结果不理想时用,如:指定聚合列、纠正字段名、换图表类型) -->
+          <div class="conv-hint">
+            <el-input
+              v-model="conv.hint"
+              type="textarea"
+              :rows="2"
+              :disabled="conv.streaming"
+              placeholder="可选:给转换补充提示,如「按行业分组求和放到 cfg」「字段名用 change_pct」「改成折线图」,再点重新生成"
+              @keyup.enter.exact.prevent="regenerate"
+            />
+            <el-button
+              size="small"
+              type="primary"
+              icon="Refresh"
+              :loading="conv.streaming"
+              @click="regenerate"
+              >{{ conv.text ? '重新生成' : '生成' }}</el-button
+            >
+          </div>
+        </div>
+        <div class="conv-preview" v-loading="conv.previewing" element-loading-text="取数预览中…">
+          <EchartsBuilder
+            v-if="conv.rows.length && conv.cfg"
+            :rows="conv.rows"
+            :config="conv.cfg"
+            :show-controls="false"
+            :height="360"
+          />
+          <el-empty
+            v-else
+            :description="conv.streaming ? '等待生成完成…' : (conv.err ? '生成/预览失败,可重新生成' : '暂无预览')"
+          />
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="conv.visible = false">取消</el-button>
+        <el-button
+          type="primary"
+          :disabled="!conv.rows.length || !conv.cfg || conv.streaming || conv.previewing"
+          :loading="conv.saving"
+          @click="confirmSave"
+          >确认存为看板</el-button
+        >
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { computed, ref } from "vue";
+import { computed, reactive, ref } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { Star, StarFilled } from "@element-plus/icons-vue";
 import { saveAs } from "file-saver";
@@ -150,7 +213,10 @@ import * as XLSX from "xlsx";
 import TaskProposalCard from "./TaskProposalCard.vue";
 import EchartsBuilder from "@/views/dataManage/visualization/EchartsBuilder.vue";
 import { saveRecipe } from "@/api/ai/chat";
-import { saveChartAsBoard } from "@/api/dataManage/data";
+import { saveChartAsBoard, previewNative } from "@/api/dataManage/data";
+import { getToken } from "@/utils/auth";
+
+const AI_BASE = import.meta.env.VITE_APP_BASE_API || "";
 import { MarkdownRender } from "markstream-vue";
 import { useDark } from "@vueuse/core";
 import { enableKatex, enableMermaid } from "markstream-vue";
@@ -204,10 +270,18 @@ async function saveRecipeOf(b) {
   }
 }
 
-// 统一「存为看板」:plot_chart 的图带 native+chartSpec 直存;代码路径的图带 code → 后端 LLM 转看板。
+// 统一「存为看板」:
+// - plot_chart 声明式图(带 native+chartSpec)→ 命名后直存(瞬时);
+// - 代码取数的图(带 code)→ 打开对话框,流式把代码转成 native+配置、预览画图,再确认落库
+//   (旧版一次性阻塞转换很慢、会超时,故拆成 流式生成 → 预览 → 确认)。
 const savingChart = ref({});
 async function saveDashboard(art, i) {
   if (!art || !art.saveable || art.saved) return;
+  if (art.saveable.mode === "code") {
+    openConvert(art, i);
+    return;
+  }
+  // 声明式:已有 native + chartSpec,命名后直存
   let name;
   try {
     const r = await ElMessageBox.prompt("给看板起个名字", "存为看板", {
@@ -222,19 +296,117 @@ async function saveDashboard(art, i) {
     return; // 取消
   }
   const sv = art.saveable;
-  const payload =
-    sv.mode === "code"
-      ? { name: name.trim(), datasourceCode: sv.datasourceCode, code: sv.code }
-      : { name: name.trim(), datasourceCode: sv.datasourceCode, native: sv.native, chartSpec: sv.chartSpec };
   savingChart.value[i] = true;
   try {
-    await saveChartAsBoard(payload);
+    await saveChartAsBoard({ name: name.trim(), datasourceCode: sv.datasourceCode, native: sv.native, chartSpec: sv.chartSpec });
     art.saved = true;
     ElMessage.success("已存为看板,可在「数据管理 → 数据看板」查看");
   } catch (e) {
     ElMessage.error("保存失败: " + (e?.msg || e?.message || e));
   } finally {
     savingChart.value[i] = false;
+  }
+}
+
+// ---- 代码取数图 → 转看板对话框(流式生成 + 预览 + 确认)----
+const conv = reactive({
+  visible: false, art: null, i: -1,
+  streaming: false, previewing: false, saving: false,
+  text: "", native: null, cfg: null, rows: [], err: "", hint: "",
+});
+function stripFence(t) {
+  let s = (t || "").trim();
+  if (s.startsWith("```")) s = s.replace(/^```[^\n]*\n/, "").replace(/```\s*$/, "").trim();
+  return s;
+}
+function openConvert(art, i) {
+  Object.assign(conv, {
+    visible: true, art, i, streaming: false, previewing: false, saving: false,
+    text: "", native: null, cfg: null, rows: [], err: "", hint: "",
+  });
+  regenerate();
+}
+// 流式请求后端把「取数代码」转成 {native, cfg},实时打印;结束后自动预览取数画图
+async function regenerate() {
+  const sv = conv.art && conv.art.saveable;
+  if (!sv) return;
+  Object.assign(conv, { streaming: true, err: "", text: "", native: null, cfg: null, rows: [] });
+  try {
+    const resp = await fetch(AI_BASE + "/data/analysis-template/code-to-board/stream", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + getToken() },
+      body: JSON.stringify({ datasourceCode: sv.datasourceCode, code: sv.code, question: sv.title || "", hint: conv.hint || "" }),
+    });
+    if (!resp.ok || !resp.body) throw new Error("HTTP " + resp.status);
+    const reader = resp.body.getReader();
+    const dec = new TextDecoder();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      conv.text += dec.decode(value, { stream: true });
+    }
+  } catch (e) {
+    conv.streaming = false;
+    conv.err = "生成失败: " + (e?.message || e);
+    return;
+  }
+  conv.streaming = false;
+  await parseAndPreview();
+}
+// 解析流式产出的 {native, cfg} → 实跑 native 取数 → 画预览图(取数即校验)
+async function parseAndPreview() {
+  let obj;
+  try {
+    obj = JSON.parse(stripFence(conv.text));
+  } catch (e) {
+    conv.err = "生成结果不是合法 JSON,请点「重新生成」";
+    return;
+  }
+  if (!obj || obj.native == null) {
+    conv.err = "生成结果缺少 native 查询,请点「重新生成」";
+    return;
+  }
+  conv.native = obj.native;
+  conv.cfg = obj.cfg || null;
+  const sv = conv.art.saveable;
+  conv.previewing = true;
+  conv.err = "";
+  try {
+    const res = await previewNative({ datasourceCode: sv.datasourceCode, native: conv.native });
+    conv.rows = res.data.records || [];
+    if (!conv.rows.length) conv.err = "预览取数为空(0 行),可点「重新生成」";
+  } catch (e) {
+    conv.err = "预览取数失败: " + (e?.msg || e?.message || e);
+  } finally {
+    conv.previewing = false;
+  }
+}
+async function confirmSave() {
+  const sv = conv.art && conv.art.saveable;
+  if (!sv || conv.native == null) return;
+  let name;
+  try {
+    const r = await ElMessageBox.prompt("给看板起个名字", "存为看板", {
+      confirmButtonText: "保存",
+      cancelButtonText: "取消",
+      inputValue: sv.title || "",
+      inputPlaceholder: "看板名称",
+      inputValidator: (v) => (v && v.trim() ? true : "请输入名称"),
+    });
+    name = r.value;
+  } catch (e) {
+    return;
+  }
+  conv.saving = true;
+  try {
+    await saveChartAsBoard({ name: name.trim(), datasourceCode: sv.datasourceCode, native: conv.native, chartSpec: conv.cfg });
+    conv.art.saved = true;
+    conv.visible = false;
+    ElMessage.success("已存为看板,可在「数据管理 → 数据看板」查看");
+  } catch (e) {
+    ElMessage.error("保存失败: " + (e?.msg || e?.message || e));
+  } finally {
+    conv.saving = false;
   }
 }
 
@@ -557,6 +729,73 @@ function toggleReasoning() {
   }
   40% {
     transform: scale(1);
+  }
+}
+
+.conv-dialog {
+  .conv-body {
+    display: flex;
+    gap: 12px;
+  }
+  .conv-gen {
+    width: 46%;
+    display: flex;
+    flex-direction: column;
+  }
+  .conv-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 13px;
+    color: var(--el-text-color-regular);
+    margin-bottom: 6px;
+  }
+  .conv-ing {
+    color: var(--el-color-primary);
+  }
+  .conv-out {
+    flex: 1;
+    min-height: 320px;
+    max-height: 60vh;
+    overflow: auto;
+    margin: 0;
+    padding: 10px 12px;
+    background: #1e1e1e;
+    color: #d4d4d4;
+    border-radius: 6px;
+    font-family: Consolas, Monaco, monospace;
+    font-size: 12px;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .conv-err {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--el-color-danger);
+  }
+  .conv-hint {
+    margin-top: 8px;
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+    .el-textarea {
+      flex: 1;
+    }
+  }
+  .conv-preview {
+    flex: 1;
+    min-width: 0;
+    min-height: 360px;
+    border: 1px solid var(--el-border-color);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px;
+  }
+  .cursor {
+    color: #67c23a;
+    animation: blink 1s steps(1) infinite;
   }
 }
 </style>

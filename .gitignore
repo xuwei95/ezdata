@@ -170,4 +170,7 @@ tests/_e2e_shots/
 tmp_bench/
 tmp/
 
+# 本地浏览器验证(Playwright 脚本+截图,不纳入版本库)
+.verify/
+
 logs/

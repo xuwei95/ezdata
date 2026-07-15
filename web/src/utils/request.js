@@ -106,6 +106,8 @@ service.interceptors.response.use(async res => {
     if (res.request.responseType ===  'blob' || res.request.responseType ===  'arraybuffer') {
       return res.data
     }
+    // 静默请求(预览/展示模式的组件自动取数):失败不弹 msg,改打 console,交由调用方处理
+    const silent = !!(res.config && res.config.silent)
     if (code === 401) {
       if (!isRelogin.show) {
         isRelogin.show = true;
@@ -120,13 +122,16 @@ service.interceptors.response.use(async res => {
     }
       return Promise.reject('无效的会话，或者会话已过期，请重新登录。')
     } else if (code === 500) {
-      ElMessage({ message: msg, type: 'error' })
+      if (silent) console.warn('[silent request 500]', res.config?.url, msg)
+      else ElMessage({ message: msg, type: 'error' })
       return Promise.reject(new Error(msg))
     } else if (code === 601) {
-      ElMessage({ message: msg, type: 'warning' })
+      if (silent) console.warn('[silent request 601]', res.config?.url, msg)
+      else ElMessage({ message: msg, type: 'warning' })
       return Promise.reject(new Error(msg))
     } else if (code !== 200) {
-      ElNotification.error({ title: msg })
+      if (silent) console.warn('[silent request]', res.config?.url, msg)
+      else ElNotification.error({ title: msg })
       return Promise.reject('error')
     } else {
       return  Promise.resolve(res.data)
@@ -145,13 +150,15 @@ service.interceptors.response.use(async res => {
       return service.request(error.config)
     }
     console.log('err' + error)
+    const silent = !!(error.config && error.config.silent)
     const response = error.response
     const responseStatus = response?.status
     const responseCode = response?.data?.code
     const responseMsg = response?.data?.msg
     if (responseMsg) {
       const messageType = responseStatus === 429 || responseCode === 429 ? 'warning' : 'error'
-      ElMessage({ message: responseMsg, type: messageType, duration: 5 * 1000 })
+      if (silent) console.warn('[silent request err]', error.config?.url, responseMsg)
+      else ElMessage({ message: responseMsg, type: messageType, duration: 5 * 1000 })
       return Promise.reject(new Error(responseMsg))
     }
     let { message } = error;
@@ -162,7 +169,8 @@ service.interceptors.response.use(async res => {
     } else if (message.includes("Request failed with status code")) {
       message = "系统接口" + message.slice(-3) + "异常";
     }
-    ElMessage({ message: message, type: 'error', duration: 5 * 1000 })
+    if (silent) console.warn('[silent request err]', error.config?.url, message)
+    else ElMessage({ message: message, type: 'error', duration: 5 * 1000 })
     return Promise.reject(error)
   }
 )

@@ -19,10 +19,16 @@ from ezdata.utils.etl_util import (
     short_err,
     stream_statement,
 )
-from module_data.dao.data_dao import AnalysisTemplateDao, DataModelDao, DataSourceDao
+from module_data.dao.data_dao import (
+    DashboardCanvasDao,
+    DashboardDao,
+    DataModelDao,
+    DataSourceDao,
+)
 from module_data.entity.do.data_do import DataModel, DataSource
 from module_data.entity.vo.data_vo import (
     AnalysisTemplateVo,
+    DashboardVo,
     DataModelQuery,
     DataModelVo,
     DataSourceQuery,
@@ -51,6 +57,59 @@ def _build_handler(source_type: str, config: dict | None, secrets: dict | None, 
 
 def _handler_from_ds(ds: DataSource) -> Any:
     return _build_handler(ds.source_type, ds.config or {}, _decrypt_secrets(ds))
+
+
+def _apply_params(native: Any, params: dict | None) -> Any:
+    """把看板变量 {{name}} 替换进 native。
+
+    - 字符串 native(SQL):字符串值做安全引用(转义单引号),数字原样;
+    - dict/list native(ES DSL / Mongo pipeline):在 JSON 串上替换——`"{{k}}"` 整体换成 JSON 值,
+      裸 `{{k}}` 兜底按字符串替换,再 json.loads 还原。
+    无 params 原样返回。(分析师本就能写任意 native,此替换不新增越权面。)
+    """
+    if not params:
+        return native
+
+    def _sql_quote(v: Any) -> str:
+        if v is None:
+            return 'NULL'
+        if isinstance(v, bool):
+            return '1' if v else '0'
+        if isinstance(v, (int, float)):
+            return str(v)
+        return "'" + str(v).replace("'", "''") + "'"
+
+    if isinstance(native, str):
+        out = native
+        for k, v in params.items():
+            out = out.replace('{{' + str(k) + '}}', _sql_quote(v))
+        return out
+    txt = json.dumps(native, ensure_ascii=False)
+    for k, v in params.items():
+        token = '"{{' + str(k) + '}}"'
+        if token in txt:
+            txt = txt.replace(token, json.dumps(v, ensure_ascii=False))
+        else:
+            txt = txt.replace('{{' + str(k) + '}}', str(v))
+    return json.loads(txt)
+
+
+def _board_param_values(defs: Any) -> dict:
+    """看板变量定义数组(存储态 [{name,label,type,default,value}])→ 取数用 {name: value}。
+    与前端 board.js paramsToValues 一致:空值回退默认,daterange 展开 名_start/名_end。"""
+    out: dict = {}
+    for p in (defs or []):
+        if not isinstance(p, dict) or not p.get('name'):
+            continue
+        val = p.get('value')
+        if val in (None, ''):
+            val = p.get('default')
+        if p.get('type') == 'daterange' and isinstance(val, list) and len(val) == 2:
+            out[p['name'] + '_start'] = val[0]
+            out[p['name'] + '_end'] = val[1]
+        else:
+            out[p['name']] = val
+    return out
 
 
 def _source_structure_text(ds: DataSource, max_tables: int = 30, max_fields: int = 40) -> str:
@@ -449,7 +508,8 @@ class DataModelService:
 
 _CHART_TYPES = frozenset({
     'bar', 'bar_stack', 'bar_percent', 'hbar', 'line', 'area', 'line_stack',
-    'pie', 'donut', 'rose', 'scatter', 'radar', 'funnel', 'gauge', 'kpi', 'table',
+    'pie', 'donut', 'rose', 'scatter', 'radar', 'funnel', 'gauge', 'kline',
+    'combo', 'waterfall', 'heatmap', 'boxplot', 'treemap', 'sankey', 'kpi', 'table',
 })
 _CHART_AGGS = frozenset({'sum', 'avg', 'count', 'max', 'min', 'none'})
 
@@ -463,15 +523,24 @@ def _chart_cfg_prompt(columns: list[str], question: str) -> str:
         '请输出一个图表配置 JSON,字段说明:\n'
         '- type: 图表类型,取值之一 bar(柱)/bar_stack(堆叠柱)/bar_percent(百分比堆叠)/hbar(横向条)/'
         'line(折线)/area(面积)/line_stack(堆叠面积)/pie(饼)/donut(环形)/rose(玫瑰)/scatter(散点)/'
-        'radar(雷达)/funnel(漏斗)/gauge(仪表盘)/kpi(指标卡)/table(明细表)\n'
-        '- x: 类别/维度列名(kpi/table 可留空)\n'
+        'radar(雷达)/funnel(漏斗)/gauge(仪表盘)/kline(K 线/蜡烛图,行情)/'
+        'combo(双轴组合)/waterfall(瀑布)/heatmap(热力)/boxplot(箱线)/treemap(矩形树图)/sankey(桑基)/'
+        'kpi(指标卡)/table(明细表)\n'
+        '- x: 类别/维度列名(kpi/table 可留空;kline 填时间列;heatmap 填 X 轴类别列;sankey 不用 x)\n'
         '- ys: 度量数组,每项 {"field":"列名","agg":"sum|avg|count|max|min|none"},可多个;'
-        '若该列本身已是聚合结果(如查询里已写 SUM(x)/COUNT(*) 算好),agg 用 none 直接画,不要再二次聚合\n'
-        '- series: 分组拆分列名(不需要则空字符串)\n'
+        '若该列本身已是聚合结果(如查询里已写 SUM(x)/COUNT(*) 算好),agg 用 none 直接画,不要再二次聚合;'
+        'combo 里每个度量可加 "mark":"bar|line"(柱或线)与 "axis":"left|right"(左/右轴);'
+        'heatmap/boxplot/treemap/waterfall 只用第一个度量\n'
+        '- ohlc: 仅 kline 需要,四列映射 {"o":"开盘列","h":"最高列","l":"最低列","c":"收盘列"}(此时 ys 可省)\n'
+        '- link: 仅 sankey 需要,三列映射 {"source":"源节点列","target":"目标节点列","value":"流量值列"}(此时 x/ys 可省)\n'
+        '- series: 分组拆分列名(不需要则空字符串;heatmap 时它是 Y 轴类别列,必填)\n'
         '- sort: {"by":"" 或 "__x__" 或某度量列名,"dir":"desc|asc"}\n'
         '- topN: 整数,只取前 N(不限填 0)\n'
         '- style: 可选,可含 {"title":"图表标题"}\n'
-        '选型建议:占比看 pie/donut;趋势随时间看 line;类别对比看 bar;单一汇总指标看 kpi。'
+        '选型建议:占比看 pie/donut;趋势随时间看 line;类别对比看 bar;单一汇总指标看 kpi;'
+        '股票/期货 OHLC 行情看 kline;两个量级差很大的指标同图对比看 combo(双轴);'
+        '累计增减/构成看 waterfall;两个维度交叉的热度看 heatmap;数值分布/离群看 boxplot;'
+        '层级占比看 treemap;节点间流向/转化看 sankey。'
         '只用上面列出的真实列名。**只输出 JSON 本身,不要 markdown 代码块、不要任何解释文字。**'
     )
 
@@ -483,14 +552,23 @@ def _normalize_chart_cfg(cfg: Any) -> dict:
     if cfg.get('type') not in _CHART_TYPES:
         cfg['type'] = 'bar'
     ys = cfg.get('ys')
-    if isinstance(ys, dict):
+    if isinstance(ys, (dict, str)):
         ys = [ys]
     if not isinstance(ys, list) or not ys:
         ys = [{'field': cfg['y'], 'agg': cfg.get('agg')}] if cfg.get('y') else []
     norm = []
     for it in ys:
         if isinstance(it, dict) and it.get('field'):
-            norm.append({'field': str(it['field']), 'agg': it.get('agg') if it.get('agg') in _CHART_AGGS else 'sum'})
+            m = {'field': str(it['field']), 'agg': it.get('agg') if it.get('agg') in _CHART_AGGS else 'sum'}
+            if it.get('mark') in ('bar', 'line'):  # 双轴组合:该度量画柱还是线
+                m['mark'] = it['mark']
+            if it.get('axis') in ('left', 'right'):  # 双轴组合:该度量走左轴还是右轴
+                m['axis'] = it['axis']
+            if it.get('color'):  # 该度量单独配色
+                m['color'] = str(it['color'])
+            norm.append(m)
+        elif isinstance(it, str) and it.strip():  # LLM 常把 ys 直接写成列名字符串
+            norm.append({'field': it.strip(), 'agg': 'sum'})
     cfg['ys'] = norm or [{'field': '', 'agg': 'sum'}]
     cfg['x'] = str(cfg.get('x') or '')
     cfg['series'] = str(cfg.get('series') or '')
@@ -502,36 +580,89 @@ def _normalize_chart_cfg(cfg: Any) -> dict:
         cfg['topN'] = 0
     if not isinstance(cfg.get('style'), dict):
         cfg.pop('style', None)
+    # K 线:保留 OHLC 四列映射;非 kline 不带 ohlc
+    if cfg['type'] == 'kline':
+        o = cfg.get('ohlc') if isinstance(cfg.get('ohlc'), dict) else {}
+        cfg['ohlc'] = {k: str(o.get(k) or '') for k in ('o', 'h', 'l', 'c')}
+    else:
+        cfg.pop('ohlc', None)
+    # 桑基:保留 源/目标/值 三列映射;非 sankey 不带 link
+    if cfg['type'] == 'sankey':
+        lk = cfg.get('link') if isinstance(cfg.get('link'), dict) else {}
+        cfg['link'] = {k: str(lk.get(k) or '') for k in ('source', 'target', 'value')}
+    else:
+        cfg.pop('link', None)
     cfg.pop('y', None)
     cfg.pop('agg', None)
     return cfg
 
 
-def _code_to_board_prompt(code: str, question: str) -> str:
-    """把 agent 的「取数+绘图」代码转成看板配置 {native, cfg} 的提示词。"""
+_CFG_SCHEMA_LINE = (
+    ' "cfg": {"type": 图表类型(bar/hbar/bar_stack/line/area/pie/donut/rose/scatter/radar/funnel/gauge/kline/'
+    'combo(双轴组合)/waterfall(瀑布)/heatmap(热力)/boxplot(箱线)/treemap(矩形树图)/sankey(桑基)/kpi),'
+    '"x": 维度列(heatmap=X轴类别;sankey 不用), "ys": [{"field": 度量列, "agg": "sum|avg|count|max|min|none"'
+    '(, combo 可加 "mark":"bar|line","axis":"left|right")}], '
+    '"series": 分组列或空串(heatmap=Y轴类别列), "sort": {"by":"","dir":"desc"}, "topN": 0, "style": {"title": 标题}'
+    ',(仅 kline)"ohlc": {"o":"开盘列","h":"最高列","l":"最低列","c":"收盘列"}'
+    ',(仅 sankey)"link": {"source":"源列","target":"目标列","value":"流量值列"}}}\n'
+)
+
+
+def _code_to_board_prompt(code: str, question: str, source_type: str = '', family: str = '') -> str:
+    """把 agent 的「取数+绘图」代码转成看板配置 {native, cfg} 的提示词。
+
+    native 形态随数据源族不同:SQL/ES/Mongo 是查询语句且可下推聚合;api 族(akshare/ccxt 等接口源)
+    是**接口函数调用** {"func","params"},返回固定结构表、不能下推聚合——分别给对应指引,否则接口源必转失败。
+    """
+    if family == 'api':  # akshare / ccxt 等接口源:native = 接口函数调用,不是查询语句
+        native_block = (
+            '{"native": <一次只读接口调用,形如 {"func":"接口函数名","params":{参数}}——'
+            '直接从代码里 handler.query(...) 的第一个入参**原样提取**(字符串函数名,或 {func,params} 字典);'
+            '不要改写成 SQL、不要杜撰函数名或参数>,\n'
+            + _CFG_SCHEMA_LINE
+            + f'该数据源是「{source_type or "akshare/ccxt"}」接口源,务必注意:\n'
+            '- native 必须是 {"func":..,"params":..} 形态(或纯函数名字符串),**照抄代码里的 handler.query 调用**,'
+            'params 原样复制,别改别编;\n'
+            '- 这类源返回**固定结构的表,无法把聚合下推到 native**——需要汇总/排序/取前 N 时一律用 cfg 完成:'
+            '聚合用 cfg.ys 的 agg(sum/avg/count/max/min),排序用 cfg.sort,取前 N 用 cfg.topN;'
+            '某列本身就是要直接画的原始值时 agg 用 none;\n'
+            '- 只读:此类源天然只读,无需改写;\n'
+            '- cfg 的列名必须是接口返回的真实列名(akshare 多为中文,如 日期/开盘/最高/最低/收盘/成交量/成交额/名称/最新价/涨跌幅)。\n'
+            '示例(akshare):\n'
+            '- 个股日 K:  native={"func":"stock_zh_a_hist","params":{"symbol":"600519","period":"daily","adjust":"qfq"}},'
+            ' cfg.type=kline, x="日期", ohlc={"o":"开盘","h":"最高","l":"最低","c":"收盘"}\n'
+            '- 实时行情按最新价 Top10:  native={"func":"stock_zh_a_spot_em","params":{}},'
+            ' cfg.type=hbar, x="名称", ys=[{"field":"最新价","agg":"none"}], sort={"by":"最新价","dir":"desc"}, topN=10\n'
+            '- 按行业汇总成交额:  native 取实时行情明细接口(不带聚合), cfg.x="行业", ys=[{"field":"成交额","agg":"sum"}]'
+            '(聚合放 cfg,别放 native)\n'
+        )
+    else:  # SQL / ES / Mongo:native 是查询语句,尽量把聚合下推
+        native_block = (
+            '{"native": <一条只读、单条、可独立重跑的查询,返回图表所需数据集;SQL 源用 SQL 字符串,'
+            'ES 用查询 DSL 对象,Mongo 用 pipeline 对象;尽量把聚合放进查询:GROUP BY / aggs / $group>,\n'
+            + _CFG_SCHEMA_LINE
+            + '要求:native 必须**只读**、不依赖代码里的 pandas 中间变量、能独立重跑;'
+            'cfg 里的列名必须是 native 结果的真实列名;若聚合已在查询里做,对应度量 agg 用 none。\n'
+            '【聚合务必下推到 native,别只靠 pandas】常见写法示例:\n'
+            '- SQL 分组求和:  native="SELECT city, SUM(amount) AS amount FROM t GROUP BY city ORDER BY amount DESC LIMIT 10",'
+            ' cfg.x=city, ys=[{"field":"amount","agg":"none"}]\n'
+            '- SQL 单指标:    native="SELECT MAX(price) AS max_price FROM t", cfg.type=kpi, ys=[{"field":"max_price","agg":"none"}]\n'
+            '- ES 桶+指标:    native={"index":"idx","body":{"size":0,"aggs":{"by_ind":{"terms":{"field":"industry.keyword","size":10},'
+            '"aggs":{"amt":{"sum":{"field":"amount"}}}}}}}(handler 会拍平成 by_ind/amt 两列),cfg.x=by_ind, ys=[{"field":"amt","agg":"none"}]\n'
+            '- ES 单指标:     native={"index":"idx","body":{"size":0,"aggs":{"max_price":{"max":{"field":"price"}}}}},'
+            ' cfg.type=kpi, ys=[{"field":"max_price","agg":"none"}]\n'
+            '- Mongo 分组:    native={"collection":"c","pipeline":[{"$group":{"_id":"$city","amount":{"$sum":"$amount"}}}]},'
+            ' cfg.x=_id, ys=[{"field":"amount","agg":"none"}]\n'
+            '- Top-N 明细(非聚合):SQL 用 ORDER BY+LIMIT;ES 用 {"body":{"sort":[{"amount":"desc"}],"size":10,"_source":[...]}}。\n'
+            '- K 线(行情):native 按时间升序取 明细(含 时间/开/高/低/收 列),'
+            'cfg.type=kline, x=时间列, ohlc={"o":"open","h":"high","l":"low","c":"close"}(ys 可省)\n'
+        )
     return (
         '你是数据看板转换器。下面是一段在数据源上「取数+绘图」的 Python 代码'
         '(用 handler.query 取数,可能用 pandas 加工,用 pyecharts 画图)。请把它转换成可复用看板配置,输出 JSON:\n'
-        '{"native": <一条只读、单条、可独立重跑的查询,返回图表所需数据集;SQL 源用 SQL 字符串,'
-        'ES 用查询 DSL 对象,Mongo 用 pipeline 对象;尽量把聚合放进查询:GROUP BY / aggs / $group>,\n'
-        ' "cfg": {"type": 图表类型(bar/hbar/bar_stack/line/area/pie/donut/rose/scatter/radar/funnel/gauge/kpi),'
-        '"x": 维度列, "ys": [{"field": 度量列, "agg": "sum|avg|count|max|min|none"}], '
-        '"series": 分组列或空串, "sort": {"by":"","dir":"desc"}, "topN": 0, "style": {"title": 标题}}}\n'
-        '要求:native 必须**只读**、不依赖代码里的 pandas 中间变量、能独立重跑;'
-        'cfg 里的列名必须是 native 结果的真实列名;若聚合已在查询里做,对应度量 agg 用 none。\n'
-        '【聚合务必下推到 native,别只靠 pandas】常见写法示例:\n'
-        '- SQL 分组求和:  native="SELECT city, SUM(amount) AS amount FROM t GROUP BY city ORDER BY amount DESC LIMIT 10",'
-        ' cfg.x=city, ys=[{"field":"amount","agg":"none"}]\n'
-        '- SQL 单指标:    native="SELECT MAX(price) AS max_price FROM t", cfg.type=kpi, ys=[{"field":"max_price","agg":"none"}]\n'
-        '- ES 桶+指标:    native={"index":"idx","body":{"size":0,"aggs":{"by_ind":{"terms":{"field":"industry.keyword","size":10},'
-        '"aggs":{"amt":{"sum":{"field":"amount"}}}}}}}(handler 会拍平成 by_ind/amt 两列),cfg.x=by_ind, ys=[{"field":"amt","agg":"none"}]\n'
-        '- ES 单指标:     native={"index":"idx","body":{"size":0,"aggs":{"max_price":{"max":{"field":"price"}}}}},'
-        ' cfg.type=kpi, ys=[{"field":"max_price","agg":"none"}]\n'
-        '- Mongo 分组:    native={"collection":"c","pipeline":[{"$group":{"_id":"$city","amount":{"$sum":"$amount"}}}]},'
-        ' cfg.x=_id, ys=[{"field":"amount","agg":"none"}]\n'
-        '- Top-N 明细(非聚合):SQL 用 ORDER BY+LIMIT;ES 用 {"body":{"sort":[{"amount":"desc"}],"size":10,"_source":[...]}}。\n'
-        '**只输出 JSON 本身,不要解释、不要 markdown 围栏。**\n'
-        f'原始需求:{question or "(未知)"}\n代码:\n{code}'
+        + native_block
+        + '**只输出 JSON 本身,不要解释、不要 markdown 围栏。**\n'
+        + f'原始需求:{question or "(未知)"}\n代码:\n{code}'
     )
 
 
@@ -563,11 +694,12 @@ class DataQueryService:
         """数据查询(不分页):native 或 filter,查出多少返回多少。"""
         m, handler = await cls._load(db, m_id)
         if req.native is not None:
+            native = _apply_params(req.native, req.params)  # 看板变量 {{var}} 替换
             try:
-                assert_readonly_sql(req.native, handler.family)  # 只读护栏(仅 SQL 文本族):拦截 DML/DDL
+                assert_readonly_sql(native, handler.family)  # 只读护栏(仅 SQL 文本族):拦截 DML/DDL
             except ValueError as e:
                 raise ServiceException(message=str(e)) from None
-            records = await run_in_threadpool(handler.query, req.native, None, req.limit)
+            records = await run_in_threadpool(handler.query, native, None, req.limit)
         else:
             cls._check_fields(m, req.filters)
             if not handler.has(Capability.GEN_API):
@@ -612,7 +744,7 @@ class DataQueryService:
         if not ds:
             raise ServiceException(message='数据源不存在')
         handler = _handler_from_ds(ds)
-        base = _code_to_board_prompt(code, question)
+        base = _code_to_board_prompt(code, question, ds.source_type, getattr(handler, 'family', ''))
         prompt, last_err = base, ''
         for _ in range(cls._QUERY_MAX_TRIES):
             text = await _ai_complete(db, prompt)
@@ -650,6 +782,51 @@ class DataQueryService:
                 continue
             return {'native': stmt, 'cfg': cfg}
         raise ServiceException(message=f'代码转看板失败(已自动纠错 {cls._QUERY_MAX_TRIES} 次):{last_err}')
+
+    @classmethod
+    async def prep_code_to_board(
+        cls, db: AsyncSession, datasource_code: str, code: str, question: str, hint: str = ''
+    ) -> tuple[dict, str]:
+        """流式代码转看板的准备:校验源存在,返回 (AI 模型 cfg, prompt)。
+
+        流式版不在服务端跑校验/纠错(会阻塞、易超时);LLM 产出的 {native, cfg} 由前端 preview_native
+        实跑取数来验证并画图,失败让用户「重新生成」——把慢过程可视化,而不是一个可能超时的阻塞请求。
+        """
+        if not (code or '').strip():
+            raise ServiceException(message='无取数代码可转换')
+        ds = await DataSourceDao.get_by_code(db, datasource_code)
+        if not ds:
+            raise ServiceException(message='数据源不存在')
+        family = ''
+        try:
+            family = getattr(_handler_from_ds(ds), 'family', '')  # 仅取 family 分派 prompt,不建连接
+        except Exception:
+            pass
+        cfg = await _ai_resolve_cfg(db)
+        prompt = _code_to_board_prompt(code, question, ds.source_type, family)
+        if (hint or '').strip():  # 用户在转换对话框手输的纠偏提示,追加到末尾(权重高,放最后)
+            prompt += f'\n\n【用户补充要求,务必优先遵循】{hint.strip()}'
+        return cfg, prompt
+
+    @classmethod
+    async def preview_native(
+        cls, db: AsyncSession, datasource_code: str, native: Any, limit: int = 500, params: dict | None = None
+    ) -> dict:
+        """按 数据源编码 + native 只读取数(转看板预览/校验/公开分享用)。SQL 文本走只读护栏,ES/Mongo(dict)天然只读。"""
+        if native is None or (isinstance(native, str) and not native.strip()):
+            raise ServiceException(message='缺少查询语句')
+        native = _apply_params(native, params)  # 看板变量 {{var}} 替换
+        ds = await DataSourceDao.get_by_code(db, datasource_code)
+        if not ds:
+            raise ServiceException(message='数据源不存在')
+        handler = _handler_from_ds(ds)
+        if isinstance(native, str):
+            try:
+                assert_readonly_sql(native, handler.family)
+            except ValueError as e:
+                raise ServiceException(message=str(e)) from None
+        records = await run_in_threadpool(handler.query, native, None, limit)
+        return {'records': json_safe_rows(records), 'total': len(records)}
 
     @classmethod
     async def _kb_context(cls, db: AsyncSession, m: Any, question: str) -> str:
@@ -1021,36 +1198,129 @@ class OpenDataService:
         pagesize = min(int(params.get('pagesize', 20)), 200)  # 对外强制上限
         return await run_in_threadpool(handler.search, m.object_name, filters, page, pagesize)
 
+    @classmethod
+    async def public_board(cls, db: AsyncSession, token: str) -> dict:
+        """匿名分享单图看板:据 share_token 出图(免登录)。
+
+        token(不可猜)即授权:定位唯一看板,只跑其自己的 native,故全程 tenant_bypass(无登录上下文,
+        且租户过滤会拦 HTTP 空租户)。只暴露该图数据,不会越租户。存储已统一到 data_dashboard(dash_type='chart')。
+        """
+        from common.context import tenant_bypass
+
+        if not (token or '').strip():
+            raise ServiceException(message='缺少分享令牌')
+        with tenant_bypass():
+            base = await DashboardDao.get_by_token(db, token)
+            if not base or not base.share_token:
+                raise ServiceException(message='分享不存在或已关闭')
+            canvas = await DashboardCanvasDao.get_by_dashboard(db, base.id)
+            content = (canvas.content if canvas else None) or {}
+            comps = content.get('components') or []
+            inline = (comps[0].get('inline') if comps and isinstance(comps[0], dict) else None) or {}
+            cfg = inline.get('chartSpec')
+            native = inline.get('native')
+            model_id = inline.get('modelId') or base.model_id
+            if not (isinstance(cfg, dict) and cfg.get('type')):
+                raise ServiceException(message='该看板无图表配置')
+            if native is None or not model_id:
+                raise ServiceException(message='该看板无有效查询')
+            req = QueryReq(native=native, params=_board_param_values(content.get('filters') or []), limit=5000)
+            data = await DataQueryService.query(db, model_id, req)
+            return {
+                'name': base.name, 'chartSpec': cfg, 'rows': data['records'],
+                'refreshInterval': base.refresh_interval or 0,
+            }
+
 
 class AnalysisTemplateService:
-    """数据分析模板:保存/复用「取数 + 图表配置」。"""
+    """单图看板(保存/复用「取数 + 图表配置」)。
+
+    存储已统一到 `data_dashboard`(dash_type='chart')+ `data_dashboard_canvas`;对外仍返回 `AnalysisTemplateVo`、
+    接口路径不变,前端与 AI「存为看板」无需改动。单图 = 一个 chart 组件的画布,变量=画布 filters。
+    """
+
+    @staticmethod
+    def _content_of(vo: AnalysisTemplateVo) -> dict:
+        """AnalysisTemplateVo → 画布 content(单图=一个 chart 组件 + filters=变量定义)。"""
+        native = (vo.query or {}).get('native') if isinstance(vo.query, dict) else None
+        return {
+            'canvas': {'mode': 'single'},
+            'components': [{
+                'id': 'c1', 'type': 'chart',
+                'inline': {'modelId': vo.model_id, 'native': native, 'chartSpec': vo.chart_spec},
+            }],
+            'filters': vo.params or [],
+        }
+
+    @staticmethod
+    def _to_vo(base: Any, canvas: Any) -> AnalysisTemplateVo:
+        """(base + canvas) → AnalysisTemplateVo(还原单图看板视图)。"""
+        content = (canvas.content if canvas else None) or {}
+        comps = content.get('components') or []
+        inline = (comps[0].get('inline') if comps and isinstance(comps[0], dict) else None) or {}
+        return AnalysisTemplateVo(
+            id=base.id, name=base.name, model_id=base.model_id, model_name=base.model_name,
+            query={'type': 'native', 'native': inline.get('native')},
+            chart_spec=inline.get('chartSpec'),
+            params=content.get('filters') or [],
+            refresh_interval=base.refresh_interval or 0,
+            share_token=base.share_token,
+            remark=base.remark, create_time=base.create_time, update_time=base.update_time,
+        )
 
     @classmethod
     async def get_list(cls, db: AsyncSession, model_id: str | None = None) -> list[AnalysisTemplateVo]:
-        rows = await AnalysisTemplateDao.get_list(db, model_id)
-        return [AnalysisTemplateVo.model_validate(r) for r in rows]
+        bases = await DashboardDao.get_list(db, dash_type='chart', model_id=model_id)
+        canvases = await DashboardCanvasDao.list_by_dashboards(db, [b.id for b in bases])
+        return [cls._to_vo(b, canvases.get(b.id)) for b in bases]
+
+    @classmethod
+    async def get(cls, db: AsyncSession, tid: str) -> AnalysisTemplateVo:
+        """按 id 取单个看板(独立预览页用)。"""
+        base = await DashboardDao.get_by_id(db, tid)
+        if not base:
+            raise ServiceException(message='看板不存在')
+        return cls._to_vo(base, await DashboardCanvasDao.get_by_dashboard(db, tid))
+
+    @classmethod
+    async def gen_share(cls, db: AsyncSession, tid: str, operator: str) -> str:
+        """开启/重置匿名分享:生成不可猜 token 存到看板,返回 token。"""
+        import secrets
+
+        if not await DashboardDao.get_by_id(db, tid):
+            raise ServiceException(message='看板不存在')
+        token = 'bd_' + secrets.token_urlsafe(24)
+        await DashboardDao.edit(db, tid, {'share_token': token, 'update_by': operator})
+        await db.commit()
+        return token
+
+    @classmethod
+    async def revoke_share(cls, db: AsyncSession, tid: str, operator: str) -> None:
+        """关闭匿名分享:清空 token(旧链接立即失效)。"""
+        if not await DashboardDao.get_by_id(db, tid):
+            raise ServiceException(message='看板不存在')
+        await DashboardDao.edit(db, tid, {'share_token': None, 'update_by': operator})
+        await db.commit()
 
     @classmethod
     async def save(cls, db: AsyncSession, vo: AnalysisTemplateVo, operator: str) -> str:
         if not (vo.name or '').strip():
             raise ServiceException(message='请填写模板名称')
-        data = {
-            'name': vo.name,
-            'model_id': vo.model_id,
-            'model_name': vo.model_name,
-            'query': vo.query,
-            'chart_spec': vo.chart_spec,
-            'remark': vo.remark,
-        }
+        base_data = {
+            'name': vo.name, 'dash_type': 'chart',
+            'model_id': vo.model_id, 'model_name': vo.model_name,
+            'refresh_interval': vo.refresh_interval or 0, 'remark': vo.remark,
+        }  # 不含 share_token:开关分享单独管、保存不动它
         if vo.id:
-            data['update_by'] = operator
-            await AnalysisTemplateDao.edit(db, vo.id, data)
+            base_data['update_by'] = operator
+            await DashboardDao.edit(db, vo.id, base_data)
             tid = vo.id
         else:
-            data['id'] = uuid.uuid4().hex
-            data['create_by'] = operator
-            await AnalysisTemplateDao.add(db, data)
-            tid = data['id']
+            tid = uuid.uuid4().hex
+            base_data['id'] = tid
+            base_data['create_by'] = operator
+            await DashboardDao.add(db, base_data)
+        await DashboardCanvasDao.upsert(db, tid, cls._content_of(vo), operator)
         await db.commit()
         return tid
 
@@ -1109,5 +1379,137 @@ class AnalysisTemplateService:
 
     @classmethod
     async def delete(cls, db: AsyncSession, ids: list[str]) -> None:
-        await AnalysisTemplateDao.remove(db, [i for i in ids if i])
+        ids = [i for i in ids if i]
+        await DashboardCanvasDao.remove_by_dashboards(db, ids)
+        await DashboardDao.remove(db, ids)
         await db.commit()
+
+
+class DashboardService:
+    """多图看板 / 大屏(dash_type=board/screen):基础信息 data_dashboard + 画布 data_dashboard_canvas。
+
+    组件 chart 复用单图看板作原子:引用(ref.boardId 指向 dash_type='chart' 的看板)或内嵌(inline)。
+    """
+
+    @staticmethod
+    def _base_vo(b: Any) -> DashboardVo:
+        return DashboardVo(
+            id=b.id, name=b.name, dash_type=b.dash_type, share_token=b.share_token,
+            refresh_interval=b.refresh_interval or 0, thumbnail=b.thumbnail, remark=b.remark,
+            create_time=b.create_time, update_time=b.update_time,
+        )
+
+    @classmethod
+    async def get_list(cls, db: AsyncSession, dash_type: str | None = None) -> list[DashboardVo]:
+        """列表只返回基础字段(不带 canvas 大 JSON);dash_type 为空返回全部类型(单图/多图/大屏统一列表)。"""
+        bases = await DashboardDao.get_list(db, dash_type=dash_type)
+        return [cls._base_vo(b) for b in bases]
+
+    @classmethod
+    async def get(cls, db: AsyncSession, did: str) -> DashboardVo:
+        base = await DashboardDao.get_by_id(db, did)
+        if not base:
+            raise ServiceException(message='看板不存在')
+        canvas = await DashboardCanvasDao.get_by_dashboard(db, did)
+        content = (canvas.content if canvas else None) or {}
+        vo = cls._base_vo(base)
+        vo.canvas = content.get('canvas') or {}
+        vo.components = content.get('components') or []
+        vo.filters = content.get('filters') or []
+        return vo
+
+    @classmethod
+    async def save(cls, db: AsyncSession, vo: DashboardVo, operator: str) -> str:
+        if not (vo.name or '').strip():
+            raise ServiceException(message='请填写看板名称')
+        base_data = {
+            'name': vo.name, 'dash_type': vo.dash_type or 'board', 'model_id': None,
+            'refresh_interval': vo.refresh_interval or 0, 'thumbnail': vo.thumbnail, 'remark': vo.remark,
+        }  # 不含 share_token:分享单独管
+        if vo.id:
+            base_data['update_by'] = operator
+            await DashboardDao.edit(db, vo.id, base_data)
+            did = vo.id
+        else:
+            did = uuid.uuid4().hex
+            base_data['id'] = did
+            base_data['create_by'] = operator
+            await DashboardDao.add(db, base_data)
+        content = {'canvas': vo.canvas or {}, 'components': vo.components or [], 'filters': vo.filters or []}
+        await DashboardCanvasDao.upsert(db, did, content, operator)
+        await db.commit()
+        return did
+
+    @classmethod
+    async def delete(cls, db: AsyncSession, ids: list[str]) -> None:
+        ids = [i for i in ids if i]
+        await DashboardCanvasDao.remove_by_dashboards(db, ids)
+        await DashboardDao.remove(db, ids)
+        await db.commit()
+
+    @classmethod
+    async def gen_share(cls, db: AsyncSession, did: str, operator: str) -> str:
+        import secrets
+
+        if not await DashboardDao.get_by_id(db, did):
+            raise ServiceException(message='看板不存在')
+        token = 'db_' + secrets.token_urlsafe(24)
+        await DashboardDao.edit(db, did, {'share_token': token, 'update_by': operator})
+        await db.commit()
+        return token
+
+    @classmethod
+    async def revoke_share(cls, db: AsyncSession, did: str, operator: str) -> None:
+        if not await DashboardDao.get_by_id(db, did):
+            raise ServiceException(message='看板不存在')
+        await DashboardDao.edit(db, did, {'share_token': None, 'update_by': operator})
+        await db.commit()
+
+    @classmethod
+    async def _resolve_chart(cls, db: AsyncSession, comp: dict) -> dict | None:
+        """取一个 chart 组件的 {modelId,native,chartSpec}:内嵌直接用;引用则读那条 chart 看板的组件。"""
+        inline = comp.get('inline') if isinstance(comp.get('inline'), dict) else None
+        if inline and inline.get('native') is not None:
+            return inline
+        bid = (comp.get('ref') or {}).get('boardId')
+        if not bid:
+            return None
+        canvas = await DashboardCanvasDao.get_by_dashboard(db, bid)
+        c = (canvas.content if canvas else None) or {}
+        comps = c.get('components') or []
+        return comps[0].get('inline') if comps and isinstance(comps[0], dict) else None
+
+    @classmethod
+    async def public_dashboard(cls, db: AsyncSession, token: str) -> dict:
+        """匿名分享多图看板/大屏:token 定位 → 各 chart 组件出数 → 返回画布+数据(全程 tenant_bypass)。"""
+        from common.context import tenant_bypass
+
+        if not (token or '').strip():
+            raise ServiceException(message='缺少分享令牌')
+        with tenant_bypass():
+            base = await DashboardDao.get_by_token(db, token)
+            if not base or not base.share_token:
+                raise ServiceException(message='分享不存在或已关闭')
+            canvas = await DashboardCanvasDao.get_by_dashboard(db, base.id)
+            content = (canvas.content if canvas else None) or {}
+            filt_vals = _board_param_values(content.get('filters') or [])
+            out_comps = []
+            for comp in (content.get('components') or []):
+                item = dict(comp)
+                if comp.get('type') == 'chart':
+                    chart = await cls._resolve_chart(db, comp)
+                    rows: list = []
+                    if chart and chart.get('native') is not None and chart.get('modelId'):
+                        try:
+                            req = QueryReq(native=chart['native'], params=filt_vals, limit=5000)
+                            rows = (await DataQueryService.query(db, chart['modelId'], req))['records']
+                        except Exception:
+                            rows = []
+                    item['rows'] = rows
+                    item['chartSpec'] = (chart or {}).get('chartSpec')
+                out_comps.append(item)
+            return {
+                'name': base.name, 'dashType': base.dash_type,
+                'canvas': content.get('canvas') or {}, 'components': out_comps,
+                'filters': content.get('filters') or [], 'refreshInterval': base.refresh_interval or 0,
+            }

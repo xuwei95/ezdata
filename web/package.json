@@ -37,6 +37,7 @@
     "element-plus": "2.13.1",
     "file-saver": "2.0.5",
     "fuse.js": "7.1.0",
+    "grid-layout-plus": "^1.1.1",
     "js-beautify": "1.15.4",
     "js-cookie": "3.0.5",
     "jsencrypt": "3.3.2",
