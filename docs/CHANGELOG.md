@@ -5,6 +5,10 @@
 ## ezdata(v2.0)
 
 ### 新增
+- **Agent Skills(类 Claude Skills)** `module_ai`:能力包 = 名称 + 描述 + `SKILL.md` 正文 + 附加文件(可含目录)+ 软引用其它技能;**渐进式披露**——技能目录常驻(L1)、`load_skill` 拉正文(L2)、`read_skill_file` 拉附加文件(L3);分**流程型**(全局常驻清单)/**知识型**(绑数据源、认源时经 `search_datasource_knowledge` 浮现)。全屏 IDE 编辑器(文件树 + Monaco + 导入文件夹/zip + 导出 zip)。内置技能 `chart_building`/`es_query`/`task_scheduling`;应用可绑定技能。表 `ai_skill`,菜单/权限 `ai:skill:*`。
+- **数据目录检索收窄** `module_ai/tools/catalog_index`:把 `data_model`(表)做 embedding 存独立 ES 索引(复用 `module_rag` 向量库),对话按问题检索 Top-K 相关表注入 system prompt、替代全量目录——常驻规模与总表数无关(大库省 token 明显、且不因每源截断漏表),小库自动回退全量。`data_model` 增删改**增量同步**索引 + 数据源管理「同步索引」按钮(Celery worker 异步 `module_data.sync_catalog_index`)。
+- **agent 上下文/工具/结果瘦身**:数据 agent 常驻指令精简、条件性专题移入内置技能;`task_propose` 按任务意图**条件挂载**(纯查数轮工具 schema 约 −73%);工具 docstring 瘦身;沙箱 `stdout` 结果封顶;`search_datasource_knowledge` 命中知识库才附业务上下文;Anthropic **prompt caching**(`cache_system_prompt`/`cache_tools`,直连/支持缓存的网关生效)。
+- **财经演示增强**:**A股市场总览多图看板**;A股日线改为「快照第一页定时增量 + 全量单次回填」两任务共用同一索引/模型 `fin_stock_daily`(md5(symbol+date) 去重,去掉原固定6只任务);并入 `demo_seed.py`(28 个数据集成任务 / 27 个数据模型)。
 - **轻量查数 UI** `ezdata/interface/web`:与平台隔离、可单跑的极简工具(标准库 http.server + sqlite 连接目录 + agno LLM),数据源管理/浏览表字段/原生·AI 取数/导出 Excel。AI「生成查询」改为仅生成→预览→手动应用→点查询执行。
 - **AI 走 agno**:暂支持 openai(含 OpenAI 兼容端点)与 anthropic 两族,惰性导入不污染核心。
 - **任务超时(防卡死堵塞)**:Celery 全局软/硬超时(`CELERY_TASK_SOFT_TIME_LIMIT`/`CELERY_TASK_TIME_LIMIT`,默认 1800/2100)+ 任务级 `timeout`(0=默认/-1=不限/>0=自定义)+ `worker_prefetch_multiplier=1`;硬超时 SIGKILL 释放槽位,软超时告警不重试。
