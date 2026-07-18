@@ -136,6 +136,28 @@ async def source_test(req: TestConnReq, db: Annotated[AsyncSession, DBSessionDep
     return ResponseUtil.success(data=await DataSourceService.test_connection(db, req))
 
 
+@data_controller.post(
+    '/source/{ds_id}/sync-catalog',
+    summary='同步该数据源到目录检索索引(异步 worker 任务)',
+    dependencies=[UserInterfaceAuthDependency('data:source:edit')],
+)
+async def source_sync_catalog(
+    ds_id: Annotated[str, Path()], db: Annotated[AsyncSession, DBSessionDependency()]
+) -> Response:
+    from module_ai.tools.catalog_index import CatalogRetrievalService
+
+    if not CatalogRetrievalService.available():
+        return ResponseUtil.failure(msg='未配置 embedding,目录检索索引不可用')
+    ds = await DataSourceService.detail(db, ds_id)
+    if not ds or not ds.code:
+        return ResponseUtil.failure(msg='数据源不存在')
+    # 投递到 Celery worker 异步执行(大库 embedding 可能耗时,不阻塞 Web)
+    from config.celery_app import celery_app
+
+    r = celery_app.send_task('module_data.sync_catalog_index', args=[ds.code], queue='default')
+    return ResponseUtil.success(msg=f'已提交同步任务到 worker(实例 {r.id}),完成后该源的表即可被 AI 按问题检索')
+
+
 @data_controller.get(
     '/source/{ds_id}/tables', summary='列出表/索引/集合', dependencies=[UserInterfaceAuthDependency('data:source:list')]
 )
@@ -222,6 +244,24 @@ async def model_edit(
 async def model_delete(ids: Annotated[str, Path()], db: Annotated[AsyncSession, DBSessionDependency()]) -> Response:
     r = await DataModelService.delete(db, ids)
     return ResponseUtil.success(msg=r.message)
+
+
+@data_controller.post(
+    '/model/catalog/rebuild',
+    summary='重建数据目录检索索引(Agent 按问题检索表用)',
+    dependencies=[UserInterfaceAuthDependency('data:model:edit')],
+)
+async def model_catalog_rebuild(
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
+) -> Response:
+    from fastapi.concurrency import run_in_threadpool
+
+    from module_ai.tools.catalog_index import CatalogRetrievalService
+
+    if not CatalogRetrievalService.available():
+        return ResponseUtil.failure(msg='未配置 embedding,检索索引不可用')
+    n = await run_in_threadpool(CatalogRetrievalService.rebuild)
+    return ResponseUtil.success(msg=f'已重建数据目录索引,共 {n} 张表')
 
 
 # ---------------- 数据查询 / 接口 ----------------

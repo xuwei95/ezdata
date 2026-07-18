@@ -91,6 +91,14 @@
               <el-option v-for="d in datasetOptions" :key="d.id" :label="d.name" :value="d.id" />
             </el-select>
           </el-form-item>
+          <el-form-item label="技能">
+            <el-select v-model="cfg.skillIds" multiple filterable clearable placeholder="选择可用技能(不选则不挂技能)" style="width: 100%">
+              <el-option v-for="s in skillOptions" :key="s.skillId" :label="`${s.name} (${s.code})`" :value="s.skillId" />
+            </el-select>
+            <div style="font-size: 12px; color: var(--el-text-color-secondary); line-height: 1.4">
+              选定后 agent 常驻看到技能清单,任务匹配时 load_skill 拉取完整操作指南;不选则本应用不挂技能。
+            </div>
+          </el-form-item>
           <el-form-item label="长期记忆">
             <el-switch v-model="cfg.enableMemory" />
             <span style="margin-left: 8px; font-size: 12px; color: var(--el-text-color-secondary)">跨会话记住用户偏好/事实(按用户隔离)</span>
@@ -152,6 +160,7 @@ import AiMessage from "../chat/components/AiMessage.vue";
 import PromptGenDialog from "./components/PromptGenDialog.vue";
 import { getApp, addApp, updateApp } from "@/api/ai/app";
 import { listTool } from "@/api/ai/tool";
+import { listSkill } from "@/api/ai/skill";
 import { listModelAll } from "@/api/ai/model";
 import { listDataset } from "@/api/rag";
 import { listSource } from "@/api/dataManage/data";
@@ -163,12 +172,13 @@ const router = useRouter();
 const apiBase = import.meta.env.VITE_APP_BASE_API || "";
 
 const form = reactive({ appId: route.params.appId ? Number(route.params.appId) : null, name: "", description: "", status: "0" });
-const cfg = reactive({ prompt: "", prologue: "", presetQuestions: [], quickCommands: [], toolIds: [], datasetIds: [], datasourceCodes: [], enableMemory: false, addHistory: true, numHistoryRuns: 10, model: { modelId: 0, temperature: null, maxTokens: null } });
+const cfg = reactive({ prompt: "", prologue: "", presetQuestions: [], quickCommands: [], toolIds: [], datasetIds: [], skillIds: [], datasourceCodes: [], enableMemory: false, addHistory: true, numHistoryRuns: 10, model: { modelId: 0, temperature: null, maxTokens: null } });
 // 只读态:点卡片进入(view=1)只看配置不可改,右侧仍可对话;点「编辑」切换为可编辑
 const readonly = ref(route.query.view === "1");
 const pgVisible = ref(false);
 const saving = ref(false);
 const toolOptions = ref([]);
+const skillOptions = ref([]);
 const modelOptions = ref([]);
 const datasetOptions = ref([]);
 const datasourceOptions = ref([]);
@@ -183,16 +193,18 @@ const sessionId = ref(uuidv4());
 const historyRef = ref(null);
 
 onMounted(async () => {
-  const [tools, models, datasets, sources] = await Promise.all([
+  const [tools, models, datasets, sources, skills] = await Promise.all([
     listTool({ pageNum: 1, pageSize: 200 }),
     listModelAll(),
     listDataset({ pageNum: 1, pageSize: 200 }),
     listSource({ pageNum: 1, pageSize: 200 }),
+    listSkill({ pageNum: 1, pageSize: 200, status: "0" }),
   ]);
   toolOptions.value = tools.rows || [];
   modelOptions.value = models.data || [];
   datasetOptions.value = datasets.rows || [];
   datasourceOptions.value = sources.rows || [];
+  skillOptions.value = skills.rows || [];
   if (form.appId) {
     const res = await getApp(form.appId);
     const d = res.data || {};

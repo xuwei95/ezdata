@@ -34,6 +34,10 @@ export function delSource(ids) {
 export function testSource(data) {
   return request({ url: '/data/source/test', method: 'post', data })
 }
+// 同步该数据源到目录检索索引(异步 worker 任务)
+export function syncSourceCatalog(id) {
+  return request({ url: `/data/source/${id}/sync-catalog`, method: 'post' })
+}
 export function listTables(id) {
   return request({ url: `/data/source/${id}/tables`, method: 'get' })
 }

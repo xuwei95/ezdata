@@ -270,6 +270,7 @@ insert into sys_menu values(117,  '系统接口', 3,   '3', 'swagger',          
 insert into sys_menu values(119,  'AI 对话', 4,   '1', 'chat',                'ai/chat/index',                     '', '', 1, 0, 'C', '0', '0', 'ai:chat:list',                     'wechat',        'admin', current_timestamp, '', null, 'AI 对话菜单');
 insert into sys_menu values(118,  '模型管理', 4,   '3', 'model',               'ai/model/index',                    '', '', 1, 0, 'C', '0', '0', 'ai:model:list',                    'form',          'admin', current_timestamp, '', null, '模型管理菜单');
 insert into sys_menu values(121,  '工具管理', 4,   '4', 'tool',                'ai/tool/index',                     '', 'AiTool', 1, 0, 'C', '0', '0', 'ai:tool:list',                     'tool',          'admin', current_timestamp, '', null, '工具管理菜单');
+insert into sys_menu values(2413, '技能管理', 4,   '5', 'skill',               'ai/skill/index',                    '', 'AiSkill', 1, 0, 'C', '0', '0', 'ai:skill:list',                    'skill',   'admin', current_timestamp, '', null, 'AI技能管理(Agent Skills)菜单');
 -- 三级菜单
 insert into sys_menu values(500,  '操作日志', 108, '1', 'operlog',    'monitor/operlog/index',    '', '', 1, 0, 'C', '0', '0', 'monitor:operlog:list',    'form',          'admin', current_timestamp, '', null, '操作日志菜单');
 insert into sys_menu values(501,  '登录日志', 108, '2', 'logininfor', 'monitor/logininfor/index', '', '', 1, 0, 'C', '0', '0', 'monitor:logininfor:list', 'logininfor',    'admin', current_timestamp, '', null, '登录日志菜单');
@@ -356,6 +357,10 @@ insert into sys_menu values(1065, '工具查询', 121, '1', '#', '', '', '', 1, 
 insert into sys_menu values(1066, '工具新增', 121, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:tool:add',                '#', 'admin', current_timestamp, '', null, '');
 insert into sys_menu values(1067, '工具修改', 121, '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:tool:edit',               '#', 'admin', current_timestamp, '', null, '');
 insert into sys_menu values(1068, '工具删除', 121, '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:tool:remove',             '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2414, '技能查询', 2413, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:skill:query',            '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2415, '技能新增', 2413, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:skill:add',              '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2416, '技能修改', 2413, '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:skill:edit',             '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2417, '技能删除', 2413, '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:skill:remove',           '#', 'admin', current_timestamp, '', null, '');
 insert into sys_menu values(122,  '应用管理', 4,   '2', 'app',                 'ai/app/index',                      '', 'AiApp', 1, 0, 'C', '0', '0', 'ai:app:list',                      'component',     'admin', current_timestamp, '', null, 'AI应用管理菜单');
 insert into sys_menu values(123,  '用量统计', 4,   '5', 'metrics',             'ai/metrics/index',                  '', 'AiMetrics', 1, 0, 'C', '0', '0', 'ai:metrics:list',              'chart',         'admin', current_timestamp, '', null, 'AI用量可观测菜单');
 insert into sys_menu values(1069, '应用查询', 122, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:app:query',               '#', 'admin', current_timestamp, '', null, '');
@@ -1088,6 +1093,114 @@ insert into ai_tool (name,code,tool_type,description,args,status,built_in,create
 ('沙箱执行','sandbox_code','builtin','在隔离沙箱里跑 Python 计算 / 对数据源取数,产出结论/表格/图表','{}','0','1','admin',now(),'admin',now()),
 ('任务提议','task_propose','builtin','向用户弹出预填的任务确认表单(数据集成/Python/Shell)','{}','0','1','admin',now(),'admin',now()),
 ('百度搜索','baidu_search','builtin','用百度检索网页(免鉴权、国内可达);为对话/应用补充实时联网信息','{}','0','1','admin',now(),'admin',now());
+
+-- ----------------------------
+-- AI技能表(Agent Skills:能力包 = 名称 + 描述 + SKILL.md 正文 + 可选打包资源;渐进式披露)
+-- ----------------------------
+drop table if exists ai_skill;
+create table ai_skill (
+  skill_id          bigserial       not null,
+  name              varchar(100)    not null,
+  code              varchar(100)    not null,
+  description       text            default null,
+  content           text            default null,
+  resources         text            default null,
+  ref_skills        varchar(500)    default null,
+  skill_type        varchar(20)     default 'process',
+  datasource_codes  varchar(500)    default null,
+  status            char(1)         default '0',
+  built_in          char(1)         default '0',
+  user_id           bigint,
+  dept_id           bigint,
+  create_by         varchar(64)     default '',
+  create_time       timestamp(0),
+  update_by         varchar(64)     default '',
+  update_time       timestamp(0),
+  remark            varchar(500)    default null,
+  tenant_id         bigint,
+  primary key (skill_id)
+);
+create index ix_ai_skill_tenant_id on ai_skill (tenant_id);
+comment on table ai_skill is 'AI技能表(Agent Skills 能力包)';
+comment on column ai_skill.skill_id is '技能主键';
+comment on column ai_skill.name is '技能名称';
+comment on column ai_skill.code is '技能代码(唯一标识,供 load_skill 引用)';
+comment on column ai_skill.description is '技能描述(常驻上下文,决定何时被选用)';
+comment on column ai_skill.content is '技能正文(SKILL.md,按需 load_skill 拉取)';
+comment on column ai_skill.resources is '附加文件JSON([{name,content}])';
+comment on column ai_skill.ref_skills is '引用的技能code(逗号分隔,软引用)';
+comment on column ai_skill.skill_type is '类型: process流程型(全局) knowledge知识型(按源浮现)';
+comment on column ai_skill.datasource_codes is '知识型绑定的数据源code(逗号分隔)';
+comment on column ai_skill.status is '状态: 0启用 1停用';
+comment on column ai_skill.built_in is '是否内置: 1是(不可删/改code) 0否';
+comment on column ai_skill.tenant_id is '租户ID(顶级部门)';
+
+-- 示例技能(非内置,可编辑/删除):股票代码规范化,演示「渐进式披露」
+insert into ai_skill (name,code,description,content,status,built_in,create_by,create_time,update_by,tenant_id) values
+('股票代码规范化','stock_code_norm',
+ '把股票中文名或6位代码规范成带交易所前缀(sh/sz/bj)的标准代码,查行情/日线前统一使用。当用户提到具体股票并要查询时适用。',
+ '当用户提到某只股票(中文名或6位代码)、需要查行情/日线时,先按下述规则把它规范成带交易所前缀的标准代码,再去查询。
+
+## 前缀规则(A股)
+- 6 或 9 开头 → 上交所,前缀 sh(如 600519 → sh600519;科创板 688 开头也是 sh)
+- 0 或 3 开头 → 深交所,前缀 sz(如 000001 → sz000001;创业板 300 开头也是 sz)
+- 4 或 8 开头 → 北交所,前缀 bj(新浪日线接口不支持北交所)
+
+## 步骤
+1. 用户给中文名时,先用数据探索/快照(fin_stock_spot 按 name 匹配)拿到6位代码;
+2. 按上面规则加前缀得到标准代码;
+3. 用标准代码去查询(stock_zh_a_daily 的 symbol、或 ES 索引 code 字段)。
+
+## 示例
+- 贵州茅台 → 600519 → sh600519
+- 宁德时代 → 300750 → sz300750
+- 用户直接给 000651 → sz000651',
+ '0','0','admin',now(),'admin',100);
+
+-- 内置流程型技能(built_in=1):承接从数据 agent 常驻指令搬出的条件性专题,模型按需 load_skill 拉取
+insert into ai_skill (name,code,description,content,skill_type,status,built_in,create_by,create_time,update_by,tenant_id) values
+('出图构建','chart_building',
+ '出图/画图操作手册:plot_chart(简单图) vs 代码(复杂图)的分流规则、native 直接返回最终值的写法。要画任何图前先加载。',
+'# 出图工具怎么选(按聚合复杂度分流)
+
+## 简单图:优先 plot_chart(datasource_code, native=单条只读查询, chart_type, x, ys, ...)
+适用「单表 + 单一维度 + 单一/无聚合」的高频图——Top-N 柱/条、占比饼、时间趋势线、K 线。
+关键:让 native 直接返回要画的最终值(SQL 写 GROUP BY / ORDER BY / LIMIT,度量 agg 填 none),
+不要依赖前端二次聚合(取数有行数上限,会把总和/极值算错)。这类图可「存为看板」,能用就用它。
+
+## 复杂图:改用 run_datasource_query 写代码
+多重/多层聚合、跨多次查询、pandas 关联/透视/多步计算,或 ES 只有指标无分桶的单值 KPI
+→ 沙箱里用代码算准、再用 pyecharts 出图。
+
+## 拿不准
+一条查询能算清要画的值 → plot_chart;要多步/多聚合 → 代码。',
+ 'process','0','1','admin',now(),'admin',100),
+
+('ES查询注意','es_query',
+ 'Elasticsearch 数据源查询注意事项:.keyword 子字段、size 写足、Top-N 排序切片。目标数据源是 ES 时先加载。',
+'# Elasticsearch 数据源查询注意事项
+
+1. 文本字段做 terms 聚合/精确匹配/排序,务必用带 .keyword 的子字段(如 industry.keyword);别对 text 主字段聚合。
+2. 取时间序列/明细务必显式写足 size(如 size:300),ES 默认只回 10 条。
+3. Top-N 在沙箱代码里排序切片(sorted(...)[:N])后再产出,别靠结果摘要目测。',
+ 'process','0','1','admin',now(),'admin',100),
+
+('任务与定时','task_scheduling',
+ '定时任务的新建/修改/复制流程 + 7段 Quartz cron 规则(北京时区)。用户要建/改/复制任务(含设定时)前先加载。',
+'# 任务管理与定时 cron
+
+## 提议任务(只弹表单交用户确认,不擅自落库)
+- 改已有任务(调频率、启用/停用、改名)→ find_tasks → propose_task_update。
+- 原样复制 → find_tasks → propose_task_copy。
+- 照某任务改动后新建 → find_tasks → get_task_detail → 对应 propose_*(代码取数用 propose_code_extract_task)。
+- 全新任务:直接 propose_data_integration_task / propose_code_extract_task / propose_python_task / propose_shell_task。
+
+## 定时 cron:7 段 Quartz(秒 分 时 日 月 周 年),北京时区 Asia/Shanghai,与前端 cron 组件一致
+1. 步进用 `0/N`,不要用 `*/N`(会解析成 NaN)。
+2. 星期只用数字,周日=1..周六=7(周一到周五=2-6),别用 MON-FRI、别用 0。
+3. 年固定写 `*`。4. 日与星期二选一,定了星期则日写 ?。
+例:每20分钟 `0 0/20 * * * ? *`;每天8点 `0 0 8 * * ? *`;交易时段(周一到周五9-15点)每5分钟 `0 0/5 9-15 ? * 2-6 *`。',
+ 'process','0','1','admin',now(),'admin',100);
 
 -- ----------------------------
 -- AI应用表

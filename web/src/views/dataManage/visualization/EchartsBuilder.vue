@@ -202,6 +202,14 @@
             <el-switch v-model="cfg.style.percent" size="small" />
           </div>
           <div class="fld inline">
+            <label>数值缩放</label>
+            <el-select v-model="cfg.style.scale" size="small" style="width: 110px; margin-left: auto" :disabled="cfg.style.percent">
+              <el-option label="原值" value="" />
+              <el-option label="万" value="wan" />
+              <el-option label="亿" value="yi" />
+            </el-select>
+          </div>
+          <div class="fld inline">
             <label>单位后缀</label>
             <el-input v-model="cfg.style.unit" size="small" placeholder="如 元 / 万" style="width: 110px; margin-left: auto" />
           </div>
@@ -312,7 +320,7 @@ const PALETTES = {
 
 const DEFAULT_STYLE = {
   title: '', legend: true, legendPos: 'top', label: false, smooth: false, palette: 'default',
-  decimals: 2, thousands: true, unit: '', percent: false,
+  decimals: 2, thousands: true, unit: '', percent: false, scale: '', // scale: ''|'wan'(万)|'yi'(亿) 数值缩放
   xName: '', yName: '', rotate: 0, yMin: null, yMax: null, donutInner: 50,
   othersGroup: false, dataZoom: false, showExport: false // othersGroup:Top-N 归并"其他";dataZoom:缩放条;showExport:图上导出按钮(默认关)
 }
@@ -459,12 +467,16 @@ function fmtNumber(v) {
   if (Number.isNaN(n)) return v
   const s = cfg.style
   if (s.percent) n *= 100
+  else if (s.scale === 'wan') n /= 1e4
+  else if (s.scale === 'yi') n /= 1e8
   let str = n.toFixed(s.decimals ?? 2)
   if (s.thousands) {
     const [ip, dp] = str.split('.')
     str = ip.replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (dp ? '.' + dp : '')
   }
   if (s.percent) str += '%'
+  else if (s.scale === 'wan') str += '万'
+  else if (s.scale === 'yi') str += '亿'
   if (s.unit) str += s.unit
   return str
 }

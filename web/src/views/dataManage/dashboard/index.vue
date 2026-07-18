@@ -79,6 +79,7 @@ import { listDashboards, delDashboard, genDashboardShare, revokeDashboardShare }
 import ChartEditor from './ChartEditor.vue'
 import DashEditor from './DashEditor.vue'
 import PreviewDialog from './PreviewDialog.vue'
+import { copyToClipboard } from '@/utils/clipboard'
 
 const router = useRouter()
 const loading = ref(false)
@@ -139,7 +140,7 @@ async function disableShare() {
   try { await revokeDashboardShare(sh.row.id); sh.token = ''; sh.row.shareToken = ''; ElMessage.success('已关闭分享') }
   catch (e) { ElMessage.error('操作失败') } finally { sh.loading = false }
 }
-async function copyText(t) { try { await navigator.clipboard.writeText(t); ElMessage.success('已复制') } catch (e) { ElMessage.warning('复制失败') } }
+async function copyText(t) { (await copyToClipboard(t)) ? ElMessage.success('已复制') : ElMessage.warning('复制失败,请手动选择复制') }
 
 loadList()
 </script>

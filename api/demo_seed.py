@@ -1,8 +1,8 @@
 """财经 demo 种子(幂等,自包含):服务启动后手动跑一次即可,平台默认是空项目。
 
 只影响 demo 命名空间(按固定 id 先删后插),不碰用户/权限/其他数据源任务等系统数据:
-- seed_metadata():  建数据源(akshare_cn/demo_es) + 27 个 DataIntegrationTask
-                    + 27 个 data_model + 1 个 AI 应用。参数化原生 SQL,multiline 代码零转义,可反复执行。
+- seed_metadata():  建数据源(akshare_cn/demo_es) + 28 个 DataIntegrationTask
+                    + 28 个 data_model + 1 个 AI 应用 + 1 个多图看板(A股市场总览)。参数化原生 SQL,multiline 代码零转义,可反复执行。
                     每个索引一份独立中英字段 map(MAP_*)+ tf() 编译 transform;任务带详细 remark;定时按数据节奏分档。
 - dispatch_demo_tasks(): 把 27 个任务派发到 Celery(异步),由 worker 取数填充 demo_es 的 fin_* 索引。
 - seed_demo():      先 seed_metadata 再 dispatch(整体初始化)。
@@ -444,6 +444,18 @@ def code(ds: str, src: str, idx: str, transform: str = '') -> str:
     )
 
 
+def code_multi(dslist: list, src: str, idx: str, transform: str = '') -> str:
+    # 多数据源代码取数:src 里用 get_handler('<code>') 分别拿各源 handler(如 demo_es 取代码 + akshare 取日线)。
+    return json.dumps(
+        {
+            'extract': {'mode': 'code', 'datasource_codes': list(dslist), 'code': src},
+            'transform': {'enabled': bool(transform), 'code': transform},
+            'load': load(idx),
+        },
+        ensure_ascii=False,
+    )
+
+
 # 市场活跃度 value 列混合类型(家数=int / 活跃度/日期=str),ES 动态映射会类型冲突 → 统一转字符串
 TF_STR_VALUE = (
     'def transform(row):\n'
@@ -463,6 +475,36 @@ for c, nm in symbols.items():
         r['symbol'] = c; r['name'] = nm
         result.append(r)
 print('stock_daily rows=%d' % len(result))
+"""
+
+# 全A股历史前复权日线:复用「A股全市场快照」产物 fin_stock_spot(demo_es)作全市场代码源,不重复抓全市场;
+# 逐只 akshare stock_zh_a_daily(前复权)补历史,emit 流式装载。多数据源(demo_es 取代码 + akshare 取日线)。
+C_ALL_STOCK_DAILY = """
+es = get_handler('demo_es')
+ak = get_handler('akshare_cn')
+codes = es.query({'index': 'fin_stock_spot', 'body': {'query': {'match_all': {}}, 'size': 6000, '_source': ['code', 'name']}})
+codes = [c for c in codes if str(c.get('code') or '').startswith(('sh', 'sz'))]
+print('复用 fin_stock_spot 全市场代码 %d 只(沪深),逐只抓前复权日线…' % len(codes))
+done = 0
+total = 0
+for c in codes:
+    sym = c.get('code')
+    nm = c.get('name') or ''
+    try:
+        rows = ak.query('stock_zh_a_daily', {'symbol': sym, 'adjust': 'qfq'})
+        for x in rows:
+            x['symbol'] = sym
+            x['name'] = nm
+        if rows:
+            emit(rows)
+            total += len(rows)
+        done += 1
+        if done % 200 == 0:
+            print('进度 %d/%d,累计 %d 行' % (done, len(codes), total))
+    except Exception as e:
+        print('跳过 %s: %s' % (sym, e))
+print('完成:%d 只 / %d 行 → fin_stock_daily_all' % (done, total))
+result = []
 """
 
 C_INDEX_DAILY = """
@@ -968,6 +1010,15 @@ TASKS = [
         CRON_MONTH,
         '央行LPR利率时序:1年期(lpr_1y)与5年期(lpr_5y)贷款市场报价利率及历史利率(原英文大写列已统一为小写下划线)。每月20号公布,每月1号刷新,适合利率走势、货币政策跟踪。',
     ),
+    (
+        'demo_fin_stock_daily_all',
+        '全A股历史日线 → fin_stock_daily_all',
+        code_multi([ES, AK], C_ALL_STOCK_DAILY, 'fin_stock_daily_all', tf({}, ['symbol', 'date'])),
+        'fin_stock_daily_all',
+        '全A股日线',
+        '',  # cron 空 → trigger_type=1 单次(手动触发一次,全量沪深约5000只、耗时较长)
+        '复用「A股全市场快照」产物 fin_stock_spot(demo_es)作全市场代码源,不重复抓全市场;仅用 akshare(stock_zh_a_daily 前复权)逐只补历史日线,emit 流式装载、md5(symbol+date) 幂等 → ES 索引 fin_stock_daily_all。单次触发,沪深约5000只、耗时较长。',
+    ),
 ]
 
 # 数据源(自包含:不依赖 ezdata.sql 的 demo 段)。(id, name, code, source_type, family, config_dict)
@@ -982,6 +1033,47 @@ DATASOURCES = [
         {'hosts': 'http://ezdata-es:9200', 'user': 'elastic', 'password': 'ezdata123456'},
     ),
 ]
+
+# 演示看板:A股市场总览(多图看板 dash_type=board)。组件全部用真实种子模型出图,矩阵 24 列布局。
+DASH_ID = 'demo_board_market'
+
+
+def _dcomp(cid, model, idx, size, chartspec, x, y, w, h):
+    return {
+        'id': cid, 'type': 'chart',
+        'inline': {
+            'modelId': model,
+            'native': {'index': idx, 'body': {'query': {'match_all': {}}, 'size': size}},
+            'chartSpec': chartspec,
+        },
+        'pos': {'x': x, 'y': y, 'w': w, 'h': h},
+        'props': {'title': chartspec['style']['title']},
+        'subscribe': True,
+    }
+
+
+DASH_COMPONENTS = [
+    _dcomp('c1', 'dm_fin_index_daily', 'fin_index_daily', 4000,
+           {'type': 'line', 'x': 'date', 'ys': [{'field': 'close', 'agg': 'sum'}], 'series': 'name',
+            'style': {'title': '主要指数日线走势', 'legend': True, 'smooth': True}}, 0, 0, 24, 7),
+    _dcomp('c2', 'dm_fin_industry_summary', 'fin_industry_summary', 200,
+           {'type': 'bar', 'x': 'board_name', 'ys': [{'field': 'change_pct', 'agg': 'sum'}],
+            'sort': {'by': 'change_pct', 'dir': 'desc'}, 'topN': 12,
+            'style': {'title': '行业涨跌幅 Top12(%)', 'label': True}}, 0, 7, 12, 7),
+    _dcomp('c3', 'dm_fin_concept_board', 'fin_concept_board', 400,
+           {'type': 'bar', 'x': 'board_name', 'ys': [{'field': 'change_pct', 'agg': 'sum'}],
+            'sort': {'by': 'change_pct', 'dir': 'desc'}, 'topN': 12,
+            'style': {'title': '概念板块涨幅 Top12(%)'}}, 12, 7, 12, 7),
+    _dcomp('c4', 'dm_fin_market_fund_flow', 'fin_market_fund_flow', 200,
+           {'type': 'line', 'x': 'date', 'ys': [{'field': 'main_net', 'agg': 'sum'}],
+            'style': {'title': '大盘主力净流入趋势(亿元)', 'unit': '元', 'scale': 'yi'}}, 0, 14, 12, 7),
+    _dcomp('c5', 'dm_fin_industry_pe', 'fin_industry_pe', 300,
+           {'type': 'bar', 'x': 'industry_name', 'ys': [{'field': 'pe_weighted', 'agg': 'sum'}],
+            'sort': {'by': 'pe_weighted', 'dir': 'desc'}, 'topN': 12,
+            'style': {'title': '行业加权市盈率 Top12'}}, 12, 14, 12, 7),
+]
+DASH_CANVAS = {'mode': 'matrix', 'cols': 24}
+
 
 APP_ID = 9001
 APP_PROMPT = """# 角色
@@ -1050,6 +1142,11 @@ _MODEL_SQL = text("""INSERT INTO data_model (id,name,code,datasource_code,kind,o
 VALUES (:id,:name,:code,:ds,'index',:obj,'query,extract,api',1,:remark,'admin',:now,:tenant)""")
 _APP_SQL = text("""INSERT INTO ai_app (app_id,name,description,app_type,status,config,user_id,create_by,create_time,tenant_id)
 VALUES (:id,:name,:desc,:atype,'0',:config,1,'admin',:now,:tenant)""")
+# 看板两表法:基础信息 data_dashboard + 画布 data_dashboard_canvas(content={canvas,components,filters})
+_DASH_SQL = text("""INSERT INTO data_dashboard (id,name,dash_type,refresh_interval,remark,create_by,create_time,tenant_id)
+VALUES (:id,:name,'board',0,:remark,'admin',:now,:tenant)""")
+_DASHC_SQL = text("""INSERT INTO data_dashboard_canvas (id,dashboard_id,version,content,create_by,create_time,tenant_id)
+VALUES (:id,:did,'current',:content,'admin',:now,:tenant)""")
 
 
 def seed_metadata() -> int:
@@ -1124,6 +1221,15 @@ def seed_metadata() -> int:
                 'tenant': TENANT,
             },
         )
+        # 演示多图看板:A股市场总览(先删后插,幂等)
+        db.execute(text('DELETE FROM data_dashboard_canvas WHERE dashboard_id=:id'), {'id': DASH_ID})
+        db.execute(text('DELETE FROM data_dashboard WHERE id=:id'), {'id': DASH_ID})
+        db.execute(_DASH_SQL, {'id': DASH_ID, 'name': 'A股市场总览(Demo)',
+                               'remark': '指数日线/行业涨跌幅/概念涨幅/大盘资金流/行业市盈率 多图总览(全部基于 demo 真实数据)',
+                               'now': now, 'tenant': TENANT})
+        db.execute(_DASHC_SQL, {'id': DASH_ID + '_canvas', 'did': DASH_ID,
+                                'content': json.dumps({'canvas': DASH_CANVAS, 'components': DASH_COMPONENTS, 'filters': []}, ensure_ascii=False),
+                                'now': now, 'tenant': TENANT})
         db.commit()
         return len(TASKS)
     except Exception:

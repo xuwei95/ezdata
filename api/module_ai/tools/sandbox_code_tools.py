@@ -113,19 +113,12 @@ class SandboxCodeTools(Toolkit):
             self.artifacts.append({'kind': 'table', 'rows': rows[:_ROW_CAP], 'total': len(rows)})
 
     def run_python_code(self, code: str, variable_to_return: str | None = None) -> str:
-        """运行 Python 代码做计算或数据处理,返回结果。
-
-        可用库:math、json、datetime、re、statistics、pandas、numpy、pyecharts 等;禁止文件/网络/系统访问。
-        把结果赋值给变量并用 variable_to_return 指定返回,或直接 print。结果可加工成结构化格式——
-        把变量赋为 {type, value} 字典:
-          - {'type':'string','value':'结论文本'}              文本结论
-          - {'type':'dataframe','value': df}                   表格(df 为 pandas DataFrame,自动转换)
-          - {'type':'html','value': chart.render_embed()}      图表(用 pyecharts 绘图)
-        也可直接返回数字/字符串/列表。
+        """在沙箱跑 Python 做计算/数据加工。可用 pandas/numpy/pyecharts 等;禁文件/网络/系统。
+        结果赋给变量并用 variable_to_return 指定(或 print);可整成 {"type":"string|dataframe|html","value":...}
+        (dataframe 传 df、html 传 pyecharts render_embed()),也可直接返回 list/数字/字符串。
 
         :param code: 要执行的 Python 代码
         :param variable_to_return: 要返回其值的变量名(可选)
-        :return: 执行结果摘要(结论 / 表格预览 / 图表提示 / 标准输出)
         """
         from module_data import sandbox_client
 
@@ -137,23 +130,14 @@ class SandboxCodeTools(Toolkit):
         return _format_result(res)
 
     def run_datasource_query(self, datasource_code: str, code: str, variable_to_return: str = 'result') -> str:
-        """对指定数据源运行取数代码,可对数据加工后返回结论 / 表格 / 图表。
+        """对数据源运行取数代码,加工后返回结论/表格/图表。code 里用预置 handler 取数:
+        SQL 源 handler.query("SELECT ..."); 非 SQL 源(如 akshare)handler.query("函数名", {参数})
+        ——先 get_table_schema 查函数名/参数,勿对 akshare 写 SQL。
+        结果赋给 result(或 variable_to_return),可为 {"type":"string|dataframe|html","value":...},或直接 list/数字/字符串。
 
-        code 中可直接使用预置的 `handler` 对象访问数据源:
-            - SQL 源(mysql/pg…):rows = handler.query("SELECT * FROM users LIMIT 10")
-            - 非 SQL 源:statement 形态随源而定,**不是 SQL**。如 akshare 财经接口:
-              rows = handler.query("stock_hk_spot_em", {})   # 函数名 + 参数 dict,返回 list[dict](带重试)
-              先用 get_table_schema 查该源的函数名/参数,再调;勿对 akshare 写 SQL。
-        把结果赋值给 result(或用 variable_to_return 指定),可加工成 {type, value}:
-          - {'type':'string','value':'共 100 个用户'}                 文本结论
-          - {'type':'dataframe','value': pd.DataFrame(rows)}          表格(自动转换)
-          - {'type':'html','value': chart.render_embed()}             图表(用 pyecharts 绘图)
-        也可直接返回 list/数字/字符串。可用 pandas、numpy、pyecharts 等做加工。
-
-        :param datasource_code: 数据源编码(平台已配置的数据源)
-        :param code: 取数 Python 代码,内部可用 handler 对象
-        :param variable_to_return: 要返回其值的变量名(默认 result)
-        :return: 结果摘要(结论 / 表格预览 / 图表提示)
+        :param datasource_code: 数据源编码
+        :param code: 取数 Python 代码(内部可用 handler)
+        :param variable_to_return: 要返回的变量名(默认 result)
         """
         from module_data import sandbox_client
 
@@ -185,26 +169,20 @@ class SandboxCodeTools(Toolkit):
         ohlc: dict | None = None,
         link: dict | None = None,
     ) -> str:
-        """按一条只读查询出图,产出可「存为看板」的图表(EchartsBuilder 配置 + 数据)。
+        """按一条只读查询出图,产出可「存为看板」的图表。能聚合就在查询里做(agg 用 none 直接画);
+        多步 pandas 加工才改用 run_datasource_query。出图分流/存看板细节见 load_skill('chart_building')。
 
-        与 run_datasource_query 不同:本工具只跑**单条只读查询** + 声明式图表配置,产出的图用户可一键存为
-        可复用看板。**能聚合就在查询里做**(SQL 用 GROUP BY、ES 用 aggs、Mongo 用 $group),对应度量 agg 用 'none'
-        直接画;需要复杂多步 pandas 加工时才改用 run_datasource_query(那类图仅展示、不可存)。
-
-        :param datasource_code: 数据源编码(平台已配置)
-        :param native: 该源的查询语句——SQL 字符串,或 ES DSL / Mongo pipeline 的 dict(也可传 JSON 字符串)
-        :param chart_type: 图表类型 bar/hbar/bar_stack/line/area/pie/donut/rose/scatter/radar/funnel/gauge/kline(K线)/
-            combo(双轴组合)/waterfall(瀑布)/heatmap(热力)/boxplot(箱线)/treemap(矩形树图)/sankey(桑基)/kpi
-        :param x: 类别/维度列名(kline 填时间列;heatmap 填 X 轴类别列;sankey 不用)
-        :param ys: 度量数组,每项 {"field":"列名","agg":"sum|avg|count|max|min|none"};查询已聚合则用 none;
-            combo 每项可加 "mark":"bar|line" 与 "axis":"left|right";heatmap/boxplot/treemap/waterfall 只用第一个
-        :param series: 分组/拆分列名(可选;heatmap 时它是 Y 轴类别列)
-        :param sort: {"by":"" 或 "__x__" 或某度量field,"dir":"desc|asc"}(可选)
-        :param top_n: 只取前 N(0=不限)
-        :param title: 图表标题
-        :param ohlc: 仅 kline 需要,四列映射 {"o":"开盘列","h":"最高列","l":"最低列","c":"收盘列"}
-        :param link: 仅 sankey 需要,三列映射 {"source":"源列","target":"目标列","value":"流量值列"}
-        :return: 结果摘要(图表展示给用户;LLM 只见此文本)
+        :param datasource_code: 数据源编码
+        :param native: 查询语句——SQL 字符串,或 ES DSL / Mongo pipeline 的 dict(可传 JSON 串)
+        :param chart_type: bar/hbar/bar_stack/line/area/pie/donut/rose/scatter/radar/funnel/gauge/kline/combo/waterfall/heatmap/boxplot/treemap/sankey/kpi
+        :param x: 维度列(kline=时间列;heatmap=X轴类别;sankey 不用)
+        :param ys: 度量数组 [{"field","agg":"sum|avg|count|max|min|none"}];已聚合用 none;combo 每项可加 "mark":"bar|line","axis":"left|right"
+        :param series: 分组列(heatmap 时为 Y 轴类别)
+        :param sort: {"by":"__x__|度量field","dir":"desc|asc"}
+        :param top_n: 取前 N(0=不限)
+        :param title: 标题
+        :param ohlc: kline 用 {"o","h","l","c"} 列映射
+        :param link: sankey 用 {"source","target","value"} 列映射
         """
         from ezdata.utils.etl_util import assert_readonly_sql
         from module_data import sandbox_client
@@ -282,9 +260,25 @@ def _resolve_datasource(code: str) -> dict:
     return {'source_type': rec['source_type'], 'config': rec.get('config') or {}, 'secrets': secrets}
 
 
+# 工具结果瘦身:结果文本会进对话 history、每轮重发,越小越省 token。
+# stdout(print 输出)是唯一没上限的口子——agent 一 print 全量行就把上下文撑爆,这里封顶。
+_STDOUT_CAP = 1500
+
+
 def _preview(v: Any, limit: int = 500) -> str:
     s = v if isinstance(v, str) else json.dumps(v, ensure_ascii=False, default=str)
     return s[:limit] + '…' if len(s) > limit else s
+
+
+def _cap_stdout(s: str) -> str:
+    s = (s or '').rstrip()
+    if len(s) <= _STDOUT_CAP:
+        return s
+    return (
+        s[:_STDOUT_CAP]
+        + f'\n…(stdout 过长已截断,原 {len(s)} 字符;别 print 全量行——'
+        + '把结果赋给 result 用 {"type":"dataframe","value": df} 返回,或缩小查询/只 print 关键结论)'
+    )
 
 
 def _summarize(result: Any) -> str:
@@ -311,6 +305,7 @@ def _format_result(res: dict) -> str:
     if not res.get('success'):
         return f'执行失败: {res.get("error") or "未知错误"}'
     parts: list[str] = [_summarize(res.get('result'))]
-    if (res.get('stdout') or '').strip():
-        parts.append(f'输出:\n{res["stdout"].rstrip()}')
+    stdout = _cap_stdout(res.get('stdout') or '')
+    if stdout:
+        parts.append(f'输出:\n{stdout}')
     return '\n'.join(p for p in parts if p) or '执行成功(无返回值/输出)'

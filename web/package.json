@@ -41,6 +41,7 @@
     "js-beautify": "1.15.4",
     "js-cookie": "3.0.5",
     "jsencrypt": "3.3.2",
+    "jszip": "^3.10.1",
     "katex": ">=0.16.27",
     "markstream-vue": ">=0.0.7-beta.6",
     "mermaid": ">=11.12.2",
