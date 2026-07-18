@@ -96,3 +96,19 @@ def run_dag_node(self: Any, dag_run_id: str, node_key: str) -> str:
             raise self.retry(exc=e, countdown=retry_interval, max_retries=retry_count)
         advance_dag(dag_run_id)  # 终态失败 -> DAG 置失败 + 下游 SKIPPED
         raise
+
+
+@celery_app.task(bind=True, name='module_data.sync_catalog_index')
+def sync_catalog_index(self: Any, datasource_code: str | None = None) -> str:
+    """同步数据目录检索索引(Agent 按问题检索表用)。
+
+    datasource_code 有值 → 只同步该源的模型(数据源管理「同步」按钮);为空 → 全量重建。
+    embedding 大库可能耗时,故走 worker 异步执行,不阻塞 Web。
+    """
+    from module_ai.tools.catalog_index import CatalogRetrievalService
+
+    if datasource_code:
+        n = CatalogRetrievalService.sync_datasource(datasource_code)
+    else:
+        n = CatalogRetrievalService.rebuild()
+    return f'catalog index synced: {n} tables (source={datasource_code or "ALL"})'

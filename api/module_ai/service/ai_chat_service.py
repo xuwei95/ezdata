@@ -58,6 +58,9 @@ def _short_args(args: Any, n: int = 600) -> Any:
 
 # 数据 agent 工作流指令:约束"取数前先查知识库里验证过的解法",让收藏的解法被真正复用。
 # 这是工具用法层面的固定规则(由我们提供的工具决定),与用户自定义 system_prompt 叠加生效。
+# 常驻核心(每轮注入):只保留不可省的漏斗主流程。出图/ES/任务cron 等条件性专题已抽成
+# 内置 Skill(chart_building/es_query/task_scheduling),由模型按需 load_skill 拉取——
+# 详见 module_ai/docs/skill-agent-optimization.md。
 _DATA_AGENT_INSTRUCTIONS: list[str] = [
     '你是 ezdata 的数据分析助手:可发现数据源、查表结构、检索数据源知识库,并在沙箱里跑取数/计算代码、产出结论与图表表格。',
     '取数工作流(务必按序,目标是尽量少绕圈、少调工具):',
@@ -65,38 +68,38 @@ _DATA_AGENT_INSTRUCTIONS: list[str] = [
     '   仅当目录里没有、或拿不准时,才用 list_datasources 认源。',
     '2. 【关键·先查解法】在写任何取数代码、甚至查表结构之前,先调用 '
     'search_datasource_knowledge(datasource_code, query=用户的原始问题),查该源是否已有”验证过的解法”'
-    '(标注 QA 的历史问答,answer 即可直接运行的取数/分析代码):',
-    '   - 命中可复用解法:**直接复用、或仅按本次差异微调后运行**,不要从零重写,也不必再逐个 get_table_schema;',
-    '   - 未命中:才进入第 3 步自行发现+编写。',
+    '(标注 QA 的历史问答,answer 即可直接运行的取数/分析代码):命中→**直接复用、或仅按本次差异微调后运行**,'
+    '不要从零重写、也不必再逐个 get_table_schema;未命中→进第 3 步。',
     '3. 没有可用解法时:用 get_table_schema 查清目标表字段/调用参数 → run_datasource_query 编写取数代码。',
-    '3.5 【出图工具怎么选——按聚合复杂度分流,别一律用同一个】'
-    '· 简单图优先用 plot_chart(datasource_code, native=单条只读查询, chart_type, x, ys, …):适用「单表 + 单一维度 + 单一/无聚合」的高频图——'
-    'Top-N 柱/条、占比饼、时间趋势线、K 线、以及一条 SQL GROUP BY 就能算清的图。关键:让 native **直接返回要画的最终值**'
-    '(SQL 写 GROUP BY / ORDER BY / LIMIT,度量 agg 填 none),不要依赖前端对采样数据再做 sum/max/avg——'
-    'plot_chart 取数有行数上限,靠前端二次聚合会把总和/极值算错。这类图天生可「存为看板」,稳、可复用,能用就用它。'
-    '· 复杂图改用 run_datasource_query 写代码:涉及**多重/多层聚合、跨多次查询、pandas 关联/透视/多步计算**,'
-    '或 **ES 只有指标、无分桶的单值 KPI(size:0 + 仅 metric aggs,声明式常取不到值)** → 在沙箱里用代码算准、再用 pyecharts 出图,正确率明显更高'
-    '(这类图仅展示;用户点「存为看板」时由后端转换成可复用配置)。'
-    '· 拿不准就自问「一条查询能不能把要画的值算清」:能 → plot_chart;不能(要多步/多聚合)→ 代码。',
     '4. 取数/计算成功后正常作答;无需声称”已存入知识库”(由用户点”收藏到知识库”决定)。',
     '一句话:先复用已验证解法,不行再发现现写;能省一轮工具调用就省一轮。',
-    '取数注意(尤其 Elasticsearch 源):'
-    '① 对文本字段做 terms 聚合/精确匹配/排序,务必用带 .keyword 的子字段(如 industry.keyword),'
-    'get_table_schema 已会列出可用的 .keyword 字段,直接用列出的名字,别对 text 主字段聚合(会报错或聚到分词上);'
-    '② 取时间序列/明细(如个股日线)务必显式写足 size(如 size:300),ES 默认只回 10 条,否则图表/结论会残缺;'
-    '③ 需要 Top-N 时在沙箱代码里排序切片(sorted(...)[:N])后再产出,不要依赖结果摘要去“目测”前几名。',
-    '任务管理:用户要「改某个已有任务」(调定时频率、启用/停用、改名)→ find_tasks 搜出 task_id → propose_task_update 弹修改表单;'
-    '要「原样复制」→ find_tasks → propose_task_copy;要「照某任务改动代码/配置后新建」→ find_tasks → get_task_detail 看清其代码/配置 → 改好后用对应 '
-    'propose_* 新建(代码取数用 propose_code_extract_task);全新任务直接用 propose_data_integration_task/code_extract/python/shell。均只弹表单交用户确认,不擅自落库。',
-    '定时 cron 用 **7 段 Quartz**(秒 分 时 日 月 周 年),北京时区(Asia/Shanghai),须与前端 cron 组件完全一致:'
-    '① 步进用 `0/N`(从0起每N),**不要用 `*/N`**(组件会解析成 NaN);② 星期**只用数字**,Quartz 约定 周日=1..周六=7(周一到周五=2-6,别用 MON-FRI 名称、别用 0);'
-    '③ 年固定写 `*`;④ 日与星期二选一,定了星期则"日"写 ?。'
-    '例:每20分钟 `0 0/20 * * * ? *`;每天8点 `0 0 8 * * ? *`;交易时段(周一到周五9-15点)每5分钟 `0 0/5 9-15 ? * 2-6 *`。',
+    # 条件性专题的完整手册在内置技能里,按需 load_skill;此处只留各自「一条最易错的关键规则」兜底,
+    # 防模型跳过加载时丢掉要点(完整版见 module_ai/docs/skill-agent-optimization.md)。
+    '出图:默认 plot_chart 且让 native(SQL 写 GROUP BY/ORDER BY/LIMIT、度量 agg=none)**直接返回要画的最终值**,'
+    '别靠前端二次聚合(会把总和/极值算错);多重聚合/多步计算才改 run_datasource_query 写代码——完整分流规则 load_skill("chart_building")。',
+    'Elasticsearch 源:文本字段做聚合/精确匹配/排序必须用 .keyword 子字段;取明细/时序要显式写足 size(默认只回10条)——更多注意 load_skill("es_query")。',
+    '要新建/修改/复制定时任务(含 cron 写法)→ 先 load_skill("task_scheduling") 拿流程与 7 段 Quartz cron 规则再动手,别凭记忆写 cron。',
 ]
 
 # 用户可在「工具」下拉里自选、按需挂载的内置工具集 code(其余内置工具由平台按能力自动挂载:
 # data_explore/sandbox_code 由「数据分析」数据源选择控制,不在此白名单)。
 _PASSTHROUGH_BUILTIN = {'task_propose', 'baidu_search'}
+
+# 任务管理意图关键词:命中才给普通对话挂 task_propose 工具集(它 docstring 很大、每轮重发,
+# 纯查数/出图轮用不上)。宁可多挂(误挂只是这轮多花 token,无正确性损失),故词表偏宽。
+_TASK_INTENT_KW = (
+    '任务', '作业', '定时', '调度', 'cron', 'crontab', '定期', '周期', '跑批', '批量抓',
+    '每天', '每日', '每周', '每月', '每小时', '每分钟', '每隔', '每晚', '工作日', '交易日', '自动化',
+)
+
+
+def _default_builtin_codes(message: str | None) -> list[str]:
+    """普通对话默认内置工具:data_explore + sandbox_code + baidu_search;
+    仅当消息含任务管理意图时才追加 task_propose(避免其大 docstring 每轮白发)。"""
+    codes = ['data_explore', 'sandbox_code', 'baidu_search']
+    if message and any(k in message for k in _TASK_INTENT_KW):
+        codes.append('task_propose')
+    return codes
 
 
 def _make_baidu_tools() -> Any:
@@ -247,6 +250,8 @@ class AiChatService:
         name: str | None = None,
         agent_id: str = 'chat-agent',
         enable_memory: bool = False,
+        skills: list | None = None,
+        question: str | None = None,
     ) -> Agent:
         """
         构建对话Agent对象
@@ -274,18 +279,25 @@ class AiChatService:
             kb_tool=kb_tool,
             datasource_scope=datasource_scope,
             datasource_query_enabled=datasource_query_enabled,
+            skills=skills,
         )
         # 普通对话注入数据 agent 工作流指令;并把「精简数据目录」前置进指令(减少 list_datasources 往返)。
         # 应用模式用应用自己的 prompt(instructions 非 None),不注入目录、避免人设被盖。
         from module_ai.tools.data_agent_tools import build_data_catalog
 
         if instructions is None:
-            catalog = build_data_catalog(datasource_scope)
-            agent_instructions = [catalog, *_DATA_AGENT_INSTRUCTIONS] if catalog else _DATA_AGENT_INSTRUCTIONS
+            catalog = build_data_catalog(datasource_scope, question=question)
+            agent_instructions = [catalog, *_DATA_AGENT_INSTRUCTIONS] if catalog else list(_DATA_AGENT_INSTRUCTIONS)
         else:
             # 应用模式:保留应用自己的 prompt(人设优先),仅当绑定了数据源时把精简目录追加在后面
-            catalog = build_data_catalog(datasource_scope) if datasource_scope else ''
-            agent_instructions = [*instructions, catalog] if catalog else instructions
+            catalog = build_data_catalog(datasource_scope, question=question) if datasource_scope else ''
+            agent_instructions = [*instructions, catalog] if catalog else list(instructions)
+        # 可用技能清单(Agent Skills 渐进披露 L1):任务匹配时 agent 调 load_skill 拉完整正文
+        from module_ai.tools.skill_tools import build_skill_catalog
+
+        skill_catalog = build_skill_catalog(skills)
+        if skill_catalog:
+            agent_instructions = [*agent_instructions, skill_catalog]
 
         return Agent(
             model=model,
@@ -359,17 +371,19 @@ class AiChatService:
         kb_tool: Any,
         datasource_scope: list | None,
         datasource_query_enabled: bool,
+        skills: list | None = None,
     ) -> list:
-        """装配工具列表(内置工具集 + 知识库工具 + 已连接的 MCP 工具)。供单 agent 与 Team leader/成员共用。
+        """装配工具列表(内置工具集 + 知识库工具 + 已连接的 MCP 工具 + 技能加载工具)。供单 agent 与 Team leader/成员共用。
 
         builtin_codes=None → 全挂(普通对话);否则按所选挂(应用/成员)。code = toolkit 名。
+        skills 非空时追加 SkillTools(load_skill),供 agent 按需拉取技能正文。
         """
         from module_ai.tools.data_agent_tools import DataAgentTools
         from module_ai.tools.sandbox_code_tools import SandboxCodeTools
         from module_ai.tools.task_agent_tools import TaskAgentTools
 
         builtin_map = {
-            'data_explore': lambda: DataAgentTools(allowed_codes=datasource_scope),
+            'data_explore': lambda: DataAgentTools(allowed_codes=datasource_scope, skills=skills),
             'sandbox_code': lambda: SandboxCodeTools(
                 artifacts=artifacts, allowed_codes=datasource_scope, enable_datasource=datasource_query_enabled
             ),
@@ -387,6 +401,13 @@ class AiChatService:
         if kb_tool is not None:
             tools.append(kb_tool)
         tools.extend(extra_tools or [])
+        if skills:
+            try:
+                from module_ai.tools.skill_tools import SkillTools
+
+                tools.append(SkillTools(skills=skills))
+            except Exception as e:
+                logger.warning(f'技能工具加载失败,已跳过: {e}')
         return tools
 
     @classmethod
@@ -753,6 +774,16 @@ class AiChatService:
         ui_actions: list = []  # 任务提议(确认表单)收集器,经 _stream_agent 推给前端渲染成卡片
         run_kwargs = cls._build_run_kwargs(chat_req, user_config)
 
+        # Agent Skills:应用取其绑定的 skillIds;普通对话取全部启用技能。预加载正文供 load_skill 按需返回。
+        from module_ai.service.ai_skill_service import AiSkillService
+
+        skill_ids = (app_cfg.get('skillIds') if app_cfg else None) or None
+        skills = await AiSkillService.resolve_agent_skills(query_db, skill_ids, scope_codes=datasource_scope)
+
+        # 普通对话:task_propose 按任务意图条件挂载(省其大 docstring 的每轮重发);应用模式沿用 app 配置
+        if not app_cfg and builtin_codes is None:
+            builtin_codes = _default_builtin_codes(chat_req.message)
+
         build_kwargs = dict(
             model_config=model_config,
             temperature=temperature,
@@ -767,6 +798,8 @@ class AiChatService:
             datasource_scope=datasource_scope,
             datasource_query_enabled=datasource_query_enabled,
             enable_memory=enable_memory,
+            skills=skills,
+            question=chat_req.message,
         )
         stream_kwargs = dict(
             chat_req=chat_req,
@@ -946,6 +979,11 @@ class AiChatService:
             from module_rag.agent_tools import make_kb_tool
 
             kb_tool = make_kb_tool(dataset_ids=dsids, tenant_id=RequestContext.get_effective_tenant_id())
+        from module_ai.service.ai_skill_service import AiSkillService
+
+        skills = await AiSkillService.resolve_agent_skills(
+            query_db, app_cfg.get('skillIds') or None, scope_codes=datasource_scope
+        )
         build_kwargs = dict(
             model_config=model_config,
             temperature=temperature,
@@ -961,6 +999,7 @@ class AiChatService:
             datasource_query_enabled=datasource_query_enabled,
             name=app_cfg.get('_name') or f'应用{app_id}',
             agent_id=f'app-{app_id}',  # 成员需唯一 id,否则 Team 无法按 member_id 区分路由
+            skills=skills,
         )
         return {'build_kwargs': build_kwargs, 'mcp_configs': mcp_configs}
 

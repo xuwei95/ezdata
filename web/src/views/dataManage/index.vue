@@ -47,6 +47,13 @@
                   <el-button icon="Connection" @click="testConn(current.raw)">测试连接</el-button>
                   <el-button icon="Edit" @click="sourceModalRef.open(current.raw)">编辑</el-button>
                   <el-button type="primary" icon="Plus" @click="openModelModal(current.raw)">从表新建模型</el-button>
+                  <el-button
+                    icon="Refresh"
+                    :loading="syncing === current.raw.id"
+                    title="把该源的已建模表同步到 AI 目录检索索引(异步 worker 任务),之后 AI 可按问题精准检索到这些表"
+                    @click="syncCatalog(current.raw)"
+                    >同步索引</el-button
+                  >
                   <el-button type="danger" icon="Delete" @click="removeSource(current.raw)">删除</el-button>
                 </div>
               </template>
@@ -133,7 +140,7 @@ import DataInterfaceTab from './components/DataInterfaceTab.vue'
 import KnowledgeBaseTab from './components/KnowledgeBaseTab.vue'
 import {
   getSourceTypes, getSourceTypeIcon, listSource, testSource, delSource, listTables, listColumns,
-  listModel, addModel, getModel, updateModel, delModel,
+  listModel, addModel, getModel, updateModel, delModel, syncSourceCatalog,
 } from '@/api/dataManage/data'
 
 const treeRef = ref()
@@ -222,6 +229,17 @@ async function onNodeClick(data) {
 async function testConn(src) {
   const res = await testSource({ id: src.id })
   res.data.success ? ElMessage.success('连接成功') : ElMessage.error('连接失败: ' + res.data.message)
+}
+
+const syncing = ref(null) // 正在同步索引的数据源 id
+async function syncCatalog(src) {
+  syncing.value = src.id
+  try {
+    const res = await syncSourceCatalog(src.id)
+    ElMessage.success(res.msg || '已提交同步任务')
+  } finally {
+    syncing.value = null
+  }
 }
 
 async function removeSource(src) {

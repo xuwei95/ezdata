@@ -475,6 +475,7 @@ class DataModelService:
             )
             await DataModelDao.add(db, obj)
             await db.commit()
+            await cls._sync_catalog_index(obj['id'])
             return CrudResponseModel(is_success=True, message='新增成功')
         except Exception as e:
             await db.rollback()
@@ -490,6 +491,7 @@ class DataModelService:
             data.update(update_by=operator, update_time=datetime.now())
             await DataModelDao.edit(db, vo.id, data)
             await db.commit()
+            await cls._sync_catalog_index(vo.id)
             return CrudResponseModel(is_success=True, message='修改成功')
         except Exception as e:
             await db.rollback()
@@ -497,13 +499,40 @@ class DataModelService:
 
     @classmethod
     async def delete(cls, db: AsyncSession, ids: str) -> CrudResponseModel:
+        id_list = [i for i in ids.split(',') if i]
         try:
-            await DataModelDao.remove(db, [i for i in ids.split(',') if i])
+            # 删除前捕获目录索引键(tenant, code, object),提交后再删索引
+            keys = []
+            for mid in id_list:
+                m = await DataModelDao.get_by_id(db, mid)
+                if m and m.object_name:
+                    keys.append((m.tenant_id, m.datasource_code, m.object_name))
+            await DataModelDao.remove(db, id_list)
             await db.commit()
+            await cls._remove_catalog_index(keys)
             return CrudResponseModel(is_success=True, message='删除成功')
         except Exception as e:
             await db.rollback()
             raise e
+
+    @classmethod
+    async def _sync_catalog_index(cls, model_id: str) -> None:
+        """增量同步数据目录检索索引(add/edit 后);索引不可用/异常不影响主流程。"""
+        try:
+            from module_ai.tools.catalog_index import CatalogRetrievalService
+
+            await run_in_threadpool(CatalogRetrievalService.sync_model_by_id, model_id)
+        except Exception:
+            pass
+
+    @classmethod
+    async def _remove_catalog_index(cls, keys: list) -> None:
+        try:
+            from module_ai.tools.catalog_index import CatalogRetrievalService
+
+            await run_in_threadpool(CatalogRetrievalService.remove_keys, keys)
+        except Exception:
+            pass
 
 
 _CHART_TYPES = frozenset({
