@@ -2,7 +2,7 @@
 
 只影响 demo 命名空间(按固定 id 先删后插),不碰用户/权限/其他数据源任务等系统数据:
 - seed_metadata():  建数据源(akshare_cn/demo_es) + 28 个 DataIntegrationTask
-                    + 28 个 data_model + 1 个 AI 应用 + 1 个多图看板(A股市场总览)。参数化原生 SQL,multiline 代码零转义,可反复执行。
+                    + 27 个 data_model(2 个日线任务共用 fin_stock_daily)+ 1 个 AI 应用 + 1 个多图看板(A股市场总览)。参数化原生 SQL,multiline 代码零转义,可反复执行。
                     每个索引一份独立中英字段 map(MAP_*)+ tf() 编译 transform;任务带详细 remark;定时按数据节奏分档。
 - dispatch_demo_tasks(): 把 27 个任务派发到 Celery(异步),由 worker 取数填充 demo_es 的 fin_* 索引。
 - seed_demo():      先 seed_metadata 再 dispatch(整体初始化)。
@@ -465,16 +465,22 @@ TF_STR_VALUE = (
     '    return row'
 )
 
-C_STOCK_DAILY = """
-symbols = {'sh600519':'贵州茅台','sz300750':'宁德时代','sz002594':'比亚迪',
-           'sh688981':'中芯国际','sh601318':'中国平安','sz000651':'格力电器'}
+# A股日线增量:只翻新浪全市场快照「第一页」(约80只),从当日快照派生日线 OHLCV,收盘后定时增量(不逐只全抓)。
+C_SPOT_DAILY_P1 = """
+import requests, json, datetime
+from akshare.stock.stock_zh_a_sina import zh_sina_a_stock_url, zh_sina_a_stock_payload
+d = datetime.date.today().isoformat()
+p = dict(zh_sina_a_stock_payload); p["page"] = 1
+rows = json.loads(requests.get(zh_sina_a_stock_url, params=p, timeout=15).text)
 result = []
-for c, nm in symbols.items():
-    rows = handler.query('stock_zh_a_daily', {'symbol': c, 'adjust': 'qfq'})
-    for r in rows[-250:]:
-        r['symbol'] = c; r['name'] = nm
-        result.append(r)
-print('stock_daily rows=%d' % len(result))
+for r in rows or []:
+    sym = r.get("symbol", "")
+    if not sym.startswith(("sh", "sz", "bj")):  # 快照含全A股(沪/深/北),全保留
+        continue
+    result.append({"symbol": sym, "name": r.get("name"), "date": d,
+                   "open": r.get("open"), "high": r.get("high"), "low": r.get("low"),
+                   "close": r.get("trade"), "volume": r.get("volume"), "amount": r.get("amount")})
+print("快照第一页派生日线 %d 行 @ %s" % (len(result), d))
 """
 
 # 全A股历史前复权日线:复用「A股全市场快照」产物 fin_stock_spot(demo_es)作全市场代码源,不重复抓全市场;
@@ -503,7 +509,7 @@ for c in codes:
             print('进度 %d/%d,累计 %d 行' % (done, len(codes), total))
     except Exception as e:
         print('跳过 %s: %s' % (sym, e))
-print('完成:%d 只 / %d 行 → fin_stock_daily_all' % (done, total))
+print('完成:%d 只 / %d 行 → fin_stock_daily' % (done, total))
 result = []
 """
 
@@ -893,13 +899,13 @@ TASKS = [
         '同花顺可转债信息中心:债券代码与简称/申购日与申购代码/原股东配售码/每股获配额/计划与实际发行量/中签公布日/中签号/上市日/正股代码与简称/转股价格/到期时间/中签率。凌晨日更。',
     ),
     (
-        'demo_fin_daily',
-        '龙头股日线·前复权近250日 → fin_stock_daily',
-        code(AK, C_STOCK_DAILY, 'fin_stock_daily', tf({}, ['symbol', 'date'])),
+        'demo_fin_daily_p1',
+        'A股日线增量·快照第一页 → fin_stock_daily',
+        code(AK, C_SPOT_DAILY_P1, 'fin_stock_daily', tf({}, ['symbol', 'date'])),
         'fin_stock_daily',
         '个股日线',
         CRON_CLOSE,
-        '新浪6只代表性个股(贵州茅台/宁德时代/比亚迪/中芯国际/中国平安/格力电器)前复权日线 OHLCV(字段本就是英文 date/open/high/low/close/volume/amount/turnover,无需中英转换),各取最近250个交易日。收盘后日更,适合K线、均线、个股走势对比。',
+        '从新浪全市场快照「第一页」(约80只)派生当日日线 OHLCV(open=今开/high=最高/low=最低/close=最新价/volume/amount + symbol/name/date)→ fin_stock_daily。收盘后定时增量(只翻第一页、不逐只全抓),与「全量单次」共用同一索引/模型、md5(symbol+date) 去重。',
     ),
     (
         'demo_fin_index',
@@ -1012,12 +1018,14 @@ TASKS = [
     ),
     (
         'demo_fin_stock_daily_all',
-        '全A股历史日线 → fin_stock_daily_all',
-        code_multi([ES, AK], C_ALL_STOCK_DAILY, 'fin_stock_daily_all', tf({}, ['symbol', 'date'])),
-        'fin_stock_daily_all',
-        '全A股日线',
+        '全A股历史日线回填 → fin_stock_daily',
+        code_multi([ES, AK], C_ALL_STOCK_DAILY, 'fin_stock_daily', tf({}, ['symbol', 'date'])),
+        'fin_stock_daily',  # 与「个股日线(6只)」共用同一索引/模型:schema 相同,md5(symbol+date) 去重
+        '个股日线',
         '',  # cron 空 → trigger_type=1 单次(手动触发一次,全量沪深约5000只、耗时较长)
-        '复用「A股全市场快照」产物 fin_stock_spot(demo_es)作全市场代码源,不重复抓全市场;仅用 akshare(stock_zh_a_daily 前复权)逐只补历史日线,emit 流式装载、md5(symbol+date) 幂等 → ES 索引 fin_stock_daily_all。单次触发,沪深约5000只、耗时较长。',
+        'A股前复权日线 OHLCV(date/open/high/low/close/volume/amount/turnover + symbol/name),写入 fin_stock_daily。'
+        '全量单次回填:复用 fin_stock_spot 全市场代码,逐只 akshare(stock_zh_a_daily 前复权)补全市场约5000只历史(emit 流式、md5(symbol+date) 幂等)。'
+        '日常增量由「A股日线增量·快照第一页」定时任务维护,二者共用同一索引/模型。适合K线/均线/个股走势对比。',
     ),
 ]
 
@@ -1282,7 +1290,7 @@ def seed_demo() -> None:
     n = seed_metadata()
     scheduled = sum(1 for t in TASKS if t[5])
     print(
-        f'OK: 数据源 {len(DATASOURCES)} + 任务 {n}(其中定时 {scheduled} 个/单次 {n - scheduled} 个) + 数据模型 {n} + AI应用 1(app_id={APP_ID}) 已写入'
+        f'OK: 数据源 {len(DATASOURCES)} + 任务 {n}(其中定时 {scheduled} 个/单次 {n - scheduled} 个) + 数据模型 {len({t[3] for t in TASKS})} + AI应用 1(app_id={APP_ID}) 已写入'
     )
     m = dispatch_demo_tasks()
     print(f'已派发 {m} 个 ETL 任务到 Celery 立即灌一次 ES(约 2-3 分钟)')

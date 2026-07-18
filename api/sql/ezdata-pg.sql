@@ -362,7 +362,7 @@ insert into sys_menu values(2415, '技能新增', 2413, '2', '#', '', '', '', 1,
 insert into sys_menu values(2416, '技能修改', 2413, '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:skill:edit',             '#', 'admin', current_timestamp, '', null, '');
 insert into sys_menu values(2417, '技能删除', 2413, '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:skill:remove',           '#', 'admin', current_timestamp, '', null, '');
 insert into sys_menu values(122,  '应用管理', 4,   '2', 'app',                 'ai/app/index',                      '', 'AiApp', 1, 0, 'C', '0', '0', 'ai:app:list',                      'component',     'admin', current_timestamp, '', null, 'AI应用管理菜单');
-insert into sys_menu values(123,  '用量统计', 4,   '5', 'metrics',             'ai/metrics/index',                  '', 'AiMetrics', 1, 0, 'C', '0', '0', 'ai:metrics:list',              'chart',         'admin', current_timestamp, '', null, 'AI用量可观测菜单');
+insert into sys_menu values(123,  '用量统计', 4,   '6', 'metrics',             'ai/metrics/index',                  '', 'AiMetrics', 1, 0, 'C', '0', '0', 'ai:metrics:list',              'chart',         'admin', current_timestamp, '', null, 'AI用量可观测菜单');
 insert into sys_menu values(1069, '应用查询', 122, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:app:query',               '#', 'admin', current_timestamp, '', null, '');
 insert into sys_menu values(1070, '应用新增', 122, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:app:add',                 '#', 'admin', current_timestamp, '', null, '');
 insert into sys_menu values(1071, '应用修改', 122, '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:app:edit',                '#', 'admin', current_timestamp, '', null, '');
