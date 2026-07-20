@@ -48,7 +48,9 @@ class ElasticsearchHandler(Connector):
     name = 'elasticsearch'
     title = 'Elasticsearch'
     family = 'search'
-    capabilities = Capability.READ | Capability.WRITE | Capability.EXTRACT | Capability.SCHEMA | Capability.GEN_API
+    capabilities = (
+        Capability.READ | Capability.WRITE | Capability.EXTRACT | Capability.SCHEMA | Capability.GEN_API | Capability.AGGREGATE
+    )
     connection_args = connection_args
     connection_args_example = connection_args_example
 
@@ -116,6 +118,83 @@ class ElasticsearchHandler(Connector):
         if resp.get('aggregations'):
             return _flatten_aggs(resp['aggregations'])
         return [h['_source'] | {'_id': h['_id']} for h in resp['hits']['hits']]
+
+    _AGG_METRIC_CAP = 10000  # 分组下推:未限 top_n 时 terms 桶上限(避免超大基数)
+
+    @staticmethod
+    def _metric_agg(agg: str, field: str | None) -> dict | None:
+        """度量 → ES metric agg 片段;count 返回 None(用桶 doc_count / count API)。"""
+        if agg == 'count':
+            return None
+        if agg == 'count_distinct':
+            return {'cardinality': {'field': field}}  # 近似基数(高基数有误差,低基数与精确一致)
+        return {agg: {'field': field}}  # sum/avg/max/min 与 ES 同名
+
+    @classmethod
+    def _build_agg_request(cls, spec: Any, cols: dict[str, str]) -> tuple[dict, str | None]:
+        """把 AggSpec 编译成 ES search body(纯函数,便于测试)。
+
+        返回 (body, dim):dim 为分组维度名(无分组为 None)。文本字段聚合/过滤自动补 `.keyword`。
+        """
+        from ezdata.handlers.agg_spec import AggNotSupported
+
+        spec.validate()
+        if spec.grain:
+            # grain 分桶为下推增量能力,当前兜底路径(pandas)不做分桶,为口径一致暂不下推 grain
+            raise AggNotSupported('ES 下推暂不支持 grain')
+        if len(spec.group_by) > 1:
+            raise AggNotSupported('ES 下推暂只支持单维度分组;多维回退兜底')
+
+        def kw(fname: str) -> str:  # 文本字段的 terms 聚合/精确过滤须走 .keyword 子字段
+            return f'{fname}.keyword' if cols.get(fname) == 'text' and f'{fname}.keyword' in cols else fname
+
+        filters: list[dict] = []
+        for f, v in (spec.filters or {}).items():
+            vals = list(v) if isinstance(v, (list, tuple, set)) else [v]
+            filters.append({'terms': {kw(f): vals}})
+        if spec.time_range and spec.time_field:
+            rng = {}
+            if spec.time_range.get('start'):
+                rng['gte'] = spec.time_range['start']
+            if spec.time_range.get('end'):
+                rng['lte'] = spec.time_range['end']
+            if rng:
+                filters.append({'range': {spec.time_field: rng}})
+        query = {'bool': {'filter': filters}} if filters else {'match_all': {}}
+
+        metric = cls._metric_agg(spec.agg, spec.field)
+        if spec.group_by:
+            dim = spec.group_by[0]
+            terms: dict = {
+                'field': kw(dim),
+                'size': int(spec.top_n) if spec.top_n else cls._AGG_METRIC_CAP,
+                'order': {'value': 'desc'} if metric else {'_count': 'desc'},
+            }
+            agg_body: dict = {'terms': terms}
+            if metric:
+                agg_body['aggs'] = {'value': metric}
+            return {'size': 0, 'query': query, 'aggs': {dim: agg_body}}, dim
+        # 无分组
+        body = {'size': 0, 'query': query}
+        if metric:
+            body['aggs'] = {'value': metric}
+        return body, None
+
+    def aggregate(self, spec: Any) -> list[dict]:
+        """把 AggSpec 下推为 ES 聚合,返回 [{维度..., 'value': 聚合值}]。"""
+        cols = {c.name: c.type for c in self.get_columns(spec.table)}
+        body, dim = self._build_agg_request(spec, cols)
+        if dim is None and self._metric_agg(spec.agg, spec.field) is None:
+            # count 无分组:直接 count API(比空聚合更省)
+            total = self.client.count(index=spec.table, body={'query': body['query']})['count']
+            return [{'value': total}]
+        rows = self.query({'index': spec.table, 'body': body})
+        if dim is None:  # 无分组单值(_flatten_aggs → [{'value': x}])
+            return [{'value': rows[0]['value']}] if rows and 'value' in rows[0] else [{'value': None}]
+        out: list[dict] = []
+        for r in rows:  # 每桶 → {dim: key, 'value': 度量 or doc_count}
+            out.append({dim: r.get(dim), 'value': r['value'] if 'value' in r else r.get('doc_count')})
+        return out
 
     def search(
         self, table: str, filters: list[dict] | None = None, page: int = 1, pagesize: int = 20, **kwargs: Any
