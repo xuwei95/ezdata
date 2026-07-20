@@ -35,9 +35,12 @@ services:
       --factory
       --reload
       --reload-dir /app
+      --reload-exclude '*.pyc'
+      --reload-exclude '__pycache__'
+      --reload-exclude '*/__pycache__/*'
     volumes:
       - ./api:/app      # 挂载后端源码：改 .py 即时热重载
-      - /app/__pycache__                  # 遮蔽宿主可能带入的 pyc 缓存
+      # 原有匿名卷 /app/__pycache__ 已删:PYTHONDONTWRITEBYTECODE=1 后不写 pyc,该卷冗余且会引发 OCI dead-inode
     # 同目录 .env 注入应用配置(LLM_*/EMBEDDING_* 等):存在则注入,不存在则跳过。
     # 与下方 environment 的关系:environment 优先级更高,故 DB_HOST 等服务名连接仍覆盖根 .env;
     # env_file 主要带进 AI 相关配置。容器内 load_dotenv('.env.dev', override=False) 不覆盖已注入值。
@@ -46,6 +49,7 @@ services:
         required: false
     environment:
       - APP_ENV=dev                       # 以 dev 配置运行（.env.dev：APP_RELOAD=true、Swagger 开启）
+      - PYTHONDONTWRITEBYTECODE=1          # 不写 .pyc:Docker Desktop bind mount I/O 抖动时,--reload 轮询 stat __pycache__/*.pyc 会 EIO 崩进程
       - TZ=${TZ:-Asia/Shanghai}           # 容器时区=北京:date/日志/datetime.now() 统一;不设则 UTC,时间戳慢 8 小时
       # dev 关闭传输层加解密(公网前后端流量加密才需要;本地开发免配 RSA 密钥,否则 lifespan 校验直接 fail)
       - TRANSPORT_CRYPTO_ENABLED=false
