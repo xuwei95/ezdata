@@ -7,6 +7,9 @@ __pycache__/
 *.db
 ezdata_local.db
 
+# AI agent 本地实验脚本 / 大日志 / 跑批产物,勿提交
+api/module_ai/experiments/
+
 # C extensions
 *.so
 

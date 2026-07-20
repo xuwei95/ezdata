@@ -1156,6 +1156,19 @@ VALUES (:id,:name,'board',0,:remark,'admin',:now,:tenant)""")
 _DASHC_SQL = text("""INSERT INTO data_dashboard_canvas (id,dashboard_id,version,content,create_by,create_time,tenant_id)
 VALUES (:id,:did,'current',:content,'admin',:now,:tenant)""")
 
+# 演示指标(语义层):绑定 demo 模型,agent 命中即用 query_metric 取权威一致的数(避开 ES 声明式聚合不可靠)。
+# (code, name, caliber, model_id, measure, dimensions, time_field, unit)
+_METRICS = [
+    ('industry_pe_avg', '行业加权市盈率', '巨潮资讯·证监会行业分类的加权静态市盈率,按行业汇总(pe_weighted 均值)。',
+     'dm_fin_industry_pe', '{"agg":"avg","field":"pe_weighted"}', '[{"field":"industry_name","name":"行业"}]', None, '倍'),
+    ('market_main_net', '大盘主力净流入', '沪深两市主力资金每日净流入额(元,正=净流入/负=净流出),按日期。',
+     'dm_fin_market_fund_flow', '{"agg":"sum","field":"main_net"}', '[{"field":"date","name":"日期"}]', 'date', '元'),
+    ('index_close', '指数收盘价', '主要指数(上证/深证/沪深300/创业板)每日收盘价,按指数与日期。',
+     'dm_fin_index_daily', '{"agg":"avg","field":"close"}', '[{"field":"name","name":"指数"},{"field":"date","name":"日期"}]', 'date', '点'),
+]
+_METRIC_SQL = text("""INSERT INTO data_metric (name,code,caliber,model_id,measure,dimensions,time_field,unit,status,built_in,create_by,create_time,tenant_id)
+VALUES (:name,:code,:caliber,:model_id,:measure,:dims,:tf,:unit,'0','1','admin',:now,:tenant)""")
+
 
 def seed_metadata() -> int:
     """幂等写入数据源/任务/数据模型/AI应用。返回任务数。"""
@@ -1238,6 +1251,11 @@ def seed_metadata() -> int:
         db.execute(_DASHC_SQL, {'id': DASH_ID + '_canvas', 'did': DASH_ID,
                                 'content': json.dumps({'canvas': DASH_CANVAS, 'components': DASH_COMPONENTS, 'filters': []}, ensure_ascii=False),
                                 'now': now, 'tenant': TENANT})
+        # 演示指标(语义层,先删后插,幂等)
+        for code_, name_, cal_, mid_, meas_, dims_, tf_, unit_ in _METRICS:
+            db.execute(text('DELETE FROM data_metric WHERE code=:c'), {'c': code_})
+            db.execute(_METRIC_SQL, {'name': name_, 'code': code_, 'caliber': cal_, 'model_id': mid_,
+                                     'measure': meas_, 'dims': dims_, 'tf': tf_, 'unit': unit_, 'now': now, 'tenant': TENANT})
         db.commit()
         return len(TASKS)
     except Exception:

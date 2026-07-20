@@ -90,6 +90,14 @@
               <DataInterfaceTab :model="current.raw" />
             </el-tab-pane>
 
+            <el-tab-pane label="血缘" name="lineage" lazy v-if="current.nodeType === 'model'">
+              <LineageTab :model="current.raw" />
+            </el-tab-pane>
+
+            <el-tab-pane label="指标" name="metric" lazy v-if="current.nodeType === 'model'">
+              <MetricTab :model="current.raw" />
+            </el-tab-pane>
+
             <el-tab-pane label="知识库" name="rag">
               <KnowledgeBaseTab :model="current.raw" :node-type="current.nodeType" />
             </el-tab-pane>
@@ -138,6 +146,8 @@ import DataSourceModal from './components/DataSourceModal.vue'
 import DataQueryTab from './components/DataQueryTab.vue'
 import DataInterfaceTab from './components/DataInterfaceTab.vue'
 import KnowledgeBaseTab from './components/KnowledgeBaseTab.vue'
+import LineageTab from './components/LineageTab.vue'
+import MetricTab from './components/MetricTab.vue'
 import {
   getSourceTypes, getSourceTypeIcon, listSource, testSource, delSource, listTables, listColumns,
   listModel, addModel, getModel, updateModel, delModel, syncSourceCatalog,
@@ -222,6 +232,8 @@ async function onNodeClick(data) {
     info: true, rag: true,
     query: isModel && caps.includes('READ'),
     api: isModel && caps.includes('GEN_API'),
+    lineage: isModel,
+    metric: isModel,
   }
   if (!tabOk[activeTab.value]) activeTab.value = 'info'
 }

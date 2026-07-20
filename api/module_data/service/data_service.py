@@ -490,6 +490,7 @@ class DataModelService:
             data = vo.model_dump(exclude_unset=True, exclude={'id', 'create_time', 'create_by'})
             data.update(update_by=operator, update_time=datetime.now())
             await DataModelDao.edit(db, vo.id, data)
+            await cls._mark_metrics_stale(db, [vo.id])  # 血缘影响:改模型 → 依赖指标待复核
             await db.commit()
             await cls._sync_catalog_index(vo.id)
             return CrudResponseModel(is_success=True, message='修改成功')
@@ -507,6 +508,7 @@ class DataModelService:
                 m = await DataModelDao.get_by_id(db, mid)
                 if m and m.object_name:
                     keys.append((m.tenant_id, m.datasource_code, m.object_name))
+            await cls._mark_metrics_stale(db, id_list)  # 血缘影响:删模型 → 依赖指标待复核
             await DataModelDao.remove(db, id_list)
             await db.commit()
             await cls._remove_catalog_index(keys)
@@ -514,6 +516,16 @@ class DataModelService:
         except Exception as e:
             await db.rollback()
             raise e
+
+    @classmethod
+    async def _mark_metrics_stale(cls, db: AsyncSession, model_ids: list) -> None:
+        """血缘影响分析:绑定这些模型的指标置 review_state=stale(待复核)。失败不阻断主流程。"""
+        try:
+            from module_data.dao.data_metric_dao import DataMetricDao
+
+            await DataMetricDao.mark_stale_by_models(db, [i for i in model_ids if i])
+        except Exception:
+            pass
 
     @classmethod
     async def _sync_catalog_index(cls, model_id: str) -> None:

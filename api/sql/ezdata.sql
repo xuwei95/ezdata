@@ -915,6 +915,40 @@ insert into ai_skill (name,code,description,content,skill_type,status,built_in,c
 
 
 -- ----------------------------
+-- 指标表(语义层):权威口径的业务度量,绑定数据模型 + 度量/维度;agent 命中即用 query_metric 取一致的数
+-- ----------------------------
+drop table if exists data_metric;
+create table data_metric (
+  metric_id         bigint(20)      not null auto_increment    comment '指标主键',
+  name              varchar(100)    not null                   comment '指标名',
+  code              varchar(100)    not null                   comment '指标代码(唯一,供 query_metric 引用)',
+  synonyms          varchar(500)    default null               comment '同义词(逗号分隔)',
+  caliber           text                                       comment '口径(权威定义)',
+  model_id          varchar(64)     default null               comment '绑定的 data_model.id',
+  measure           text                                       comment '度量JSON {agg,field}',
+  dimensions        text                                       comment '维度JSON [{field,name}]',
+  time_field        varchar(100)    default null               comment '时间字段',
+  default_grain     varchar(20)     default null               comment '默认时间粒度',
+  default_filters   text                                       comment '固定过滤JSON',
+  unit              varchar(50)     default null               comment '单位',
+  verified_examples text                                       comment '审定示例JSON',
+  status            char(1)         default '0'                comment '状态: 0启用 1停用',
+  review_state      varchar(20)     default 'ok'               comment 'ok / stale(血缘触发待复核)',
+  built_in          char(1)         default '0'                comment '是否内置',
+  user_id           bigint(20)                                 comment '用户ID',
+  dept_id           bigint(20)                                 comment '部门ID',
+  create_by         varchar(64)     default ''                 comment '创建者',
+  create_time       datetime                                   comment '创建时间',
+  update_by         varchar(64)     default ''                 comment '更新者',
+  update_time       datetime                                   comment '更新时间',
+  remark            varchar(500)    default null               comment '备注',
+  tenant_id         bigint(20)                                 comment '租户ID',
+  primary key (metric_id),
+  key ix_data_metric_tenant_id (tenant_id)
+) engine=innodb auto_increment=1 comment = '指标表(语义层)';
+
+
+-- ----------------------------
 -- AI应用表(打包的助手配置)
 -- ----------------------------
 drop table if exists ai_app;

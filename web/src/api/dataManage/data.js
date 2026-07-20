@@ -45,6 +45,30 @@ export function listColumns(id, table) {
   return request({ url: `/data/source/${id}/columns`, method: 'get', params: { table } })
 }
 
+// ---------------- 指标(语义层) ----------------
+export function listMetric(query) {
+  return request({ url: '/data/metric/list', method: 'get', params: query })
+}
+export function getMetric(id) {
+  return request({ url: '/data/metric/info/' + id, method: 'get' })
+}
+export function addMetric(data) {
+  return request({ url: '/data/metric', method: 'post', data })
+}
+export function updateMetric(data) {
+  return request({ url: '/data/metric', method: 'put', data })
+}
+export function delMetric(ids) {
+  return request({ url: '/data/metric/' + ids, method: 'delete' })
+}
+export function previewMetric(code) {
+  return request({ url: `/data/metric/${code}/preview`, method: 'post' })
+}
+// ---------------- 数据血缘 ----------------
+export function getLineage(params) {
+  return request({ url: '/data/lineage', method: 'get', params })
+}
+
 // ---------------- 数据模型 ----------------
 export function listModel(query) {
   return request({ url: '/data/model/list', method: 'get', params: query })

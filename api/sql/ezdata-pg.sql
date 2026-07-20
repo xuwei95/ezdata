@@ -1203,6 +1203,45 @@ insert into ai_skill (name,code,description,content,skill_type,status,built_in,c
  'process','0','1','admin',now(),'admin',100);
 
 -- ----------------------------
+-- 指标表(语义层):权威口径度量,绑定数据模型;agent 命中即用 query_metric
+-- ----------------------------
+drop table if exists data_metric;
+create table data_metric (
+  metric_id         bigserial       not null,
+  name              varchar(100)    not null,
+  code              varchar(100)    not null,
+  synonyms          varchar(500)    default null,
+  caliber           text            default null,
+  model_id          varchar(64)     default null,
+  measure           text            default null,
+  dimensions        text            default null,
+  time_field        varchar(100)    default null,
+  default_grain     varchar(20)     default null,
+  default_filters   text            default null,
+  unit              varchar(50)     default null,
+  verified_examples text            default null,
+  status            char(1)         default '0',
+  review_state      varchar(20)     default 'ok',
+  built_in          char(1)         default '0',
+  user_id           bigint,
+  dept_id           bigint,
+  create_by         varchar(64)     default '',
+  create_time       timestamp(0),
+  update_by         varchar(64)     default '',
+  update_time       timestamp(0),
+  remark            varchar(500)    default null,
+  tenant_id         bigint,
+  primary key (metric_id)
+);
+create index ix_data_metric_tenant_id on data_metric (tenant_id);
+comment on table data_metric is '指标表(语义层)';
+comment on column data_metric.code is '指标代码(唯一,供 query_metric 引用)';
+comment on column data_metric.caliber is '口径(权威定义)';
+comment on column data_metric.measure is '度量JSON {agg,field}';
+comment on column data_metric.review_state is 'ok / stale(血缘触发待复核)';
+
+
+-- ----------------------------
 -- AI应用表
 -- ----------------------------
 drop table if exists ai_app;
