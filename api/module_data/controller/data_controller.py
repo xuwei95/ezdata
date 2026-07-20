@@ -10,6 +10,8 @@ from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from common.router import APIRouterPro
 from common.vo import PageResponseModel
 from module_admin.entity.vo.user_vo import CurrentUserModel
+from module_data.entity.vo.data_metric_vo import DataMetricModel, DataMetricQuery
+from module_data.service.metric_service import MetricService
 from module_data.entity.vo.data_vo import (
     AiQueryReq,
     AnalysisTemplateVo,
@@ -134,6 +136,66 @@ async def source_delete(ids: Annotated[str, Path()], db: Annotated[AsyncSession,
 )
 async def source_test(req: TestConnReq, db: Annotated[AsyncSession, DBSessionDependency()]) -> Response:
     return ResponseUtil.success(data=await DataSourceService.test_connection(db, req))
+
+
+# ---------------- 指标(语义层) ----------------
+@data_controller.get('/metric/list', summary='指标列表', dependencies=[UserInterfaceAuthDependency('data:model:list')])
+async def metric_list(
+    q: Annotated[DataMetricQuery, Query()], db: Annotated[AsyncSession, DBSessionDependency()]
+) -> Response:
+    return ResponseUtil.success(model_content=await MetricService.get_list(db, q, is_page=True))
+
+
+@data_controller.get('/metric/info/{metric_id}', summary='指标详情', dependencies=[UserInterfaceAuthDependency('data:model:list')])
+async def metric_info(metric_id: Annotated[int, Path()], db: Annotated[AsyncSession, DBSessionDependency()]) -> Response:
+    return ResponseUtil.success(data=await MetricService.detail(db, metric_id))
+
+
+@data_controller.post('/metric', summary='新增指标', dependencies=[UserInterfaceAuthDependency('data:model:edit')])
+async def metric_add(
+    vo: DataMetricModel, db: Annotated[AsyncSession, DBSessionDependency()],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
+) -> Response:
+    r = await MetricService.add(db, vo, current_user.user.user_name)
+    return ResponseUtil.success(msg=r.message)
+
+
+@data_controller.put('/metric', summary='修改指标', dependencies=[UserInterfaceAuthDependency('data:model:edit')])
+async def metric_edit(
+    vo: DataMetricModel, db: Annotated[AsyncSession, DBSessionDependency()],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
+) -> Response:
+    r = await MetricService.edit(db, vo, current_user.user.user_name)
+    return ResponseUtil.success(msg=r.message)
+
+
+@data_controller.delete('/metric/{ids}', summary='删除指标', dependencies=[UserInterfaceAuthDependency('data:model:remove')])
+async def metric_delete(ids: Annotated[str, Path()], db: Annotated[AsyncSession, DBSessionDependency()]) -> Response:
+    r = await MetricService.delete(db, ids)
+    return ResponseUtil.success(msg=r.message)
+
+
+@data_controller.post('/metric/{code}/preview', summary='试跑指标', dependencies=[UserInterfaceAuthDependency('data:query')])
+async def metric_preview(code: Annotated[str, Path()], db: Annotated[AsyncSession, DBSessionDependency()]) -> Response:
+    return ResponseUtil.success(data=await MetricService.preview(db, code))
+
+
+@data_controller.get(
+    '/lineage', summary='数据血缘图(源→任务→模型→指标)', dependencies=[UserInterfaceAuthDependency('data:model:list')]
+)
+async def data_lineage(
+    db: Annotated[AsyncSession, DBSessionDependency()],
+    node_type: Annotated[str, Query(alias='nodeType')] = '',
+    node_id: Annotated[str, Query(alias='nodeId')] = '',
+    depth: Annotated[int, Query()] = 2,
+) -> Response:
+    from module_data.service.lineage_service import LineageService
+
+    if node_type and node_id:
+        g = await LineageService.subgraph(db, node_type, node_id, depth)
+    else:
+        g = await LineageService.build_graph(db)
+    return ResponseUtil.success(data=g)
 
 
 @data_controller.post(

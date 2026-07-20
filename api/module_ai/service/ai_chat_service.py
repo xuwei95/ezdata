@@ -251,6 +251,7 @@ class AiChatService:
         agent_id: str = 'chat-agent',
         enable_memory: bool = False,
         skills: list | None = None,
+        metrics: list | None = None,
         question: str | None = None,
     ) -> Agent:
         """
@@ -280,6 +281,7 @@ class AiChatService:
             datasource_scope=datasource_scope,
             datasource_query_enabled=datasource_query_enabled,
             skills=skills,
+            metrics=metrics,
         )
         # 普通对话注入数据 agent 工作流指令;并把「精简数据目录」前置进指令(减少 list_datasources 往返)。
         # 应用模式用应用自己的 prompt(instructions 非 None),不注入目录、避免人设被盖。
@@ -298,6 +300,12 @@ class AiChatService:
         skill_catalog = build_skill_catalog(skills)
         if skill_catalog:
             agent_instructions = [*agent_instructions, skill_catalog]
+        # 可用指标清单(语义层 L0):命中即用 query_metric 取权威一致的数(有指标才注入,无则零开销)
+        from module_ai.tools.metric_tools import build_metric_catalog
+
+        metric_catalog = build_metric_catalog(metrics)
+        if metric_catalog:
+            agent_instructions = [metric_catalog, *agent_instructions]
 
         return Agent(
             model=model,
@@ -372,6 +380,7 @@ class AiChatService:
         datasource_scope: list | None,
         datasource_query_enabled: bool,
         skills: list | None = None,
+        metrics: list | None = None,
     ) -> list:
         """装配工具列表(内置工具集 + 知识库工具 + 已连接的 MCP 工具 + 技能加载工具)。供单 agent 与 Team leader/成员共用。
 
@@ -408,6 +417,14 @@ class AiChatService:
                 tools.append(SkillTools(skills=skills))
             except Exception as e:
                 logger.warning(f'技能工具加载失败,已跳过: {e}')
+        # 指标工具:有启用指标才挂(语义层),无则零开销
+        if metrics:
+            try:
+                from module_ai.tools.metric_tools import MetricTools
+
+                tools.append(MetricTools())
+            except Exception as e:
+                logger.warning(f'指标工具加载失败,已跳过: {e}')
         return tools
 
     @classmethod
@@ -780,6 +797,13 @@ class AiChatService:
         skill_ids = (app_cfg.get('skillIds') if app_cfg else None) or None
         skills = await AiSkillService.resolve_agent_skills(query_db, skill_ids, scope_codes=datasource_scope)
 
+        # 指标层(语义层 L0):启用的指标注入目录 + 挂 query_metric;数据分析关闭(应用未选源)则不挂
+        metrics = []
+        if datasource_query_enabled:
+            from module_data.service.metric_service import MetricService
+
+            metrics = await MetricService.resolve_agent_metrics(query_db)
+
         # 普通对话:task_propose 按任务意图条件挂载(省其大 docstring 的每轮重发);应用模式沿用 app 配置
         if not app_cfg and builtin_codes is None:
             builtin_codes = _default_builtin_codes(chat_req.message)
@@ -799,6 +823,7 @@ class AiChatService:
             datasource_query_enabled=datasource_query_enabled,
             enable_memory=enable_memory,
             skills=skills,
+            metrics=metrics,
             question=chat_req.message,
         )
         stream_kwargs = dict(

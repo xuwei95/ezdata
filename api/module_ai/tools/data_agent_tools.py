@@ -163,6 +163,15 @@ class DataAgentTools(Toolkit):
                     cm = getattr(c, 'comment', '') or ''  # 字段注释用实时 introspect(准),不叠加数据模型
                     lines.append(f'  {c.name} {getattr(c, "type", "")}'.rstrip() + (f'  -- {cm}' if cm else ''))
                 block = head + '\n' + '\n'.join(lines)
+                # 血缘来源:该表由哪个任务从哪个上游源抽取(让 agent 懂数据从哪来/多新/怎么刷新)
+                try:
+                    from module_data.service.lineage_service import LineageService
+
+                    prov = LineageService.provenance_sync(datasource_code, t)
+                    if prov:
+                        block += '\n  ' + prov
+                except Exception:
+                    pass
                 # API 源(akshare 等):附完整接口文档(参数可选值/返回列/示例),便于精准调用
                 if hasattr(handler, 'describe'):
                     doc = handler.describe(t)
