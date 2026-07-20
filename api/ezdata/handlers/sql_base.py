@@ -18,7 +18,9 @@ from ezdata.handlers.base import Capability, Column, Connector, ConnectResult
 
 class SqlConnector(Connector):
     family = 'rdbms'
-    capabilities = Capability.READ | Capability.WRITE | Capability.EXTRACT | Capability.SCHEMA | Capability.GEN_API
+    capabilities = (
+        Capability.READ | Capability.WRITE | Capability.EXTRACT | Capability.SCHEMA | Capability.GEN_API | Capability.AGGREGATE
+    )
     driver: str = ''  # SQLAlchemy driver 前缀,如 'mysql+pymysql'
     default_port: int | None = None
 
@@ -77,6 +79,57 @@ class SqlConnector(Connector):
             sql = f'SELECT * FROM ({sql}) AS _q LIMIT {int(limit)}'
         with self.engine.connect() as c:
             return [dict(r) for r in c.execute(text(sql), params or {}).mappings()]
+
+    def aggregate(self, spec: Any) -> list[dict]:
+        """把 AggSpec 下推为一条 GROUP BY 查询(用 SQLAlchemy Core 构造,自动适配各方言)。
+
+        返回 [{维度..., 'value': 聚合值}](已在库内聚合,结果集通常很小)。
+        方言/形态不支持时抛 AggNotSupported → 上层回退拉数+pandas。
+        """
+        from sqlalchemy import column, desc, distinct, func, select, table
+
+        from ezdata.handlers.agg_spec import AggNotSupported
+        from ezdata.utils.etl_util import assert_readonly_sql
+
+        spec.validate()
+        if spec.grain:
+            # 时间分桶(date_trunc / toStartOfMonth …)跨方言差异大,首版不下推 → 兜底
+            raise AggNotSupported('SQL 下推暂不支持 grain 时间分桶')
+
+        agg, fld = spec.agg, spec.field
+        if agg == 'count':
+            measure = func.count().label('value')
+        elif agg == 'count_distinct':
+            measure = func.count(distinct(column(fld))).label('value')
+        elif agg == 'avg':
+            measure = func.avg(column(fld)).label('value')
+        else:  # sum / max / min
+            measure = getattr(func, agg)(column(fld)).label('value')
+
+        dims = [column(d) for d in spec.group_by]
+        stmt = select(*dims, measure).select_from(table(spec.table))
+
+        conds = []
+        for f, v in (spec.filters or {}).items():
+            c = column(f)
+            conds.append(c.in_(list(v)) if isinstance(v, (list, tuple, set)) else (c == v))
+        if spec.time_range and spec.time_field:
+            tf = column(spec.time_field)
+            if spec.time_range.get('start'):
+                conds.append(tf >= spec.time_range['start'])
+            if spec.time_range.get('end'):
+                conds.append(tf <= spec.time_range['end'])
+        if conds:
+            stmt = stmt.where(*conds)
+        if dims:
+            stmt = stmt.group_by(*dims)
+        stmt = stmt.order_by(desc('value'))
+        if spec.top_n:
+            stmt = stmt.limit(int(spec.top_n))
+
+        sql = str(stmt.compile(dialect=self.engine.dialect, compile_kwargs={'literal_binds': True}))
+        assert_readonly_sql(sql, 'rdbms')  # 生成的必是 SELECT,过一遍只读护栏兜底
+        return self.query(sql)
 
     def search(
         self,

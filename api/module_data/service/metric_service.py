@@ -1,11 +1,15 @@
-"""指标层执行:把指标定义编译成对模型的取数 + 服务端 pandas 聚合,返回权威一致的数。
+"""指标层执行:把指标定义编译成权威一致的数。
 
-为什么服务端 pandas 聚合而非下推 ES 声明式聚合:ES 声明式聚合(Top-N 不下推/KPI 取不到)实测不可靠
-(见 chart-tool-routing);demo/中等数据量下,取行 + pandas 聚合确定、简单。大表下推留 P1b。
+执行策略(_execute):**下推优先 + pandas 兜底**。
+- 下推:源支持 Capability.AGGREGATE 时,把指标定义组成 AggSpec 交 handler.aggregate 在库内聚合
+  (SQL 族生成 GROUP BY、ES 族生成 aggs),结果集小、可扛大表。
+- 兜底:源不支持 / 下推抛 AggNotSupported 或异常时,回退"拉数(_FETCH_CAP 上限)+ pandas 聚合"
+  (_aggregate)。两路共用 _shape/_round_rows 规整,口径一致(见 tests/test_metric_pushdown.py 对拍)。
+  注:平台按固定指标定义编译 DSL(非 LLM 自由生成),不受 chart-tool-routing 里"声明式不可靠"的影响。
 
 - run_sync():给 agent 工具(agno 同步)用,全同步(get_sync_session_local + 同步 handler)。
 - run():给控制器测试用(async)。
-- 两者共用 _aggregate();catalog 供指标目录注入 / list_metrics。
+- catalog 供指标目录注入 / list_metrics。
 """
 
 from __future__ import annotations
@@ -26,13 +30,44 @@ def _loads(s: str | None, default: Any) -> Any:
         return default
 
 
+def _round_rows(rows: list[dict]) -> list[dict]:
+    """浮点统一保留 4 位、NaN → None。下推与 pandas 兜底共用,保证两路结果口径一致。"""
+    for row in rows:
+        for k, v in list(row.items()):
+            if isinstance(v, float):
+                row[k] = None if v != v else round(v, 4)
+    return rows
+
+
+def _shape(code: str, md: dict, rows: list[dict]) -> dict:
+    """统一封装返回体({code,unit,caliber,rows}),行经 _round_rows 规整。"""
+    return {
+        'code': code,
+        'unit': md.get('unit') or '',
+        'caliber': md.get('caliber') or '',
+        'rows': _round_rows([dict(r) for r in (rows or [])]),
+    }
+
+
+def _resolve_dims(md: dict, group_by) -> list[str]:
+    """最终分组维度:显式 group_by 优先,否则用指标默认维度。"""
+    if group_by:
+        return list(group_by)
+    return [d.get('field') for d in _loads(md.get('dimensions'), []) if isinstance(d, dict) and d.get('field')]
+
+
+def _merged_filters(md: dict, filters) -> dict:
+    """固定口径 default_filters 叠加本次 filters(本次覆盖同名)。"""
+    return {**_loads(md.get('default_filters'), {}), **(filters or {})}
+
+
 def _aggregate(code: str, md: dict, rows: list, group_by, filters, time_range, top_n) -> dict:
-    """纯聚合:md=指标字段快照(measure/dimensions/default_filters/time_field/unit/caliber)。"""
+    """纯聚合(兜底路径):md=指标字段快照(measure/dimensions/default_filters/time_field/unit/caliber)。"""
     import pandas as pd
 
     df = pd.DataFrame(rows or [])
     if df.empty:
-        return {'code': code, 'unit': md.get('unit') or '', 'caliber': md.get('caliber') or '', 'rows': []}
+        return _shape(code, md, [])
 
     for f, v in {**_loads(md.get('default_filters'), {}), **(filters or {})}.items():
         if f in df.columns:
@@ -65,18 +100,46 @@ def _aggregate(code: str, md: dict, rows: list, group_by, filters, time_range, t
         out_rows = res.to_dict('records')
     else:
         if agg == 'count' or not field:
-            val: Any = int(len(df))
+            val: Any = len(df)
         elif agg == 'nunique':
             val = int(df[field].nunique())
         else:
             val = getattr(pd.to_numeric(df[field], errors='coerce'), agg)()
         out_rows = [{'value': (round(float(val), 4) if val is not None and val == val else None)}]
 
-    for row in out_rows:
-        for k, v in list(row.items()):
-            if isinstance(v, float):
-                row[k] = None if v != v else round(v, 4)
-    return {'code': code, 'unit': md.get('unit') or '', 'caliber': md.get('caliber') or '', 'rows': out_rows}
+    return _shape(code, md, out_rows)
+
+
+def _execute(code: str, md: dict, handler, object_name: str, group_by, filters, time_range, top_n) -> dict:
+    """执行一次指标取数:优先下推(handler.aggregate),不支持/异常则回退拉数+pandas 兜底。
+
+    下推与兜底共用 _shape/_round_rows 规整,口径一致(见端到端对拍测试)。
+    """
+    from ezdata.handlers.agg_spec import AggNotSupported, AggSpec
+    from ezdata.handlers.base import Capability
+
+    if hasattr(handler, 'has') and handler.has(Capability.AGGREGATE):
+        spec = AggSpec(
+            table=object_name or '',
+            measure=_loads(md.get('measure'), {}) or {},
+            group_by=_resolve_dims(md, group_by),
+            filters=_merged_filters(md, filters),
+            time_field=md.get('time_field') or None,
+            time_range=time_range or None,
+            top_n=int(top_n) if top_n else 0,
+        )
+        try:
+            return _shape(code, md, handler.aggregate(spec))
+        except AggNotSupported:
+            pass  # 形态超出下推能力 → 兜底
+        except Exception as e:  # 下推异常(方言/字段/连接)→ 兜底,不让指标查询整体失败
+            from utils.log_util import logger
+
+            logger.warning(f'[metric] 指标 {code} 下推失败,回退拉数+pandas: {e}')
+    # 兜底:拉数(_FETCH_CAP 上限)+ pandas 聚合(与下推同口径)
+    native = handler.sample_query(object_name or '', _FETCH_CAP)
+    rows = handler.query(native, None, _FETCH_CAP)
+    return _aggregate(code, md, rows, group_by, filters, time_range, top_n)
 
 
 def _md(metric) -> dict:
@@ -138,11 +201,11 @@ class MetricService:
                 return {'error': f'指标 {metric_code} 的模型/数据源缺失'}
             md = _md(metric)
             handler = _handler_from_ds(ds)
-            native = handler.sample_query(model.object_name or '', _FETCH_CAP)
-            rows = handler.query(native, None, _FETCH_CAP)
+            object_name = model.object_name or ''
         finally:
             db.close()
-        return _aggregate(metric_code, md, rows, group_by, filters, time_range, top_n)
+        # 下推优先 + pandas 兜底(handler 已在进程内建好,DB 会话已释放)
+        return _execute(metric_code, md, handler, object_name, group_by, filters, time_range, top_n)
 
     # ---------- 异步 CRUD(指标管理页) ----------
     @classmethod
@@ -153,10 +216,9 @@ class MetricService:
 
     @classmethod
     async def detail(cls, db, metric_id: int):
-        from utils.common_util import CamelCaseUtil
-
         from module_data.dao.data_metric_dao import DataMetricDao
         from module_data.entity.vo.data_metric_vo import DataMetricModel
+        from utils.common_util import CamelCaseUtil
 
         obj = await DataMetricDao.get_by_id(db, metric_id)
         return DataMetricModel(**CamelCaseUtil.transform_result(obj)) if obj else DataMetricModel()

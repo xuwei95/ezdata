@@ -29,6 +29,7 @@ class Capability(Flag):
     STREAM = auto()  # 流式消费(Kafka / binlog)
     GEN_API = auto()  # 可生成数据服务接口
     VECTOR = auto()  # 向量相似度检索
+    AGGREGATE = auto()  # 支持把 AggSpec 下推为原生聚合(指标层用;不声明则走拉数+pandas 兜底)
 
 
 @dataclass
@@ -173,6 +174,15 @@ class Connector(ABC):
     def sample_query(self, table: str, limit: int = 100) -> Any:
         """原生查询默认示例(前端预填)。基类给通用 SQL,各异构源覆盖为对应方言/DSL。"""
         return f'SELECT * FROM {table} LIMIT {limit}'
+
+    def aggregate(self, spec: 'Any') -> list[dict]:
+        """把 AggSpec 下推为原生聚合,返回 [{维度..., 'value': 聚合值}]。
+
+        声明 Capability.AGGREGATE 的源覆写此方法;遇到超出自身下推能力的 spec 形态
+        (方言不支持的粒度、多维 + top_n 等)应抛 AggNotSupported,由上层回退拉数+pandas。
+        """
+        self._require(Capability.AGGREGATE)
+        raise NotImplementedError
 
     def extract(self, table: str, **kwargs: Any) -> Any:
         """返回 dlt source/resource,供 Celery 批跑装载(写路径)。"""
