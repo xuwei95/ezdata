@@ -1,16 +1,16 @@
 <template>
   <div class="filter-builder">
     <div v-for="(f, i) in filters" :key="i" class="filter-row">
-      <el-select v-model="f.field" placeholder="字段" filterable style="width: 170px">
+      <el-select v-model="f.field" :placeholder="$t('字段')" filterable style="width: 170px">
         <el-option v-for="c in fields" :key="c.name" :label="c.name" :value="c.name" />
       </el-select>
-      <el-select v-model="f.op" placeholder="操作符" style="width: 120px">
+      <el-select v-model="f.op" :placeholder="$t('操作符')" style="width: 120px">
         <el-option v-for="o in operators" :key="o.op" :label="o.label" :value="o.op" />
       </el-select>
-      <el-input v-if="!isSort(f.op)" v-model="f.value" placeholder="值" style="width: 180px" />
+      <el-input v-if="!isSort(f.op)" v-model="f.value" :placeholder="$t('值')" style="width: 180px" />
       <el-button icon="Delete" link @click="filters.splice(i, 1)" />
     </div>
-    <el-button size="small" icon="Plus" @click="filters.push({ field: '', op: 'eq', value: '' })">加条件</el-button>
+    <el-button size="small" icon="Plus" @click="filters.push({ field: '', op: 'eq', value: '' })">{{ $t('加条件') }}</el-button>
   </div>
 </template>
 

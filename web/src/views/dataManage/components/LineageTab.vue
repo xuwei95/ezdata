@@ -1,18 +1,18 @@
 <template>
   <div class="lineage-tab">
     <div class="lin-toolbar">
-      <span class="hint">数据血缘:该模型「从哪来 → 到哪去」。源 → 任务 → 模型 → 指标(声明式,来自任务的抽取/写入参数与绑定关系,始终新鲜)。</span>
-      <el-button size="small" icon="Refresh" :loading="loading" @click="load">刷新</el-button>
+      <span class="hint">{{ $t('数据血缘:该模型「从哪来 → 到哪去」。源 → 任务 → 模型 → 指标(声明式,来自任务的抽取/写入参数与绑定关系,始终新鲜)。') }}</span>
+      <el-button size="small" icon="Refresh" :loading="loading" @click="load">{{ $t('刷新') }}</el-button>
     </div>
     <div v-loading="loading" class="lin-canvas-wrap">
       <div ref="chartEl" class="lin-canvas"></div>
-      <el-empty v-if="!loading && empty" description="暂无血缘(该模型无产出任务/绑定)" />
+      <el-empty v-if="!loading && empty" :description="$t('暂无血缘(该模型无产出任务/绑定)')" />
     </div>
     <div class="legend">
-      <span><i class="sq" :style="{ background: COLORS.datasource }" /> 数据源</span>
-      <span><i class="sq" :style="{ background: COLORS.task }" /> 任务</span>
-      <span><i class="sq" :style="{ background: COLORS.model }" /> 数据模型</span>
-      <span><i class="sq" :style="{ background: COLORS.metric }" /> 指标</span>
+      <span><i class="sq" :style="{ background: COLORS.datasource }" /> {{ $t('数据源') }}</span>
+      <span><i class="sq" :style="{ background: COLORS.task }" /> {{ $t('任务') }}</span>
+      <span><i class="sq" :style="{ background: COLORS.model }" /> {{ $t('数据模型') }}</span>
+      <span><i class="sq" :style="{ background: COLORS.metric }" /> {{ $t('指标') }}</span>
     </div>
   </div>
 </template>

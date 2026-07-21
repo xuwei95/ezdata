@@ -9,40 +9,40 @@
   >
   <div class="dash-editor">
     <div class="de-head">
-      <el-input v-model="dash.name" placeholder="看板名称" style="width: 220px" />
+      <el-input v-model="dash.name" :placeholder="$t('看板名称')" style="width: 220px" />
       <el-tag size="small" type="info">{{ dash.dashType === 'screen' ? '大屏' : '多图看板' }}</el-tag>
-      <el-select v-model="dash.refreshInterval" size="small" style="width: 116px" placeholder="自动刷新">
-        <el-option :value="0" label="不自动刷新" />
-        <el-option :value="10" label="每 10 秒" />
-        <el-option :value="30" label="每 30 秒" />
-        <el-option :value="60" label="每 1 分钟" />
+      <el-select v-model="dash.refreshInterval" size="small" style="width: 116px" :placeholder="$t('自动刷新')">
+        <el-option :value="0" :label="$t('不自动刷新')" />
+        <el-option :value="10" :label="$t('每 10 秒')" />
+        <el-option :value="30" :label="$t('每 30 秒')" />
+        <el-option :value="60" :label="$t('每 1 分钟')" />
       </el-select>
-      <el-button type="primary" icon="Check" :disabled="!dash.name" :loading="saving" @click="save">保存</el-button>
-      <span class="tip">拖/点左侧加入画布 → 双击组件(或点⚙)配数据 → 拖动/缩放排版 → 保存</span>
+      <el-button type="primary" icon="Check" :disabled="!dash.name" :loading="saving" @click="save">{{ $t('保存') }}</el-button>
+      <span class="tip">{{ $t('拖/点左侧加入画布 → 双击组件(或点⚙)配数据 → 拖动/缩放排版 → 保存') }}</span>
     </div>
 
     <div class="de-body">
       <!-- 左:组件区 -->
       <div class="de-left">
         <el-tabs v-model="leftTab" class="de-tabs">
-          <el-tab-pane label="新建图表" name="new">
+          <el-tab-pane :label="$t('新建图表')" name="new">
             <div class="de-types">
               <div v-for="t in CHART_TYPES" :key="t.v" class="de-type" draggable="true"
                 @click="addChart(t)" @dragstart="onDragStart({ kind: 'chart', t })" @dragend="dragItem = null">
                 <el-icon><Histogram /></el-icon><span>{{ t.l }}</span>
               </div>
             </div>
-            <el-divider content-position="left">其它</el-divider>
-            <el-button size="small" icon="Document" @click="addText">添加文本</el-button>
+            <el-divider content-position="left">{{ $t('其它') }}</el-divider>
+            <el-button size="small" icon="Document" @click="addText">{{ $t('添加文本') }}</el-button>
           </el-tab-pane>
-          <el-tab-pane label="引用看板" name="ref">
-            <el-input v-model="boardKw" size="small" clearable placeholder="搜索单图看板" prefix-icon="Search" style="margin-bottom: 6px" />
+          <el-tab-pane :label="$t('引用看板')" name="ref">
+            <el-input v-model="boardKw" size="small" clearable :placeholder="$t('搜索单图看板')" prefix-icon="Search" style="margin-bottom: 6px" />
             <div class="de-board-list">
               <div v-for="b in filteredBoards" :key="b.id" class="de-board" draggable="true"
                 @click="addRef(b)" @dragstart="onDragStart({ kind: 'ref', b })" @dragend="dragItem = null">
                 <el-icon><PieChart /></el-icon><span class="nm">{{ b.name }}</span><el-icon class="add"><Plus /></el-icon>
               </div>
-              <el-empty v-if="!filteredBoards.length" description="暂无单图看板" :image-size="48" />
+              <el-empty v-if="!filteredBoards.length" :description="$t('暂无单图看板')" :image-size="48" />
             </div>
           </el-tab-pane>
         </el-tabs>
@@ -62,7 +62,7 @@
           @edit-comp="onEdit"
           @remove-comp="removeComp"
         />
-        <el-empty v-else description="从左侧拖入 / 点击图表类型加入画布" />
+        <el-empty v-else :description="$t('从左侧拖入 / 点击图表类型加入画布')" />
       </div>
     </div>
 
@@ -70,16 +70,16 @@
     <el-drawer v-model="cfgDrawer" :title="drawerTitle" size="760px" :with-header="true" append-to-body>
       <!-- 布局/大小(所有组件通用) -->
       <div v-if="selectedComp && selectedComp.pos" class="de-layout">
-        <span class="de-layout-lb">布局</span>
+        <span class="de-layout-lb">{{ $t('布局') }}</span>
         <template v-if="isFree">
           <span class="de-lb">X</span><el-input-number v-model="selectedComp.pos.x" :min="0" :step="10" size="small" controls-position="right" style="width: 96px" @change="pokeComponents" />
           <span class="de-lb">Y</span><el-input-number v-model="selectedComp.pos.y" :min="0" :step="10" size="small" controls-position="right" style="width: 96px" @change="pokeComponents" />
-          <span class="de-lb">宽</span><el-input-number v-model="selectedComp.pos.w" :min="80" :step="10" size="small" controls-position="right" style="width: 96px" @change="pokeComponents" />
-          <span class="de-lb">高</span><el-input-number v-model="selectedComp.pos.h" :min="60" :step="10" size="small" controls-position="right" style="width: 96px" @change="pokeComponents" />
+          <span class="de-lb">{{ $t('宽') }}</span><el-input-number v-model="selectedComp.pos.w" :min="80" :step="10" size="small" controls-position="right" style="width: 96px" @change="pokeComponents" />
+          <span class="de-lb">{{ $t('高') }}</span><el-input-number v-model="selectedComp.pos.h" :min="60" :step="10" size="small" controls-position="right" style="width: 96px" @change="pokeComponents" />
         </template>
         <template v-else>
-          <span class="de-lb">宽(列)</span><el-input-number v-model="selectedComp.pos.w" :min="1" :max="dash.canvas.cols || 24" size="small" controls-position="right" style="width: 96px" @change="pokeComponents" />
-          <span class="de-lb">高(行)</span><el-input-number v-model="selectedComp.pos.h" :min="1" size="small" controls-position="right" style="width: 96px" @change="pokeComponents" />
+          <span class="de-lb">{{ $t('宽(列)') }}</span><el-input-number v-model="selectedComp.pos.w" :min="1" :max="dash.canvas.cols || 24" size="small" controls-position="right" style="width: 96px" @change="pokeComponents" />
+          <span class="de-lb">{{ $t('高(行)') }}</span><el-input-number v-model="selectedComp.pos.h" :min="1" size="small" controls-position="right" style="width: 96px" @change="pokeComponents" />
         </template>
       </div>
 
@@ -95,12 +95,12 @@
         该组件引用了单图看板「{{ (selectedComp.props && selectedComp.props.title) || '' }}」,请到「单图看板」里修改;或删除后改用「新建图表」内嵌配置。
       </div>
       <div v-else-if="selectedComp && selectedComp.type === 'text'">
-        <el-input v-model="selectedComp.props.text" type="textarea" :rows="4" placeholder="文本内容" @input="pokeComponents" />
+        <el-input v-model="selectedComp.props.text" type="textarea" :rows="4" :placeholder="$t('文本内容')" @input="pokeComponents" />
       </div>
 
       <template #footer>
-        <el-button type="danger" plain icon="Delete" @click="removeComp(selectedId)">删除组件</el-button>
-        <el-button type="primary" @click="cfgDrawer = false">完成</el-button>
+        <el-button type="danger" plain icon="Delete" @click="removeComp(selectedId)">{{ $t('删除组件') }}</el-button>
+        <el-button type="primary" @click="cfgDrawer = false">{{ $t('完成') }}</el-button>
       </template>
     </el-drawer>
   </div>

@@ -2,38 +2,38 @@
   <div class="query-tab">
     <div class="native-bar">
       <div class="bar">
-        <span class="muted">原生查询(SQL 字符串 / ES DSL JSON)</span>
-        <el-button size="small" icon="MagicStick" @click="aiq.open = !aiq.open">AI 生成查询</el-button>
+        <span class="muted">{{ $t('原生查询(SQL 字符串 / ES DSL JSON)') }}</span>
+        <el-button size="small" icon="MagicStick" @click="aiq.open = !aiq.open">{{ $t('AI 生成查询') }}</el-button>
       </div>
       <el-input v-model="native" type="textarea" :rows="6" :autosize="{ minRows: 6, maxRows: 14 }"
-        placeholder="例如:SELECT * FROM xxx WHERE ...;或点「AI 生成查询」用自然语言生成" />
+        :placeholder="$t('例如:SELECT * FROM xxx WHERE ...;或点「AI 生成查询」用自然语言生成')" />
 
       <!-- AI 辅助生成:流式打印 → 确认采用到查询框 -->
       <div v-if="aiq.open" class="ai-panel">
         <el-input v-model="aiq.question" type="textarea" :rows="2"
-          placeholder="用自然语言描述你想查什么,例如:最近一周金额最高的 10 笔订单" @keyup.enter.stop="genQuery" />
+          :placeholder="$t('用自然语言描述你想查什么,例如:最近一周金额最高的 10 笔订单')" @keyup.enter.stop="genQuery" />
         <div class="bar" style="margin-top: 6px">
           <el-button size="small" type="primary" icon="MagicStick" :loading="aiq.loading" @click="genQuery">
             {{ aiq.output ? '重新生成' : '生成' }}</el-button>
-          <span class="muted">生成结果见下方,确认后采用到查询框</span>
+          <span class="muted">{{ $t('生成结果见下方,确认后采用到查询框') }}</span>
         </div>
         <pre v-if="aiq.output" class="ai-out">{{ aiq.output }}<span v-if="aiq.loading" class="cursor">▋</span></pre>
         <div v-if="aiq.output && !aiq.loading" class="bar">
-          <el-button size="small" type="success" icon="Check" @click="applyQuery">采用到查询</el-button>
-          <el-button size="small" @click="aiq.output = ''">清空</el-button>
+          <el-button size="small" type="success" icon="Check" @click="applyQuery">{{ $t('采用到查询') }}</el-button>
+          <el-button size="small" @click="aiq.output = ''">{{ $t('清空') }}</el-button>
         </div>
       </div>
 
-      <el-button type="primary" icon="Search" :loading="loading" @click="runNative" style="margin-top: 8px">查询</el-button>
+      <el-button type="primary" icon="Search" :loading="loading" @click="runNative" style="margin-top: 8px">{{ $t('查询') }}</el-button>
     </div>
 
     <!-- 结果:数据表格 / 可视化 两个子页,数据源都是本次查询结果 -->
     <el-tabs v-model="subTab" class="result-tabs">
-      <el-tab-pane label="数据表格" name="grid">
+      <el-tab-pane :label="$t('数据表格')" name="grid">
         <div class="result-bar">
           <span class="count" v-if="rows.length">共 {{ rows.length }} 行(虚拟滚动,不分页)</span>
-          <span class="count" v-else>暂无数据</span>
-          <el-button size="small" icon="Download" :disabled="!rows.length" @click="exportExcel">导出 Excel</el-button>
+          <span class="count" v-else>{{ $t('暂无数据') }}</span>
+          <el-button size="small" icon="Download" :disabled="!rows.length" @click="exportExcel">{{ $t('导出 Excel') }}</el-button>
         </div>
         <div class="grid-wrap" ref="gridWrap">
           <vxe-table :data="rows" :height="gridH" border stripe show-overflow
@@ -45,38 +45,38 @@
         </div>
       </el-tab-pane>
 
-      <el-tab-pane label="可视化" name="viz">
+      <el-tab-pane :label="$t('可视化')" name="viz">
         <div class="viz-bar">
-          <el-select v-model="curTpl" size="small" placeholder="应用看板" clearable filterable style="width: 160px"
+          <el-select v-model="curTpl" size="small" :placeholder="$t('应用看板')" clearable filterable style="width: 160px"
             :disabled="!templates.length" @change="applyTemplate">
             <el-option v-for="t in templates" :key="t.id" :label="t.name" :value="t.id" />
           </el-select>
-          <el-button size="small" icon="Star" :disabled="!rows.length" @click="openSaveTpl">存为看板</el-button>
-          <el-button v-if="curTpl" size="small" icon="Delete" link type="danger" @click="delTpl">删</el-button>
-          <span class="muted">左侧「AI 生成图表」可一句话出图,或自选类型/字段;配置可「存为看板」。</span>
+          <el-button size="small" icon="Star" :disabled="!rows.length" @click="openSaveTpl">{{ $t('存为看板') }}</el-button>
+          <el-button v-if="curTpl" size="small" icon="Delete" link type="danger" @click="delTpl">{{ $t('删') }}</el-button>
+          <span class="muted">{{ $t('左侧「AI 生成图表」可一句话出图,或自选类型/字段;配置可「存为看板」。') }}</span>
         </div>
         <div ref="vizWrap" class="viz-wrap">
           <EchartsBuilder v-if="rows.length" :rows="rows" :config="vizCfg" :height="vizH"
             ai-enabled :ai-loading="aic.loading" @ai-generate="onAiChart" @update:config="(c) => (vizCfg = c)" />
-          <el-empty v-else description="先在上方执行查询,再切到本页可视化" />
+          <el-empty v-else :description="$t('先在上方执行查询,再切到本页可视化')" />
         </div>
       </el-tab-pane>
     </el-tabs>
 
     <!-- 存为看板 -->
-    <el-dialog v-model="tplDlg.visible" title="保存为看板" width="440px" append-to-body>
-      <el-form label-width="72px">
-        <el-form-item label="看板名称" required>
-          <el-input v-model="tplDlg.name" placeholder="如:各城市销售额柱状图" />
+    <el-dialog v-model="tplDlg.visible" :title="$t('保存为看板')" width="440px" append-to-body>
+      <el-form label-width="122px">
+        <el-form-item :label="$t('看板名称')" required>
+          <el-input v-model="tplDlg.name" :placeholder="$t('如:各城市销售额柱状图')" />
         </el-form-item>
-        <el-form-item label="说明">
+        <el-form-item :label="$t('说明')">
           <el-input v-model="tplDlg.remark" type="textarea" :rows="2" />
         </el-form-item>
-        <el-alert type="success" :closable="false" show-icon title="将保存:本次原生查询 + 当前图表配置(类型/字段/聚合/样式)" />
+        <el-alert type="success" :closable="false" show-icon :title="$t('将保存:本次原生查询 + 当前图表配置(类型/字段/聚合/样式)')" />
       </el-form>
       <template #footer>
-        <el-button type="primary" @click="doSaveTpl">保存</el-button>
-        <el-button @click="tplDlg.visible = false">取消</el-button>
+        <el-button type="primary" @click="doSaveTpl">{{ $t('保存') }}</el-button>
+        <el-button @click="tplDlg.visible = false">{{ $t('取消') }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -85,6 +85,7 @@
 <script setup name="DataQueryTab">
 import { ref, reactive, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { t as $t } from '@/lang'
 import * as XLSX from 'xlsx'
 import {
   queryModel, getSampleQuery, aiChart,
@@ -188,7 +189,7 @@ function fill(records) {
 
 // 执行原生查询(SQL 串或 ES DSL JSON,自动识别)
 async function runNative() {
-  if (!native.value.trim()) { ElMessage.warning('请输入查询语句'); return }
+  if (!native.value.trim()) { ElMessage.warning($t('请输入查询语句')); return }
   loading.value = true
   try {
     let n = native.value.trim()
@@ -196,9 +197,9 @@ async function runNative() {
     const res = await queryModel(props.model.id, { native: n })
     fill(res.data.records)
     if (subTab.value === 'viz') computeVizH()
-    ElMessage.success(`查询到 ${res.data.total} 行`)
+    ElMessage.success($t('查询到 {n} 行', { n: res.data.total }))
   } catch (e) {
-    ElMessage.error('查询失败')
+    ElMessage.error($t('查询失败'))
   } finally {
     loading.value = false
   }
@@ -207,14 +208,14 @@ async function runNative() {
 // AI 一句话生成图表配置:当前结果列 + 需求 → cfg,回填后 EchartsBuilder 自动应用
 async function onAiChart(question) {
   const cols = rows.value.length ? Object.keys(rows.value[0]) : []
-  if (!cols.length) { ElMessage.warning('先执行查询获取数据'); return }
+  if (!cols.length) { ElMessage.warning($t('先执行查询获取数据')); return }
   aic.loading = true
   try {
     const res = await aiChart(props.model.id, { question, columns: cols })
     vizCfg.value = res.data.cfg
-    ElMessage.success('已生成图表配置')
+    ElMessage.success($t('已生成图表配置'))
   } catch (e) {
-    ElMessage.error(e?.msg || e?.message || '生成失败')
+    ElMessage.error(e?.msg || e?.message || $t('生成失败'))
   } finally { aic.loading = false }
 }
 
@@ -225,7 +226,7 @@ async function loadTemplates() {
 }
 function openSaveTpl() { tplDlg.name = ''; tplDlg.remark = ''; tplDlg.visible = true }
 async function doSaveTpl() {
-  if (!tplDlg.name.trim()) { ElMessage.warning('请填写看板名称'); return }
+  if (!tplDlg.name.trim()) { ElMessage.warning($t('请填写看板名称')); return }
   await saveAnalysisTemplate({
     name: tplDlg.name.trim(),
     modelId: props.model.id,
@@ -234,7 +235,7 @@ async function doSaveTpl() {
     chartSpec: vizCfg.value || null,
     remark: tplDlg.remark
   })
-  ElMessage.success('已保存为看板')
+  ElMessage.success($t('已保存为看板'))
   tplDlg.visible = false
   loadTemplates()
 }
@@ -250,20 +251,20 @@ async function applyTemplate(tid) {
 }
 async function delTpl() {
   if (!curTpl.value) return
-  try { await ElMessageBox.confirm('删除该看板?', '提示', { type: 'warning' }) } catch (e) { return }
+  try { await ElMessageBox.confirm($t('删除该看板?'), $t('提示'), { type: 'warning' }) } catch (e) { return }
   await delAnalysisTemplate(curTpl.value)
-  ElMessage.success('已删除'); curTpl.value = ''; loadTemplates()
+  ElMessage.success($t('已删除')); curTpl.value = ''; loadTemplates()
 }
 
 // AI 流式生成查询(辅助:打在下方,确认后采用到查询框)
 async function genQuery() {
-  if (!aiq.question.trim()) { ElMessage.warning('请描述你想查什么'); return }
+  if (!aiq.question.trim()) { ElMessage.warning($t('请描述你想查什么')); return }
   aiq.output = ''; aiq.loading = true
   try {
     await streamAi(`/data/model/${props.model.id}/ai-query/stream`, { question: aiq.question },
       (c) => { aiq.output += c })
   } catch (e) {
-    ElMessage.error('生成失败: ' + e.message)
+    ElMessage.error($t('生成失败') + ': ' + e.message)
   } finally {
     aiq.loading = false
   }
@@ -271,7 +272,7 @@ async function genQuery() {
 function applyQuery() {
   native.value = stripFence(aiq.output).replace(/;\s*$/, '')
   aiq.open = false
-  ElMessage.success('已采用到查询框,点「查询」执行')
+  ElMessage.success($t('已采用到查询框,点「查询」执行'))
 }
 </script>
 

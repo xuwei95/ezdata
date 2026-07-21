@@ -4,8 +4,7 @@
       {{ item.title }}
     </a>
     <a-button size="small" type="primary" ghost>
-      <PlusOutlined /> 添加
-    </a-button>
+      <PlusOutlined /> {{ $t('添加') }} </a-button>
   </div>
 </template>
 

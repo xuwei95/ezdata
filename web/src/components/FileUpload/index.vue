@@ -17,15 +17,11 @@
       v-if="!disabled"
     >
       <!-- 上传按钮 -->
-      <el-button type="primary">选取文件</el-button>
+      <el-button type="primary">{{ $t('选取文件') }}</el-button>
     </el-upload>
     <!-- 上传提示 -->
-    <div class="el-upload__tip" v-if="showTip && !disabled">
-      请上传
-      <template v-if="fileSize"> 大小不超过 <b style="color: #f56c6c">{{ fileSize }}MB</b> </template>
-      <template v-if="fileType"> 格式为 <b style="color: #f56c6c">{{ fileType.join("/") }}</b> </template>
-      的文件
-    </div>
+    <div class="el-upload__tip" v-if="showTip && !disabled"> {{ $t('请上传') }} <template v-if="fileSize"> {{ $t('大小不超过') }} <b style="color: #f56c6c">{{ fileSize }}MB</b> </template>
+      <template v-if="fileType"> {{ $t('格式为') }} <b style="color: #f56c6c">{{ fileType.join("/") }}</b> </template> {{ $t('的文件') }} </div>
     <!-- 文件列表 -->
     <transition-group ref="uploadFileList" class="upload-file-list el-upload-list el-upload-list--text" name="el-fade-in-linear" tag="ul">
       <li :key="file.uid" class="el-upload-list__item ele-upload-list__item-content" v-for="(file, index) in fileList">
@@ -33,7 +29,7 @@
           <span class="el-icon-document"> {{ getFileName(file.name) }} </span>
         </el-link>
         <div class="ele-upload-list__item-content-action">
-          <el-link :underline="false" @click="handleDelete(index)" type="danger" v-if="!disabled">删除</el-link>
+          <el-link :underline="false" @click="handleDelete(index)" type="danger" v-if="!disabled">{{ $t('删除') }}</el-link>
         </div>
       </li>
     </transition-group>

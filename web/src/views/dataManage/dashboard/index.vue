@@ -2,63 +2,63 @@
   <div class="app-container dash-mgr">
     <div class="bar">
       <el-radio-group v-model="typeFilter">
-        <el-radio-button label="">全部</el-radio-button>
-        <el-radio-button label="chart">单图</el-radio-button>
-        <el-radio-button label="board">多图</el-radio-button>
-        <el-radio-button label="screen">大屏</el-radio-button>
+        <el-radio-button label="">{{ $t('全部') }}</el-radio-button>
+        <el-radio-button label="chart">{{ $t('单图') }}</el-radio-button>
+        <el-radio-button label="board">{{ $t('多图') }}</el-radio-button>
+        <el-radio-button label="screen">{{ $t('大屏') }}</el-radio-button>
       </el-radio-group>
-      <el-input v-model="kw" placeholder="搜索看板名称" clearable prefix-icon="Search" class="kw" style="width: 220px" />
+      <el-input v-model="kw" :placeholder="$t('搜索看板名称')" clearable prefix-icon="Search" class="kw" style="width: 220px" />
       <el-dropdown class="new-btn" @command="onNew">
-        <el-button type="primary" icon="Plus">新建<el-icon class="el-icon--right"><ArrowDown /></el-icon></el-button>
+        <el-button type="primary" icon="Plus">{{ $t('新建') }}<el-icon class="el-icon--right"><ArrowDown /></el-icon></el-button>
         <template #dropdown>
           <el-dropdown-menu>
-            <el-dropdown-item command="chart">单图看板</el-dropdown-item>
-            <el-dropdown-item command="board">多图看板</el-dropdown-item>
-            <el-dropdown-item command="screen">数据大屏</el-dropdown-item>
+            <el-dropdown-item command="chart">{{ $t('单图看板') }}</el-dropdown-item>
+            <el-dropdown-item command="board">{{ $t('多图看板') }}</el-dropdown-item>
+            <el-dropdown-item command="screen">{{ $t('数据大屏') }}</el-dropdown-item>
           </el-dropdown-menu>
         </template>
       </el-dropdown>
-      <el-button icon="Refresh" @click="loadList">刷新</el-button>
+      <el-button icon="Refresh" @click="loadList">{{ $t('刷新') }}</el-button>
     </div>
 
     <el-table :data="filteredList" border v-loading="loading">
       <el-table-column type="index" label="#" width="55" />
-      <el-table-column label="名称" prop="name" min-width="200" show-overflow-tooltip />
-      <el-table-column label="类型" width="90">
+      <el-table-column :label="$t('名称')" prop="name" min-width="200" show-overflow-tooltip />
+      <el-table-column :label="$t('类型')" width="90">
         <template #default="s"><el-tag size="small" :type="TAG[s.row.dashType] || 'info'">{{ TYPE_LABEL[s.row.dashType] || '单图' }}</el-tag></template>
       </el-table-column>
-      <el-table-column label="更新时间" prop="updateTime" width="170" />
-      <el-table-column label="操作" width="320" fixed="right">
+      <el-table-column :label="$t('更新时间')" prop="updateTime" width="170" />
+      <el-table-column :label="$t('操作')" width="320" fixed="right">
         <template #default="s">
-          <el-button link type="primary" icon="View" @click="toView(s.row)">预览</el-button>
-          <el-button link type="primary" icon="Edit" @click="toEditor(s.row)">编辑</el-button>
+          <el-button link type="primary" icon="View" @click="toView(s.row)">{{ $t('预览') }}</el-button>
+          <el-button link type="primary" icon="Edit" @click="toEditor(s.row)">{{ $t('编辑') }}</el-button>
           <el-button link :type="s.row.shareToken ? 'success' : 'primary'" icon="Share" @click="openShare(s.row)">
             {{ s.row.shareToken ? '已分享' : '分享' }}</el-button>
-          <el-button link type="danger" icon="Delete" @click="del(s.row)">删除</el-button>
+          <el-button link type="danger" icon="Delete" @click="del(s.row)">{{ $t('删除') }}</el-button>
         </template>
       </el-table-column>
-      <template #empty>暂无看板,点「新建」创建</template>
+      <template #empty>{{ $t('暂无看板,点「新建」创建') }}</template>
     </el-table>
 
-    <el-dialog v-model="sh.visible" title="分享看板" width="620px" append-to-body>
+    <el-dialog v-model="sh.visible" :title="$t('分享看板')" width="620px" append-to-body>
       <div v-if="!sh.token" class="sh-empty">
-        <el-empty description="尚未开启分享" :image-size="60" />
+        <el-empty :description="$t('尚未开启分享')" :image-size="60" />
         <div class="sh-enable">
-          <el-button type="primary" :loading="sh.loading" @click="enableShare">开启匿名分享</el-button>
-          <div class="tip">开启后任何人凭链接免登录查看,可随时关闭。</div>
+          <el-button type="primary" :loading="sh.loading" @click="enableShare">{{ $t('开启匿名分享') }}</el-button>
+          <div class="tip">{{ $t('开启后任何人凭链接免登录查看,可随时关闭。') }}</div>
         </div>
       </div>
       <div v-else>
-        <el-form label-width="76px">
-          <el-form-item label="公开链接">
+        <el-form label-width="126px">
+          <el-form-item :label="$t('公开链接')">
             <el-input v-model="shareUrl" readonly><template #append><el-button icon="CopyDocument" @click="copyText(shareUrl)" /></template></el-input>
           </el-form-item>
-          <el-form-item label="嵌入代码"><el-input v-model="embedCode" type="textarea" :rows="2" readonly /></el-form-item>
+          <el-form-item :label="$t('嵌入代码')"><el-input v-model="embedCode" type="textarea" :rows="2" readonly /></el-form-item>
         </el-form>
         <div class="sh-actions">
-          <el-button size="small" icon="CopyDocument" @click="copyText(embedCode)">复制嵌入代码</el-button>
-          <el-button size="small" :loading="sh.loading" @click="enableShare">重置链接</el-button>
-          <el-button size="small" type="danger" :loading="sh.loading" @click="disableShare">关闭分享</el-button>
+          <el-button size="small" icon="CopyDocument" @click="copyText(embedCode)">{{ $t('复制嵌入代码') }}</el-button>
+          <el-button size="small" :loading="sh.loading" @click="enableShare">{{ $t('重置链接') }}</el-button>
+          <el-button size="small" type="danger" :loading="sh.loading" @click="disableShare">{{ $t('关闭分享') }}</el-button>
         </div>
       </div>
     </el-dialog>

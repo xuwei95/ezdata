@@ -1,6 +1,6 @@
 <template>
    <div>
-      <div>我是数据监控</div>
+      <div>{{ $t('我是数据监控') }}</div>
       <!-- <i-frame v-model:src="url"></i-frame> -->
    </div>
 </template>

@@ -4,7 +4,7 @@
       <!-- 左侧:会话列表(可伸缩,收起时整列移除不留残块) -->
       <el-aside v-show="!sidebarCollapsed" width="240px" class="ac-sidebar">
         <div class="ac-side-head">
-          <el-button type="primary" class="ac-new" icon="Plus" @click="newChat">新建会话</el-button>
+          <el-button type="primary" class="ac-new" icon="Plus" @click="newChat">{{ $t('新建会话') }}</el-button>
         </div>
         <div class="ac-sessions" v-loading="sessionLoading">
           <div
@@ -20,7 +20,7 @@
             </div>
             <el-button class="ac-s-del" type="danger" link icon="Delete" @click.stop="handleDeleteSession(s.sessionId)" />
           </div>
-          <div v-if="!sessionList.length && !sessionLoading" class="ac-s-empty">暂无历史会话</div>
+          <div v-if="!sessionList.length && !sessionLoading" class="ac-s-empty">{{ $t('暂无历史会话') }}</div>
         </div>
       </el-aside>
 
@@ -31,13 +31,13 @@
             <el-tooltip :content="sidebarCollapsed ? '展开会话列表' : '收起会话列表'" placement="bottom">
               <el-button class="ac-toggle" :icon="sidebarCollapsed ? 'Expand' : 'Fold'" text @click="sidebarCollapsed = !sidebarCollapsed" />
             </el-tooltip>
-            <el-button link icon="ArrowLeft" @click="goBack">应用广场</el-button>
+            <el-button link icon="ArrowLeft" @click="goBack">{{ $t('应用广场') }}</el-button>
             <div class="ac-title">
               <el-icon><Cpu /></el-icon>
               <span>{{ app.name || "应用对话" }}</span>
             </div>
           </div>
-          <el-button link icon="Plus" @click="newChat">新对话</el-button>
+          <el-button link icon="Plus" @click="newChat">{{ $t('新对话') }}</el-button>
         </div>
 
         <div ref="historyRef" class="ac-history">
@@ -73,10 +73,10 @@
               v-model="input"
               type="textarea"
               :autosize="{ minRows: 1, maxRows: 5 }"
-              placeholder="输入消息,Enter 发送 / Shift+Enter 换行"
+              :placeholder="$t('输入消息,Enter 发送 / Shift+Enter 换行')"
               @keydown.enter.exact.prevent="sendMessage()"
             />
-            <el-button type="primary" :loading="loading" icon="Promotion" @click="sendMessage()">发送</el-button>
+            <el-button type="primary" :loading="loading" icon="Promotion" @click="sendMessage()">{{ $t('发送') }}</el-button>
           </div>
         </div>
       </el-main>

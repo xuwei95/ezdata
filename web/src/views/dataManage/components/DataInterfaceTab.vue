@@ -4,11 +4,11 @@
     <el-card shadow="never" class="sec api-addr">
       <template #header>
         <div class="addr-head">
-          <span>数据接口地址</span>
+          <span>{{ $t('数据接口地址') }}</span>
           <div class="addr-actions">
-            <el-button size="small" icon="DocumentCopy" @click="copyQueryString">复制查询串</el-button>
-            <el-button size="small" icon="CopyDocument" @click="copyText(fullUrl)">复制完整URL</el-button>
-            <el-button size="small" type="primary" icon="Key" @click="openTokenDlg">管理 apikey</el-button>
+            <el-button size="small" icon="DocumentCopy" @click="copyQueryString">{{ $t('复制查询串') }}</el-button>
+            <el-button size="small" icon="CopyDocument" @click="copyText(fullUrl)">{{ $t('复制完整URL') }}</el-button>
+            <el-button size="small" type="primary" icon="Key" @click="openTokenDlg">{{ $t('管理 apikey') }}</el-button>
           </div>
         </div>
       </template>
@@ -16,17 +16,14 @@
         <span class="method">GET</span>
         <code class="url">{{ fullUrl }}</code>
       </div>
-      <div class="hint">
-        公开访问需带 <code>apikey</code> 参数(在「管理 apikey」中生成),将 <code>YOUR_APIKEY</code> 替换为真实 key;
-        下方筛选条件会实时拼进地址。
-      </div>
+      <div class="hint"> {{ $t('公开访问需带') }} <code>apikey</code> {{ $t('参数(在「管理 apikey」中生成),将') }} <code>YOUR_APIKEY</code> {{ $t('替换为真实 key; 下方筛选条件会实时拼进地址。') }} </div>
     </el-card>
 
     <!-- 条件筛选(平台内预览) -->
     <el-card shadow="never" class="sec">
-      <template #header><span>条件筛选(平台内预览)</span></template>
+      <template #header><span>{{ $t('条件筛选(平台内预览)') }}</span></template>
       <FilterBuilder v-model="filters" :fields="fields" :operators="operators" />
-      <el-button size="small" type="primary" icon="Search" :loading="loading" @click="preview">预览</el-button>
+      <el-button size="small" type="primary" icon="Search" :loading="loading" @click="preview">{{ $t('预览') }}</el-button>
     </el-card>
 
     <!-- 预览结果(分页):vxe-table 虚拟滚动 + 高度占满底部 -->
@@ -42,26 +39,26 @@
     </div>
 
     <!-- apikey 管理弹窗 -->
-    <el-dialog v-model="tokenDlg" title="apikey 管理" width="700px" append-to-body>
+    <el-dialog v-model="tokenDlg" :title="$t('apikey 管理')" width="700px" append-to-body>
       <div style="margin-bottom: 10px">
-        <el-button type="primary" size="small" icon="Plus" @click="createToken">生成 apikey</el-button>
-        <span class="hint" style="margin-left: 10px">apikey 绑定当前模型 <code>{{ model.code }}</code>,仅可访问该数据接口。</span>
+        <el-button type="primary" size="small" icon="Plus" @click="createToken">{{ $t('生成 apikey') }}</el-button>
+        <span class="hint" style="margin-left: 10px">{{ $t('apikey 绑定当前模型') }} <code>{{ model.code }}</code>{{ $t(',仅可访问该数据接口。') }}</span>
       </div>
       <el-table :data="tokens" border size="small" v-loading="tokenLoading">
-        <el-table-column label="名称" prop="name" width="150" show-overflow-tooltip />
+        <el-table-column :label="$t('名称')" prop="name" width="150" show-overflow-tooltip />
         <el-table-column label="apikey">
           <template #default="s">
             <el-text class="key" truncated>{{ s.row.token }}</el-text>
             <el-button link icon="CopyDocument" @click="copyText(s.row.token)" />
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="170">
+        <el-table-column :label="$t('操作')" width="170">
           <template #default="s">
-            <el-button link type="primary" @click="copyText(urlOf(s.row.token))">复制完整URL</el-button>
-            <el-button link type="danger" @click="removeToken(s.row.id)">删除</el-button>
+            <el-button link type="primary" @click="copyText(urlOf(s.row.token))">{{ $t('复制完整URL') }}</el-button>
+            <el-button link type="danger" @click="removeToken(s.row.id)">{{ $t('删除') }}</el-button>
           </template>
         </el-table-column>
-        <template #empty>暂无 apikey,点击「生成 apikey」创建</template>
+        <template #empty>{{ $t('暂无 apikey,点击「生成 apikey」创建') }}</template>
       </el-table>
     </el-dialog>
   </div>
@@ -70,6 +67,7 @@
 <script setup name="DataInterfaceTab">
 import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { t as $t } from '@/lang'
 import { getOperators, searchModel } from '@/api/dataManage/data'
 import { listToken, addToken, delToken } from '@/api/apitoken/token'
 import FilterBuilder from './FilterBuilder.vue'
@@ -173,7 +171,7 @@ async function preview() {
   }
 }
 
-function copyText(t) { navigator.clipboard.writeText(t); ElMessage.success('已复制') }
+function copyText(t) { navigator.clipboard.writeText(t); ElMessage.success($t('已复制')) }
 
 function copyQueryString() {
   const s = qs()
@@ -181,16 +179,16 @@ function copyQueryString() {
 }
 
 async function createToken() {
-  const { value: name } = await ElMessageBox.prompt('apikey 名称', '生成 apikey', { inputValue: props.model.name + ' 接口' })
+  const { value: name } = await ElMessageBox.prompt($t('apikey 名称'), $t('生成 apikey'), { inputValue: props.model.name + ' ' + $t('接口') })
   await addToken({ name, tokenType: 'data_api', refId: props.model.code })
-  ElMessage.success('已生成')
+  ElMessage.success($t('已生成'))
   loadTokens()
 }
 
 async function removeToken(id) {
-  await ElMessageBox.confirm('删除该 apikey?', '提示', { type: 'warning' })
+  await ElMessageBox.confirm($t('删除该 apikey?'), $t('提示'), { type: 'warning' })
   await delToken(id)
-  ElMessage.success('已删除')
+  ElMessage.success($t('已删除'))
   loadTokens()
 }
 </script>

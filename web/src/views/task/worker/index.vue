@@ -3,43 +3,43 @@
     <el-card shadow="never">
       <template #header>
         <div style="display: flex; align-items: center; justify-content: space-between">
-          <span>Worker 列表</span>
+          <span>{{ $t('Worker 列表') }}</span>
           <div>
-            <el-switch v-model="autoRefresh" active-text="自动刷新" inline-prompt style="margin-right: 12px" @change="toggleAuto" />
-            <el-button type="primary" icon="Refresh" :loading="loading" @click="getList">刷新</el-button>
+            <el-switch v-model="autoRefresh" :active-text="$t('自动刷新')" inline-prompt style="margin-right: 12px" @change="toggleAuto" />
+            <el-button type="primary" icon="Refresh" :loading="loading" @click="getList">{{ $t('刷新') }}</el-button>
           </div>
         </div>
       </template>
 
       <el-table v-loading="loading" :data="workerList" border>
         <el-table-column label="Worker" prop="name" min-width="200" show-overflow-tooltip />
-        <el-table-column label="状态" width="90" align="center">
+        <el-table-column :label="$t('状态')" width="90" align="center">
           <template #default="scope">
             <el-tag :type="scope.row.status === 'online' ? 'success' : 'info'">
               {{ scope.row.status === 'online' ? '在线' : '离线' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="并发" prop="maxConcurrency" width="80" align="center" />
-        <el-table-column label="进程" width="110" align="center">
+        <el-table-column :label="$t('并发')" prop="maxConcurrency" width="80" align="center" />
+        <el-table-column :label="$t('进程')" width="110" align="center">
           <template #default="scope">{{ Array.isArray(scope.row.processes) ? scope.row.processes.length : '-' }}</template>
         </el-table-column>
-        <el-table-column label="运行中" width="90" align="center">
+        <el-table-column :label="$t('运行中')" width="90" align="center">
           <template #default="scope">
             <el-link type="primary" :underline="false" @click="openTasks(scope.row)">{{ scope.row.activeCount }}</el-link>
           </template>
         </el-table-column>
-        <el-table-column label="消费队列" min-width="200">
+        <el-table-column :label="$t('消费队列')" min-width="200">
           <template #default="scope">
             <el-tag v-for="q in scope.row.queues" :key="q" class="qtag" type="warning" effect="plain">{{ q }}</el-tag>
             <span v-if="!scope.row.queues || !scope.row.queues.length" class="text-muted">-</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="320" align="center">
+        <el-table-column :label="$t('操作')" width="320" align="center">
           <template #default="scope">
-            <el-button link type="primary" icon="Operation" @click="openQueue(scope.row)" v-hasPermi="['task:worker:consumer']">队列管理</el-button>
-            <el-button link type="primary" icon="ScaleToOriginal" @click="openScale(scope.row)" v-hasPermi="['task:worker:scale']">并发伸缩</el-button>
-            <el-button link type="primary" icon="List" @click="openTasks(scope.row)">运行任务</el-button>
+            <el-button link type="primary" icon="Operation" @click="openQueue(scope.row)" v-hasPermi="['task:worker:consumer']">{{ $t('队列管理') }}</el-button>
+            <el-button link type="primary" icon="ScaleToOriginal" @click="openScale(scope.row)" v-hasPermi="['task:worker:scale']">{{ $t('并发伸缩') }}</el-button>
+            <el-button link type="primary" icon="List" @click="openTasks(scope.row)">{{ $t('运行任务') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -49,29 +49,29 @@
     <el-dialog v-model="queueOpen" :title="'队列管理 - ' + current.name" width="520px" append-to-body>
       <div style="margin-bottom: 12px">
         <el-tag v-for="q in current.queues" :key="q" closable class="qtag" type="warning" @close="doCancelConsumer(q)">{{ q }}</el-tag>
-        <span v-if="!current.queues || !current.queues.length" class="text-muted">当前无消费队列</span>
+        <span v-if="!current.queues || !current.queues.length" class="text-muted">{{ $t('当前无消费队列') }}</span>
       </div>
-      <el-input v-model="newQueue" placeholder="输入要订阅的队列名" style="width: 320px; margin-right: 8px" />
-      <el-button type="primary" :disabled="!newQueue" @click="doAddConsumer">添加订阅</el-button>
+      <el-input v-model="newQueue" :placeholder="$t('输入要订阅的队列名')" style="width: 320px; margin-right: 8px" />
+      <el-button type="primary" :disabled="!newQueue" @click="doAddConsumer">{{ $t('添加订阅') }}</el-button>
     </el-dialog>
 
     <!-- 并发伸缩 -->
     <el-dialog v-model="scaleOpen" :title="'并发伸缩 - ' + current.name" width="460px" append-to-body>
       <el-alert type="info" :closable="false" show-icon style="margin-bottom: 12px"
-        title="并发伸缩仅 prefork 池有效。固定并发(--concurrency 启动)用「增加/减少」；弹性并发(--autoscale 启动)用下方 autoscale 设置范围。两种模式互斥，按 worker 实际启动方式选择对应操作即可。" />
-      <el-form label-width="100px">
-        <el-form-item label="当前并发">{{ current.maxConcurrency }}</el-form-item>
-        <el-form-item label="增减步长">
+        :title="$t('并发伸缩仅 prefork 池有效。固定并发(--concurrency 启动)用「增加/减少」；弹性并发(--autoscale 启动)用下方 autoscale 设置范围。两种模式互斥，按 worker 实际启动方式选择对应操作即可。')" />
+      <el-form label-width="150px">
+        <el-form-item :label="$t('当前并发')">{{ current.maxConcurrency }}</el-form-item>
+        <el-form-item :label="$t('增减步长')">
           <el-input-number v-model="scaleN" :min="1" :max="50" controls-position="right" />
-          <el-button type="success" plain style="margin-left: 8px" @click="doGrow">增加</el-button>
-          <el-button type="warning" plain @click="doShrink">减少</el-button>
+          <el-button type="success" plain style="margin-left: 8px" @click="doGrow">{{ $t('增加') }}</el-button>
+          <el-button type="warning" plain @click="doShrink">{{ $t('减少') }}</el-button>
         </el-form-item>
-        <el-divider content-position="left">弹性并发(autoscale)</el-divider>
-        <el-form-item label="最小/最大">
+        <el-divider content-position="left">{{ $t('弹性并发(autoscale)') }}</el-divider>
+        <el-form-item :label="$t('最小/最大')">
           <el-input-number v-model="scaleMin" :min="0" :max="50" controls-position="right" />
           <span style="margin: 0 8px">~</span>
           <el-input-number v-model="scaleMax" :min="1" :max="50" controls-position="right" />
-          <el-button type="primary" plain style="margin-left: 8px" @click="doAutoscale">应用</el-button>
+          <el-button type="primary" plain style="margin-left: 8px" @click="doAutoscale">{{ $t('应用') }}</el-button>
         </el-form-item>
       </el-form>
     </el-dialog>
@@ -79,22 +79,22 @@
     <!-- 运行中任务 -->
     <el-drawer v-model="tasksOpen" :title="'运行中任务 - ' + current.name" size="60%" append-to-body>
       <div style="margin-bottom: 10px">
-        <el-button size="small" icon="Refresh" @click="getTasks">刷新</el-button>
+        <el-button size="small" icon="Refresh" @click="getTasks">{{ $t('刷新') }}</el-button>
       </div>
       <el-table v-loading="tasksLoading" :data="taskList" border size="small">
-        <el-table-column label="任务实例ID" prop="id" min-width="260" show-overflow-tooltip />
-        <el-table-column label="任务" prop="name" min-width="200" show-overflow-tooltip />
-        <el-table-column label="参数" prop="args" min-width="160" show-overflow-tooltip />
-        <el-table-column label="开始时间" width="170">
+        <el-table-column :label="$t('任务实例ID')" prop="id" min-width="260" show-overflow-tooltip />
+        <el-table-column :label="$t('任务')" prop="name" min-width="200" show-overflow-tooltip />
+        <el-table-column :label="$t('参数')" prop="args" min-width="160" show-overflow-tooltip />
+        <el-table-column :label="$t('开始时间')" width="170">
           <template #default="scope">{{ fmtTime(scope.row.timeStart) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="90" align="center">
+        <el-table-column :label="$t('操作')" width="90" align="center">
           <template #default="scope">
-            <el-button link type="warning" icon="VideoPause" @click="doRevoke(scope.row)" v-hasPermi="['task:instance:stop']">终止</el-button>
+            <el-button link type="warning" icon="VideoPause" @click="doRevoke(scope.row)" v-hasPermi="['task:instance:stop']">{{ $t('终止') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
-      <el-empty v-if="!tasksLoading && !taskList.length" description="该 Worker 当前无运行任务" />
+      <el-empty v-if="!tasksLoading && !taskList.length" :description="$t('该 Worker 当前无运行任务')" />
     </el-drawer>
   </div>
 </template>

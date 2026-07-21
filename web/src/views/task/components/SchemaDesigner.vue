@@ -1,48 +1,48 @@
 <template>
   <div class="schema-designer">
     <div class="designer-toolbar">
-      <el-button type="primary" size="small" icon="Plus" @click="addField">添加字段</el-button>
+      <el-button type="primary" size="small" icon="Plus" @click="addField">{{ $t('添加字段') }}</el-button>
       <el-button size="small" icon="View" @click="previewVisible = !previewVisible">
         {{ previewVisible ? '隐藏预览' : '实时预览' }}
       </el-button>
-      <span class="tip">可视化配置任务参数表单，任务创建时按此自动渲染</span>
+      <span class="tip">{{ $t('可视化配置任务参数表单，任务创建时按此自动渲染') }}</span>
     </div>
 
     <el-table :data="fields" size="small" border class="designer-table">
-      <el-table-column label="排序" width="70" align="center">
+      <el-table-column :label="$t('排序')" width="70" align="center">
         <template #default="scope">
           <el-button link icon="Top" :disabled="scope.$index === 0" @click="move(scope.$index, -1)" />
           <el-button link icon="Bottom" :disabled="scope.$index === fields.length - 1" @click="move(scope.$index, 1)" />
         </template>
       </el-table-column>
-      <el-table-column label="字段标识" width="150">
+      <el-table-column :label="$t('字段标识')" width="150">
         <template #default="scope">
-          <el-input v-model="scope.row.field" placeholder="如 code" size="small" @input="emitChange" />
+          <el-input v-model="scope.row.field" :placeholder="$t('如 code')" size="small" @input="emitChange" />
         </template>
       </el-table-column>
-      <el-table-column label="标签" width="150">
+      <el-table-column :label="$t('标签')" width="150">
         <template #default="scope">
-          <el-input v-model="scope.row.label" placeholder="如 Python代码" size="small" @input="emitChange" />
+          <el-input v-model="scope.row.label" :placeholder="$t('如 Python代码')" size="small" @input="emitChange" />
         </template>
       </el-table-column>
-      <el-table-column label="组件类型" width="140">
+      <el-table-column :label="$t('组件类型')" width="140">
         <template #default="scope">
           <el-select v-model="scope.row.component" size="small" @change="emitChange">
             <el-option v-for="c in componentTypes" :key="c.value" :label="c.label" :value="c.value" />
           </el-select>
         </template>
       </el-table-column>
-      <el-table-column label="必填" width="70" align="center">
+      <el-table-column :label="$t('必填')" width="70" align="center">
         <template #default="scope">
           <el-switch v-model="scope.row.required" @change="emitChange" />
         </template>
       </el-table-column>
-      <el-table-column label="占位/提示" min-width="160">
+      <el-table-column :label="$t('占位/提示')" min-width="160">
         <template #default="scope">
           <el-input v-model="scope.row.placeholder" placeholder="placeholder" size="small" @input="emitChange" />
         </template>
       </el-table-column>
-      <el-table-column label="选项" width="90" align="center">
+      <el-table-column :label="$t('选项')" width="90" align="center">
         <template #default="scope">
           <el-button
             v-if="['select', 'radio'].includes(scope.row.component)"
@@ -56,7 +56,7 @@
           <span v-else>-</span>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="70" align="center">
+      <el-table-column :label="$t('操作')" width="70" align="center">
         <template #default="scope">
           <el-button link type="danger" icon="Delete" @click="removeField(scope.$index)" />
         </template>
@@ -65,31 +65,31 @@
 
     <!-- 实时预览 -->
     <div v-if="previewVisible" class="preview-box">
-      <div class="preview-title">表单预览</div>
-      <el-form label-width="110px">
+      <div class="preview-title">{{ $t('表单预览') }}</div>
+      <el-form label-width="160px">
         <schema-renderer :schema="fields" v-model="previewModel" />
       </el-form>
     </div>
 
     <!-- 选项编辑 -->
-    <el-dialog v-model="optionsDialog" title="选项配置" width="520px" append-to-body>
+    <el-dialog v-model="optionsDialog" :title="$t('选项配置')" width="520px" append-to-body>
       <el-table :data="editingOptions" size="small" border>
-        <el-table-column label="选项标签">
+        <el-table-column :label="$t('选项标签')">
           <template #default="scope"><el-input v-model="scope.row.label" size="small" /></template>
         </el-table-column>
-        <el-table-column label="选项值">
+        <el-table-column :label="$t('选项值')">
           <template #default="scope"><el-input v-model="scope.row.value" size="small" /></template>
         </el-table-column>
-        <el-table-column label="操作" width="70" align="center">
+        <el-table-column :label="$t('操作')" width="70" align="center">
           <template #default="scope">
             <el-button link type="danger" icon="Delete" @click="editingOptions.splice(scope.$index, 1)" />
           </template>
         </el-table-column>
       </el-table>
-      <el-button size="small" icon="Plus" style="margin-top: 8px" @click="editingOptions.push({ label: '', value: '' })">添加选项</el-button>
+      <el-button size="small" icon="Plus" style="margin-top: 8px" @click="editingOptions.push({ label: '', value: '' })">{{ $t('添加选项') }}</el-button>
       <template #footer>
-        <el-button type="primary" @click="saveOptions">确 定</el-button>
-        <el-button @click="optionsDialog = false">取 消</el-button>
+        <el-button type="primary" @click="saveOptions">{{ $t('确 定') }}</el-button>
+        <el-button @click="optionsDialog = false">{{ $t('取 消') }}</el-button>
       </template>
     </el-dialog>
   </div>

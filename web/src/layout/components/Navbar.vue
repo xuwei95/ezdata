@@ -32,6 +32,10 @@
         <el-tooltip content="布局大小" effect="dark" placement="bottom">
           <size-select id="size-select" class="right-menu-item hover-effect" />
         </el-tooltip>
+
+        <el-tooltip :content="$t('切换语言')" effect="dark" placement="bottom">
+          <lang-select id="lang-select" class="right-menu-item hover-effect" />
+        </el-tooltip>
       </template>
 
       <el-dropdown
@@ -67,13 +71,13 @@
         <template #dropdown>
           <el-dropdown-menu>
             <router-link to="/user/profile">
-              <el-dropdown-item>个人中心</el-dropdown-item>
+              <el-dropdown-item>{{ $t('个人中心') }}</el-dropdown-item>
             </router-link>
             <el-dropdown-item command="setLayout" v-if="settingsStore.showSettings">
-                <span>布局设置</span>
+                <span>{{ $t('布局设置') }}</span>
               </el-dropdown-item>
             <el-dropdown-item divided command="logout">
-              <span>退出登录</span>
+              <span>{{ $t('退出登录') }}</span>
             </el-dropdown-item>
           </el-dropdown-menu>
         </template>
@@ -92,6 +96,7 @@ import Logo from './Sidebar/Logo'
 import Hamburger from '@/components/Hamburger'
 import Screenfull from '@/components/Screenfull'
 import SizeSelect from '@/components/SizeSelect'
+import LangSelect from '@/components/LangSelect'
 import HeaderSearch from '@/components/HeaderSearch'
 import RuoYiGit from '@/components/RuoYi/Git'
 import RuoYiDoc from '@/components/RuoYi/Doc'

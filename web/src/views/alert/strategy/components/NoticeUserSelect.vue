@@ -9,16 +9,16 @@
       @click="open"
     >
       <template #append>
-        <el-button icon="User" @click="open">选择</el-button>
+        <el-button icon="User" @click="open">{{ $t('选择') }}</el-button>
       </template>
     </el-input>
 
-    <el-dialog v-model="visible" title="选择通知用户" width="860px" append-to-body destroy-on-close>
+    <el-dialog v-model="visible" :title="$t('选择通知用户')" width="860px" append-to-body destroy-on-close>
       <div class="nus-body">
         <!-- 左：分组(部门/角色/岗位) -->
         <div class="nus-groups">
           <el-tabs v-model="activeTab" @tab-change="onTabChange">
-            <el-tab-pane label="部门" name="dept">
+            <el-tab-pane :label="$t('部门')" name="dept">
               <el-scrollbar height="380px">
                 <el-tree
                   :data="deptOptions"
@@ -31,7 +31,7 @@
                 />
               </el-scrollbar>
             </el-tab-pane>
-            <el-tab-pane label="角色" name="role">
+            <el-tab-pane :label="$t('角色')" name="role">
               <el-scrollbar height="380px">
                 <div
                   v-for="r in roleOptions"
@@ -42,7 +42,7 @@
                 >{{ r.roleName }}</div>
               </el-scrollbar>
             </el-tab-pane>
-            <el-tab-pane label="岗位" name="post">
+            <el-tab-pane :label="$t('岗位')" name="post">
               <el-scrollbar height="380px">
                 <div
                   v-for="p in postOptions"
@@ -61,15 +61,15 @@
           <div class="nus-toolbar">
             <el-input
               v-model="queryParams.userName"
-              placeholder="用户名/昵称"
+              :placeholder="$t('用户名/昵称')"
               size="small"
               clearable
               style="width: 180px"
               @keyup.enter="handleQuery"
             />
-            <el-button size="small" type="primary" icon="Search" @click="handleQuery">查询</el-button>
-            <el-button size="small" icon="Refresh" @click="resetFilter">全部用户</el-button>
-            <el-button size="small" type="success" plain icon="Plus" @click="selectAllCurrent">选择当前条件全部</el-button>
+            <el-button size="small" type="primary" icon="Search" @click="handleQuery">{{ $t('查询') }}</el-button>
+            <el-button size="small" icon="Refresh" @click="resetFilter">{{ $t('全部用户') }}</el-button>
+            <el-button size="small" type="success" plain icon="Plus" @click="selectAllCurrent">{{ $t('选择当前条件全部') }}</el-button>
           </div>
 
           <el-table v-loading="loading" :data="userList" height="300" size="small">
@@ -81,9 +81,9 @@
                 />
               </template>
             </el-table-column>
-            <el-table-column label="用户名" prop="userName" show-overflow-tooltip />
-            <el-table-column label="昵称" prop="nickName" show-overflow-tooltip />
-            <el-table-column label="部门" prop="dept.deptName" show-overflow-tooltip />
+            <el-table-column :label="$t('用户名')" prop="userName" show-overflow-tooltip />
+            <el-table-column :label="$t('昵称')" prop="nickName" show-overflow-tooltip />
+            <el-table-column :label="$t('部门')" prop="dept.deptName" show-overflow-tooltip />
           </el-table>
           <pagination
             v-show="total > 0"
@@ -104,13 +104,13 @@
               class="nus-tag"
               @close="remove(n)"
             >{{ n }}</el-tag>
-            <el-button v-if="selected.length" link type="danger" size="small" @click="selected = []">清空</el-button>
+            <el-button v-if="selected.length" link type="danger" size="small" @click="selected = []">{{ $t('清空') }}</el-button>
           </div>
         </div>
       </div>
       <template #footer>
-        <el-button @click="visible = false">取 消</el-button>
-        <el-button type="primary" @click="confirm">确 定</el-button>
+        <el-button @click="visible = false">{{ $t('取 消') }}</el-button>
+        <el-button type="primary" @click="confirm">{{ $t('确 定') }}</el-button>
       </template>
     </el-dialog>
   </div>

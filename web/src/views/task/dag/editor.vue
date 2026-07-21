@@ -4,7 +4,7 @@
     <div class="dag-editor">
       <!-- 左:模板面板 -->
       <div class="palette">
-        <div class="palette-title">任务组件(拖拽到画布)</div>
+        <div class="palette-title">{{ $t('任务组件(拖拽到画布)') }}</div>
         <div v-for="t in templates" :key="t.code" class="palette-item" draggable="true"
           @dragstart="onDragStart($event, t)">
           <el-icon><Operation /></el-icon><span>{{ t.name }}</span>
@@ -15,41 +15,41 @@
       <div class="canvas-wrap">
         <div class="toolbar">
           <el-button-group>
-            <el-button size="small" :disabled="!canUndo" icon="RefreshLeft" @click="graph.undo()">撤销</el-button>
-            <el-button size="small" :disabled="!canRedo" icon="RefreshRight" @click="graph.redo()">重做</el-button>
+            <el-button size="small" :disabled="!canUndo" icon="RefreshLeft" @click="graph.undo()">{{ $t('撤销') }}</el-button>
+            <el-button size="small" :disabled="!canRedo" icon="RefreshRight" @click="graph.redo()">{{ $t('重做') }}</el-button>
           </el-button-group>
-          <el-button size="small" icon="Delete" @click="removeSelected">删除选中</el-button>
-          <el-button size="small" icon="FullScreen" @click="fitView">适应屏幕</el-button>
+          <el-button size="small" icon="Delete" @click="removeSelected">{{ $t('删除选中') }}</el-button>
+          <el-button size="small" icon="FullScreen" @click="fitView">{{ $t('适应屏幕') }}</el-button>
           <el-divider direction="vertical" />
-          <el-button size="small" icon="DocumentAdd" @click="onSaveDraft">保存草稿</el-button>
-          <el-button size="small" type="warning" icon="Upload" @click="onPublish">发布</el-button>
+          <el-button size="small" icon="DocumentAdd" @click="onSaveDraft">{{ $t('保存草稿') }}</el-button>
+          <el-button size="small" type="warning" icon="Upload" @click="onPublish">{{ $t('发布') }}</el-button>
           <el-dropdown size="small" @command="onVersionCmd" style="margin: 0 8px">
-            <el-button size="small" icon="Clock">版本<el-icon class="el-icon--right"><ArrowDown /></el-icon></el-button>
+            <el-button size="small" icon="Clock">{{ $t('版本') }}<el-icon class="el-icon--right"><ArrowDown /></el-icon></el-button>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item v-if="!versions.length" disabled>暂无发布版本</el-dropdown-item>
+                <el-dropdown-item v-if="!versions.length" disabled>{{ $t('暂无发布版本') }}</el-dropdown-item>
                 <el-dropdown-item v-for="v in versions" :key="v.id" :command="v">
                   {{ v.version }} {{ v.current ? '(当前)' : '' }} {{ v.remark ? '· ' + v.remark : '' }}
                 </el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
-          <el-button size="small" icon="Histogram" @click="openHistory">运行历史</el-button>
-          <el-button size="small" icon="Setting" @click="openSettings">设置</el-button>
+          <el-button size="small" icon="Histogram" @click="openHistory">{{ $t('运行历史') }}</el-button>
+          <el-button size="small" icon="Setting" @click="openSettings">{{ $t('设置') }}</el-button>
           <el-divider direction="vertical" />
-          <el-button size="small" type="primary" icon="VideoPlay" :loading="running" @click="onRun">运行</el-button>
-          <el-button size="small" icon="Aim" :loading="running" @click="onDebug">试运行(草稿)</el-button>
+          <el-button size="small" type="primary" icon="VideoPlay" :loading="running" @click="onRun">{{ $t('运行') }}</el-button>
+          <el-button size="small" icon="Aim" :loading="running" @click="onDebug">{{ $t('试运行(草稿)') }}</el-button>
         </div>
 
         <!-- 监控横幅(醒目,替代隐蔽的退出按钮)-->
         <div v-if="viewRunId" class="monitor-bar" :class="{ fail: runStatus === 'FAILURE', ok: runStatus === 'SUCCESS' }">
           <el-icon><VideoCamera /></el-icon>
-          <span class="m-label">监控中</span>
+          <span class="m-label">{{ $t('监控中') }}</span>
           <el-tag size="small" :type="runTagType">{{ runStatus || '运行中' }}</el-tag>
           <el-progress :percentage="runProgress" :stroke-width="12"
             :status="runStatus === 'FAILURE' ? 'exception' : (runProgress >= 100 ? 'success' : '')" style="width: 200px" />
-          <span class="muted">点节点查看日志</span>
-          <el-button size="small" type="warning" icon="Close" round @click="exitMonitor" style="margin-left: auto">退出监控 / 返回编辑</el-button>
+          <span class="muted">{{ $t('点节点查看日志') }}</span>
+          <el-button size="small" type="warning" icon="Close" round @click="exitMonitor" style="margin-left: auto">{{ $t('退出监控 / 返回编辑') }}</el-button>
         </div>
 
         <div ref="canvasRef" class="canvas"></div>
@@ -59,121 +59,121 @@
 
     <!-- 右键菜单 -->
     <ul v-if="ctx.visible" class="ctx-menu" :style="{ left: ctx.x + 'px', top: ctx.y + 'px' }">
-      <li @click="ctxRunNode">▶ 运行该节点</li>
-      <li @click="ctxConfig">配置参数</li>
-      <li @click="ctxNodeHistory">执行历史</li>
-      <li class="danger" @click="ctxDelete">删除节点</li>
+      <li @click="ctxRunNode">{{ $t('▶ 运行该节点') }}</li>
+      <li @click="ctxConfig">{{ $t('配置参数') }}</li>
+      <li @click="ctxNodeHistory">{{ $t('执行历史') }}</li>
+      <li class="danger" @click="ctxDelete">{{ $t('删除节点') }}</li>
     </ul>
 
     <!-- 节点配置抽屉 -->
     <el-drawer v-model="nodeDrawer" :title="`节点配置 - ${curNode?.name || ''}`" size="640px" append-to-body>
-      <el-form label-width="80px">
-        <el-form-item label="节点名称"><el-input v-model="curNodeName" /></el-form-item>
-        <el-form-item label="失败策略">
+      <el-form label-width="130px">
+        <el-form-item :label="$t('节点名称')"><el-input v-model="curNodeName" /></el-form-item>
+        <el-form-item :label="$t('失败策略')">
           <el-radio-group v-model="curErrorPolicy">
-            <el-radio value="fail_fast">终止整个工作流</el-radio>
-            <el-radio value="continue">跳过(仅跳过其下游,其余继续)</el-radio>
+            <el-radio value="fail_fast">{{ $t('终止整个工作流') }}</el-radio>
+            <el-radio value="continue">{{ $t('跳过(仅跳过其下游,其余继续)') }}</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item label="失败重试">
+        <el-form-item :label="$t('失败重试')">
           <el-input-number v-model="curNodeRetry" :min="0" :max="10" size="small" />
-          <span style="margin: 0 6px; color: #909399">次,间隔</span>
-          <el-input-number v-model="curNodeCountdown" :min="0" size="small" /><span style="margin-left:6px;color:#909399">秒</span>
+          <span style="margin: 0 6px; color: #909399">{{ $t('次,间隔') }}</span>
+          <el-input-number v-model="curNodeCountdown" :min="0" size="small" /><span style="margin-left:6px;color:#909399">{{ $t('秒') }}</span>
         </el-form-item>
       </el-form>
-      <el-divider content-position="left">任务参数</el-divider>
+      <el-divider content-position="left">{{ $t('任务参数') }}</el-divider>
       <!-- 动态配置模板(type=2)按 schema 低代码渲染;内置组件模板(type=1)渲染其专属前端组件 -->
       <schema-renderer v-if="curTemplateType === 2" ref="paramsRendererRef" :schema="curSchema" v-model="curParams" />
       <component v-else-if="curComp" :is="curComp" ref="nodeFormRef" :task-params="curParams" :template-info="curTemplate" />
       <el-alert v-else type="info" :closable="false" show-icon
-        title="该模板为「内置组件」类型,但未找到对应前端组件,请检查模板 component 配置" />
+        :title="$t('该模板为「内置组件」类型,但未找到对应前端组件,请检查模板 component 配置')" />
       <template #footer>
-        <el-button type="primary" @click="applyNode">确定</el-button>
-        <el-button @click="nodeDrawer = false">取消</el-button>
+        <el-button type="primary" @click="applyNode">{{ $t('确定') }}</el-button>
+        <el-button @click="nodeDrawer = false">{{ $t('取消') }}</el-button>
       </template>
     </el-drawer>
 
     <!-- 运行历史抽屉 -->
-    <el-drawer v-model="historyDrawer" title="运行历史" size="560px" append-to-body class="run-history-drawer">
+    <el-drawer v-model="historyDrawer" :title="$t('运行历史')" size="560px" append-to-body class="run-history-drawer">
       <el-table :data="runs" size="small" @row-click="selectRun" highlight-current-row v-loading="historyLoading">
-        <el-table-column label="状态" width="90">
+        <el-table-column :label="$t('状态')" width="90">
           <template #default="s"><el-tag size="small" :type="tagType(s.row.status)">{{ s.row.status }}</el-tag></template>
         </el-table-column>
-        <el-table-column label="进度" width="80"><template #default="s">{{ Math.round(s.row.progress || 0) }}%</template></el-table-column>
-        <el-table-column label="开始时间" prop="startTime" show-overflow-tooltip />
-        <el-table-column label="结束时间" prop="endTime" show-overflow-tooltip />
+        <el-table-column :label="$t('进度')" width="80"><template #default="s">{{ Math.round(s.row.progress || 0) }}%</template></el-table-column>
+        <el-table-column :label="$t('开始时间')" prop="startTime" show-overflow-tooltip />
+        <el-table-column :label="$t('结束时间')" prop="endTime" show-overflow-tooltip />
       </el-table>
-      <div class="muted" style="margin-top:8px">点击某次运行 → 画布按该次状态着色,点节点看日志</div>
+      <div class="muted" style="margin-top:8px">{{ $t('点击某次运行 → 画布按该次状态着色,点节点看日志') }}</div>
     </el-drawer>
 
     <!-- 节点日志(支持自动刷新)-->
     <el-dialog v-model="logDialog" :title="`节点日志 - ${logTitle}`" width="800px" append-to-body @close="stopLogPoll">
       <div class="log-bar">
-        <el-switch v-model="logAuto" active-text="自动刷新(2s)" @change="toggleLogAuto" />
-        <el-button size="small" icon="Refresh" @click="refreshLog">刷新</el-button>
+        <el-switch v-model="logAuto" :active-text="$t('自动刷新(2s)')" @change="toggleLogAuto" />
+        <el-button size="small" icon="Refresh" @click="refreshLog">{{ $t('刷新') }}</el-button>
         <span class="muted">共 {{ logs.length }} 条</span>
       </div>
       <div ref="logConsoleRef" class="log-console">
         <div v-for="(l, i) in logs" :key="i" :class="['log-line', 'lvl-' + (l.level || 'INFO')]">
           <span class="lt">{{ l.createTime }}</span><span class="ll">{{ l.level }}</span><span>{{ l.content }}</span>
         </div>
-        <el-empty v-if="!logs.length" description="暂无日志" :image-size="50" />
+        <el-empty v-if="!logs.length" :description="$t('暂无日志')" :image-size="50" />
       </div>
     </el-dialog>
 
     <!-- 节点执行历史 -->
     <el-dialog v-model="nodeHistDialog" :title="`节点执行历史 - ${nodeHistTitle}`" width="720px" append-to-body>
       <el-table :data="nodeHist" size="small">
-        <el-table-column label="状态" width="90"><template #default="s"><el-tag size="small" :type="tagType(s.row.status)">{{ s.row.status }}</el-tag></template></el-table-column>
-        <el-table-column label="开始" prop="startTime" show-overflow-tooltip />
-        <el-table-column label="结束" prop="endTime" show-overflow-tooltip />
-        <el-table-column label="结果" prop="result" show-overflow-tooltip />
-        <el-table-column label="日志" width="70">
-          <template #default="s"><el-button link type="primary" @click="viewHistLog(s.row)">查看</el-button></template>
+        <el-table-column :label="$t('状态')" width="90"><template #default="s"><el-tag size="small" :type="tagType(s.row.status)">{{ s.row.status }}</el-tag></template></el-table-column>
+        <el-table-column :label="$t('开始')" prop="startTime" show-overflow-tooltip />
+        <el-table-column :label="$t('结束')" prop="endTime" show-overflow-tooltip />
+        <el-table-column :label="$t('结果')" prop="result" show-overflow-tooltip />
+        <el-table-column :label="$t('日志')" width="70">
+          <template #default="s"><el-button link type="primary" @click="viewHistLog(s.row)">{{ $t('查看') }}</el-button></template>
         </el-table-column>
       </el-table>
     </el-dialog>
 
     <!-- DAG 本体设置 -->
-    <el-dialog v-model="settingsDialog" title="工作流设置" width="560px" append-to-body>
-      <el-form :model="settings" label-width="100px">
-        <el-form-item label="名称" required><el-input v-model="settings.name" /></el-form-item>
-        <el-form-item label="状态">
-          <el-switch v-model="settings.status" :active-value="1" :inactive-value="0" active-text="启用" inactive-text="停用" />
+    <el-dialog v-model="settingsDialog" :title="$t('工作流设置')" width="560px" append-to-body>
+      <el-form :model="settings" label-width="150px">
+        <el-form-item :label="$t('名称')" required><el-input v-model="settings.name" /></el-form-item>
+        <el-form-item :label="$t('状态')">
+          <el-switch v-model="settings.status" :active-value="1" :inactive-value="0" :active-text="$t('启用')" :inactive-text="$t('停用')" />
         </el-form-item>
-        <el-form-item label="运行模式">
+        <el-form-item :label="$t('运行模式')">
           <el-radio-group v-model="settings.runType">
-            <el-radio :value="1">分布式(各节点分发到 worker 并行)</el-radio>
-            <el-radio :value="2">单机(一个进程内顺序跑)</el-radio>
+            <el-radio :value="1">{{ $t('分布式(各节点分发到 worker 并行)') }}</el-radio>
+            <el-radio :value="2">{{ $t('单机(一个进程内顺序跑)') }}</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item label="触发方式">
+        <el-form-item :label="$t('触发方式')">
           <el-radio-group v-model="settings.triggerType">
-            <el-radio :value="1">手动</el-radio>
-            <el-radio :value="2">定时</el-radio>
+            <el-radio :value="1">{{ $t('手动') }}</el-radio>
+            <el-radio :value="2">{{ $t('定时') }}</el-radio>
           </el-radio-group>
         </el-form-item>
         <el-form-item label="Cron" v-if="settings.triggerType === 2">
-          <el-input v-model="settings.crontab" placeholder="如 0 0 * * * ?(秒 分 时 日 月 周)">
-            <template #append><el-button @click="openCron">生成表达式</el-button></template>
+          <el-input v-model="settings.crontab" :placeholder="$t('如 0 0 * * * ?(秒 分 时 日 月 周)')">
+            <template #append><el-button @click="openCron">{{ $t('生成表达式') }}</el-button></template>
           </el-input>
         </el-form-item>
-        <el-form-item label="运行队列"><el-input v-model="settings.runQueue" placeholder="default" /></el-form-item>
-        <el-form-item label="失败重试">
+        <el-form-item :label="$t('运行队列')"><el-input v-model="settings.runQueue" placeholder="default" /></el-form-item>
+        <el-form-item :label="$t('失败重试')">
           <el-input-number v-model="settings.retry" :min="0" :max="10" size="small" />
-          <span style="margin:0 6px;color:#909399">次,间隔</span>
-          <el-input-number v-model="settings.countdown" :min="0" size="small" /><span style="margin-left:6px;color:#909399">秒</span>
+          <span style="margin:0 6px;color:#909399">{{ $t('次,间隔') }}</span>
+          <el-input-number v-model="settings.countdown" :min="0" size="small" /><span style="margin-left:6px;color:#909399">{{ $t('秒') }}</span>
         </el-form-item>
-        <el-form-item label="备注"><el-input v-model="settings.remark" type="textarea" :rows="2" /></el-form-item>
+        <el-form-item :label="$t('备注')"><el-input v-model="settings.remark" type="textarea" :rows="2" /></el-form-item>
       </el-form>
       <template #footer>
-        <el-button type="primary" @click="saveSettings">保存</el-button>
-        <el-button @click="settingsDialog = false">取消</el-button>
+        <el-button type="primary" @click="saveSettings">{{ $t('保存') }}</el-button>
+        <el-button @click="settingsDialog = false">{{ $t('取消') }}</el-button>
       </template>
     </el-dialog>
 
     <!-- Cron 表达式生成器(复用任务调度同款)-->
-    <el-dialog title="Cron表达式生成器" v-model="cronDialog" append-to-body destroy-on-close>
+    <el-dialog :title="$t('Cron表达式生成器')" v-model="cronDialog" append-to-body destroy-on-close>
       <crontab ref="crontabRef" :expression="settings.crontab" @hide="cronDialog = false" @fill="cronFill" />
     </el-dialog>
   </el-dialog>

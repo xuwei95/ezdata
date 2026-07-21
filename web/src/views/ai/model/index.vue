@@ -6,19 +6,19 @@
       :inline="true"
       v-show="showSearch"
     >
-      <el-form-item label="模型编码" prop="modelCode">
+      <el-form-item :label="$t('模型编码')" prop="modelCode">
         <el-input
           v-model="queryParams.modelCode"
-          placeholder="请输入模型编码"
+          :placeholder="$t('请输入模型编码')"
           clearable
           style="width: 200px"
           @keyup.enter="handleQuery"
         />
       </el-form-item>
-      <el-form-item label="提供商" prop="provider">
+      <el-form-item :label="$t('提供商')" prop="provider">
         <el-select
           v-model="queryParams.provider"
-          placeholder="请选择提供商"
+          :placeholder="$t('请选择提供商')"
           clearable
           style="width: 200px"
           @keyup.enter="handleQuery"
@@ -31,10 +31,10 @@
           />
         </el-select>
       </el-form-item>
-      <el-form-item label="状态" prop="status">
+      <el-form-item :label="$t('状态')" prop="status">
         <el-select
           v-model="queryParams.status"
-          placeholder="模型状态"
+          :placeholder="$t('模型状态')"
           clearable
           style="width: 240px"
         >
@@ -48,9 +48,9 @@
       </el-form-item>
       <el-form-item>
         <el-button type="primary" icon="Search" @click="handleQuery"
-          >搜索</el-button
+          >{{ $t('搜索') }}</el-button
         >
-        <el-button icon="Refresh" @click="resetQuery">重置</el-button>
+        <el-button icon="Refresh" @click="resetQuery">{{ $t('重置') }}</el-button>
       </el-form-item>
     </el-form>
 
@@ -62,7 +62,7 @@
           icon="Plus"
           @click="handleAdd"
           v-hasPermi="['ai:model:add']"
-          >新增</el-button
+          >{{ $t('新增') }}</el-button
         >
       </el-col>
       <el-col :span="1.5">
@@ -73,7 +73,7 @@
           :disabled="single"
           @click="handleUpdate"
           v-hasPermi="['ai:model:edit']"
-          >修改</el-button
+          >{{ $t('修改') }}</el-button
         >
       </el-col>
       <el-col :span="1.5">
@@ -84,7 +84,7 @@
           :disabled="multiple"
           @click="handleDelete"
           v-hasPermi="['ai:model:remove']"
-          >删除</el-button
+          >{{ $t('删除') }}</el-button
         >
       </el-col>
       <right-toolbar
@@ -99,30 +99,30 @@
       @selection-change="handleSelectionChange"
     >
       <el-table-column type="selection" width="55" align="center" />
-      <el-table-column label="模型ID" align="center" prop="modelId" />
-      <el-table-column label="模型编码" align="center" prop="modelCode" />
-      <el-table-column label="提供商" align="center" prop="provider">
+      <el-table-column :label="$t('模型ID')" align="center" prop="modelId" />
+      <el-table-column :label="$t('模型编码')" align="center" prop="modelCode" />
+      <el-table-column :label="$t('提供商')" align="center" prop="provider">
         <template #default="scope">
           <dict-tag :options="ai_provider_type" :value="scope.row.provider" />
         </template>
       </el-table-column>
-      <el-table-column label="支持推理" align="center" prop="supportReasoning">
+      <el-table-column :label="$t('支持推理')" align="center" prop="supportReasoning">
         <template #default="scope">
           <dict-tag :options="sys_yes_no" :value="scope.row.supportReasoning" />
         </template>
       </el-table-column>
-      <el-table-column label="支持图片" align="center" prop="supportImages">
+      <el-table-column :label="$t('支持图片')" align="center" prop="supportImages">
         <template #default="scope">
           <dict-tag :options="sys_yes_no" :value="scope.row.supportImages" />
         </template>
       </el-table-column>
-      <el-table-column label="状态" align="center" prop="status">
+      <el-table-column :label="$t('状态')" align="center" prop="status">
         <template #default="scope">
           <dict-tag :options="sys_normal_disable" :value="scope.row.status" />
         </template>
       </el-table-column>
       <el-table-column
-        label="创建时间"
+        :label="$t('创建时间')"
         align="center"
         prop="createTime"
         width="180"
@@ -132,7 +132,7 @@
         </template>
       </el-table-column>
       <el-table-column
-        label="操作"
+        :label="$t('操作')"
         width="180"
         align="center"
         class-name="small-padding fixed-width"
@@ -144,7 +144,7 @@
             icon="Edit"
             @click="handleUpdate(scope.row)"
             v-hasPermi="['ai:model:edit']"
-            >修改</el-button
+            >{{ $t('修改') }}</el-button
           >
           <el-button
             link
@@ -152,7 +152,7 @@
             icon="Delete"
             @click="handleDelete(scope.row)"
             v-hasPermi="['ai:model:remove']"
-            >删除</el-button
+            >{{ $t('删除') }}</el-button
           >
         </template>
       </el-table-column>
@@ -168,26 +168,26 @@
 
     <!-- 添加或修改对话框 -->
     <el-dialog :title="title" v-model="open" width="700px" append-to-body>
-      <el-form ref="modelRef" :model="form" :rules="rules" label-width="100px">
+      <el-form ref="modelRef" :model="form" :rules="rules" label-width="150px">
         <el-row :gutter="10">
           <el-col :span="12">
-            <el-form-item label="模型编码" prop="modelCode">
+            <el-form-item :label="$t('模型编码')" prop="modelCode">
               <el-input
                 v-model="form.modelCode"
-                placeholder="请输入模型编码 (如 deepseek-r1)"
+                :placeholder="$t('请输入模型编码 (如 deepseek-r1)')"
               />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="模型名称" prop="modelName">
-              <el-input v-model="form.modelName" placeholder="请输入模型名称" />
+            <el-form-item :label="$t('模型名称')" prop="modelName">
+              <el-input v-model="form.modelName" :placeholder="$t('请输入模型名称')" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="提供商" prop="provider">
+            <el-form-item :label="$t('提供商')" prop="provider">
               <el-select
                 v-model="form.provider"
-                placeholder="请选择提供商"
+                :placeholder="$t('请选择提供商')"
                 style="width: 100%"
               >
                 <el-option
@@ -200,7 +200,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="模型排序" prop="modelSort">
+            <el-form-item :label="$t('模型排序')" prop="modelSort">
               <el-input-number
                 v-model="form.modelSort"
                 :min="0"
@@ -212,40 +212,40 @@
             <el-form-item label="API Key" prop="apiKey">
               <el-input
                 v-model="form.apiKey"
-                placeholder="请输入API Key"
+                :placeholder="$t('请输入API Key')"
                 type="password"
               />
             </el-form-item>
           </el-col>
           <el-col :span="24">
             <el-form-item label="Base URL" prop="baseUrl">
-              <el-input v-model="form.baseUrl" placeholder="请输入Base URL" />
+              <el-input v-model="form.baseUrl" :placeholder="$t('请输入Base URL')" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="最大输出" prop="maxTokens">
+            <el-form-item :label="$t('最大输出')" prop="maxTokens">
               <el-input-number
                 v-model="form.maxTokens"
                 :min="0"
                 style="width: 100%"
-                placeholder="最大输出"
+                :placeholder="$t('最大输出')"
               />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="默认温度" prop="temperature">
+            <el-form-item :label="$t('默认温度')" prop="temperature">
               <el-input-number
                 v-model="form.temperature"
                 :min="0"
                 :max="2"
                 :step="0.1"
-                placeholder="默认温度"
+                :placeholder="$t('默认温度')"
                 style="width: 100%"
               />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="支持推理" prop="supportReasoning">
+            <el-form-item :label="$t('支持推理')" prop="supportReasoning">
               <el-radio-group v-model="form.supportReasoning">
                 <el-radio
                   v-for="dict in sys_yes_no"
@@ -257,7 +257,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="支持图片" prop="supportImages">
+            <el-form-item :label="$t('支持图片')" prop="supportImages">
               <el-radio-group v-model="form.supportImages">
                 <el-radio
                   v-for="dict in sys_yes_no"
@@ -269,15 +269,15 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="模型类型" prop="modelType">
+            <el-form-item :label="$t('模型类型')" prop="modelType">
               <el-input
                 v-model="form.modelType"
-                placeholder="请输入模型类型 (可选)"
+                :placeholder="$t('请输入模型类型 (可选)')"
               />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="状态" prop="status">
+            <el-form-item :label="$t('状态')" prop="status">
               <el-radio-group v-model="form.status">
                 <el-radio
                   v-for="dict in sys_normal_disable"
@@ -289,11 +289,11 @@
             </el-form-item>
           </el-col>
           <el-col :span="24">
-            <el-form-item label="备注" prop="remark">
+            <el-form-item :label="$t('备注')" prop="remark">
               <el-input
                 v-model="form.remark"
                 type="textarea"
-                placeholder="请输入内容"
+                :placeholder="$t('请输入内容')"
               />
             </el-form-item>
           </el-col>
@@ -301,8 +301,8 @@
       </el-form>
       <template #footer>
         <div class="dialog-footer">
-          <el-button type="primary" @click="submitForm">确 定</el-button>
-          <el-button @click="cancel">取 消</el-button>
+          <el-button type="primary" @click="submitForm">{{ $t('确 定') }}</el-button>
+          <el-button @click="cancel">{{ $t('取 消') }}</el-button>
         </div>
       </template>
     </el-dialog>
@@ -317,6 +317,7 @@ import {
   getModel,
   updateModel,
 } from "@/api/ai/model";
+import { t as $t } from "@/lang";
 
 const { proxy } = getCurrentInstance();
 const { ai_provider_type, sys_normal_disable, sys_yes_no } = proxy.useDict(
@@ -346,13 +347,13 @@ const data = reactive({
   },
   rules: {
     modelCode: [
-      { required: true, message: "模型编码不能为空", trigger: "blur" },
+      { required: true, message: $t("模型编码不能为空"), trigger: "blur" },
     ],
     provider: [
-      { required: true, message: "提供商不能为空", trigger: "change" },
+      { required: true, message: $t("提供商不能为空"), trigger: "change" },
     ],
     modelSort: [
-      { required: true, message: "模型排序不能为空", trigger: "blur" },
+      { required: true, message: $t("模型排序不能为空"), trigger: "blur" },
     ],
   },
 });
@@ -419,7 +420,7 @@ function handleSelectionChange(selection) {
 function handleAdd() {
   reset();
   open.value = true;
-  title.value = "添加模型";
+  title.value = $t("添加模型");
 }
 
 /** 修改按钮操作 */
@@ -429,7 +430,7 @@ function handleUpdate(row) {
   getModel(modelId).then((response) => {
     form.value = response.data;
     open.value = true;
-    title.value = "修改模型";
+    title.value = $t("修改模型");
   });
 }
 
@@ -439,13 +440,13 @@ function submitForm() {
     if (valid) {
       if (form.value.modelId != undefined) {
         updateModel(form.value).then((response) => {
-          proxy.$modal.msgSuccess("修改成功");
+          proxy.$modal.msgSuccess($t("修改成功"));
           open.value = false;
           getList();
         });
       } else {
         addModel(form.value).then((response) => {
-          proxy.$modal.msgSuccess("新增成功");
+          proxy.$modal.msgSuccess($t("新增成功"));
           open.value = false;
           getList();
         });
@@ -458,13 +459,13 @@ function submitForm() {
 function handleDelete(row) {
   const modelIds = row.modelId || ids.value;
   proxy.$modal
-    .confirm('是否确认删除模型编号为"' + modelIds + '"的数据项？')
+    .confirm($t('是否确认删除模型编号为"{ids}"的数据项？', { ids: modelIds }))
     .then(function () {
       return delModel(modelIds);
     })
     .then(() => {
       getList();
-      proxy.$modal.msgSuccess("删除成功");
+      proxy.$modal.msgSuccess($t("删除成功"));
     })
     .catch(() => {});
 }

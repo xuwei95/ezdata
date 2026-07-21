@@ -3,110 +3,106 @@
     <!-- 左:配置/调试 -->
     <div class="ae-left">
       <div class="ae-left-head">
-        <el-button link icon="ArrowLeft" @click="goBack">应用广场</el-button>
+        <el-button link icon="ArrowLeft" @click="goBack">{{ $t('应用广场') }}</el-button>
         <span class="ae-title">{{ readonly ? "查看应用" : form.appId ? "编辑应用" : "新建应用" }}</span>
-        <el-button v-if="readonly" type="primary" size="small" icon="Edit" @click="readonly = false" v-hasPermi="['ai:app:edit']">编辑</el-button>
-        <el-button v-else type="primary" size="small" :loading="saving" @click="save">保存</el-button>
+        <el-button v-if="readonly" type="primary" size="small" icon="Edit" @click="readonly = false" v-hasPermi="['ai:app:edit']">{{ $t('编辑') }}</el-button>
+        <el-button v-else type="primary" size="small" :loading="saving" @click="save">{{ $t('保存') }}</el-button>
       </div>
       <el-scrollbar class="ae-left-body">
-        <el-form :model="form" label-width="86px" :disabled="readonly">
-          <el-form-item label="应用名称" required>
-            <el-input v-model="form.name" placeholder="如:数据分析助手" />
+        <el-form :model="form" label-width="136px" :disabled="readonly">
+          <el-form-item :label="$t('应用名称')" required>
+            <el-input v-model="form.name" :placeholder="$t('如:数据分析助手')" />
           </el-form-item>
-          <el-form-item label="应用描述">
-            <el-input v-model="form.description" placeholder="一句话介绍" />
+          <el-form-item :label="$t('应用描述')">
+            <el-input v-model="form.description" :placeholder="$t('一句话介绍')" />
           </el-form-item>
-          <el-form-item label="模型">
+          <el-form-item :label="$t('模型')">
             <div style="display: flex; gap: 8px; width: 100%">
-              <el-select v-model="cfg.model.modelId" style="flex: 1" placeholder="选择模型">
+              <el-select v-model="cfg.model.modelId" style="flex: 1" :placeholder="$t('选择模型')">
                 <el-option v-for="m in modelOptions" :key="m.modelId" :label="m.modelName || m.modelCode" :value="m.modelId" />
               </el-select>
               <el-popover trigger="click" :width="270" placement="bottom-end">
                 <template #reference>
-                  <el-button icon="Setting">设置</el-button>
+                  <el-button icon="Setting">{{ $t('设置') }}</el-button>
                 </template>
-                <el-form label-width="72px" style="margin: 0" :disabled="readonly">
-                  <el-form-item label="温度" style="margin-bottom: 10px">
-                    <el-input-number v-model="cfg.model.temperature" :min="0" :max="2" :step="0.1" :precision="1" style="width: 100%" placeholder="默认" />
+                <el-form label-width="122px" style="margin: 0" :disabled="readonly">
+                  <el-form-item :label="$t('温度')" style="margin-bottom: 10px">
+                    <el-input-number v-model="cfg.model.temperature" :min="0" :max="2" :step="0.1" :precision="1" style="width: 100%" :placeholder="$t('默认')" />
                   </el-form-item>
-                  <el-form-item label="最大输出" style="margin-bottom: 0">
-                    <el-input-number v-model="cfg.model.maxTokens" :min="0" :step="1000" style="width: 100%" placeholder="默认" />
+                  <el-form-item :label="$t('最大输出')" style="margin-bottom: 0">
+                    <el-input-number v-model="cfg.model.maxTokens" :min="0" :step="1000" style="width: 100%" :placeholder="$t('默认')" />
                   </el-form-item>
                 </el-form>
               </el-popover>
             </div>
           </el-form-item>
 
-          <el-divider content-position="left">人设与开场</el-divider>
-          <el-form-item label="系统提示词">
+          <el-divider content-position="left">{{ $t('人设与开场') }}</el-divider>
+          <el-form-item :label="$t('系统提示词')">
             <div style="width: 100%">
-              <el-input v-model="cfg.prompt" type="textarea" :rows="6" placeholder="设定角色/技能/限制(可点 AI 生成)" />
+              <el-input v-model="cfg.prompt" type="textarea" :rows="6" :placeholder="$t('设定角色/技能/限制(可点 AI 生成)')" />
               <div v-if="!readonly" style="margin-top: 6px">
-                <el-button size="small" type="primary" icon="MagicStick" @click="pgVisible = true">AI 生成提示词</el-button>
+                <el-button size="small" type="primary" icon="MagicStick" @click="pgVisible = true">{{ $t('AI 生成提示词') }}</el-button>
               </div>
             </div>
           </el-form-item>
-          <el-form-item label="开场白"><el-input v-model="cfg.prologue" type="textarea" :rows="2" placeholder="进入对话的欢迎语" /></el-form-item>
-          <el-form-item label="预设问题">
+          <el-form-item :label="$t('开场白')"><el-input v-model="cfg.prologue" type="textarea" :rows="2" :placeholder="$t('进入对话的欢迎语')" /></el-form-item>
+          <el-form-item :label="$t('预设问题')">
             <div style="width: 100%">
               <div v-for="(q, i) in cfg.presetQuestions" :key="i" style="display: flex; gap: 8px; margin-bottom: 6px">
-                <el-input v-model="cfg.presetQuestions[i]" placeholder="点击即发送的示例问题" />
+                <el-input v-model="cfg.presetQuestions[i]" :placeholder="$t('点击即发送的示例问题')" />
                 <el-button v-if="!readonly" icon="Delete" @click="cfg.presetQuestions.splice(i, 1)" />
               </div>
-              <el-button v-if="!readonly" size="small" icon="Plus" @click="cfg.presetQuestions.push('')">添加问题</el-button>
+              <el-button v-if="!readonly" size="small" icon="Plus" @click="cfg.presetQuestions.push('')">{{ $t('添加问题') }}</el-button>
             </div>
           </el-form-item>
-          <el-form-item label="快捷指令">
+          <el-form-item :label="$t('快捷指令')">
             <div style="width: 100%">
               <div v-for="(c, i) in cfg.quickCommands" :key="i" style="display: flex; gap: 8px; margin-bottom: 6px">
-                <el-input v-model="c.name" placeholder="按钮名" style="width: 130px" />
-                <el-input v-model="c.content" placeholder="点击后发送的指令" />
+                <el-input v-model="c.name" :placeholder="$t('按钮名')" style="width: 130px" />
+                <el-input v-model="c.content" :placeholder="$t('点击后发送的指令')" />
                 <el-button v-if="!readonly" icon="Delete" @click="cfg.quickCommands.splice(i, 1)" />
               </div>
-              <el-button v-if="!readonly" size="small" icon="Plus" @click="cfg.quickCommands.push({ name: '', content: '' })">添加指令</el-button>
+              <el-button v-if="!readonly" size="small" icon="Plus" @click="cfg.quickCommands.push({ name: '', content: '' })">{{ $t('添加指令') }}</el-button>
             </div>
           </el-form-item>
 
-          <el-divider content-position="left">能力绑定</el-divider>
-          <el-form-item label="数据分析">
-            <el-select v-model="cfg.datasourceCodes" multiple filterable clearable placeholder="选择可分析的数据源(不选则不启用数据分析)" style="width: 100%">
+          <el-divider content-position="left">{{ $t('能力绑定') }}</el-divider>
+          <el-form-item :label="$t('数据分析')">
+            <el-select v-model="cfg.datasourceCodes" multiple filterable clearable :placeholder="$t('选择可分析的数据源(不选则不启用数据分析)')" style="width: 100%">
               <el-option v-for="s in datasourceOptions" :key="s.code" :label="`${s.name} (${s.sourceType})`" :value="s.code" />
             </el-select>
-            <div style="font-size: 12px; color: var(--el-text-color-secondary); line-height: 1.4">
-              选定后开放数据探索/取数能力,且只能访问所选数据源;不选则不挂数据分析工具。
-            </div>
+            <div style="font-size: 12px; color: var(--el-text-color-secondary); line-height: 1.4"> {{ $t('选定后开放数据探索/取数能力,且只能访问所选数据源;不选则不挂数据分析工具。') }} </div>
           </el-form-item>
-          <el-form-item label="工具">
-            <el-select v-model="cfg.toolIds" multiple filterable clearable placeholder="选择可用工具(MCP)" style="width: 100%">
+          <el-form-item :label="$t('工具')">
+            <el-select v-model="cfg.toolIds" multiple filterable clearable :placeholder="$t('选择可用工具(MCP)')" style="width: 100%">
               <el-option
                 v-for="t in selectableTools"
                 :key="t.toolId"
-                :label="`${t.name} (${t.toolType === 'builtin' ? '内置' : 'MCP'})`"
+                :label="`${t.name} (${t.toolType === 'builtin' ? $t('内置') : 'MCP'})`"
                 :value="t.toolId"
               />
             </el-select>
           </el-form-item>
-          <el-form-item label="知识库">
-            <el-select v-model="cfg.datasetIds" multiple filterable clearable placeholder="选择检索的知识库" style="width: 100%">
+          <el-form-item :label="$t('知识库')">
+            <el-select v-model="cfg.datasetIds" multiple filterable clearable :placeholder="$t('选择检索的知识库')" style="width: 100%">
               <el-option v-for="d in datasetOptions" :key="d.id" :label="d.name" :value="d.id" />
             </el-select>
           </el-form-item>
-          <el-form-item label="技能">
-            <el-select v-model="cfg.skillIds" multiple filterable clearable placeholder="选择可用技能(不选则不挂技能)" style="width: 100%">
+          <el-form-item :label="$t('技能')">
+            <el-select v-model="cfg.skillIds" multiple filterable clearable :placeholder="$t('选择可用技能(不选则不挂技能)')" style="width: 100%">
               <el-option v-for="s in skillOptions" :key="s.skillId" :label="`${s.name} (${s.code})`" :value="s.skillId" />
             </el-select>
-            <div style="font-size: 12px; color: var(--el-text-color-secondary); line-height: 1.4">
-              选定后 agent 常驻看到技能清单,任务匹配时 load_skill 拉取完整操作指南;不选则本应用不挂技能。
-            </div>
+            <div style="font-size: 12px; color: var(--el-text-color-secondary); line-height: 1.4"> {{ $t('选定后 agent 常驻看到技能清单,任务匹配时 load_skill 拉取完整操作指南;不选则本应用不挂技能。') }} </div>
           </el-form-item>
-          <el-form-item label="长期记忆">
+          <el-form-item :label="$t('长期记忆')">
             <el-switch v-model="cfg.enableMemory" />
-            <span style="margin-left: 8px; font-size: 12px; color: var(--el-text-color-secondary)">跨会话记住用户偏好/事实(按用户隔离)</span>
+            <span style="margin-left: 8px; font-size: 12px; color: var(--el-text-color-secondary)">{{ $t('跨会话记住用户偏好/事实(按用户隔离)') }}</span>
           </el-form-item>
-          <el-form-item label="上下文历史">
+          <el-form-item :label="$t('上下文历史')">
             <el-switch v-model="cfg.addHistory" />
             <el-input-number v-if="cfg.addHistory" v-model="cfg.numHistoryRuns" :min="1" :max="50" :step="1" controls-position="right" style="margin-left: 8px; width: 120px" />
-            <span style="margin-left: 8px; font-size: 12px; color: var(--el-text-color-secondary)">本会话携带最近 N 轮历史(关闭则每次单轮无上下文)</span>
+            <span style="margin-left: 8px; font-size: 12px; color: var(--el-text-color-secondary)">{{ $t('本会话携带最近 N 轮历史(关闭则每次单轮无上下文)') }}</span>
           </el-form-item>
 
         </el-form>
@@ -116,8 +112,8 @@
     <!-- 右:实时调试对话 -->
     <div class="ae-right">
       <div class="ae-right-head">
-        <span><el-icon><ChatLineRound /></el-icon> 调试对话(用当前配置,免保存)</span>
-        <el-button link icon="Refresh" @click="newChat">清空</el-button>
+        <span><el-icon><ChatLineRound /></el-icon> {{ $t('调试对话(用当前配置,免保存)') }}</span>
+        <el-button link icon="Refresh" @click="newChat">{{ $t('清空') }}</el-button>
       </div>
       <div ref="historyRef" class="ae-history">
         <div v-if="messages.length === 0" class="ae-empty">
@@ -136,8 +132,8 @@
           <el-button v-for="(c, i) in cfg.quickCommands.filter((c) => c.name && c.content)" :key="i" size="small" round @click="sendDebug(c.content)">{{ c.name }}</el-button>
         </div>
         <div class="ae-input-row">
-          <el-input v-model="input" type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" placeholder="Enter 发送" @keydown.enter.exact.prevent="sendDebug()" />
-          <el-button type="primary" :loading="loading" icon="Promotion" @click="sendDebug()">发送</el-button>
+          <el-input v-model="input" type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" :placeholder="$t('Enter 发送')" @keydown.enter.exact.prevent="sendDebug()" />
+          <el-button type="primary" :loading="loading" icon="Promotion" @click="sendDebug()">{{ $t('发送') }}</el-button>
         </div>
       </div>
     </div>
@@ -156,6 +152,7 @@
 import { reactive, ref, computed, nextTick, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
+import { t as $t } from "@/lang";
 import AiMessage from "../chat/components/AiMessage.vue";
 import PromptGenDialog from "./components/PromptGenDialog.vue";
 import { getApp, addApp, updateApp } from "@/api/ai/app";
@@ -232,13 +229,13 @@ function buildConfig() {
   };
 }
 function save() {
-  if (!form.name.trim()) return ElMessage.error("请填写应用名称");
+  if (!form.name.trim()) return ElMessage.error($t("请填写应用名称"));
   saving.value = true;
   const payload = { appId: form.appId || undefined, name: form.name, description: form.description, status: form.status, config: buildConfig() };
   const action = form.appId ? updateApp : addApp;
   action(payload)
     .then((res) => {
-      ElMessage.success("保存成功");
+      ElMessage.success($t("保存成功"));
       if (!form.appId && res.data?.appId) {
         form.appId = res.data.appId;
         router.replace("/ai/app/edit/" + res.data.appId);
@@ -270,8 +267,8 @@ async function sendDebug(preset) {
     });
     if (!resp.ok || !resp.body) {
       const t = await resp.text().catch(() => "");
-      messages.value[ai].content = "调试失败: HTTP " + resp.status + " " + t.slice(0, 200);
-      ElMessage.error("调试失败: HTTP " + resp.status);
+      messages.value[ai].content = $t("调试失败") + ": HTTP " + resp.status + " " + t.slice(0, 200);
+      ElMessage.error($t("调试失败") + ": HTTP " + resp.status);
       return;
     }
     const reader = resp.body.getReader();
@@ -326,7 +323,7 @@ async function sendDebug(preset) {
       }
     }
   } catch (e) {
-    ElMessage.error("调试失败: " + (e?.message || e));
+    ElMessage.error($t("调试失败") + ": " + (e?.message || e));
   } finally {
     loading.value = false;
     scrollBottom();

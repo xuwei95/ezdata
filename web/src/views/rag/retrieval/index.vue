@@ -4,43 +4,43 @@
       <!-- 参数 -->
       <el-col :span="9">
         <el-card shadow="never">
-          <template #header>召回参数</template>
-          <el-form label-width="90px">
-            <el-form-item label="知识库">
-              <el-select v-model="datasetIds" multiple filterable placeholder="选择一个或多个知识库" style="width: 100%">
+          <template #header>{{ $t('召回参数') }}</template>
+          <el-form label-width="140px">
+            <el-form-item :label="$t('知识库')">
+              <el-select v-model="datasetIds" multiple filterable :placeholder="$t('选择一个或多个知识库')" style="width: 100%">
                 <el-option v-for="d in datasets" :key="d.id" :label="d.name" :value="d.id">
                   <span>{{ d.name }}</span>
-                  <el-tag v-if="d.sourceId ?? d.source_id" size="small" type="info" style="margin-left: 6px">数据源</el-tag>
+                  <el-tag v-if="d.sourceId ?? d.source_id" size="small" type="info" style="margin-left: 6px">{{ $t('数据源') }}</el-tag>
                 </el-option>
               </el-select>
             </el-form-item>
-            <el-form-item label="查询">
-              <el-input v-model="query" type="textarea" :rows="3" placeholder="输入查询问题" />
+            <el-form-item :label="$t('查询')">
+              <el-input v-model="query" type="textarea" :rows="3" :placeholder="$t('输入查询问题')" />
             </el-form-item>
-            <el-form-item label="检索模式">
+            <el-form-item :label="$t('检索模式')">
               <el-radio-group v-model="retrievalType">
-                <el-radio-button value="hybrid">混合</el-radio-button>
-                <el-radio-button value="vector">向量</el-radio-button>
-                <el-radio-button value="keyword">全文</el-radio-button>
+                <el-radio-button value="hybrid">{{ $t('混合') }}</el-radio-button>
+                <el-radio-button value="vector">{{ $t('向量') }}</el-radio-button>
+                <el-radio-button value="keyword">{{ $t('全文') }}</el-radio-button>
               </el-radio-group>
             </el-form-item>
             <el-form-item label="TopK">
               <el-input-number v-model="topK" :min="1" :max="50" />
             </el-form-item>
-            <el-form-item label="分数阈值">
+            <el-form-item :label="$t('分数阈值')">
               <el-input-number v-model="scoreThreshold" :min="0" :max="1" :step="0.05" :precision="2" />
-              <span class="tip">余弦相似度下限,作用于向量召回(0=不过滤)</span>
+              <span class="tip">{{ $t('余弦相似度下限,作用于向量召回(0=不过滤)') }}</span>
             </el-form-item>
-            <el-form-item label="重排">
+            <el-form-item :label="$t('重排')">
               <el-switch v-model="rerank" />
-              <span class="tip">rerank 模型二次排序(需配置 RERANK)</span>
+              <span class="tip">{{ $t('rerank 模型二次排序(需配置 RERANK)') }}</span>
             </el-form-item>
-            <el-form-item v-if="rerank" label="重排阈值">
+            <el-form-item v-if="rerank" :label="$t('重排阈值')">
               <el-input-number v-model="rerankScoreThreshold" :min="0" :max="1" :step="0.05" :precision="2" />
-              <span class="tip">rerank 相关性下限</span>
+              <span class="tip">{{ $t('rerank 相关性下限') }}</span>
             </el-form-item>
             <el-form-item>
-              <el-button type="primary" icon="Search" :loading="loading" @click="doSearch">召回测试</el-button>
+              <el-button type="primary" icon="Search" :loading="loading" @click="doSearch">{{ $t('召回测试') }}</el-button>
             </el-form-item>
           </el-form>
         </el-card>
@@ -51,7 +51,7 @@
         <el-card shadow="never" v-loading="loading">
           <template #header>召回结果 ({{ records.length }})</template>
           <div class="hit-list">
-            <el-empty v-if="!records.length" description="暂无结果" />
+            <el-empty v-if="!records.length" :description="$t('暂无结果')" />
             <div v-for="(r, i) in records" :key="r.chunkId || i" class="hit">
               <div class="hit-head">
                 <el-tag size="small" :type="r.chunkType === 'qa' ? 'warning' : 'primary'">{{ r.chunkType }}</el-tag>

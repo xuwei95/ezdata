@@ -1,25 +1,25 @@
 <template>
   <div class="builtin-task-form">
-    <el-form label-width="90px">
-      <el-form-item label="运行模式" required>
+    <el-form label-width="140px">
+      <el-form-item :label="$t('运行模式')" required>
         <el-radio-group v-model="model.run_type">
-          <el-radio value="code">代码模式</el-radio>
-          <el-radio value="file">文件模式</el-radio>
+          <el-radio value="code">{{ $t('代码模式') }}</el-radio>
+          <el-radio value="file">{{ $t('文件模式') }}</el-radio>
         </el-radio-group>
       </el-form-item>
 
       <template v-if="model.run_type === 'code'">
-        <el-form-item label="Python代码" required>
-          <code-editor v-model="model.code" language="python" height="280px" placeholder="需定义 run(params, logger) 函数" />
+        <el-form-item :label="$t('Python代码')" required>
+          <code-editor v-model="model.code" language="python" height="280px" :placeholder="$t('需定义 run(params, logger) 函数')" />
         </el-form-item>
       </template>
 
       <template v-else>
-        <el-form-item label="文件地址" required>
-          <el-input v-model="model.file" placeholder="worker 可访问的 .py 文件绝对路径" clearable />
+        <el-form-item :label="$t('文件地址')" required>
+          <el-input v-model="model.file" :placeholder="$t('worker 可访问的 .py 文件绝对路径')" clearable />
         </el-form-item>
-        <el-form-item label="额外参数">
-          <el-input v-model="model.run_params" placeholder="命令行参数(可选)，如 --date 2026-06-15" clearable />
+        <el-form-item :label="$t('额外参数')">
+          <el-input v-model="model.run_params" :placeholder="$t('命令行参数(可选)，如 --date 2026-06-15')" clearable />
         </el-form-item>
       </template>
     </el-form>

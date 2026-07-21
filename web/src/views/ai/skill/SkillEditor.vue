@@ -1,7 +1,7 @@
 <template>
   <el-dialog
     v-model="visible"
-    :title="form.skillId ? '编辑技能' : '新建技能'"
+    :title="form.skillId ? $t('编辑技能') : $t('新建技能')"
     fullscreen
     append-to-body
     :close-on-click-modal="false"
@@ -10,22 +10,22 @@
     <div class="skill-editor">
       <!-- 顶部工具条 -->
       <div class="se-head">
-        <el-input v-model="form.name" placeholder="技能名称" :disabled="isBuiltin" style="width: 220px" />
-        <el-input v-model="form.code" placeholder="技能代码(唯一)" :disabled="isBuiltin || isUpdate" style="width: 200px" />
-        <el-switch v-model="form.status" active-value="0" inactive-value="1" :disabled="isBuiltin" active-text="启用" inactive-text="停用" inline-prompt />
+        <el-input v-model="form.name" :placeholder="$t('技能名称')" :disabled="isBuiltin" style="width: 220px" />
+        <el-input v-model="form.code" :placeholder="$t('技能代码(唯一)')" :disabled="isBuiltin || isUpdate" style="width: 200px" />
+        <el-switch v-model="form.status" active-value="0" inactive-value="1" :disabled="isBuiltin" :active-text="$t('启用')" :inactive-text="$t('停用')" inline-prompt />
         <div class="se-head-right">
           <el-dropdown v-if="!isBuiltin" trigger="click" @command="onImportCmd">
-            <el-button icon="Upload">导入<el-icon class="el-icon--right"><arrow-down /></el-icon></el-button>
+            <el-button icon="Upload">{{ $t('导入') }}<el-icon class="el-icon--right"><arrow-down /></el-icon></el-button>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item command="dir">导入文件夹(Skill 目录)</el-dropdown-item>
-                <el-dropdown-item command="zip">导入 .zip 包</el-dropdown-item>
+                <el-dropdown-item command="dir">{{ $t('导入文件夹(Skill 目录)') }}</el-dropdown-item>
+                <el-dropdown-item command="zip">{{ $t('导入 .zip 包') }}</el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
-          <el-button icon="Download" @click="exportZip">导出</el-button>
-          <el-button v-if="!isBuiltin" type="primary" icon="Check" :loading="saving" @click="save">保存</el-button>
-          <el-button @click="visible = false">关闭</el-button>
+          <el-button icon="Download" @click="exportZip">{{ $t('导出') }}</el-button>
+          <el-button v-if="!isBuiltin" type="primary" icon="Check" :loading="saving" @click="save">{{ $t('保存') }}</el-button>
+          <el-button @click="visible = false">{{ $t('关闭') }}</el-button>
         </div>
       </div>
 
@@ -33,8 +33,8 @@
         <!-- 左:文件树 -->
         <div class="se-left">
           <div class="se-left-head">
-            <span>技能文件</span>
-            <el-button v-if="!isBuiltin" link type="primary" icon="DocumentAdd" title="新建文件" @click="addFile('')">新建</el-button>
+            <span>{{ $t('技能文件') }}</span>
+            <el-button v-if="!isBuiltin" link type="primary" icon="DocumentAdd" :title="$t('新建文件')" @click="addFile('')">{{ $t('新建') }}</el-button>
           </div>
           <el-tree
             ref="treeRef"
@@ -51,9 +51,9 @@
                 <el-icon class="se-node-icon"><component :is="nodeIcon(data)" /></el-icon>
                 <span class="se-node-label">{{ node.label }}</span>
                 <span v-if="!isBuiltin && (data.kind === 'file' || data.kind === 'dir')" class="se-node-actions">
-                  <el-icon v-if="data.kind === 'dir'" title="在此新建文件" @click.stop="addFile(data.path)"><plus /></el-icon>
-                  <el-icon title="重命名" @click.stop="renameNode(data)"><edit-pen /></el-icon>
-                  <el-icon title="删除" @click.stop="deleteNode(data)"><delete /></el-icon>
+                  <el-icon v-if="data.kind === 'dir'" :title="$t('在此新建文件')" @click.stop="addFile(data.path)"><plus /></el-icon>
+                  <el-icon :title="$t('重命名')" @click.stop="renameNode(data)"><edit-pen /></el-icon>
+                  <el-icon :title="$t('删除')" @click.stop="deleteNode(data)"><delete /></el-icon>
                 </span>
               </span>
             </template>
@@ -64,44 +64,42 @@
         <div class="se-right">
           <!-- 基础信息 -->
           <div v-if="selectedKey === '__info__'" class="se-info">
-            <el-form label-width="90px" style="max-width: 720px">
-              <el-form-item label="技能名称" required>
-                <el-input v-model="form.name" :disabled="isBuiltin" placeholder="请输入技能名称" />
+            <el-form label-width="140px" style="max-width: 720px">
+              <el-form-item :label="$t('技能名称')" required>
+                <el-input v-model="form.name" :disabled="isBuiltin" :placeholder="$t('请输入技能名称')" />
               </el-form-item>
-              <el-form-item label="技能代码" required>
-                <el-input v-model="form.code" :disabled="isBuiltin || isUpdate" placeholder="英文唯一标识,供 load_skill 引用" />
+              <el-form-item :label="$t('技能代码')" required>
+                <el-input v-model="form.code" :disabled="isBuiltin || isUpdate" :placeholder="$t('英文唯一标识,供 load_skill 引用')" />
               </el-form-item>
-              <el-form-item label="描述" required>
+              <el-form-item :label="$t('描述')" required>
                 <el-input
                   v-model="form.description"
                   type="textarea"
                   :rows="3"
                   :disabled="isBuiltin"
-                  placeholder="常驻上下文,决定何时被选用。写清「这个技能用来做什么、什么场景该用」"
+                  :placeholder="$t('常驻上下文,决定何时被选用。写清「这个技能用来做什么、什么场景该用」')"
                 />
               </el-form-item>
-              <el-form-item label="类型">
+              <el-form-item :label="$t('类型')">
                 <el-radio-group v-model="form.skillType" :disabled="isBuiltin">
-                  <el-radio label="process">流程型(全局)</el-radio>
-                  <el-radio label="knowledge">知识型(按源浮现)</el-radio>
+                  <el-radio label="process">{{ $t('流程型(全局)') }}</el-radio>
+                  <el-radio label="knowledge">{{ $t('知识型(按源浮现)') }}</el-radio>
                 </el-radio-group>
-                <div class="se-hint" style="width: 100%; margin-left: 0">
-                  流程型:常驻「可用技能」清单,模型按需 load。知识型:不占常驻清单,认到所绑数据源时(search_datasource_knowledge)才提示可加载。
-                </div>
+                <div class="se-hint" style="width: 100%; margin-left: 0"> {{ $t('流程型:常驻「可用技能」清单,模型按需 load。知识型:不占常驻清单,认到所绑数据源时(search_datasource_knowledge)才提示可加载。') }} </div>
               </el-form-item>
-              <el-form-item v-if="form.skillType === 'knowledge'" label="关联数据源">
-                <el-select v-model="dsCodes" multiple filterable clearable :disabled="isBuiltin" placeholder="绑定数据源:认到这些源时本技能才浮现" style="width: 100%">
+              <el-form-item v-if="form.skillType === 'knowledge'" :label="$t('关联数据源')">
+                <el-select v-model="dsCodes" multiple filterable clearable :disabled="isBuiltin" :placeholder="$t('绑定数据源:认到这些源时本技能才浮现')" style="width: 100%">
                   <el-option v-for="s in dsOptions" :key="s.code" :label="`${s.name} (${s.code})`" :value="s.code" />
                 </el-select>
               </el-form-item>
-              <el-form-item label="引用技能">
-                <el-select v-model="refSkills" multiple filterable clearable :disabled="isBuiltin" placeholder="可引用其它技能(软引用:load_skill 本技能时会提示可再 load 它们)" style="width: 100%">
+              <el-form-item :label="$t('引用技能')">
+                <el-select v-model="refSkills" multiple filterable clearable :disabled="isBuiltin" :placeholder="$t('可引用其它技能(软引用:load_skill 本技能时会提示可再 load 它们)')" style="width: 100%">
                   <el-option v-for="s in refSkillOptions" :key="s.code" :label="`${s.name} (${s.code})`" :value="s.code" />
                 </el-select>
               </el-form-item>
-              <el-form-item label="状态">
+              <el-form-item :label="$t('状态')">
                 <el-switch v-model="form.status" active-value="0" inactive-value="1" :disabled="isBuiltin" />
-                <span class="se-hint">启用后普通对话默认可用</span>
+                <span class="se-hint">{{ $t('启用后普通对话默认可用') }}</span>
               </el-form-item>
             </el-form>
           </div>
@@ -111,7 +109,7 @@
             <div class="se-edit-bar">
               <el-icon><document /></el-icon>
               <span class="se-edit-path">{{ selectedLabel }}</span>
-              <el-tag v-if="selectedKey === '__entry__'" size="small" type="warning">入口</el-tag>
+              <el-tag v-if="selectedKey === '__entry__'" size="small" type="warning">{{ $t('入口') }}</el-tag>
             </div>
             <CodeEditor
               :key="selectedKey"
@@ -134,6 +132,7 @@
 <script setup name="SkillEditor">
 import { ref, reactive, computed, watch } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
+import { t as $t } from "@/lang";
 import { getSkill, addSkill, updateSkill, listSkill } from "@/api/ai/skill";
 import { listSource } from "@/api/dataManage/data";
 import CodeEditor from "@/components/CodeEditor";
@@ -181,7 +180,7 @@ function extOf(name) {
 // ---- 文件树构建 ----
 const treeData = computed(() => {
   const roots = [
-    { id: "__info__", label: "基础信息", kind: "info" },
+    { id: "__info__", label: $t("基础信息"), kind: "info" },
     { id: "__entry__", label: "SKILL.md", kind: "entry" },
   ];
   // 由 files 的 name(可含 /)构建目录树
@@ -429,12 +428,12 @@ async function exportZip() {
 
 // ---- 保存 ----
 function save() {
-  if (!form.name.trim()) return ElMessage.error("请填写技能名称");
-  if (!form.code.trim()) return ElMessage.error("请填写技能代码");
-  if (!content.value.trim()) return ElMessage.error("请填写 SKILL.md 正文");
+  if (!form.name.trim()) return ElMessage.error($t("请填写技能名称"));
+  if (!form.code.trim()) return ElMessage.error($t("请填写技能代码"));
+  if (!content.value.trim()) return ElMessage.error($t("请填写 SKILL.md 正文"));
   const named = files.value.filter((f) => f.name && f.name.trim()).map((f) => ({ name: f.name.trim(), content: f.content || "" }));
   const names = named.map((f) => f.name);
-  if (new Set(names).size !== names.length) return ElMessage.error("附加文件名不能重复");
+  if (new Set(names).size !== names.length) return ElMessage.error($t("附加文件名不能重复"));
   saving.value = true;
   const payload = {
     skillId: form.skillId ?? undefined,
@@ -452,7 +451,7 @@ function save() {
   const action = form.skillId != null ? updateSkill : addSkill;
   action(payload)
     .then(() => {
-      ElMessage.success(form.skillId != null ? "修改成功" : "新增成功");
+      ElMessage.success(form.skillId != null ? $t("修改成功") : $t("新增成功"));
       visible.value = false;
       emit("saved");
     })

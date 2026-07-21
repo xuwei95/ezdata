@@ -1,17 +1,17 @@
 <template>
    <div class="app-container">
       <el-form :model="queryParams" ref="queryRef" :inline="true" v-show="showSearch">
-         <el-form-item label="任务名称" prop="jobName">
+         <el-form-item :label="$t('任务名称')" prop="jobName">
             <el-input
                v-model="queryParams.jobName"
-               placeholder="请输入任务名称"
+               :placeholder="$t('请输入任务名称')"
                clearable
                style="width: 200px"
                @keyup.enter="handleQuery"
             />
          </el-form-item>
-         <el-form-item label="任务组名" prop="jobGroup">
-            <el-select v-model="queryParams.jobGroup" placeholder="请选择任务组名" clearable style="width: 200px">
+         <el-form-item :label="$t('任务组名')" prop="jobGroup">
+            <el-select v-model="queryParams.jobGroup" :placeholder="$t('请选择任务组名')" clearable style="width: 200px">
                <el-option
                   v-for="dict in sys_job_group"
                   :key="dict.value"
@@ -20,8 +20,8 @@
                />
             </el-select>
          </el-form-item>
-         <el-form-item label="任务状态" prop="status">
-            <el-select v-model="queryParams.status" placeholder="请选择任务状态" clearable style="width: 200px">
+         <el-form-item :label="$t('任务状态')" prop="status">
+            <el-select v-model="queryParams.status" :placeholder="$t('请选择任务状态')" clearable style="width: 200px">
                <el-option
                   v-for="dict in sys_job_status"
                   :key="dict.value"
@@ -31,8 +31,8 @@
             </el-select>
          </el-form-item>
          <el-form-item>
-            <el-button type="primary" icon="Search" @click="handleQuery">搜索</el-button>
-            <el-button icon="Refresh" @click="resetQuery">重置</el-button>
+            <el-button type="primary" icon="Search" @click="handleQuery">{{ $t('搜索') }}</el-button>
+            <el-button icon="Refresh" @click="resetQuery">{{ $t('重置') }}</el-button>
          </el-form-item>
       </el-form>
 
@@ -44,7 +44,7 @@
                icon="Plus"
                @click="handleAdd"
                v-hasPermi="['monitor:job:add']"
-            >新增</el-button>
+            >{{ $t('新增') }}</el-button>
          </el-col>
          <el-col :span="1.5">
             <el-button
@@ -54,7 +54,7 @@
                :disabled="single"
                @click="handleUpdate"
                v-hasPermi="['monitor:job:edit']"
-            >修改</el-button>
+            >{{ $t('修改') }}</el-button>
          </el-col>
          <el-col :span="1.5">
             <el-button
@@ -64,7 +64,7 @@
                :disabled="multiple"
                @click="handleDelete"
                v-hasPermi="['monitor:job:remove']"
-            >删除</el-button>
+            >{{ $t('删除') }}</el-button>
          </el-col>
          <el-col :span="1.5">
             <el-button
@@ -73,7 +73,7 @@
                icon="Download"
                @click="handleExport"
                v-hasPermi="['monitor:job:export']"
-            >导出</el-button>
+            >{{ $t('导出') }}</el-button>
          </el-col>
          <el-col :span="1.5">
             <el-button
@@ -82,7 +82,7 @@
                icon="Operation"
                @click="handleJobLog"
                v-hasPermi="['monitor:job:query']"
-            >日志</el-button>
+            >{{ $t('日志') }}</el-button>
          </el-col>
          <el-col :span="1.5">
             <el-button
@@ -91,23 +91,23 @@
                icon="RefreshRight"
                @click="handleRestartScheduler"
                v-hasPermi="['monitor:job:restart']"
-            >重启调度器</el-button>
+            >{{ $t('重启调度器') }}</el-button>
          </el-col>
          <right-toolbar v-model:showSearch="showSearch" @queryTable="getList"></right-toolbar>
       </el-row>
 
       <el-table v-loading="loading" :data="jobList" @selection-change="handleSelectionChange">
          <el-table-column type="selection" width="55" align="center" />
-         <el-table-column label="任务编号" width="100" align="center" prop="jobId" />
-         <el-table-column label="任务名称" align="center" prop="jobName" :show-overflow-tooltip="true" />
-         <el-table-column label="任务组名" align="center" prop="jobGroup">
+         <el-table-column :label="$t('任务编号')" width="100" align="center" prop="jobId" />
+         <el-table-column :label="$t('任务名称')" align="center" prop="jobName" :show-overflow-tooltip="true" />
+         <el-table-column :label="$t('任务组名')" align="center" prop="jobGroup">
             <template #default="scope">
                <dict-tag :options="sys_job_group" :value="scope.row.jobGroup" />
             </template>
          </el-table-column>
-         <el-table-column label="调用目标字符串" align="center" prop="invokeTarget" :show-overflow-tooltip="true" />
-         <el-table-column label="cron执行表达式" align="center" prop="cronExpression" :show-overflow-tooltip="true" />
-         <el-table-column label="状态" align="center">
+         <el-table-column :label="$t('调用目标字符串')" align="center" prop="invokeTarget" :show-overflow-tooltip="true" />
+         <el-table-column :label="$t('cron执行表达式')" align="center" prop="cronExpression" :show-overflow-tooltip="true" />
+         <el-table-column :label="$t('状态')" align="center">
             <template #default="scope">
                <el-switch
                   v-model="scope.row.status"
@@ -117,21 +117,21 @@
                ></el-switch>
             </template>
          </el-table-column>
-         <el-table-column label="操作" align="center" width="200" class-name="small-padding fixed-width">
+         <el-table-column :label="$t('操作')" align="center" width="200" class-name="small-padding fixed-width">
             <template #default="scope">
-               <el-tooltip content="修改" placement="top">
+               <el-tooltip :content="$t('修改')" placement="top">
                   <el-button link type="primary" icon="Edit" @click="handleUpdate(scope.row)" v-hasPermi="['monitor:job:edit']"></el-button>
                </el-tooltip>
-               <el-tooltip content="删除" placement="top">
+               <el-tooltip :content="$t('删除')" placement="top">
                   <el-button link type="primary" icon="Delete" @click="handleDelete(scope.row)" v-hasPermi="['monitor:job:remove']"></el-button>
                </el-tooltip>
-               <el-tooltip content="执行一次" placement="top">
+               <el-tooltip :content="$t('执行一次')" placement="top">
                   <el-button link type="primary" icon="CaretRight" @click="handleRun(scope.row)" v-hasPermi="['monitor:job:changeStatus']"></el-button>
                </el-tooltip>
-               <el-tooltip content="任务详细" placement="top">
+               <el-tooltip :content="$t('任务详细')" placement="top">
                   <el-button link type="primary" icon="View" @click="handleView(scope.row)" v-hasPermi="['monitor:job:query']"></el-button>
                </el-tooltip>
-               <el-tooltip content="调度日志" placement="top">
+               <el-tooltip :content="$t('调度日志')" placement="top">
                   <el-button link type="primary" icon="Operation" @click="handleJobLog(scope.row)" v-hasPermi="['monitor:job:query']"></el-button>
                </el-tooltip>
             </template>
@@ -148,16 +148,16 @@
 
       <!-- 添加或修改定时任务对话框 -->
       <el-dialog :title="title" v-model="open" width="820px" append-to-body>
-         <el-form ref="jobRef" :model="form" :rules="rules" label-width="120px">
+         <el-form ref="jobRef" :model="form" :rules="rules" label-width="170px">
             <el-row>
                <el-col :span="24">
-                  <el-form-item label="任务名称" prop="jobName">
-                     <el-input v-model="form.jobName" placeholder="请输入任务名称" />
+                  <el-form-item :label="$t('任务名称')" prop="jobName">
+                     <el-input v-model="form.jobName" :placeholder="$t('请输入任务名称')" />
                   </el-form-item>
                </el-col>
                <el-col :span="12">
-                  <el-form-item label="任务分组" prop="jobGroup">
-                     <el-select v-model="form.jobGroup" placeholder="请选择">
+                  <el-form-item :label="$t('任务分组')" prop="jobGroup">
+                     <el-select v-model="form.jobGroup" :placeholder="$t('请选择')">
                         <el-option
                            v-for="dict in sys_job_group"
                            :key="dict.value"
@@ -170,19 +170,15 @@
                <el-col :span="12">
                   <el-form-item prop="jobGroup">
                      <template #label>
-                        <span>
-                           任务执行器
-                           <el-tooltip placement="top">
+                        <span> {{ $t('任务执行器') }} <el-tooltip placement="top">
                               <template #content>
-                                 <div>
-                                    调用方法为异步函数时此选项无效
-                                 </div>
+                                 <div> {{ $t('调用方法为异步函数时此选项无效') }} </div>
                               </template>
                               <el-icon><question-filled /></el-icon>
                            </el-tooltip>
                         </span>
                      </template>
-                     <el-select v-model="form.jobExecutor" placeholder="请选择任务执行器">
+                     <el-select v-model="form.jobExecutor" :placeholder="$t('请选择任务执行器')">
                         <el-option
                            v-for="dict in sys_job_executor"
                            :key="dict.value"
@@ -195,45 +191,39 @@
                <el-col :span="24">
                   <el-form-item prop="invokeTarget">
                      <template #label>
-                        <span>
-                           调用方法
-                           <el-tooltip placement="top">
+                        <span> {{ $t('调用方法') }} <el-tooltip placement="top">
                               <template #content>
-                                 <div>
-                                    调用示例：module_task.scheduler_test.job
-                                 </div>
+                                 <div> {{ $t('调用示例：module_task.scheduler_test.job') }} </div>
                               </template>
                               <el-icon><question-filled /></el-icon>
                            </el-tooltip>
                         </span>
                      </template>
-                     <el-input v-model="form.invokeTarget" placeholder="请输入调用目标字符串" />
+                     <el-input v-model="form.invokeTarget" :placeholder="$t('请输入调用目标字符串')" />
                   </el-form-item>
                </el-col>
                <el-col :span="24">
-                  <el-form-item label="位置参数" prop="jobArgs">
-                  <el-input v-model="form.jobArgs" placeholder="请输入位置参数" />
+                  <el-form-item :label="$t('位置参数')" prop="jobArgs">
+                  <el-input v-model="form.jobArgs" :placeholder="$t('请输入位置参数')" />
                   </el-form-item>
                </el-col>
                <el-col :span="24">
-                  <el-form-item label="关键字参数" prop="jobKwargs">
-                  <el-input v-model="form.jobKwargs" placeholder="请输入关键字参数" />
+                  <el-form-item :label="$t('关键字参数')" prop="jobKwargs">
+                  <el-input v-model="form.jobKwargs" :placeholder="$t('请输入关键字参数')" />
                   </el-form-item>
                </el-col>
                <el-col :span="24">
-                  <el-form-item label="cron表达式" prop="cronExpression">
-                     <el-input v-model="form.cronExpression" placeholder="请输入cron执行表达式">
+                  <el-form-item :label="$t('cron表达式')" prop="cronExpression">
+                     <el-input v-model="form.cronExpression" :placeholder="$t('请输入cron执行表达式')">
                         <template #append>
-                           <el-button type="primary" @click="handleShowCron">
-                              生成表达式
-                              <i class="el-icon-time el-icon--right"></i>
+                           <el-button type="primary" @click="handleShowCron"> {{ $t('生成表达式') }} <i class="el-icon-time el-icon--right"></i>
                            </el-button>
                         </template>
                      </el-input>
                   </el-form-item>
                </el-col>
                <el-col :span="24" v-if="form.jobId !== undefined">
-                  <el-form-item label="状态">
+                  <el-form-item :label="$t('状态')">
                      <el-radio-group v-model="form.status">
                         <el-radio
                            v-for="dict in sys_job_status"
@@ -244,19 +234,19 @@
                   </el-form-item>
                </el-col>
                <el-col :span="12">
-                  <el-form-item label="执行策略" prop="misfirePolicy">
+                  <el-form-item :label="$t('执行策略')" prop="misfirePolicy">
                      <el-radio-group v-model="form.misfirePolicy">
-                        <el-radio-button value="1">立即执行</el-radio-button>
-                        <el-radio-button value="2">执行一次</el-radio-button>
-                        <el-radio-button value="3">放弃执行</el-radio-button>
+                        <el-radio-button value="1">{{ $t('立即执行') }}</el-radio-button>
+                        <el-radio-button value="2">{{ $t('执行一次') }}</el-radio-button>
+                        <el-radio-button value="3">{{ $t('放弃执行') }}</el-radio-button>
                      </el-radio-group>
                   </el-form-item>
                </el-col>
                <el-col :span="12">
-                  <el-form-item label="是否并发" prop="concurrent">
+                  <el-form-item :label="$t('是否并发')" prop="concurrent">
                      <el-radio-group v-model="form.concurrent">
-                        <el-radio-button value="0">允许</el-radio-button>
-                        <el-radio-button value="1">禁止</el-radio-button>
+                        <el-radio-button value="0">{{ $t('允许') }}</el-radio-button>
+                        <el-radio-button value="1">{{ $t('禁止') }}</el-radio-button>
                      </el-radio-group>
                   </el-form-item>
                </el-col>
@@ -264,71 +254,71 @@
          </el-form>
          <template #footer>
             <div class="dialog-footer">
-               <el-button type="primary" @click="submitForm">确 定</el-button>
-               <el-button @click="cancel">取 消</el-button>
+               <el-button type="primary" @click="submitForm">{{ $t('确 定') }}</el-button>
+               <el-button @click="cancel">{{ $t('取 消') }}</el-button>
             </div>
          </template>
       </el-dialog>
 
-     <el-dialog title="Cron表达式生成器" v-model="openCron" append-to-body destroy-on-close>
+     <el-dialog :title="$t('Cron表达式生成器')" v-model="openCron" append-to-body destroy-on-close>
        <crontab ref="crontabRef" @hide="openCron=false" @fill="crontabFill" :expression="expression"></crontab>
      </el-dialog>
 
       <!-- 任务日志详细 -->
-      <el-dialog title="任务详细" v-model="openView" width="700px" append-to-body>
-         <el-form :model="form" label-width="120px">
+      <el-dialog :title="$t('任务详细')" v-model="openView" width="700px" append-to-body>
+         <el-form :model="form" label-width="170px">
             <el-row>
                <el-col :span="12">
-                  <el-form-item label="任务编号：">{{ form.jobId }}</el-form-item>
-                  <el-form-item label="任务名称：">{{ form.jobName }}</el-form-item>
+                  <el-form-item :label="$t('任务编号：')">{{ form.jobId }}</el-form-item>
+                  <el-form-item :label="$t('任务名称：')">{{ form.jobName }}</el-form-item>
                </el-col>
                <el-col :span="12">
-                  <el-form-item label="任务分组：">{{ jobGroupFormat(form) }}</el-form-item>
-                  <el-form-item label="创建时间：">{{ parseTime(form.createTime) }}</el-form-item>
+                  <el-form-item :label="$t('任务分组：')">{{ jobGroupFormat(form) }}</el-form-item>
+                  <el-form-item :label="$t('创建时间：')">{{ parseTime(form.createTime) }}</el-form-item>
                </el-col>
                <el-col :span="12">
-                  <el-form-item label="cron表达式：">{{ form.cronExpression }}</el-form-item>
+                  <el-form-item :label="$t('cron表达式：')">{{ form.cronExpression }}</el-form-item>
                </el-col>
                <el-col :span="12">
-                  <el-form-item label="下次执行时间：">{{ parseTime(form.nextValidTime) }}</el-form-item>
+                  <el-form-item :label="$t('下次执行时间：')">{{ parseTime(form.nextValidTime) }}</el-form-item>
                </el-col>
                <el-col :span="12">
-                  <el-form-item label="任务执行器：">{{ jobExecutorFormat(form) }}</el-form-item>
+                  <el-form-item :label="$t('任务执行器：')">{{ jobExecutorFormat(form) }}</el-form-item>
                </el-col>
                <el-col :span="24">
-                  <el-form-item label="调用目标方法：">{{ form.invokeTarget }}</el-form-item>
+                  <el-form-item :label="$t('调用目标方法：')">{{ form.invokeTarget }}</el-form-item>
                </el-col>
                <el-col :span="24">
-                  <el-form-item label="位置参数：">{{ form.jobArgs }}</el-form-item>
+                  <el-form-item :label="$t('位置参数：')">{{ form.jobArgs }}</el-form-item>
                </el-col>
                <el-col :span="24">
-                  <el-form-item label="关键字参数：">{{ form.jobKwargs }}</el-form-item>
+                  <el-form-item :label="$t('关键字参数：')">{{ form.jobKwargs }}</el-form-item>
                </el-col>
                <el-col :span="12">
-                  <el-form-item label="任务状态：">
-                     <div v-if="form.status == 0">正常</div>
-                     <div v-else-if="form.status == 1">暂停</div>
+                  <el-form-item :label="$t('任务状态：')">
+                     <div v-if="form.status == 0">{{ $t('正常') }}</div>
+                     <div v-else-if="form.status == 1">{{ $t('暂停') }}</div>
                   </el-form-item>
                </el-col>
                <el-col :span="12">
-                  <el-form-item label="是否并发：">
-                     <div v-if="form.concurrent == 0">允许</div>
-                     <div v-else-if="form.concurrent == 1">禁止</div>
+                  <el-form-item :label="$t('是否并发：')">
+                     <div v-if="form.concurrent == 0">{{ $t('允许') }}</div>
+                     <div v-else-if="form.concurrent == 1">{{ $t('禁止') }}</div>
                   </el-form-item>
                </el-col>
                <el-col :span="12">
-                  <el-form-item label="执行策略：">
-                     <div v-if="form.misfirePolicy == '0'">默认策略</div>
-                     <div v-else-if="form.misfirePolicy == '1'">立即执行</div>
-                     <div v-else-if="form.misfirePolicy == '2'">执行一次</div>
-                     <div v-else-if="form.misfirePolicy == '3'">放弃执行</div>
+                  <el-form-item :label="$t('执行策略：')">
+                     <div v-if="form.misfirePolicy == '0'">{{ $t('默认策略') }}</div>
+                     <div v-else-if="form.misfirePolicy == '1'">{{ $t('立即执行') }}</div>
+                     <div v-else-if="form.misfirePolicy == '2'">{{ $t('执行一次') }}</div>
+                     <div v-else-if="form.misfirePolicy == '3'">{{ $t('放弃执行') }}</div>
                   </el-form-item>
                </el-col>
             </el-row>
          </el-form>
          <template #footer>
             <div class="dialog-footer">
-               <el-button @click="openView = false">关 闭</el-button>
+               <el-button @click="openView = false">{{ $t('关 闭') }}</el-button>
             </div>
          </template>
       </el-dialog>

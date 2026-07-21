@@ -13,7 +13,7 @@
             class="new-chat-btn"
             icon="Plus"
             @click="clearChat"
-            >新建对话</el-button
+            >{{ $t('新建对话') }}</el-button
           >
         </div>
         <div class="session-list" v-loading="sessionLoading">
@@ -48,9 +48,7 @@
           <div
             v-if="sessionList.length === 0 && !sessionLoading"
             class="empty-session"
-          >
-            暂无历史对话
-          </div>
+          > {{ $t('暂无历史对话') }} </div>
         </div>
       </el-aside>
 
@@ -66,10 +64,10 @@
                 @click="sidebarCollapsed = !sidebarCollapsed"
               ></el-button>
             </el-tooltip>
-            <span class="header-title">AI 智能助手</span>
+            <span class="header-title">{{ $t('AI 智能助手') }}</span>
           </div>
           <div class="header-right">
-            <el-tooltip content="全局参数配置" placement="bottom">
+            <el-tooltip :content="$t('全局参数配置')" placement="bottom">
               <el-button
                 icon="Setting"
                 circle
@@ -79,7 +77,7 @@
             </el-tooltip>
             <el-select
               v-model="currentModelId"
-              placeholder="选择模型"
+              :placeholder="$t('选择模型')"
               size="large"
               style="width: 210px"
             >
@@ -103,8 +101,8 @@
               <div class="welcome-icon">
                 <el-icon size="60"><Service /></el-icon>
               </div>
-              <h2>你好！我是你的 AI 助手</h2>
-              <p>请在下方输入问题开始对话...</p>
+              <h2>{{ $t('你好！我是你的 AI 助手') }}</h2>
+              <p>{{ $t('请在下方输入问题开始对话...') }}</p>
             </div>
 
             <div
@@ -157,7 +155,7 @@
                 </div>
                 <div class="message-footer">
                   <div class="footer-actions">
-                    <el-tooltip content="复制" placement="top">
+                    <el-tooltip :content="$t('复制')" placement="top">
                       <el-button
                         link
                         type="info"
@@ -243,7 +241,7 @@
               type="textarea"
               :rows="3"
               resize="none"
-              placeholder="请输入您的问题... (Enter 发送，Shift + Enter 换行)"
+              :placeholder="$t('请输入您的问题... (Enter 发送，Shift + Enter 换行)')"
               @keydown.enter.exact.prevent="handleSend"
               :disabled="loading"
             />
@@ -268,7 +266,7 @@
                     currentModelInfo.supportImages === 'Y' &&
                     userConfig.visionEnabled == '0'
                   "
-                  content="上传图片"
+                  :content="$t('上传图片')"
                   placement="top"
                 >
                   <el-button
@@ -291,9 +289,7 @@
                 >
                   <template #icon>
                     <svg-icon icon-class="deepthink" />
-                  </template>
-                  深度思考
-                </el-button>
+                  </template> {{ $t('深度思考') }} </el-button>
               </div>
               <el-button
                 :type="loading ? 'danger' : 'primary'"
@@ -314,28 +310,28 @@
     <!-- 全局配置弹窗 -->
     <el-dialog
       v-model="showConfigDialog"
-      title="用户全局配置"
+      :title="$t('用户全局配置')"
       width="700px"
       append-to-body
       class="chat-config-dialog"
     >
-      <el-form :model="editingUserConfig" label-width="150px">
+      <el-form :model="editingUserConfig" label-width="200px">
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="默认温度">
+            <el-form-item :label="$t('默认温度')">
               <el-input-number
                 v-model="editingUserConfig.temperature"
                 :min="0"
                 :max="2"
                 :step="0.1"
                 :precision="1"
-                placeholder="默认温度"
+                :placeholder="$t('默认温度')"
                 style="width: 100%"
               />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="附带历史消息">
+            <el-form-item :label="$t('附带历史消息')">
               <el-switch
                 active-value="0"
                 inactive-value="1"
@@ -345,20 +341,20 @@
           </el-col>
           <el-col :span="12">
             <el-form-item
-              label="历史消息轮数"
+              :label="$t('历史消息轮数')"
               v-if="editingUserConfig.addHistoryToContext == '0'"
             >
               <el-input-number
                 v-model="editingUserConfig.numHistoryRuns"
                 :min="1"
                 :max="20"
-                placeholder="历史消息轮数"
+                :placeholder="$t('历史消息轮数')"
                 style="width: 100%"
               />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="默认显示指标">
+            <el-form-item :label="$t('默认显示指标')">
               <el-switch
                 active-value="0"
                 inactive-value="1"
@@ -367,13 +363,13 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="长期记忆">
+            <el-form-item :label="$t('长期记忆')">
               <el-switch active-value="0" inactive-value="1" v-model="editingUserConfig.enableMemory" />
-              <span style="margin-left: 8px; font-size: 12px; color: var(--el-text-color-secondary)">跨会话记住你的偏好/事实</span>
+              <span style="margin-left: 8px; font-size: 12px; color: var(--el-text-color-secondary)">{{ $t('跨会话记住你的偏好/事实') }}</span>
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="开启视觉功能">
+            <el-form-item :label="$t('开启视觉功能')">
               <el-switch
                 active-value="0"
                 inactive-value="1"
@@ -383,14 +379,14 @@
           </el-col>
           <el-col :span="12">
             <el-form-item
-              label="图片最大大小"
+              :label="$t('图片最大大小')"
               v-if="editingUserConfig.visionEnabled"
             >
               <el-input-number
                 v-model="editingUserConfig.imageMaxSizeMb"
                 :min="1"
                 :max="50"
-                placeholder="图片大小"
+                :placeholder="$t('图片大小')"
                 style="width: 100%"
               >
                 <template #suffix>
@@ -400,14 +396,14 @@
             </el-form-item>
           </el-col>
           <el-col :span="24">
-            <el-form-item label="MCP 工具">
+            <el-form-item :label="$t('MCP 工具')">
               <el-select
                 v-model="selectedMcpToolIds"
                 multiple
                 clearable
                 collapse-tags
                 collapse-tags-tooltip
-                placeholder="选择要挂载到对话的 MCP 工具(留空则不挂载)"
+                :placeholder="$t('选择要挂载到对话的 MCP 工具(留空则不挂载)')"
                 style="width: 100%"
               >
                 <el-option
@@ -420,14 +416,14 @@
             </el-form-item>
           </el-col>
           <el-col :span="24">
-            <el-form-item label="引用智能体">
+            <el-form-item :label="$t('引用智能体')">
               <el-select
                 v-model="selectedAgentAppIds"
                 multiple
                 clearable
                 collapse-tags
                 collapse-tags-tooltip
-                placeholder="引用已配置的应用作为协作成员(留空则单 agent;选了则按需委派给成员)"
+                :placeholder="$t('引用已配置的应用作为协作成员(留空则单 agent;选了则按需委派给成员)')"
                 style="width: 100%"
               >
                 <el-option v-for="a in agentAppOptions" :key="a.appId" :label="a.name" :value="a.appId" />
@@ -435,12 +431,12 @@
             </el-form-item>
           </el-col>
           <el-col :span="24">
-            <el-form-item label="系统提示词">
+            <el-form-item :label="$t('系统提示词')">
               <el-input
                 v-model="editingUserConfig.systemPrompt"
                 type="textarea"
                 :rows="4"
-                placeholder="设置全局系统提示词"
+                :placeholder="$t('设置全局系统提示词')"
               />
             </el-form-item>
           </el-col>
@@ -448,8 +444,8 @@
       </el-form>
       <template #footer>
         <span class="dialog-footer">
-          <el-button @click="showConfigDialog = false">取消</el-button>
-          <el-button type="primary" @click="handleSaveConfig">保存</el-button>
+          <el-button @click="showConfigDialog = false">{{ $t('取消') }}</el-button>
+          <el-button type="primary" @click="handleSaveConfig">{{ $t('保存') }}</el-button>
         </span>
       </template>
     </el-dialog>

@@ -22,20 +22,14 @@
       <el-icon class="avatar-uploader-icon"><plus /></el-icon>
     </el-upload>
     <!-- 上传提示 -->
-    <div class="el-upload__tip" v-if="showTip && !disabled">
-      请上传
-      <template v-if="fileSize">
-        大小不超过 <b style="color: #f56c6c">{{ fileSize }}MB</b>
+    <div class="el-upload__tip" v-if="showTip && !disabled"> {{ $t('请上传') }} <template v-if="fileSize"> {{ $t('大小不超过') }} <b style="color: #f56c6c">{{ fileSize }}MB</b>
       </template>
-      <template v-if="fileType">
-        格式为 <b style="color: #f56c6c">{{ fileType.join("/") }}</b>
-      </template>
-      的文件
-    </div>
+      <template v-if="fileType"> {{ $t('格式为') }} <b style="color: #f56c6c">{{ fileType.join("/") }}</b>
+      </template> {{ $t('的文件') }} </div>
 
     <el-dialog
       v-model="dialogVisible"
-      title="预览"
+      :title="$t('预览')"
       width="800px"
       append-to-body
     >

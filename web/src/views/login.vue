@@ -8,7 +8,7 @@
           type="text"
           size="large"
           auto-complete="off"
-          placeholder="账号"
+          :placeholder="$t('账号')"
         >
           <template #prefix><svg-icon icon-class="user" class="el-input__icon input-icon" /></template>
         </el-input>
@@ -19,7 +19,7 @@
           type="password"
           size="large"
           auto-complete="off"
-          placeholder="密码"
+          :placeholder="$t('密码')"
           @keyup.enter="handleLogin"
         >
           <template #prefix><svg-icon icon-class="password" class="el-input__icon input-icon" /></template>
@@ -30,7 +30,7 @@
           v-model="loginForm.code"
           size="large"
           auto-complete="off"
-          placeholder="验证码"
+          :placeholder="$t('验证码')"
           style="width: 63%"
           @keyup.enter="handleLogin"
         >
@@ -40,7 +40,7 @@
           <img :src="codeUrl" @click="getCode" class="login-code-img"/>
         </div>
       </el-form-item>
-      <el-checkbox v-model="loginForm.rememberMe" style="margin:0px 0px 25px 0px;">记住密码</el-checkbox>
+      <el-checkbox v-model="loginForm.rememberMe" style="margin:0px 0px 25px 0px;">{{ $t('记住密码') }}</el-checkbox>
       <el-form-item style="width:100%;">
         <el-button
           :loading="loading"
@@ -49,17 +49,17 @@
           style="width:100%;"
           @click.prevent="handleLogin"
         >
-          <span v-if="!loading">登 录</span>
-          <span v-else>登 录 中...</span>
+          <span v-if="!loading">{{ $t('登 录') }}</span>
+          <span v-else>{{ $t('登 录 中...') }}</span>
         </el-button>
         <div style="float: right;" v-if="register">
-          <router-link class="link-type" :to="'/register'">立即注册</router-link>
+          <router-link class="link-type" :to="'/register'">{{ $t('立即注册') }}</router-link>
         </div>
       </el-form-item>
-      <el-divider style="margin: 4px 0 16px;">或</el-divider>
+      <el-divider style="margin: 4px 0 16px;">{{ $t('或') }}</el-divider>
       <el-form-item style="width:100%;">
         <el-button size="large" style="width:100%;" @click.prevent="handleGithubLogin">
-          使用 GitHub 登录
+          {{ $t('使用 GitHub 登录') }}
         </el-button>
       </el-form-item>
     </el-form>
