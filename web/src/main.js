@@ -12,6 +12,7 @@ import '@/assets/styles/index.scss' // global css
 import App from './App'
 import store from './store'
 import router from './router'
+import i18n from './lang' // 国际化(vue-i18n)
 import directive from './directive' // directive
 
 // 注册指令
@@ -74,6 +75,7 @@ app.component('Editor', Editor)
 
 app.use(router)
 app.use(store)
+app.use(i18n)
 app.use(plugins)
 app.use(VxeUIAll)
 app.use(VxeUITable)
