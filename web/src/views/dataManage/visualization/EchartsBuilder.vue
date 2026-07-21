@@ -4,16 +4,16 @@
     <div v-if="showControls" class="eb-panel" :style="{ maxHeight: height + 'px' }">
       <el-tabs v-model="panelTab" class="eb-tabs">
         <!-- ============ 数据 ============ -->
-        <el-tab-pane label="数据" name="data">
+        <el-tab-pane :label="$t('数据')" name="data">
           <div v-if="aiEnabled" class="fld ai-fld">
-            <label>AI 生成图表</label>
-            <el-input v-model="aiQuestion" type="textarea" :rows="2" placeholder="一句话描述想要的图,如:各城市销售额 Top10 柱状图"
+            <label>{{ $t('AI 生成图表') }}</label>
+            <el-input v-model="aiQuestion" type="textarea" :rows="2" :placeholder="$t('一句话描述想要的图,如:各城市销售额 Top10 柱状图')"
               @keyup.enter.stop="genAi" />
             <el-button size="small" type="primary" icon="MagicStick" :loading="aiLoading" style="margin-top: 6px" @click="genAi">
               {{ aiLoading ? '生成中…' : '生成图表' }}</el-button>
           </div>
           <div class="fld">
-            <label>图表类型</label>
+            <label>{{ $t('图表类型') }}</label>
             <el-select v-model="cfg.type" size="small" style="width: 100%">
               <el-option-group v-for="g in TYPE_GROUPS" :key="g.label" :label="g.label">
                 <el-option v-for="t in g.items" :key="t.v" :label="t.l" :value="t.v" />
@@ -24,7 +24,7 @@
           <template v-if="cfg.type !== 'table'">
             <div v-if="!isSankey" class="fld">
               <label>{{ xLabel }}</label>
-              <el-select v-model="cfg.x" size="small" filterable clearable placeholder="选择字段" style="width: 100%">
+              <el-select v-model="cfg.x" size="small" filterable clearable :placeholder="$t('选择字段')" style="width: 100%">
                 <el-option v-for="f in fields" :key="f" :label="f" :value="f" />
               </el-select>
             </div>
@@ -33,7 +33,7 @@
             <template v-if="isKline">
               <div v-for="o in OHLC_FIELDS" :key="o.k" class="fld">
                 <label>{{ o.l }}</label>
-                <el-select v-model="cfg.ohlc[o.k]" size="small" filterable clearable placeholder="选择字段" style="width: 100%">
+                <el-select v-model="cfg.ohlc[o.k]" size="small" filterable clearable :placeholder="$t('选择字段')" style="width: 100%">
                   <el-option v-for="f in fields" :key="f" :label="f" :value="f" />
                 </el-select>
               </div>
@@ -43,7 +43,7 @@
             <template v-if="isSankey">
               <div v-for="l in LINK_FIELDS" :key="l.k" class="fld">
                 <label>{{ l.l }}</label>
-                <el-select v-model="cfg.link[l.k]" size="small" filterable clearable placeholder="选择字段" style="width: 100%">
+                <el-select v-model="cfg.link[l.k]" size="small" filterable clearable :placeholder="$t('选择字段')" style="width: 100%">
                   <el-option v-for="f in fields" :key="f" :label="f" :value="f" />
                 </el-select>
               </div>
@@ -52,7 +52,7 @@
             <div v-if="!isKline && !isSankey" class="fld">
               <label>{{ isHeatmap ? '值(颜色深浅)' : '度量 / 指标' }}</label>
               <div v-for="(m, i) in cfg.ys" :key="i" class="ys-row">
-                <el-select v-model="m.field" size="small" filterable placeholder="字段" style="flex: 1">
+                <el-select v-model="m.field" size="small" filterable :placeholder="$t('字段')" style="flex: 1">
                   <el-option v-for="f in fields" :key="f" :label="f" :value="f" />
                 </el-select>
                 <el-select v-model="m.agg" size="small" style="width: 76px">
@@ -66,10 +66,10 @@
                     <el-option v-for="o in AXES" :key="o.v" :label="o.l" :value="o.v" />
                   </el-select>
                 </template>
-                <el-color-picker v-model="m.color" size="small" title="该度量颜色(留空走配色方案)" />
+                <el-color-picker v-model="m.color" size="small" :title="$t('该度量颜色(留空走配色方案)')" />
                 <el-button size="small" icon="Delete" text :disabled="cfg.ys.length <= 1" @click="removeY(i)" />
               </div>
-              <el-button v-if="allowMultiY" size="small" text type="primary" icon="Plus" @click="addY">添加度量</el-button>
+              <el-button v-if="allowMultiY" size="small" text type="primary" icon="Plus" @click="addY">{{ $t('添加度量') }}</el-button>
             </div>
 
             <div v-if="allowSeries || isHeatmap" class="fld">
@@ -80,138 +80,138 @@
             </div>
 
             <div v-if="showSortTopN" class="fld">
-              <label>排序</label>
+              <label>{{ $t('排序') }}</label>
               <div class="row2">
                 <el-select v-model="cfg.sort.by" size="small" style="flex: 1">
-                  <el-option label="默认" value="" />
-                  <el-option label="按类别" value="__x__" />
+                  <el-option :label="$t('默认')" value="" />
+                  <el-option :label="$t('按类别')" value="__x__" />
                   <el-option v-for="m in cfg.ys" :key="m.field" :label="'按 ' + m.field" :value="m.field" />
                 </el-select>
                 <el-select v-model="cfg.sort.dir" size="small" style="width: 82px" :disabled="!cfg.sort.by">
-                  <el-option label="降序" value="desc" />
-                  <el-option label="升序" value="asc" />
+                  <el-option :label="$t('降序')" value="desc" />
+                  <el-option :label="$t('升序')" value="asc" />
                 </el-select>
               </div>
             </div>
 
             <div v-if="showSortTopN" class="fld">
-              <label>Top-N(0 = 不限)</label>
+              <label>{{ $t('Top-N(0 = 不限)') }}</label>
               <el-input-number v-model="cfg.topN" :min="0" :max="1000" size="small" controls-position="right" style="width: 100%" />
             </div>
 
             <div v-if="showSortTopN && cfg.topN > 0" class="fld inline">
-              <label>余下归并「其他」</label>
+              <label>{{ $t('余下归并「其他」') }}</label>
               <el-switch v-model="cfg.style.othersGroup" size="small" />
             </div>
           </template>
-          <el-alert v-else type="info" :closable="false" show-icon title="明细表直接展示查询结果的所有字段,无需配置维度/度量" />
+          <el-alert v-else type="info" :closable="false" show-icon :title="$t('明细表直接展示查询结果的所有字段,无需配置维度/度量')" />
         </el-tab-pane>
 
         <!-- ============ 样式 ============ -->
-        <el-tab-pane label="样式" name="style">
+        <el-tab-pane :label="$t('样式')" name="style">
           <div class="fld">
-            <label>标题</label>
-            <el-input v-model="cfg.style.title" size="small" clearable placeholder="留空不显示" />
+            <label>{{ $t('标题') }}</label>
+            <el-input v-model="cfg.style.title" size="small" clearable :placeholder="$t('留空不显示')" />
           </div>
 
           <div class="fld inline">
-            <label>图上导出按钮</label>
+            <label>{{ $t('图上导出按钮') }}</label>
             <el-switch v-model="cfg.style.showExport" size="small" />
-            <span class="tip" style="margin-left: 8px">导出 PNG / Excel(默认关)</span>
+            <span class="tip" style="margin-left: 8px">{{ $t('导出 PNG / Excel(默认关)') }}</span>
           </div>
 
           <template v-if="cfg.type !== 'table'">
             <div v-if="cfg.type !== 'kpi'" class="fld inline">
-              <label>图例</label>
+              <label>{{ $t('图例') }}</label>
               <el-switch v-model="cfg.style.legend" size="small" />
               <el-select v-model="cfg.style.legendPos" size="small" style="width: 96px; margin-left: auto" :disabled="!cfg.style.legend">
-                <el-option label="上" value="top" />
-                <el-option label="下" value="bottom" />
-                <el-option label="左" value="left" />
-                <el-option label="右" value="right" />
+                <el-option :label="$t('上')" value="top" />
+                <el-option :label="$t('下')" value="bottom" />
+                <el-option :label="$t('左')" value="left" />
+                <el-option :label="$t('右')" value="right" />
               </el-select>
             </div>
 
             <div v-if="cfg.type !== 'kpi'" class="fld inline">
-              <label>数据标签</label>
+              <label>{{ $t('数据标签') }}</label>
               <el-switch v-model="cfg.style.label" size="small" />
             </div>
 
             <div v-if="isCartesian || isCombo || cfg.type === 'scatter'" class="fld inline">
-              <label>缩放条</label>
+              <label>{{ $t('缩放条') }}</label>
               <el-switch v-model="cfg.style.dataZoom" size="small" />
             </div>
 
             <div v-if="isLineFamily" class="fld inline">
-              <label>平滑曲线</label>
+              <label>{{ $t('平滑曲线') }}</label>
               <el-switch v-model="cfg.style.smooth" size="small" />
             </div>
 
             <div v-if="cfg.type !== 'kpi'" class="fld">
-              <label>配色方案</label>
+              <label>{{ $t('配色方案') }}</label>
               <el-select v-model="cfg.style.palette" size="small" style="width: 100%">
                 <el-option v-for="(v, k) in PALETTES" :key="k" :label="v.label" :value="k" />
               </el-select>
             </div>
 
             <div v-if="hasAxis" class="fld inline">
-              <label>轴名</label>
+              <label>{{ $t('轴名') }}</label>
               <el-input v-model="cfg.style.xName" size="small" placeholder="X" style="width: 44%" />
               <el-input v-model="cfg.style.yName" size="small" placeholder="Y" style="width: 44%; margin-left: auto" />
             </div>
 
             <div v-if="hasAxis" class="fld inline">
-              <label>X 标签旋转</label>
+              <label>{{ $t('X 标签旋转') }}</label>
               <el-input-number v-model="cfg.style.rotate" :min="0" :max="90" :step="15" size="small" controls-position="right" style="width: 110px; margin-left: auto" />
             </div>
 
             <div v-if="hasAxis" class="fld inline">
-              <label>Y 轴范围</label>
+              <label>{{ $t('Y 轴范围') }}</label>
               <el-input v-model="cfg.style.yMin" size="small" placeholder="min" style="width: 44%" />
               <el-input v-model="cfg.style.yMax" size="small" placeholder="max" style="width: 44%; margin-left: auto" />
             </div>
 
             <div v-if="isPieFamily" class="fld inline">
-              <label>环形内径 %</label>
+              <label>{{ $t('环形内径 %') }}</label>
               <el-slider v-model="cfg.style.donutInner" :min="0" :max="80" size="small" style="width: 130px; margin-left: auto" />
             </div>
 
             <!-- 参考/目标线(仅直角坐标 / 组合图) -->
             <div v-if="isCartesian || isCombo" class="fld">
-              <label>参考线 / 目标线</label>
+              <label>{{ $t('参考线 / 目标线') }}</label>
               <div v-for="(ml, i) in cfg.style.markLines" :key="i" class="ml-row">
-                <el-input v-model="ml.value" size="small" placeholder="值" style="width: 92px" />
-                <el-input v-model="ml.label" size="small" placeholder="标签(可选)" style="flex: 1" />
+                <el-input v-model="ml.value" size="small" :placeholder="$t('值')" style="width: 92px" />
+                <el-input v-model="ml.label" size="small" :placeholder="$t('标签(可选)')" style="flex: 1" />
                 <el-button size="small" icon="Delete" text @click="cfg.style.markLines.splice(i, 1)" />
               </div>
-              <el-button size="small" text type="primary" icon="Plus" @click="cfg.style.markLines.push({ value: '', label: '' })">添加参考线</el-button>
+              <el-button size="small" text type="primary" icon="Plus" @click="cfg.style.markLines.push({ value: '', label: '' })">{{ $t('添加参考线') }}</el-button>
             </div>
           </template>
 
-          <el-divider content-position="left">数值格式</el-divider>
+          <el-divider content-position="left">{{ $t('数值格式') }}</el-divider>
           <div class="fld inline">
-            <label>小数位</label>
+            <label>{{ $t('小数位') }}</label>
             <el-input-number v-model="cfg.style.decimals" :min="0" :max="6" size="small" controls-position="right" style="width: 110px; margin-left: auto" />
           </div>
           <div class="fld inline">
-            <label>千分位</label>
+            <label>{{ $t('千分位') }}</label>
             <el-switch v-model="cfg.style.thousands" size="small" />
           </div>
           <div class="fld inline">
-            <label>百分比(×100)</label>
+            <label>{{ $t('百分比(×100)') }}</label>
             <el-switch v-model="cfg.style.percent" size="small" />
           </div>
           <div class="fld inline">
-            <label>数值缩放</label>
+            <label>{{ $t('数值缩放') }}</label>
             <el-select v-model="cfg.style.scale" size="small" style="width: 110px; margin-left: auto" :disabled="cfg.style.percent">
-              <el-option label="原值" value="" />
-              <el-option label="万" value="wan" />
-              <el-option label="亿" value="yi" />
+              <el-option :label="$t('原值')" value="" />
+              <el-option :label="$t('万')" value="wan" />
+              <el-option :label="$t('亿')" value="yi" />
             </el-select>
           </div>
           <div class="fld inline">
-            <label>单位后缀</label>
-            <el-input v-model="cfg.style.unit" size="small" placeholder="如 元 / 万" style="width: 110px; margin-left: auto" />
+            <label>{{ $t('单位后缀') }}</label>
+            <el-input v-model="cfg.style.unit" size="small" :placeholder="$t('如 元 / 万')" style="width: 110px; margin-left: auto" />
           </div>
         </el-tab-pane>
       </el-tabs>
@@ -222,14 +222,14 @@
       <!-- 导出工具条(悬浮右上,默认关;PNG 仅画布类,数据任意有行时可导) -->
       <div v-if="cfg.style.showExport && (rows || []).length" class="eb-tools">
         <el-button v-if="isCanvasType" size="small" text bg icon="Picture" @click="exportPng">PNG</el-button>
-        <el-button size="small" text bg icon="Download" @click="exportData">数据</el-button>
+        <el-button size="small" text bg icon="Download" @click="exportData">{{ $t('数据') }}</el-button>
       </div>
       <!-- ECharts 画布(始终在 DOM,用 v-show 控制,便于实例复用) -->
       <div v-show="isCanvasType" ref="chartEl" class="eb-chart" :style="{ height: height + 'px' }"></div>
 
       <!-- 指标卡 -->
       <div v-if="cfg.type === 'kpi'" class="eb-kpi" :style="{ height: height + 'px' }">
-        <div v-if="!kpiItems.length" class="eb-empty">选择度量后显示指标</div>
+        <div v-if="!kpiItems.length" class="eb-empty">{{ $t('选择度量后显示指标') }}</div>
         <div v-for="(k, i) in kpiItems" :key="i" class="kpi-card">
           <div class="kpi-val">{{ k.value }}</div>
           <div class="kpi-label">{{ k.label }}</div>
@@ -241,7 +241,7 @@
         :style="{ width: '100%' }">
         <el-table-column type="index" label="#" width="50" />
         <el-table-column v-for="c in fields" :key="c" :prop="c" :label="c" min-width="120" show-overflow-tooltip />
-        <template #empty>暂无数据</template>
+        <template #empty>{{ $t('暂无数据') }}</template>
       </el-table>
     </div>
   </div>

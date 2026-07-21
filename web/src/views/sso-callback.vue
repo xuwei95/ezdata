@@ -3,14 +3,14 @@
     <el-result
       v-if="error"
       icon="error"
-      title="登录失败"
+      :title="$t('登录失败')"
       :sub-title="error"
     >
       <template #extra>
-        <el-button type="primary" @click="goLogin">返回登录</el-button>
+        <el-button type="primary" @click="goLogin">{{ $t('返回登录') }}</el-button>
       </template>
     </el-result>
-    <div v-else class="loading-tip">正在登录...</div>
+    <div v-else class="loading-tip">{{ $t('正在登录...') }}</div>
   </div>
 </template>
 

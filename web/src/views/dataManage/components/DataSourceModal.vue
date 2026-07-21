@@ -1,19 +1,19 @@
 <template>
-  <el-dialog :title="form.id ? '编辑数据源' : '新建数据源'" v-model="visible" width="640px" append-to-body>
-    <el-form :model="form" label-width="120px">
-      <el-form-item label="源类型" required>
-        <el-select v-model="form.sourceType" filterable placeholder="选择数据源类型" :disabled="!!form.id"
+  <el-dialog :title="form.id ? $t('编辑数据源') : $t('新建数据源')" v-model="visible" width="920px" append-to-body>
+    <el-form :model="form" label-width="170px">
+      <el-form-item :label="$t('源类型')" required>
+        <el-select v-model="form.sourceType" filterable :placeholder="$t('选择数据源类型')" :disabled="!!form.id"
           @change="onTypeChange" style="width: 100%">
           <el-option v-for="t in types" :key="t.sourceType" :label="`${t.title}(${t.sourceType})`" :value="t.sourceType" />
         </el-select>
       </el-form-item>
-      <el-form-item label="名称" required>
-        <el-input v-model="form.name" placeholder="显示名称" />
+      <el-form-item :label="$t('名称')" required>
+        <el-input v-model="form.name" :placeholder="$t('显示名称')" />
       </el-form-item>
-      <el-form-item label="编码">
+      <el-form-item :label="$t('编码')">
         <el-input v-model="form.code" :disabled="!!form.id"
-          :placeholder="form.id ? '' : '稳定引用编码,留空自动生成(创建后不可改)'" />
-        <span v-if="form.id" class="tip">编码是下游模型/接口的引用锚点,创建后不可修改</span>
+          :placeholder="form.id ? '' : $t('稳定引用编码,留空自动生成(创建后不可改)')" />
+        <span v-if="form.id" class="tip">{{ $t('编码是下游模型/接口的引用锚点,创建后不可修改') }}</span>
       </el-form-item>
 
       <!-- 连接参数:由 connection_schema 动态渲染 -->
@@ -27,24 +27,24 @@
           <el-input v-else v-model="values[key]" :placeholder="prop.description" />
         </el-form-item>
       </template>
-      <el-form-item label="备注 / 业务上下文">
+      <el-form-item :label="$t('备注 / 业务上下文')">
         <div style="width: 100%">
           <el-input v-model="form.remark" type="textarea" :autosize="{ minRows: 6, maxRows: 20 }"
-            placeholder="该数据源的业务上下文(表关系 / 指标口径 / 常见问法→字段 / 取数注意)。会作为上下文喂给取数 AI;可点「AI 解析」按结构自动生成初稿再编辑。" />
+            :placeholder="$t('该数据源的业务上下文(表关系 / 指标口径 / 常见问法→字段 / 取数注意)。会作为上下文喂给取数 AI;可点「AI 解析」按结构自动生成初稿再编辑。')" />
           <div style="margin-top: 6px; display: flex; align-items: center; gap: 10px">
-            <el-button size="small" :loading="analyzing" :disabled="!form.id" @click="onAnalyze">✨ AI 解析</el-button>
-            <el-button v-if="analyzeText" size="small" type="primary" link @click="applyAnalyze">↥ 应用到描述</el-button>
-            <span v-if="!form.id" class="tip">保存数据源后可用(需读取其结构)</span>
-            <span v-else class="tip">AI 读取现有描述 + 表结构后生成</span>
+            <el-button size="small" :loading="analyzing" :disabled="!form.id" @click="onAnalyze">{{ $t('✨ AI 解析') }}</el-button>
+            <el-button v-if="analyzeText" size="small" type="primary" link @click="applyAnalyze">{{ $t('↥ 应用到描述') }}</el-button>
+            <span v-if="!form.id" class="tip">{{ $t('保存数据源后可用(需读取其结构)') }}</span>
+            <span v-else class="tip">{{ $t('AI 读取现有描述 + 表结构后生成') }}</span>
           </div>
           <pre v-if="analyzeText" class="analyze-out">{{ analyzeText }}</pre>
         </div>
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="onTest" :loading="testing">测试连接</el-button>
-      <el-button type="primary" @click="onSubmit">确定</el-button>
-      <el-button @click="visible = false">取消</el-button>
+      <el-button @click="onTest" :loading="testing">{{ $t('测试连接') }}</el-button>
+      <el-button type="primary" @click="onSubmit">{{ $t('确定') }}</el-button>
+      <el-button @click="visible = false">{{ $t('取消') }}</el-button>
     </template>
   </el-dialog>
 </template>
@@ -52,6 +52,7 @@
 <script setup name="DataSourceModal">
 import { ref, reactive, computed } from 'vue'
 import { ElMessage } from 'element-plus'
+import { t as $t } from '@/lang'
 import { getSourceTypes, getSourceSchema, addSource, updateSource, testSource, getSource } from '@/api/dataManage/data'
 import { getToken } from '@/utils/auth'
 
@@ -95,14 +96,14 @@ async function onAnalyze() {
       analyzeText.value += dec.decode(value, { stream: true })
     }
   } catch (e) {
-    ElMessage.error('AI 解析失败: ' + (e.message || e))
+    ElMessage.error($t('AI 解析失败') + ': ' + (e.message || e))
   } finally {
     analyzing.value = false
   }
 }
 function applyAnalyze() {
   form.remark = analyzeText.value
-  ElMessage.success('已应用到备注,可继续编辑后保存')
+  ElMessage.success($t('已应用到备注,可继续编辑后保存'))
 }
 
 async function loadSchema(type) {
@@ -155,19 +156,19 @@ async function onTest() {
   testing.value = true
   try {
     const res = await testSource(form.id ? { id: form.id } : { sourceType: form.sourceType, config, secrets })
-    res.data.success ? ElMessage.success('连接成功 ' + (res.data.latencyMs ? Math.round(res.data.latencyMs) + 'ms' : ''))
-      : ElMessage.error('连接失败: ' + res.data.message)
+    res.data.success ? ElMessage.success($t('连接成功') + ' ' + (res.data.latencyMs ? Math.round(res.data.latencyMs) + 'ms' : ''))
+      : ElMessage.error($t('连接失败') + ': ' + res.data.message)
   } finally {
     testing.value = false
   }
 }
 
 async function onSubmit() {
-  if (!form.sourceType || !form.name) { ElMessage.warning('请填写源类型和名称'); return }
+  if (!form.sourceType || !form.name) { ElMessage.warning($t('请填写源类型和名称')); return }
   const { config, secrets } = splitConfigSecrets()
   const payload = { ...form, config, secrets: Object.keys(secrets).length ? secrets : undefined }
   await (form.id ? updateSource(payload) : addSource(payload))
-  ElMessage.success(form.id ? '修改成功' : '新增成功')
+  ElMessage.success(form.id ? $t('修改成功') : $t('新增成功'))
   visible.value = false
   emit('ok')
 }

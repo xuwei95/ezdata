@@ -1,4 +1,5 @@
 import Cookies from 'js-cookie'
+import { LANGUAGE_KEY, getLanguage, applyLanguage } from '@/lang'
 
 const useAppStore = defineStore(
   'app',
@@ -10,7 +11,8 @@ const useAppStore = defineStore(
         hide: false
       },
       device: 'desktop',
-      size: Cookies.get('size') || 'default'
+      size: Cookies.get('size') || 'default',
+      language: getLanguage()
     }),
     actions: {
       toggleSideBar(withoutAnimation) {
@@ -36,6 +38,11 @@ const useAppStore = defineStore(
       setSize(size) {
         this.size = size;
         Cookies.set('size', size)
+      },
+      setLanguage(language) {
+        this.language = language
+        Cookies.set(LANGUAGE_KEY, language)
+        applyLanguage(language) // 同步 vue-i18n + vxe;element-plus/antd 由 App.vue ConfigProvider 响应
       },
       toggleSideBarHide(status) {
         this.sidebar.hide = status

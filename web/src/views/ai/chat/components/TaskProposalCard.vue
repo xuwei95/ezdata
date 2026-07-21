@@ -4,76 +4,76 @@
       <el-icon class="tp-icon"><Document /></el-icon>
       <span class="tp-title">{{ isUpdate ? "AI 任务修改建议" : "AI 任务建议" }}</span>
       <el-tag size="small" :type="isUpdate ? 'warning' : 'info'" effect="plain">{{ tplLabel }}</el-tag>
-      <el-tag v-if="isUpdate" size="small" type="warning" effect="light">修改已有</el-tag>
+      <el-tag v-if="isUpdate" size="small" type="warning" effect="light">{{ $t('修改已有') }}</el-tag>
       <span v-if="action.summary" class="tp-summary">{{ action.summary }}</span>
     </div>
 
     <template v-if="!created">
-      <el-form label-width="80px" class="tp-meta">
-        <el-form-item label="任务名称">
-          <el-input v-model="name" placeholder="任务名称" />
+      <el-form label-width="130px" class="tp-meta">
+        <el-form-item :label="$t('任务名称')">
+          <el-input v-model="name" :placeholder="$t('任务名称')" />
         </el-form-item>
-        <el-form-item label="触发方式">
+        <el-form-item :label="$t('触发方式')">
           <el-radio-group v-model="triggerType">
-            <el-radio :value="1">单次</el-radio>
-            <el-radio :value="2">定时</el-radio>
+            <el-radio :value="1">{{ $t('单次') }}</el-radio>
+            <el-radio :value="2">{{ $t('定时') }}</el-radio>
           </el-radio-group>
           <el-input
             v-if="triggerType === 2"
             v-model="crontab"
-            placeholder="Cron 表达式"
+            :placeholder="$t('Cron 表达式')"
             style="width: 300px; margin-left: 12px"
           >
             <template #append>
-              <el-button @click="handleShowCron">生成表达式</el-button>
+              <el-button @click="handleShowCron">{{ $t('生成表达式') }}</el-button>
             </template>
           </el-input>
         </el-form-item>
-        <el-form-item v-if="isUpdate" label="状态">
+        <el-form-item v-if="isUpdate" :label="$t('状态')">
           <el-radio-group v-model="status">
-            <el-radio :value="1">启用</el-radio>
-            <el-radio :value="0">停用</el-radio>
+            <el-radio :value="1">{{ $t('启用') }}</el-radio>
+            <el-radio :value="0">{{ $t('停用') }}</el-radio>
           </el-radio-group>
         </el-form-item>
       </el-form>
 
-      <el-dialog title="Cron表达式生成器" v-model="openCron" append-to-body destroy-on-close>
-        <!-- 必须用 PascalCase <Crontab>:本组件里有个同名 ref `crontab`,kebab 的 <crontab> 会被解析成那个 ref 而非组件 -->
+      <el-dialog :title="$t('Cron表达式生成器')" v-model="openCron" append-to-body destroy-on-close>
+        <!-- 必须用 PascalCase <Crontab>{{ $t(':本组件里有个同名 ref `crontab`,kebab 的') }} <crontab> 会被解析成那个 ref 而非组件 -->
         <Crontab @hide="openCron = false" @fill="crontabFill" :expression="expression"></Crontab>
       </el-dialog>
 
       <!-- 调试运行日志(不落任务,流式看这次试跑的日志) -->
-      <el-dialog title="调试运行 · 实时日志" v-model="debugOpen" width="820px" append-to-body @close="stopDebugPolling">
+      <el-dialog :title="$t('调试运行 · 实时日志')" v-model="debugOpen" width="820px" append-to-body @close="stopDebugPolling">
         <div ref="debugConsoleRef" class="tp-log-console">
           <div v-for="(line, i) in debugLogs" :key="i" :class="['tp-log-line', 'lvl-' + (line.level || 'INFO')]">
             <span class="tp-log-time">{{ line.createTime }}</span>
             <span class="tp-log-level">{{ line.level }}</span>
             <span class="tp-log-content">{{ line.content }}</span>
           </div>
-          <el-empty v-if="!debugLogs.length" description="等待日志输出…" :image-size="50" />
+          <el-empty v-if="!debugLogs.length" :description="$t('等待日志输出…')" :image-size="50" />
         </div>
         <div class="tp-log-tip">调试实例 {{ debugUuid }} · 已 {{ debugLogs.length }} 条,新日志持续追加</div>
       </el-dialog>
 
       <div class="tp-body">
         <component :is="tplComp" v-if="tplComp" ref="tplRef" :task-params="action.params" />
-        <el-alert v-else type="warning" :closable="false" title="暂不支持该任务类型的表单预填" />
+        <el-alert v-else type="warning" :closable="false" :title="$t('暂不支持该任务类型的表单预填')" />
       </div>
 
       <div class="tp-actions">
         <el-button type="primary" :loading="submitting" @click="confirm(true)">{{ isUpdate ? "保存并运行" : "创建并运行" }}</el-button>
         <el-button :loading="submitting" @click="confirm(false)">{{ isUpdate ? "保存修改" : "仅创建" }}</el-button>
-        <el-button icon="VideoPlay" :loading="debugLoading" @click="debugRun">调试运行</el-button>
-        <el-button text @click="dismissed = true" v-if="!dismissed">忽略</el-button>
+        <el-button icon="VideoPlay" :loading="debugLoading" @click="debugRun">{{ $t('调试运行') }}</el-button>
+        <el-button text @click="dismissed = true" v-if="!dismissed">{{ $t('忽略') }}</el-button>
       </div>
-      <div class="tp-hint">「调试运行」不创建任务,用当前配置直接跑一次并实时看日志(数据集成会真实写入目标)。</div>
-      <div v-if="dismissed" class="tp-dismissed">已忽略该建议</div>
+      <div class="tp-hint">{{ $t('「调试运行」不创建任务,用当前配置直接跑一次并实时看日志(数据集成会真实写入目标)。') }}</div>
+      <div v-if="dismissed" class="tp-dismissed">{{ $t('已忽略该建议') }}</div>
     </template>
 
     <div v-else class="tp-created">
       <el-icon class="tp-ok"><CircleCheckFilled /></el-icon>
       <span>{{ isUpdate ? "已更新任务" : "已创建任务" }}「{{ name }}」{{ ranOnce ? '并触发运行' : '' }}</span>
-      <el-button text type="primary" @click="goTask">去任务页查看</el-button>
+      <el-button text type="primary" @click="goTask">{{ $t('去任务页查看') }}</el-button>
     </div>
   </div>
 </template>

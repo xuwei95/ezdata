@@ -5,10 +5,10 @@
       <el-form-item prop="username">
         <el-input 
           v-model="registerForm.username" 
-          type="text" 
-          size="large" 
-          auto-complete="off" 
-          placeholder="账号"
+          type="text"
+          size="large"
+          auto-complete="off"
+          :placeholder="$t('账号')"
         >
           <template #prefix><svg-icon icon-class="user" class="el-input__icon input-icon" /></template>
         </el-input>
@@ -17,9 +17,9 @@
         <el-input
           v-model="registerForm.password"
           type="password"
-          size="large" 
+          size="large"
           auto-complete="off"
-          placeholder="密码"
+          :placeholder="$t('密码')"
           @keyup.enter="handleRegister"
         >
           <template #prefix><svg-icon icon-class="password" class="el-input__icon input-icon" /></template>
@@ -29,9 +29,9 @@
         <el-input
           v-model="registerForm.confirmPassword"
           type="password"
-          size="large" 
+          size="large"
           auto-complete="off"
-          placeholder="确认密码"
+          :placeholder="$t('确认密码')"
           @keyup.enter="handleRegister"
         >
           <template #prefix><svg-icon icon-class="password" class="el-input__icon input-icon" /></template>
@@ -39,10 +39,10 @@
       </el-form-item>
       <el-form-item prop="code" v-if="captchaEnabled">
         <el-input
-          size="large" 
+          size="large"
           v-model="registerForm.code"
           auto-complete="off"
-          placeholder="验证码"
+          :placeholder="$t('验证码')"
           style="width: 63%"
           @keyup.enter="handleRegister"
         >
@@ -60,11 +60,11 @@
           style="width:100%;"
           @click.prevent="handleRegister"
         >
-          <span v-if="!loading">注 册</span>
-          <span v-else>注 册 中...</span>
+          <span v-if="!loading">{{ $t('注 册') }}</span>
+          <span v-else>{{ $t('注 册 中...') }}</span>
         </el-button>
         <div style="float: right;">
-          <router-link class="link-type" :to="'/login'">使用已有账户登录</router-link>
+          <router-link class="link-type" :to="'/login'">{{ $t('使用已有账户登录') }}</router-link>
         </div>
       </el-form-item>
     </el-form>

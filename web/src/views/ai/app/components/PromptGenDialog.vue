@@ -1,7 +1,7 @@
 <template>
   <el-dialog
     :model-value="modelValue"
-    title="AI 生成提示词"
+    :title="$t('AI 生成提示词')"
     width="660px"
     :close-on-click-modal="false"
     append-to-body
@@ -14,27 +14,27 @@
           v-model="requirement"
           type="textarea"
           :rows="2"
-          placeholder="一句话描述应用定位/角色,例如:小咖啡店的智能客服,负责答疑、推荐饮品"
+          :placeholder="$t('一句话描述应用定位/角色,例如:小咖啡店的智能客服,负责答疑、推荐饮品')"
         />
         <el-button type="primary" :loading="generating" :disabled="!requirement.trim()" @click="doGenerate">
           {{ output ? "重新生成" : "生成" }}
         </el-button>
       </div>
       <div class="pg-out-label">
-        <span>生成结果(确认前可直接编辑)</span>
-        <span v-if="generating" class="pg-typing">AI 正在书写…</span>
+        <span>{{ $t('生成结果(确认前可直接编辑)') }}</span>
+        <span v-if="generating" class="pg-typing">{{ $t('AI 正在书写…') }}</span>
       </div>
       <el-input
         v-model="output"
         type="textarea"
         :autosize="{ minRows: 9, maxRows: 18 }"
-        placeholder="点击「生成」后,AI 将实时逐字写出系统提示词…"
+        :placeholder="$t('点击「生成」后,AI 将实时逐字写出系统提示词…')"
         class="pg-out"
       />
     </div>
     <template #footer>
-      <el-button @click="$emit('update:modelValue', false)">取消</el-button>
-      <el-button type="primary" :disabled="!output.trim() || generating" @click="apply">应用到提示词</el-button>
+      <el-button @click="$emit('update:modelValue', false)">{{ $t('取消') }}</el-button>
+      <el-button type="primary" :disabled="!output.trim() || generating" @click="apply">{{ $t('应用到提示词') }}</el-button>
     </template>
   </el-dialog>
 </template>

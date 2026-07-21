@@ -5,10 +5,10 @@
       <pane size="22" min-size="15">
         <div class="left-panel">
           <div class="left-toolbar">
-            <el-button type="primary" size="small" icon="Plus" @click="sourceModalRef.open()">新建数据源</el-button>
+            <el-button type="primary" size="small" icon="Plus" @click="sourceModalRef.open()">{{ $t('新建数据源') }}</el-button>
             <el-button size="small" icon="Refresh" circle @click="reloadTree" />
           </div>
-          <el-input v-model="filterText" size="small" clearable placeholder="搜索数据源 / 数据模型" prefix-icon="Search" class="tree-filter" />
+          <el-input v-model="filterText" size="small" clearable :placeholder="$t('搜索数据源 / 数据模型')" prefix-icon="Search" class="tree-filter" />
           <el-tree ref="treeRef" :load="loadNode" lazy node-key="key" :props="{ label: 'label', isLeaf: 'isLeaf' }"
             highlight-current @node-click="onNodeClick" :filter-node-method="filterNode" class="src-tree">
             <template #default="{ data }">
@@ -27,83 +27,83 @@
       <pane>
         <div class="right-panel" v-if="current">
           <el-tabs v-model="activeTab" class="right-tabs">
-            <el-tab-pane label="基本信息" name="info">
+            <el-tab-pane :label="$t('基本信息')" name="info">
               <!-- 数据源信息 -->
               <template v-if="current.nodeType === 'source'">
                 <el-descriptions :column="2" border>
-                  <el-descriptions-item label="名称">{{ current.raw.name }}</el-descriptions-item>
-                  <el-descriptions-item label="编码">{{ current.raw.code }}</el-descriptions-item>
-                  <el-descriptions-item label="类型">{{ current.raw.sourceType }}</el-descriptions-item>
-                  <el-descriptions-item label="族">{{ current.raw.family }}</el-descriptions-item>
-                  <el-descriptions-item label="状态">
+                  <el-descriptions-item :label="$t('名称')">{{ current.raw.name }}</el-descriptions-item>
+                  <el-descriptions-item :label="$t('编码')">{{ current.raw.code }}</el-descriptions-item>
+                  <el-descriptions-item :label="$t('类型')">{{ current.raw.sourceType }}</el-descriptions-item>
+                  <el-descriptions-item :label="$t('族')">{{ current.raw.family }}</el-descriptions-item>
+                  <el-descriptions-item :label="$t('状态')">
                     <el-tag :type="current.raw.status === 'ok' ? 'success' : current.raw.status === 'failed' ? 'danger' : 'info'">
                       {{ current.raw.status }}</el-tag>
                   </el-descriptions-item>
-                  <el-descriptions-item label="能力">
+                  <el-descriptions-item :label="$t('能力')">
                     <el-tag v-for="c in capsOf(current.raw.sourceType)" :key="c" size="small" class="cap">{{ c }}</el-tag>
                   </el-descriptions-item>
                 </el-descriptions>
                 <div style="margin-top: 12px">
-                  <el-button icon="Connection" @click="testConn(current.raw)">测试连接</el-button>
-                  <el-button icon="Edit" @click="sourceModalRef.open(current.raw)">编辑</el-button>
-                  <el-button type="primary" icon="Plus" @click="openModelModal(current.raw)">从表新建模型</el-button>
+                  <el-button icon="Connection" @click="testConn(current.raw)">{{ $t('测试连接') }}</el-button>
+                  <el-button icon="Edit" @click="sourceModalRef.open(current.raw)">{{ $t('编辑') }}</el-button>
+                  <el-button type="primary" icon="Plus" @click="openModelModal(current.raw)">{{ $t('从表新建模型') }}</el-button>
                   <el-button
                     icon="Refresh"
                     :loading="syncing === current.raw.id"
-                    title="把该源的已建模表同步到 AI 目录检索索引(异步 worker 任务),之后 AI 可按问题精准检索到这些表"
+                    :title="$t('把该源的已建模表同步到 AI 目录检索索引(异步 worker 任务),之后 AI 可按问题精准检索到这些表')"
                     @click="syncCatalog(current.raw)"
-                    >同步索引</el-button
+                    >{{ $t('同步索引') }}</el-button
                   >
-                  <el-button type="danger" icon="Delete" @click="removeSource(current.raw)">删除</el-button>
+                  <el-button type="danger" icon="Delete" @click="removeSource(current.raw)">{{ $t('删除') }}</el-button>
                 </div>
               </template>
               <!-- 数据模型信息 -->
               <template v-else>
                 <el-descriptions :column="2" border>
-                  <el-descriptions-item label="名称">{{ current.raw.name }}</el-descriptions-item>
-                  <el-descriptions-item label="对象">{{ current.raw.objectName }}</el-descriptions-item>
-                  <el-descriptions-item label="数据源">{{ current.raw.datasourceCode }}</el-descriptions-item>
-                  <el-descriptions-item label="授权">{{ current.raw.auth }}</el-descriptions-item>
-                  <el-descriptions-item label="描述" :span="2">{{ current.raw.remark || '—' }}</el-descriptions-item>
+                  <el-descriptions-item :label="$t('名称')">{{ current.raw.name }}</el-descriptions-item>
+                  <el-descriptions-item :label="$t('对象')">{{ current.raw.objectName }}</el-descriptions-item>
+                  <el-descriptions-item :label="$t('数据源')">{{ current.raw.datasourceCode }}</el-descriptions-item>
+                  <el-descriptions-item :label="$t('授权')">{{ current.raw.auth }}</el-descriptions-item>
+                  <el-descriptions-item :label="$t('描述')" :span="2">{{ current.raw.remark || '—' }}</el-descriptions-item>
                 </el-descriptions>
                 <div style="margin-top: 12px">
-                  <el-button type="primary" icon="Edit" @click="openEditModel(current.raw)">编辑模型(描述/字段说明)</el-button>
-                  <el-button type="danger" icon="Delete" @click="removeModel(current.raw)">删除</el-button>
+                  <el-button type="primary" icon="Edit" @click="openEditModel(current.raw)">{{ $t('编辑模型(描述/字段说明)') }}</el-button>
+                  <el-button type="danger" icon="Delete" @click="removeModel(current.raw)">{{ $t('删除') }}</el-button>
                 </div>
                 <vxe-table :data="current.raw.fields || []" height="300" border style="margin-top: 12px">
                   <vxe-column type="seq" width="60" />
-                  <vxe-column field="name" title="字段" />
-                  <vxe-column field="type" title="类型" />
-                  <vxe-column field="nullable" title="可空" width="70" />
-                  <vxe-column field="comment" title="业务说明" />
+                  <vxe-column field="name" :title="$t('字段')" />
+                  <vxe-column field="type" :title="$t('类型')" />
+                  <vxe-column field="nullable" :title="$t('可空')" width="70" />
+                  <vxe-column field="comment" :title="$t('业务说明')" />
                 </vxe-table>
               </template>
             </el-tab-pane>
 
-            <el-tab-pane label="数据查询" name="query"
+            <el-tab-pane :label="$t('数据查询')" name="query"
               v-if="current.nodeType === 'model' && capsOf(current.sourceType).includes('READ')">
               <DataQueryTab :model="current.raw" />
             </el-tab-pane>
 
-            <el-tab-pane label="数据接口" name="api"
+            <el-tab-pane :label="$t('数据接口')" name="api"
               v-if="current.nodeType === 'model' && capsOf(current.sourceType).includes('GEN_API')">
               <DataInterfaceTab :model="current.raw" />
             </el-tab-pane>
 
-            <el-tab-pane label="血缘" name="lineage" lazy v-if="current.nodeType === 'model'">
+            <el-tab-pane :label="$t('血缘')" name="lineage" lazy v-if="current.nodeType === 'model'">
               <LineageTab :model="current.raw" />
             </el-tab-pane>
 
-            <el-tab-pane label="指标" name="metric" lazy v-if="current.nodeType === 'model'">
+            <el-tab-pane :label="$t('指标')" name="metric" lazy v-if="current.nodeType === 'model'">
               <MetricTab :model="current.raw" />
             </el-tab-pane>
 
-            <el-tab-pane label="知识库" name="rag">
+            <el-tab-pane :label="$t('知识库')" name="rag">
               <KnowledgeBaseTab :model="current.raw" :node-type="current.nodeType" />
             </el-tab-pane>
           </el-tabs>
         </div>
-        <el-empty v-else description="请选择左侧数据源 / 数据模型" />
+        <el-empty v-else :description="$t('请选择左侧数据源 / 数据模型')" />
       </pane>
     </splitpanes>
 
@@ -113,25 +113,25 @@
     <!-- 新建 / 编辑数据模型 -->
     <el-dialog :title="modelModal.id ? '编辑数据模型' : '从表新建数据模型'" v-model="modelModal.visible"
       width="760px" append-to-body>
-      <el-form label-width="90px">
-        <el-form-item label="表/索引" v-if="!modelModal.id">
-          <el-select v-model="modelModal.table" filterable placeholder="选择表" style="width: 100%"
+      <el-form label-width="140px">
+        <el-form-item :label="$t('表/索引')" v-if="!modelModal.id">
+          <el-select v-model="modelModal.table" filterable :placeholder="$t('选择表')" style="width: 100%"
             @change="onTableChange">
             <el-option v-for="t in modelModal.tables" :key="t" :label="t" :value="t" />
           </el-select>
         </el-form-item>
-        <el-form-item label="对象" v-else>{{ modelModal.objectName }}</el-form-item>
-        <el-form-item label="模型名称">
+        <el-form-item :label="$t('对象')" v-else>{{ modelModal.objectName }}</el-form-item>
+        <el-form-item :label="$t('模型名称')">
           <el-input v-model="modelModal.name" />
         </el-form-item>
-        <el-form-item label="描述">
+        <el-form-item :label="$t('描述')">
           <el-input v-model="modelModal.remark" type="textarea" :rows="4"
-            placeholder="该表的业务描述,帮助 AI 理解(如:订单主表,记录每笔交易;关键字段口径:status=PAID 已支付、amount 单位分)" />
+            :placeholder="$t('该表的业务描述,帮助 AI 理解(如:订单主表,记录每笔交易;关键字段口径:status=PAID 已支付、amount 单位分)')" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button type="primary" @click="saveModel">确定</el-button>
-        <el-button @click="modelModal.visible = false">取消</el-button>
+        <el-button type="primary" @click="saveModel">{{ $t('确定') }}</el-button>
+        <el-button @click="modelModal.visible = false">{{ $t('取消') }}</el-button>
       </template>
     </el-dialog>
   </div>

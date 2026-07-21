@@ -18,8 +18,8 @@
         <div v-if="editable" class="dg-bar">
           <span class="dg-title">{{ compTitle(map[item.i]) }}</span>
           <span class="dg-bar-ops">
-            <el-button link size="small" type="primary" icon="Setting" title="配置" @click.stop="$emit('edit-comp', item.i)" />
-            <el-button link size="small" type="danger" icon="Delete" title="删除" @click.stop="$emit('remove-comp', item.i)" />
+            <el-button link size="small" type="primary" icon="Setting" :title="$t('配置')" @click.stop="$emit('edit-comp', item.i)" />
+            <el-button link size="small" type="danger" icon="Delete" :title="$t('删除')" @click.stop="$emit('remove-comp', item.i)" />
           </span>
         </div>
         <div class="dg-body">
@@ -39,8 +39,8 @@
           <DashComponent :comp="c" :params="chartParams" :height="((c.pos && c.pos.h) || 200) - 4" :dark="isDark" :silent="!editable" />
           <template v-if="editable">
             <span class="dg-ops">
-              <el-button link type="primary" icon="Setting" title="配置" @mousedown.stop @click.stop="$emit('edit-comp', c.id)" />
-              <el-button link type="danger" icon="Delete" title="删除" @mousedown.stop @click.stop="$emit('remove-comp', c.id)" />
+              <el-button link type="primary" icon="Setting" :title="$t('配置')" @mousedown.stop @click.stop="$emit('edit-comp', c.id)" />
+              <el-button link type="danger" icon="Delete" :title="$t('删除')" @mousedown.stop @click.stop="$emit('remove-comp', c.id)" />
             </span>
             <span class="dg-resizer" @mousedown.stop.prevent="startResize($event, c)" @click.stop />
           </template>

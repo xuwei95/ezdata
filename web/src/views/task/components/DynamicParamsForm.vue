@@ -1,6 +1,6 @@
 <template>
   <div class="dynamic-params-form">
-    <el-empty v-if="!schema.length" description="该模板无可配置参数" :image-size="60" />
+    <el-empty v-if="!schema.length" :description="$t('该模板无可配置参数')" :image-size="60" />
     <el-form-item
       v-for="item in schema"
       :key="item.field"

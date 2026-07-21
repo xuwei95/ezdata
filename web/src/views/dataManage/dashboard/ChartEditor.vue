@@ -9,21 +9,21 @@
   >
     <div class="editor">
       <div class="ed-head">
-        <el-input v-model="ed.name" placeholder="看板名称" style="width: 220px" />
-        <el-select v-model="ed.modelId" filterable placeholder="选择数据模型" style="width: 220px" @change="onModelChange">
+        <el-input v-model="ed.name" :placeholder="$t('看板名称')" style="width: 220px" />
+        <el-select v-model="ed.modelId" filterable :placeholder="$t('选择数据模型')" style="width: 220px" @change="onModelChange">
           <el-option v-for="m in models" :key="m.id" :label="m.name" :value="m.id" />
         </el-select>
-        <el-input v-model="ed.remark" placeholder="说明(可选)" style="width: 240px" />
-        <el-select v-model="ed.refreshInterval" size="small" style="width: 116px" placeholder="自动刷新">
-          <el-option :value="0" label="不自动刷新" />
-          <el-option :value="10" label="每 10 秒" />
-          <el-option :value="30" label="每 30 秒" />
-          <el-option :value="60" label="每 1 分钟" />
-          <el-option :value="300" label="每 5 分钟" />
+        <el-input v-model="ed.remark" :placeholder="$t('说明(可选)')" style="width: 240px" />
+        <el-select v-model="ed.refreshInterval" size="small" style="width: 116px" :placeholder="$t('自动刷新')">
+          <el-option :value="0" :label="$t('不自动刷新')" />
+          <el-option :value="10" :label="$t('每 10 秒')" />
+          <el-option :value="30" :label="$t('每 30 秒')" />
+          <el-option :value="60" :label="$t('每 1 分钟')" />
+          <el-option :value="300" :label="$t('每 5 分钟')" />
         </el-select>
-        <el-button size="small" :type="varsMgr.open ? 'primary' : 'default'" icon="Setting" @click="varsMgr.open = !varsMgr.open">变量</el-button>
-        <el-button type="primary" icon="Check" :disabled="!ed.modelId || !ed.name" :loading="saving" @click="save">保存</el-button>
-        <span class="tip">选模型 →(可选)定义变量 → 查询 → 选图表出图 → 保存</span>
+        <el-button size="small" :type="varsMgr.open ? 'primary' : 'default'" icon="Setting" @click="varsMgr.open = !varsMgr.open">{{ $t('变量') }}</el-button>
+        <el-button type="primary" icon="Check" :disabled="!ed.modelId || !ed.name" :loading="saving" @click="save">{{ $t('保存') }}</el-button>
+        <span class="tip">{{ $t('选模型 →(可选)定义变量 → 查询 → 选图表出图 → 保存') }}</span>
       </div>
 
       <!-- 变量:筛选栏(当前值)+ 定义管理 -->
@@ -40,20 +40,20 @@
       </div>
       <div v-if="varsMgr.open" class="ed-vars-mgr">
         <div v-for="(v, i) in ed.vars" :key="i" class="vrow">
-          <el-input v-model="v.name" size="small" placeholder="变量名(如 city)" style="width: 150px" />
-          <el-input v-model="v.label" size="small" placeholder="显示名" style="width: 110px" />
+          <el-input v-model="v.name" size="small" :placeholder="$t('变量名(如 city)')" style="width: 150px" />
+          <el-input v-model="v.label" size="small" :placeholder="$t('显示名')" style="width: 110px" />
           <el-select v-model="v.type" size="small" style="width: 104px">
-            <el-option label="文本" value="text" />
-            <el-option label="日期" value="date" />
-            <el-option label="日期范围" value="daterange" />
-            <el-option label="下拉" value="select" />
+            <el-option :label="$t('文本')" value="text" />
+            <el-option :label="$t('日期')" value="date" />
+            <el-option :label="$t('日期范围')" value="daterange" />
+            <el-option :label="$t('下拉')" value="select" />
           </el-select>
-          <el-input v-model="v.default" size="small" placeholder="默认值" style="width: 110px" />
-          <el-input v-if="v.type === 'select'" v-model="v.optionsText" size="small" placeholder="选项,逗号分隔" style="flex: 1; min-width: 120px" />
+          <el-input v-model="v.default" size="small" :placeholder="$t('默认值')" style="width: 110px" />
+          <el-input v-if="v.type === 'select'" v-model="v.optionsText" size="small" :placeholder="$t('选项,逗号分隔')" style="flex: 1; min-width: 120px" />
           <el-button size="small" icon="Delete" text @click="ed.vars.splice(i, 1)" />
         </div>
         <div class="vrow-add">
-          <el-button size="small" text type="primary" icon="Plus" @click="addVar">添加变量</el-button>
+          <el-button size="small" text type="primary" icon="Plus" @click="addVar">{{ $t('添加变量') }}</el-button>
           <span class="tip">{{ VAR_HINT }}</span>
         </div>
       </div>
@@ -61,29 +61,29 @@
       <div class="ed-query">
         <div class="q-main">
           <el-input v-model="ed.native" type="textarea" :rows="3" :autosize="{ minRows: 3, maxRows: 10 }"
-            placeholder="原生查询(SQL / ES DSL);选择模型后自动预填,或点「AI 生成查询」" />
+            :placeholder="$t('原生查询(SQL / ES DSL);选择模型后自动预填,或点「AI 生成查询」')" />
           <div v-if="aiq.open" class="q-panel">
             <el-input v-model="aiq.question" type="textarea" :rows="2"
-              placeholder="用自然语言描述你想查什么,如:各城市销售额 top10" @keyup.enter.stop="genQuery" />
+              :placeholder="$t('用自然语言描述你想查什么,如:各城市销售额 top10')" @keyup.enter.stop="genQuery" />
             <div class="q-panel-bar">
               <el-button size="small" type="primary" :loading="aiq.loading" @click="genQuery">
                 {{ aiq.output ? '重新生成' : '生成' }}</el-button>
-              <el-button v-if="aiq.output && !aiq.loading" size="small" type="success" @click="applyQuery">采用到查询</el-button>
-              <el-button v-if="aiq.output" size="small" @click="aiq.output = ''">清空</el-button>
+              <el-button v-if="aiq.output && !aiq.loading" size="small" type="success" @click="applyQuery">{{ $t('采用到查询') }}</el-button>
+              <el-button v-if="aiq.output" size="small" @click="aiq.output = ''">{{ $t('清空') }}</el-button>
             </div>
             <pre v-if="aiq.output" class="ai-out">{{ aiq.output }}<span v-if="aiq.loading" class="cursor">▋</span></pre>
           </div>
         </div>
         <div class="q-btns">
-          <el-button icon="MagicStick" :disabled="!ed.modelId" @click="aiq.open = !aiq.open">AI 生成查询</el-button>
-          <el-button type="primary" icon="Search" :loading="ed.loading" :disabled="!ed.modelId" @click="runQuery">查询</el-button>
+          <el-button icon="MagicStick" :disabled="!ed.modelId" @click="aiq.open = !aiq.open">{{ $t('AI 生成查询') }}</el-button>
+          <el-button type="primary" icon="Search" :loading="ed.loading" :disabled="!ed.modelId" @click="runQuery">{{ $t('查询') }}</el-button>
         </div>
       </div>
       <div class="ed-viz">
         <EchartsBuilder v-if="ed.rows.length" :rows="ed.rows" :config="ed.cfg" :height="edChartH"
           ai-enabled :ai-loading="aic.loading" @ai-generate="onAiChart"
           @update:config="(c) => (ed.cfg = c)" />
-        <el-empty v-else description="选模型 → 查询,再选图表类型/字段出图" />
+        <el-empty v-else :description="$t('选模型 → 查询,再选图表类型/字段出图')" />
       </div>
     </div>
   </el-dialog>

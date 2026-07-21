@@ -4,7 +4,7 @@
       <el-col :span="8">
         <el-card style="height: calc(100vh - 125px)">
           <template #header>
-            <Collection style="width: 1em; height: 1em; vertical-align: middle;" /> <span style="vertical-align: middle;">缓存列表</span>
+            <Collection style="width: 1em; height: 1em; vertical-align: middle;" /> <span style="vertical-align: middle;">{{ $t('缓存列表') }}</span>
             <el-button
               style="float: right; padding: 3px 0"
               link
@@ -22,13 +22,13 @@
             style="width: 100%"
           >
             <el-table-column
-              label="序号"
+              :label="$t('序号')"
               width="60"
               type="index"
             ></el-table-column>
 
             <el-table-column
-              label="缓存名称"
+              :label="$t('缓存名称')"
               align="center"
               prop="cacheName"
               :show-overflow-tooltip="true"
@@ -36,13 +36,13 @@
             ></el-table-column>
 
             <el-table-column
-              label="备注"
+              :label="$t('备注')"
               align="center"
               prop="remark"
               :show-overflow-tooltip="true"
             />
             <el-table-column
-              label="操作"
+              :label="$t('操作')"
               width="60"
               align="center"
               class-name="small-padding fixed-width"
@@ -63,7 +63,7 @@
       <el-col :span="8">
         <el-card style="height: calc(100vh - 125px)">
           <template #header>
-            <Key style="width: 1em; height: 1em; vertical-align: middle;" /> <span style="vertical-align: middle;">键名列表</span>
+            <Key style="width: 1em; height: 1em; vertical-align: middle;" /> <span style="vertical-align: middle;">{{ $t('键名列表') }}</span>
             <el-button
               style="float: right; padding: 3px 0"
               link
@@ -81,19 +81,19 @@
             style="width: 100%"
           >
             <el-table-column
-              label="序号"
+              :label="$t('序号')"
               width="60"
               type="index"
             ></el-table-column>
             <el-table-column
-              label="缓存键名"
+              :label="$t('缓存键名')"
               align="center"
               :show-overflow-tooltip="true"
               :formatter="keyFormatter"
             >
             </el-table-column>
             <el-table-column
-              label="操作"
+              :label="$t('操作')"
               width="60"
               align="center"
               class-name="small-padding fixed-width"
@@ -114,30 +114,30 @@
       <el-col :span="8">
         <el-card :bordered="false" style="height: calc(100vh - 125px)">
           <template #header>
-            <Document style="width: 1em; height: 1em; vertical-align: middle;" /> <span style="vertical-align: middle;">缓存内容</span>
+            <Document style="width: 1em; height: 1em; vertical-align: middle;" /> <span style="vertical-align: middle;">{{ $t('缓存内容') }}</span>
             <el-button
               style="float: right; padding: 3px 0"
               link
               type="primary"
               icon="Refresh"
               @click="handleClearCacheAll()"
-              >清理全部</el-button
+              >{{ $t('清理全部') }}</el-button
             >
           </template>
           <el-form :model="cacheForm">
             <el-row :gutter="32">
               <el-col :offset="1" :span="22">
-                <el-form-item label="缓存名称:" prop="cacheName">
+                <el-form-item :label="$t('缓存名称:')" prop="cacheName">
                   <el-input v-model="cacheForm.cacheName" :readOnly="true" />
                 </el-form-item>
               </el-col>
               <el-col :offset="1" :span="22">
-                <el-form-item label="缓存键名:" prop="cacheKey">
+                <el-form-item :label="$t('缓存键名:')" prop="cacheKey">
                   <el-input v-model="cacheForm.cacheKey" :readOnly="true" />
                 </el-form-item>
               </el-col>
               <el-col :offset="1" :span="22">
-                <el-form-item label="缓存内容:" prop="cacheValue">
+                <el-form-item :label="$t('缓存内容:')" prop="cacheValue">
                   <el-input
                     v-model="cacheForm.cacheValue"
                     type="textarea"

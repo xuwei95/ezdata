@@ -5,9 +5,9 @@
         <el-icon :class="{ 'is-expanded': isReasoningExpanded }"
           ><ArrowRight
         /></el-icon>
-        <span>深度思考过程</span>
+        <span>{{ $t('深度思考过程') }}</span>
         <span class="reasoning-status" v-if="!isThinkingComplete"
-          >思考中...</span
+          >{{ $t('思考中...') }}</span
         >
       </div>
       <div v-show="isReasoningExpanded" class="reasoning-content">
@@ -30,7 +30,7 @@
             <el-icon v-else class="step-icon done"><CircleCheckFilled /></el-icon>
             <span class="step-name">{{ toolLabel(b.name) }}</span>
             <span v-if="b.agentName" class="step-agent">· {{ b.agentName }}</span>
-            <span v-if="b.status === 'running'" class="step-status">运行中…</span>
+            <span v-if="b.status === 'running'" class="step-status">{{ $t('运行中…') }}</span>
             <el-button
               v-if="canSaveRecipe(b) && sessionId"
               class="step-recipe"
@@ -72,9 +72,9 @@
               size="small"
               icon="Download"
               @click="exportChart(b.artifact)"
-              >导出 HTML</el-button
+              >{{ $t('导出 HTML') }}</el-button
             >
-            <el-button v-else-if="b.artifact.kind === 'table'" link size="small" icon="Download" @click="exportTable(b.artifact)">导出 Excel</el-button>
+            <el-button v-else-if="b.artifact.kind === 'table'" link size="small" icon="Download" @click="exportTable(b.artifact)">{{ $t('导出 Excel') }}</el-button>
           </div>
           <EchartsBuilder
             v-if="b.artifact.kind === 'echart'"
@@ -142,7 +142,7 @@
     <!-- 代码取数的图「存为看板」:流式生成 native+配置 → 预览取数画图 → 确认落库(避免一次性阻塞超时) -->
     <el-dialog
       v-model="conv.visible"
-      title="AI 转看板"
+      :title="$t('AI 转看板')"
       width="920px"
       top="5vh"
       append-to-body
@@ -152,7 +152,7 @@
       <div class="conv-body">
         <div class="conv-gen">
           <div class="conv-head">
-            <span>生成配置<span v-if="conv.streaming" class="conv-ing"> · 生成中…</span></span>
+            <span>{{ $t('生成配置') }}<span v-if="conv.streaming" class="conv-ing"> {{ $t('· 生成中…') }}</span></span>
           </div>
           <pre class="conv-out">{{ conv.text || (conv.streaming ? '' : '(空)') }}<span v-if="conv.streaming" class="cursor">▋</span></pre>
           <div v-if="conv.err" class="conv-err">{{ conv.err }}</div>
@@ -163,7 +163,7 @@
               type="textarea"
               :rows="2"
               :disabled="conv.streaming"
-              placeholder="可选:给转换补充提示,如「按行业分组求和放到 cfg」「字段名用 change_pct」「改成折线图」,再点重新生成"
+              :placeholder="$t('可选:给转换补充提示,如「按行业分组求和放到 cfg」「字段名用 change_pct」「改成折线图」,再点重新生成')"
               @keyup.enter.exact.prevent="regenerate"
             />
             <el-button
@@ -191,13 +191,13 @@
         </div>
       </div>
       <template #footer>
-        <el-button @click="conv.visible = false">取消</el-button>
+        <el-button @click="conv.visible = false">{{ $t('取消') }}</el-button>
         <el-button
           type="primary"
           :disabled="!conv.rows.length || !conv.cfg || conv.streaming || conv.previewing"
           :loading="conv.saving"
           @click="confirmSave"
-          >确认存为看板</el-button
+          >{{ $t('确认存为看板') }}</el-button
         >
       </template>
     </el-dialog>

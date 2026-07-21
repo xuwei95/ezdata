@@ -11,7 +11,7 @@
             <div class="head-container">
               <el-input
                 v-model="deptName"
-                placeholder="请输入部门名称"
+                :placeholder="$t('请输入部门名称')"
                 clearable
                 prefix-icon="Search"
                 style="margin-bottom: 20px"
@@ -40,30 +40,30 @@
               ref="queryRef"
               :inline="true"
               v-show="showSearch"
-              label-width="68px"
+              label-width="118px"
             >
-              <el-form-item label="用户名称" prop="userName">
+              <el-form-item :label="$t('用户名称')" prop="userName">
                 <el-input
                   v-model="queryParams.userName"
-                  placeholder="请输入用户名称"
+                  :placeholder="$t('请输入用户名称')"
                   clearable
                   style="width: 240px"
                   @keyup.enter="handleQuery"
                 />
               </el-form-item>
-              <el-form-item label="手机号码" prop="phonenumber">
+              <el-form-item :label="$t('手机号码')" prop="phonenumber">
                 <el-input
                   v-model="queryParams.phonenumber"
-                  placeholder="请输入手机号码"
+                  :placeholder="$t('请输入手机号码')"
                   clearable
                   style="width: 240px"
                   @keyup.enter="handleQuery"
                 />
               </el-form-item>
-              <el-form-item label="状态" prop="status">
+              <el-form-item :label="$t('状态')" prop="status">
                 <el-select
                   v-model="queryParams.status"
-                  placeholder="用户状态"
+                  :placeholder="$t('用户状态')"
                   clearable
                   style="width: 240px"
                 >
@@ -75,7 +75,7 @@
                   />
                 </el-select>
               </el-form-item>
-              <el-form-item label="创建时间" style="width: 308px">
+              <el-form-item :label="$t('创建时间')" style="width: 308px">
                 <el-date-picker
                   v-model="dateRange"
                   value-format="YYYY-MM-DD"
@@ -87,9 +87,9 @@
               </el-form-item>
               <el-form-item>
                 <el-button type="primary" icon="Search" @click="handleQuery"
-                  >搜索</el-button
+                  >{{ $t('搜索') }}</el-button
                 >
-                <el-button icon="Refresh" @click="resetQuery">重置</el-button>
+                <el-button icon="Refresh" @click="resetQuery">{{ $t('重置') }}</el-button>
               </el-form-item>
             </el-form>
 
@@ -101,7 +101,7 @@
                   icon="Plus"
                   @click="handleAdd"
                   v-hasPermi="['system:user:add']"
-                  >新增</el-button
+                  >{{ $t('新增') }}</el-button
                 >
               </el-col>
               <el-col :span="1.5">
@@ -112,7 +112,7 @@
                   :disabled="single"
                   @click="handleUpdate"
                   v-hasPermi="['system:user:edit']"
-                  >修改</el-button
+                  >{{ $t('修改') }}</el-button
                 >
               </el-col>
               <el-col :span="1.5">
@@ -123,7 +123,7 @@
                   :disabled="multiple"
                   @click="handleDelete"
                   v-hasPermi="['system:user:remove']"
-                  >删除</el-button
+                  >{{ $t('删除') }}</el-button
                 >
               </el-col>
               <el-col :span="1.5">
@@ -133,7 +133,7 @@
                   icon="Upload"
                   @click="handleImport"
                   v-hasPermi="['system:user:import']"
-                  >导入</el-button
+                  >{{ $t('导入') }}</el-button
                 >
               </el-col>
               <el-col :span="1.5">
@@ -143,7 +143,7 @@
                   icon="Download"
                   @click="handleExport"
                   v-hasPermi="['system:user:export']"
-                  >导出</el-button
+                  >{{ $t('导出') }}</el-button
                 >
               </el-col>
               <right-toolbar
@@ -160,14 +160,14 @@
             >
               <el-table-column type="selection" width="50" align="center" />
               <el-table-column
-                label="用户编号"
+                :label="$t('用户编号')"
                 align="center"
                 key="userId"
                 prop="userId"
                 v-if="columns.userId.visible"
               />
               <el-table-column
-                label="用户名称"
+                :label="$t('用户名称')"
                 align="center"
                 key="userName"
                 prop="userName"
@@ -175,7 +175,7 @@
                 :show-overflow-tooltip="true"
               />
               <el-table-column
-                label="用户昵称"
+                :label="$t('用户昵称')"
                 align="center"
                 key="nickName"
                 prop="nickName"
@@ -183,7 +183,7 @@
                 :show-overflow-tooltip="true"
               />
               <el-table-column
-                label="部门"
+                :label="$t('部门')"
                 align="center"
                 key="deptName"
                 prop="dept.deptName"
@@ -191,7 +191,7 @@
                 :show-overflow-tooltip="true"
               />
               <el-table-column
-                label="手机号码"
+                :label="$t('手机号码')"
                 align="center"
                 key="phonenumber"
                 prop="phonenumber"
@@ -199,7 +199,7 @@
                 width="120"
               />
               <el-table-column
-                label="状态"
+                :label="$t('状态')"
                 align="center"
                 key="status"
                 v-if="columns.status.visible"
@@ -214,7 +214,7 @@
                 </template>
               </el-table-column>
               <el-table-column
-                label="创建时间"
+                :label="$t('创建时间')"
                 align="center"
                 prop="createTime"
                 v-if="columns.createTime.visible"
@@ -225,14 +225,14 @@
                 </template>
               </el-table-column>
               <el-table-column
-                label="操作"
+                :label="$t('操作')"
                 align="center"
                 width="150"
                 class-name="small-padding fixed-width"
               >
                 <template #default="scope">
                   <el-tooltip
-                    content="修改"
+                    :content="$t('修改')"
                     placement="top"
                     v-if="scope.row.userId !== 1"
                   >
@@ -245,7 +245,7 @@
                     ></el-button>
                   </el-tooltip>
                   <el-tooltip
-                    content="删除"
+                    :content="$t('删除')"
                     placement="top"
                     v-if="scope.row.userId !== 1"
                   >
@@ -258,7 +258,7 @@
                     ></el-button>
                   </el-tooltip>
                   <el-tooltip
-                    content="重置密码"
+                    :content="$t('重置密码')"
                     placement="top"
                     v-if="scope.row.userId !== 1"
                   >
@@ -271,7 +271,7 @@
                     ></el-button>
                   </el-tooltip>
                   <el-tooltip
-                    content="分配角色"
+                    :content="$t('分配角色')"
                     placement="top"
                     v-if="scope.row.userId !== 1"
                   >
@@ -300,25 +300,25 @@
 
     <!-- 添加或修改用户配置对话框 -->
     <el-dialog :title="title" v-model="open" width="600px" append-to-body>
-      <el-form :model="form" :rules="rules" ref="userRef" label-width="80px">
+      <el-form :model="form" :rules="rules" ref="userRef" label-width="130px">
         <el-row>
           <el-col :span="12">
-            <el-form-item label="用户昵称" prop="nickName">
+            <el-form-item :label="$t('用户昵称')" prop="nickName">
               <el-input
                 v-model="form.nickName"
-                placeholder="请输入用户昵称"
+                :placeholder="$t('请输入用户昵称')"
                 maxlength="30"
               />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="归属部门" prop="deptId">
+            <el-form-item :label="$t('归属部门')" prop="deptId">
               <el-tree-select
                 v-model="form.deptId"
                 :data="enabledDeptOptions"
                 :props="{ value: 'id', label: 'label', children: 'children' }"
                 value-key="id"
-                placeholder="请选择归属部门"
+                :placeholder="$t('请选择归属部门')"
                 clearable
                 check-strictly
               />
@@ -327,19 +327,19 @@
         </el-row>
         <el-row>
           <el-col :span="12">
-            <el-form-item label="手机号码" prop="phonenumber">
+            <el-form-item :label="$t('手机号码')" prop="phonenumber">
               <el-input
                 v-model="form.phonenumber"
-                placeholder="请输入手机号码"
+                :placeholder="$t('请输入手机号码')"
                 maxlength="11"
               />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="邮箱" prop="email">
+            <el-form-item :label="$t('邮箱')" prop="email">
               <el-input
                 v-model="form.email"
-                placeholder="请输入邮箱"
+                :placeholder="$t('请输入邮箱')"
                 maxlength="50"
               />
             </el-form-item>
@@ -349,12 +349,12 @@
           <el-col :span="12">
             <el-form-item
               v-if="form.userId == undefined"
-              label="用户名称"
+              :label="$t('用户名称')"
               prop="userName"
             >
               <el-input
                 v-model="form.userName"
-                placeholder="请输入用户名称"
+                :placeholder="$t('请输入用户名称')"
                 maxlength="30"
               />
             </el-form-item>
@@ -362,12 +362,12 @@
           <el-col :span="12">
             <el-form-item
               v-if="form.userId == undefined"
-              label="用户密码"
+              :label="$t('用户密码')"
               prop="password"
             >
               <el-input
                 v-model="form.password"
-                placeholder="请输入用户密码"
+                :placeholder="$t('请输入用户密码')"
                 type="password"
                 maxlength="20"
                 show-password
@@ -377,8 +377,8 @@
         </el-row>
         <el-row>
           <el-col :span="12">
-            <el-form-item label="用户性别">
-              <el-select v-model="form.sex" placeholder="请选择">
+            <el-form-item :label="$t('用户性别')">
+              <el-select v-model="form.sex" :placeholder="$t('请选择')">
                 <el-option
                   v-for="dict in sys_user_sex"
                   :key="dict.value"
@@ -389,7 +389,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="状态">
+            <el-form-item :label="$t('状态')">
               <el-radio-group v-model="form.status">
                 <el-radio
                   v-for="dict in sys_normal_disable"
@@ -403,8 +403,8 @@
         </el-row>
         <el-row>
           <el-col :span="12">
-            <el-form-item label="岗位">
-              <el-select v-model="form.postIds" multiple placeholder="请选择">
+            <el-form-item :label="$t('岗位')">
+              <el-select v-model="form.postIds" multiple :placeholder="$t('请选择')">
                 <el-option
                   v-for="item in postOptions"
                   :key="item.postId"
@@ -416,8 +416,8 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="角色">
-              <el-select v-model="form.roleIds" multiple placeholder="请选择">
+            <el-form-item :label="$t('角色')">
+              <el-select v-model="form.roleIds" multiple :placeholder="$t('请选择')">
                 <el-option
                   v-for="item in roleOptions"
                   :key="item.roleId"
@@ -431,8 +431,8 @@
         </el-row>
         <el-row>
           <el-col :span="24">
-            <el-form-item label="所属租户">
-              <el-select v-model="form.tenantIds" multiple placeholder="不选则默认归其部门所属租户" style="width: 100%">
+            <el-form-item :label="$t('所属租户')">
+              <el-select v-model="form.tenantIds" multiple :placeholder="$t('不选则默认归其部门所属租户')" style="width: 100%">
                 <el-option
                   v-for="item in tenantOptions"
                   :key="item.tenantId"
@@ -445,11 +445,11 @@
         </el-row>
         <el-row>
           <el-col :span="24">
-            <el-form-item label="备注">
+            <el-form-item :label="$t('备注')">
               <el-input
                 v-model="form.remark"
                 type="textarea"
-                placeholder="请输入内容"
+                :placeholder="$t('请输入内容')"
               ></el-input>
             </el-form-item>
           </el-col>
@@ -457,8 +457,8 @@
       </el-form>
       <template #footer>
         <div class="dialog-footer">
-          <el-button type="primary" @click="submitForm">确 定</el-button>
-          <el-button @click="cancel">取 消</el-button>
+          <el-button type="primary" @click="submitForm">{{ $t('确 定') }}</el-button>
+          <el-button @click="cancel">{{ $t('取 消') }}</el-button>
         </div>
       </template>
     </el-dialog>
@@ -485,29 +485,28 @@
         drag
       >
         <el-icon class="el-icon--upload"><upload-filled /></el-icon>
-        <div class="el-upload__text">将文件拖到此处，或<em>点击上传</em></div>
+        <div class="el-upload__text">{{ $t('将文件拖到此处，或') }}<em>{{ $t('点击上传') }}</em></div>
         <template #tip>
           <div class="el-upload__tip text-center">
             <div class="el-upload__tip">
               <el-checkbox
                 v-model="upload.updateSupport"
-              />是否更新已经存在的用户数据
-            </div>
-            <span>仅允许导入xls、xlsx格式文件。</span>
+              />{{ $t('是否更新已经存在的用户数据') }} </div>
+            <span>{{ $t('仅允许导入xls、xlsx格式文件。') }}</span>
             <el-link
               type="primary"
               :underline="false"
               style="font-size: 12px; vertical-align: baseline"
               @click="importTemplate"
-              >下载模板</el-link
+              >{{ $t('下载模板') }}</el-link
             >
           </div>
         </template>
       </el-upload>
       <template #footer>
         <div class="dialog-footer">
-          <el-button type="primary" @click="submitFileForm">确 定</el-button>
-          <el-button @click="upload.open = false">取 消</el-button>
+          <el-button type="primary" @click="submitFileForm">{{ $t('确 定') }}</el-button>
+          <el-button @click="upload.open = false">{{ $t('取 消') }}</el-button>
         </div>
       </template>
     </el-dialog>

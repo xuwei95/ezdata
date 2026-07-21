@@ -9,8 +9,7 @@
       <el-scrollbar class="left-scrollbar">
         <div class="components-list">
           <div class="components-title">
-            <svg-icon icon-class="component" />输入型组件
-          </div>
+            <svg-icon icon-class="component" />{{ $t('输入型组件') }} </div>
           <draggable class="components-draggable" :list="inputComponents"
             :group="{ name: 'componentsGroup', pull: 'clone', put: false }" :clone="cloneComponent"
             draggable=".components-item" :sort="false" @end="onEnd" item-key="label">
@@ -24,8 +23,7 @@
             </template>
           </draggable>
           <div class="components-title">
-            <svg-icon icon-class="component" />选择型组件
-          </div>
+            <svg-icon icon-class="component" />{{ $t('选择型组件') }} </div>
           <draggable class="components-draggable" :list="selectComponents"
             :group="{ name: 'componentsGroup', pull: 'clone', put: false }" :clone="cloneComponent"
             draggable=".components-item" :sort="false" @end="onEnd" item-key="label">
@@ -39,8 +37,7 @@
             </template>
           </draggable>
           <div class="components-title">
-            <svg-icon icon-class="component" /> 布局型组件
-          </div>
+            <svg-icon icon-class="component" /> {{ $t('布局型组件') }} </div>
           <draggable class="components-draggable" :list="layoutComponents"
             :group="{ name: 'componentsGroup', pull: 'clone', put: false }" :clone="cloneComponent"
             draggable=".components-item" :sort="false" @end="onEnd" item-key="label">
@@ -58,15 +55,9 @@
     </div>
     <div class="center-board">
       <div class="action-bar">
-        <el-button icon="Download" type="primary" text @click="download">
-          导出vue文件
-        </el-button>
-        <el-button class="copy-btn-main" icon="DocumentCopy" type="primary" text @click="copy">
-          复制代码
-        </el-button>
-        <el-button class="delete-btn" icon="Delete" text @click="empty" type="danger">
-          清空
-        </el-button>
+        <el-button icon="Download" type="primary" text @click="download"> {{ $t('导出vue文件') }} </el-button>
+        <el-button class="copy-btn-main" icon="DocumentCopy" type="primary" text @click="copy"> {{ $t('复制代码') }} </el-button>
+        <el-button class="delete-btn" icon="Delete" text @click="empty" type="danger"> {{ $t('清空') }} </el-button>
       </div>
       <el-scrollbar class="center-scrollbar">
         <el-row class="center-board-row" :gutter="formConf.gutter">
@@ -80,9 +71,7 @@
                   @deleteItem="drawingItemDelete" />
               </template>
             </draggable>
-            <div v-show="!drawingList.length" class="empty-info">
-              从左侧拖入或点选组件进行表单设计
-            </div>
+            <div v-show="!drawingList.length" class="empty-info"> {{ $t('从左侧拖入或点选组件进行表单设计') }} </div>
           </el-form>
         </el-row>
       </el-scrollbar>
@@ -90,7 +79,7 @@
     <right-panel :active-data="activeData" :form-conf="formConf" :show-field="!!drawingList.length"
       @tag-change="tagChange" />
 
-    <code-type-dialog v-model="dialogVisible" title="选择生成类型" :showFileName="showFileName" @confirm="generate" />
+    <code-type-dialog v-model="dialogVisible" :title="$t('选择生成类型')" :showFileName="showFileName" @confirm="generate" />
     <input id="copyNode" type="hidden">
   </div>
 </template>

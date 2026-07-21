@@ -1,42 +1,42 @@
 <template>
   <div class="app-container">
     <el-form :inline="true" v-show="showSearch">
-      <el-form-item label="名称">
-        <el-input v-model="query.name" placeholder="DAG 名称" clearable style="width: 200px" @keyup.enter="getList" />
+      <el-form-item :label="$t('名称')">
+        <el-input v-model="query.name" :placeholder="$t('DAG 名称')" clearable style="width: 200px" @keyup.enter="getList" />
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" icon="Search" @click="getList">搜索</el-button>
-        <el-button icon="Refresh" @click="resetQuery">重置</el-button>
+        <el-button type="primary" icon="Search" @click="getList">{{ $t('搜索') }}</el-button>
+        <el-button icon="Refresh" @click="resetQuery">{{ $t('重置') }}</el-button>
       </el-form-item>
     </el-form>
 
     <el-row :gutter="10" class="mb8">
       <el-col :span="1.5">
-        <el-button type="primary" plain icon="Plus" @click="handleAdd" v-hasPermi="['task:dag:edit']">新建 DAG</el-button>
+        <el-button type="primary" plain icon="Plus" @click="handleAdd" v-hasPermi="['task:dag:edit']">{{ $t('新建 DAG') }}</el-button>
       </el-col>
       <right-toolbar v-model:showSearch="showSearch" @queryTable="getList" />
     </el-row>
 
     <el-table v-loading="loading" :data="list">
-      <el-table-column label="名称" align="center" prop="name" show-overflow-tooltip />
-      <el-table-column label="运行队列" align="center" prop="runQueue" width="120" />
-      <el-table-column label="状态" align="center" width="90">
+      <el-table-column :label="$t('名称')" align="center" prop="name" show-overflow-tooltip />
+      <el-table-column :label="$t('运行队列')" align="center" prop="runQueue" width="120" />
+      <el-table-column :label="$t('状态')" align="center" width="90">
         <template #default="s">
           <el-tag :type="s.row.status === 1 ? 'success' : 'info'">{{ s.row.status === 1 ? '启用' : '停用' }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="已发布" align="center" width="90">
+      <el-table-column :label="$t('已发布')" align="center" width="90">
         <template #default="s">
           <el-tag :type="s.row.publishedVersionId ? 'success' : 'warning'" size="small">
             {{ s.row.publishedVersionId ? '是' : '草稿' }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="创建时间" align="center" prop="createTime" width="170" />
-      <el-table-column label="操作" align="center" width="220">
+      <el-table-column :label="$t('创建时间')" align="center" prop="createTime" width="170" />
+      <el-table-column :label="$t('操作')" align="center" width="220">
         <template #default="s">
-          <el-button link type="primary" icon="Share" @click="openEditor(s.row)" v-hasPermi="['task:dag:list']">编排</el-button>
-          <el-button link type="primary" icon="CopyDocument" @click="handleCopy(s.row)" v-hasPermi="['task:dag:edit']">复制</el-button>
-          <el-button link type="danger" icon="Delete" @click="handleDelete(s.row)" v-hasPermi="['task:dag:edit']">删除</el-button>
+          <el-button link type="primary" icon="Share" @click="openEditor(s.row)" v-hasPermi="['task:dag:list']">{{ $t('编排') }}</el-button>
+          <el-button link type="primary" icon="CopyDocument" @click="handleCopy(s.row)" v-hasPermi="['task:dag:edit']">{{ $t('复制') }}</el-button>
+          <el-button link type="danger" icon="Delete" @click="handleDelete(s.row)" v-hasPermi="['task:dag:edit']">{{ $t('删除') }}</el-button>
         </template>
       </el-table-column>
     </el-table>

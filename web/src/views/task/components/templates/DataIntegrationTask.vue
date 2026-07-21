@@ -3,143 +3,141 @@
     <el-row :gutter="16">
       <!-- 左:抽取 + 转换 -->
       <el-col :span="13">
-        <el-divider content-position="left">抽取(源)</el-divider>
-        <el-form label-width="84px">
-          <el-form-item label="抽取方式">
+        <el-divider content-position="left">{{ $t('抽取(源)') }}</el-divider>
+        <el-form label-width="134px">
+          <el-form-item :label="$t('抽取方式')">
             <el-radio-group v-model="model.extract.mode">
-              <el-radio value="datasource">数据源</el-radio>
-              <el-radio value="code">代码取数</el-radio>
+              <el-radio value="datasource">{{ $t('数据源') }}</el-radio>
+              <el-radio value="code">{{ $t('代码取数') }}</el-radio>
             </el-radio-group>
           </el-form-item>
 
           <!-- 代码取数:写 Python 产出 result(list[dict]),可爬虫/调任意接口/多源拼装 -->
           <template v-if="isCode">
-            <el-form-item label="可用数据源">
+            <el-form-item :label="$t('可用数据源')">
               <el-select v-model="model.extract.datasource_codes" multiple filterable clearable
-                placeholder="可选:代码里用 get_handler(编码) 访问这些数据源;留空=纯爬虫" style="width: 100%">
+                :placeholder="$t('可选:代码里用 get_handler(编码) 访问这些数据源;留空=纯爬虫')" style="width: 100%">
                 <el-option v-for="s in sources" :key="s.code" :label="`${s.name} (${s.sourceType})`" :value="s.code" />
               </el-select>
             </el-form-item>
-            <el-form-item label="取数代码" required>
+            <el-form-item :label="$t('取数代码')" required>
               <div style="width: 100%">
                 <div class="bar">
-                  <span class="muted">把结果赋给 result(list[dict]);可用 requests/bs4;get_handler(编码) 取数据源</span>
-                  <el-button size="small" icon="MagicStick" @click="aie.open = !aie.open">AI 生成代码</el-button>
+                  <span class="muted">{{ $t('把结果赋给 result(list[dict]);可用 requests/bs4;get_handler(编码) 取数据源') }}</span>
+                  <el-button size="small" icon="MagicStick" @click="aie.open = !aie.open">{{ $t('AI 生成代码') }}</el-button>
                 </div>
                 <code-editor v-model="model.extract.code" language="python" height="220px"
                   placeholder="import requests\nresult = []\n..." />
                 <div v-if="aie.open" class="ai-panel">
                   <el-input v-model="aie.question" type="textarea" :rows="2"
-                    placeholder="描述要抓什么数据,如:抓取 xxx 接口的 a、b 字段" />
+                    :placeholder="$t('描述要抓什么数据,如:抓取 xxx 接口的 a、b 字段')" />
                   <div class="bar" style="margin-top: 6px">
                     <el-button size="small" type="primary" icon="MagicStick" :loading="aie.loading" @click="genExtract">
                       {{ aie.output ? '重新生成' : '生成' }}</el-button>
-                    <span class="muted">生成结果见下方,确认后再采用</span>
+                    <span class="muted">{{ $t('生成结果见下方,确认后再采用') }}</span>
                   </div>
                   <pre v-if="aie.output" class="ai-out">{{ aie.output }}<span v-if="aie.loading" class="cursor">▋</span></pre>
                   <div v-if="aie.output" class="bar">
-                    <el-button size="small" type="success" icon="Check" :disabled="aie.loading" @click="applyExtract">采用到代码</el-button>
-                    <el-button size="small" @click="aie.output = ''">清空</el-button>
+                    <el-button size="small" type="success" icon="Check" :disabled="aie.loading" @click="applyExtract">{{ $t('采用到代码') }}</el-button>
+                    <el-button size="small" @click="aie.output = ''">{{ $t('清空') }}</el-button>
                   </div>
                 </div>
-                <div class="muted" style="margin-top: 6px">
-                  预览在沙箱执行(出网受域名白名单限制);正式任务在 worker 运行,可访问任意站点。
-                </div>
+                <div class="muted" style="margin-top: 6px"> {{ $t('预览在沙箱执行(出网受域名白名单限制);正式任务在 worker 运行,可访问任意站点。') }} </div>
               </div>
             </el-form-item>
           </template>
 
-          <el-form-item v-if="!isCode" label="源数据源" required>
-            <el-select v-model="model.extract.datasource_code" filterable placeholder="选择源数据源" style="width: 100%"
+          <el-form-item v-if="!isCode" :label="$t('源数据源')" required>
+            <el-select v-model="model.extract.datasource_code" filterable :placeholder="$t('选择源数据源')" style="width: 100%"
               @change="onSrcChange">
               <el-option v-for="s in sources" :key="s.code" :label="`${s.name} (${s.sourceType})`" :value="s.code" />
             </el-select>
           </el-form-item>
           <!-- 流式源:单选要消费的表/主题 -->
-          <el-form-item label="表/主题" required v-if="!isCode && srcIsStream">
-            <el-select v-model="model.extract.object" filterable clearable placeholder="要消费的表/主题"
+          <el-form-item :label="$t('表/主题')" required v-if="!isCode && srcIsStream">
+            <el-select v-model="model.extract.object" filterable clearable :placeholder="$t('要消费的表/主题')"
               style="width: 100%" :loading="objLoading">
               <el-option v-for="t in objects" :key="t" :label="t" :value="t" />
             </el-select>
           </el-form-item>
           <!-- 批量源:多选相关表 -->
-          <el-form-item label="相关表" v-if="!isCode && !srcIsStream">
+          <el-form-item :label="$t('相关表')" v-if="!isCode && !srcIsStream">
             <el-select v-model="model.extract.tables" multiple filterable clearable collapse-tags
-              placeholder="选 1 张=预填查询并作目标表;多张=喂 AI 连表;不选=全库结构给 AI"
+              :placeholder="$t('选 1 张=预填查询并作目标表;多张=喂 AI 连表;不选=全库结构给 AI')"
               style="width: 100%" :loading="objLoading" @change="onTablesChange">
               <el-option v-for="t in objects" :key="t" :label="t" :value="t" />
             </el-select>
           </el-form-item>
 
           <!-- 批量源:原生查询 -->
-          <el-form-item label="原生查询" required v-if="!isCode && !srcIsStream">
+          <el-form-item :label="$t('原生查询')" required v-if="!isCode && !srcIsStream">
             <div style="width: 100%">
               <div class="bar">
                 <span class="muted">{{ srcFamily === 'api' ? '接口调用:函数名 + 参数(JSON)' : '原生 SQL / DSL' }}</span>
-                <el-button size="small" icon="MagicStick" @click="aiq.open = !aiq.open">AI 生成查询</el-button>
+                <el-button size="small" icon="MagicStick" @click="aiq.open = !aiq.open">{{ $t('AI 生成查询') }}</el-button>
               </div>
               <el-input v-model="model.extract.native" type="textarea" :rows="6"
                 :placeholder="srcFamily === 'api' ? '如:{&quot;func&quot;:&quot;stock_zh_a_daily&quot;,&quot;params&quot;:{&quot;symbol&quot;:&quot;sh600519&quot;}}' : '例如:SELECT * FROM orders WHERE status=\'PAID\''" />
               <!-- AI 生成面板:生成后流式打印,确认再采用 -->
               <div v-if="aiq.open" class="ai-panel">
                 <el-input v-model="aiq.question" type="textarea" :rows="2"
-                  placeholder="用自然语言描述要抽取的数据,如:金额>1000 的已支付订单,按金额降序" />
+                  :placeholder="$t('用自然语言描述要抽取的数据,如:金额>1000 的已支付订单,按金额降序')" />
                 <div class="bar" style="margin-top: 6px">
                   <el-button size="small" type="primary" icon="MagicStick" :loading="aiq.loading" @click="genQuery">
                     {{ aiq.output ? '重新生成' : '生成' }}</el-button>
-                  <span class="muted">生成结果见下方,确认后再采用</span>
+                  <span class="muted">{{ $t('生成结果见下方,确认后再采用') }}</span>
                 </div>
                 <pre v-if="aiq.output" class="ai-out">{{ aiq.output }}<span v-if="aiq.loading" class="cursor">▋</span></pre>
                 <div v-if="aiq.output" class="bar">
                   <el-button size="small" type="success" icon="Check" :disabled="aiq.loading"
-                    @click="applyQuery">采用到查询</el-button>
-                  <el-button size="small" @click="aiq.output = ''">清空</el-button>
+                    @click="applyQuery">{{ $t('采用到查询') }}</el-button>
+                  <el-button size="small" @click="aiq.output = ''">{{ $t('清空') }}</el-button>
                 </div>
               </div>
             </div>
           </el-form-item>
 
           <!-- 流式源:逐条消费,有界/持续 -->
-          <el-form-item label="最大条数" v-if="!isCode && srcIsStream">
+          <el-form-item :label="$t('最大条数')" v-if="!isCode && srcIsStream">
             <el-input-number v-model="model.extract.max_events" :min="0" :step="100" controls-position="right"
               style="width: 160px" />
-            <span class="muted" style="margin-left: 10px">0 = 持续消费(任务常驻),&gt;0 = 读这一批后结束</span>
+            <span class="muted" style="margin-left: 10px">{{ $t('0 = 持续消费(任务常驻),&gt;0 = 读这一批后结束') }}</span>
           </el-form-item>
 
-          <el-divider content-position="left">转换(可选)</el-divider>
-          <el-form-item label="启用转换">
+          <el-divider content-position="left">{{ $t('转换(可选)') }}</el-divider>
+          <el-form-item :label="$t('启用转换')">
             <el-switch v-model="model.transform.enabled" />
           </el-form-item>
-          <el-form-item label="转换代码" v-if="model.transform.enabled">
+          <el-form-item :label="$t('转换代码')" v-if="model.transform.enabled">
             <div style="width: 100%">
               <div class="bar">
                 <span class="muted">def transform(row)</span>
-                <el-button size="small" icon="MagicStick" @click="ait.open = !ait.open">AI 生成转换</el-button>
+                <el-button size="small" icon="MagicStick" @click="ait.open = !ait.open">{{ $t('AI 生成转换') }}</el-button>
               </div>
               <code-editor v-model="model.transform.code" language="python" height="180px"
-                placeholder="定义 transform(row) 逐行转换并返回 row" />
+                :placeholder="$t('定义 transform(row) 逐行转换并返回 row')" />
               <!-- AI 生成面板 -->
               <div v-if="ait.open" class="ai-panel">
                 <el-input v-model="ait.question" type="textarea" :rows="2"
-                  placeholder="用自然语言描述转换逻辑,如:把 amount 乘 1.13 存为 amount_with_tax" />
+                  :placeholder="$t('用自然语言描述转换逻辑,如:把 amount 乘 1.13 存为 amount_with_tax')" />
                 <div class="bar" style="margin-top: 6px">
                   <el-button size="small" type="primary" icon="MagicStick" :loading="ait.loading" @click="genTransform">
                     {{ ait.output ? '重新生成' : '生成' }}</el-button>
-                  <span class="muted">可用字段取自最近一次预览</span>
+                  <span class="muted">{{ $t('可用字段取自最近一次预览') }}</span>
                 </div>
                 <pre v-if="ait.output" class="ai-out">{{ ait.output }}<span v-if="ait.loading" class="cursor">▋</span></pre>
                 <div v-if="ait.output" class="bar">
                   <el-button size="small" type="success" icon="Check" :disabled="ait.loading"
-                    @click="applyTransform">采用到转换</el-button>
-                  <el-button size="small" @click="ait.output = ''">清空</el-button>
+                    @click="applyTransform">{{ $t('采用到转换') }}</el-button>
+                  <el-button size="small" @click="ait.output = ''">{{ $t('清空') }}</el-button>
                 </div>
               </div>
             </div>
           </el-form-item>
 
-          <el-divider content-position="left">装载(目标)</el-divider>
-          <el-form-item label="目标源" required>
-            <el-select v-model="model.load.datasource_code" filterable placeholder="选择目标数据源" style="width: 100%">
+          <el-divider content-position="left">{{ $t('装载(目标)') }}</el-divider>
+          <el-form-item :label="$t('目标源')" required>
+            <el-select v-model="model.load.datasource_code" filterable :placeholder="$t('选择目标数据源')" style="width: 100%">
               <el-option v-for="s in sources" :key="s.code" :label="`${s.name} (${s.sourceType})`" :value="s.code" />
             </el-select>
           </el-form-item>
@@ -148,18 +146,18 @@
               :placeholder="destIsFile ? '对象 key,如 exports/orders.csv' : '目标表名(默认同主表)'"
               clearable style="width: 100%" />
           </el-form-item>
-          <el-form-item label="文件格式" v-if="destIsFile">
+          <el-form-item :label="$t('文件格式')" v-if="destIsFile">
             <el-radio-group v-model="model.load.format">
               <el-radio value="csv">CSV</el-radio>
               <el-radio value="json">JSON</el-radio>
               <el-radio value="jsonl">JSONL</el-radio>
             </el-radio-group>
           </el-form-item>
-          <el-form-item label="写入模式" v-else>
+          <el-form-item :label="$t('写入模式')" v-else>
             <el-radio-group v-model="model.load.mode" class="write-mode-group">
-              <el-radio value="append" style="display:flex;height:auto;align-items:baseline;margin:2px 0">追加<span class="muted" style="margin-left:8px">保留已有数据,新数据追加;数据带唯一键(如 _id)则同键幂等 upsert、重跑不重复</span></el-radio>
-              <el-radio value="replace" style="display:flex;height:auto;align-items:baseline;margin:2px 0">覆盖<span class="muted" style="margin-left:8px">先清空目标表/索引,再写入本次全量 —— 全量快照刷新</span></el-radio>
-              <el-radio value="merge" style="display:flex;height:auto;align-items:baseline;margin:2px 0">合并<span class="muted" style="margin-left:8px">按主键 upsert:同键更新、新键插入、其余保留(需数据带唯一键)</span></el-radio>
+              <el-radio value="append" style="display:flex;height:auto;align-items:baseline;margin:2px 0">{{ $t('追加') }}<span class="muted" style="margin-left:8px">{{ $t('保留已有数据,新数据追加;数据带唯一键(如 _id)则同键幂等 upsert、重跑不重复') }}</span></el-radio>
+              <el-radio value="replace" style="display:flex;height:auto;align-items:baseline;margin:2px 0">{{ $t('覆盖') }}<span class="muted" style="margin-left:8px">{{ $t('先清空目标表/索引,再写入本次全量 —— 全量快照刷新') }}</span></el-radio>
+              <el-radio value="merge" style="display:flex;height:auto;align-items:baseline;margin:2px 0">{{ $t('合并') }}<span class="muted" style="margin-left:8px">{{ $t('按主键 upsert:同键更新、新键插入、其余保留(需数据带唯一键)') }}</span></el-radio>
             </el-radio-group>
           </el-form-item>
         </el-form>
@@ -167,20 +165,20 @@
 
       <!-- 右:预览 / 测试写入 -->
       <el-col :span="11">
-        <el-divider content-position="left">抽取预览(调试)</el-divider>
+        <el-divider content-position="left">{{ $t('抽取预览(调试)') }}</el-divider>
         <div class="bar">
           <div>
-            <el-button type="primary" icon="View" :loading="previewLoading" @click="doPreview">预览抽取数据</el-button>
+            <el-button type="primary" icon="View" :loading="previewLoading" @click="doPreview">{{ $t('预览抽取数据') }}</el-button>
             <el-button icon="Upload" :loading="loadLoading" :disabled="!previewRowsRaw.length"
-              @click="doTestLoad">测试写入目标</el-button>
+              @click="doTestLoad">{{ $t('测试写入目标') }}</el-button>
           </div>
           <div>
             <el-radio-group v-model="previewTab" size="small" v-if="hasTransformed" style="margin-right: 8px">
-              <el-radio-button value="raw">原始</el-radio-button>
-              <el-radio-button value="transformed">转换后</el-radio-button>
+              <el-radio-button value="raw">{{ $t('原始') }}</el-radio-button>
+              <el-radio-button value="transformed">{{ $t('转换后') }}</el-radio-button>
             </el-radio-group>
             <el-button size="small" icon="Document" :disabled="!previewRows.length"
-              @click="jsonDlg = true">原始JSON</el-button>
+              @click="jsonDlg = true">{{ $t('原始JSON') }}</el-button>
           </div>
         </div>
         <div class="muted" style="margin: 6px 0">
@@ -192,13 +190,13 @@
           <vxe-column v-for="c in previewCols" :key="c" :field="c" :title="c" :width="150" show-overflow>
             <template #default="{ row }">{{ fmtCell(row[c]) }}</template>
           </vxe-column>
-          <template #empty>点击「预览抽取数据」查看样本</template>
+          <template #empty>{{ $t('点击「预览抽取数据」查看样本') }}</template>
         </vxe-table>
       </el-col>
     </el-row>
 
     <!-- 原始数据 JSON 查看 -->
-    <el-dialog v-model="jsonDlg" title="原始数据(JSON)" width="60%" append-to-body>
+    <el-dialog v-model="jsonDlg" :title="$t('原始数据(JSON)')" width="60%" append-to-body>
       <code-editor :model-value="previewJson" language="json" height="60vh" read-only />
     </el-dialog>
   </div>

@@ -1,21 +1,21 @@
 <template>
-  <el-dialog v-model="visible" title="API Key 管理" width="640px" append-to-body @open="onOpen">
+  <el-dialog v-model="visible" :title="$t('API Key 管理')" width="640px" append-to-body @open="onOpen">
     <div style="margin-bottom: 10px; display: flex; align-items: center; gap: 8px">
-      <el-button type="primary" icon="Plus" :loading="loading" @click="apply">申请 API Key</el-button>
-      <span style="color: var(--el-text-color-secondary); font-size: 12px">用于外部系统调用本应用</span>
+      <el-button type="primary" icon="Plus" :loading="loading" @click="apply">{{ $t('申请 API Key') }}</el-button>
+      <span style="color: var(--el-text-color-secondary); font-size: 12px">{{ $t('用于外部系统调用本应用') }}</span>
     </div>
-    <el-table :data="tokens" size="small" v-loading="loading" empty-text="暂无 API Key">
-      <el-table-column label="名称" prop="name" width="110" show-overflow-tooltip />
+    <el-table :data="tokens" size="small" v-loading="loading" :empty-text="$t('暂无 API Key')">
+      <el-table-column :label="$t('名称')" prop="name" width="110" show-overflow-tooltip />
       <el-table-column label="API Key" prop="token" show-overflow-tooltip>
         <template #default="{ row }">
           <span style="font-family: monospace; font-size: 12px">{{ row.token }}</span>
-          <el-button link type="primary" size="small" @click="copy(row.token)">复制</el-button>
+          <el-button link type="primary" size="small" @click="copy(row.token)">{{ $t('复制') }}</el-button>
         </template>
       </el-table-column>
-      <el-table-column label="创建时间" prop="createTime" width="160" />
-      <el-table-column label="操作" width="60">
+      <el-table-column :label="$t('创建时间')" prop="createTime" width="160" />
+      <el-table-column :label="$t('操作')" width="60">
         <template #default="{ row }">
-          <el-button link type="danger" size="small" @click="remove(row.id)">删除</el-button>
+          <el-button link type="danger" size="small" @click="remove(row.id)">{{ $t('删除') }}</el-button>
         </template>
       </el-table-column>
     </el-table>

@@ -16,10 +16,10 @@
         </template>
       </draggable>
     </el-row>
-    <span class="drawing-item-copy" title="复制" @click.stop="copyItem(element)">
+    <span class="drawing-item-copy" :title="$t('复制')" @click.stop="copyItem(element)">
       <el-icon><CopyDocument /></el-icon>
     </span>
-    <span class="drawing-item-delete" title="删除" @click.stop="deleteItem(index)">
+    <span class="drawing-item-delete" :title="$t('删除')" @click.stop="deleteItem(index)">
       <el-icon><Delete /></el-icon>
     </span>
   </el-col>

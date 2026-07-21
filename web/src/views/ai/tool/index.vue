@@ -1,53 +1,53 @@
 <template>
   <div class="app-container">
     <el-form :model="queryParams" ref="queryRef" :inline="true" v-show="showSearch">
-      <el-form-item label="名称/代码" prop="keyword">
+      <el-form-item :label="$t('名称/代码')" prop="keyword">
         <el-input
           v-model="queryParams.keyword"
-          placeholder="工具名称或代码"
+          :placeholder="$t('工具名称或代码')"
           clearable
           style="width: 200px"
           @keyup.enter="handleQuery"
         />
       </el-form-item>
-      <el-form-item label="类型" prop="toolType">
-        <el-select v-model="queryParams.toolType" placeholder="工具类型" clearable style="width: 160px">
-          <el-option label="MCP工具" value="mcp" />
-          <el-option label="内置工具" value="builtin" />
+      <el-form-item :label="$t('类型')" prop="toolType">
+        <el-select v-model="queryParams.toolType" :placeholder="$t('工具类型')" clearable style="width: 160px">
+          <el-option :label="$t('MCP工具')" value="mcp" />
+          <el-option :label="$t('内置工具')" value="builtin" />
         </el-select>
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" icon="Search" @click="handleQuery">搜索</el-button>
-        <el-button icon="Refresh" @click="resetQuery">重置</el-button>
+        <el-button type="primary" icon="Search" @click="handleQuery">{{ $t('搜索') }}</el-button>
+        <el-button icon="Refresh" @click="resetQuery">{{ $t('重置') }}</el-button>
       </el-form-item>
     </el-form>
 
     <el-row :gutter="10" class="mb8">
       <el-col :span="1.5">
         <el-button type="primary" plain icon="Plus" @click="handleAdd" v-hasPermi="['ai:tool:add']"
-          >新增工具</el-button
+          >{{ $t('新增工具') }}</el-button
         >
       </el-col>
       <right-toolbar v-model:showSearch="showSearch" @queryTable="getList"></right-toolbar>
     </el-row>
 
     <el-table v-loading="loading" :data="toolList">
-      <el-table-column label="名称" align="center" prop="name" min-width="140" />
-      <el-table-column label="代码" align="center" prop="code" min-width="160" show-overflow-tooltip />
-      <el-table-column label="类型" align="center" prop="toolType" width="100">
+      <el-table-column :label="$t('名称')" align="center" prop="name" min-width="140" />
+      <el-table-column :label="$t('代码')" align="center" prop="code" min-width="160" show-overflow-tooltip />
+      <el-table-column :label="$t('类型')" align="center" prop="toolType" width="100">
         <template #default="scope">
           <el-tag :type="scope.row.toolType === 'builtin' ? 'info' : 'success'">
             {{ scope.row.toolType === "builtin" ? "内置" : "MCP" }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="描述" align="center" prop="description" min-width="200" show-overflow-tooltip />
-      <el-table-column label="创建时间" align="center" prop="createTime" width="160">
+      <el-table-column :label="$t('描述')" align="center" prop="description" min-width="200" show-overflow-tooltip />
+      <el-table-column :label="$t('创建时间')" align="center" prop="createTime" width="160">
         <template #default="scope">
           <span>{{ parseTime(scope.row.createTime) }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="160" align="center" class-name="small-padding fixed-width">
+      <el-table-column :label="$t('操作')" width="160" align="center" class-name="small-padding fixed-width">
         <template #default="scope">
           <el-button link type="primary" icon="Edit" @click="handleUpdate(scope.row)" v-hasPermi="['ai:tool:edit']"
             >{{ scope.row.builtIn === "1" ? "查看" : "修改" }}</el-button
@@ -59,7 +59,7 @@
             icon="Delete"
             @click="handleDelete(scope.row)"
             v-hasPermi="['ai:tool:remove']"
-            >删除</el-button
+            >{{ $t('删除') }}</el-button
           >
         </template>
       </el-table-column>
@@ -75,39 +75,39 @@
 
     <!-- 添加或修改对话框 -->
     <el-dialog :title="title" v-model="open" width="720px" append-to-body>
-      <el-form ref="toolRef" :model="form" :rules="rules" label-width="100px">
+      <el-form ref="toolRef" :model="form" :rules="rules" label-width="150px">
         <el-row :gutter="10">
           <el-col :span="12">
-            <el-form-item label="工具名称" prop="name">
-              <el-input v-model="form.name" placeholder="请输入工具名称" />
+            <el-form-item :label="$t('工具名称')" prop="name">
+              <el-input v-model="form.name" :placeholder="$t('请输入工具名称')" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="工具代码" prop="code">
-              <el-input v-model="form.code" placeholder="英文唯一标识" :disabled="isBuiltin || isUpdate" />
+            <el-form-item :label="$t('工具代码')" prop="code">
+              <el-input v-model="form.code" :placeholder="$t('英文唯一标识')" :disabled="isBuiltin || isUpdate" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="类型" prop="toolType">
+            <el-form-item :label="$t('类型')" prop="toolType">
               <el-select v-model="form.toolType" style="width: 100%" disabled>
-                <el-option label="MCP工具" value="mcp" />
-                <el-option label="内置工具" value="builtin" />
+                <el-option :label="$t('MCP工具')" value="mcp" />
+                <el-option :label="$t('内置工具')" value="builtin" />
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="24">
-            <el-form-item label="描述" prop="description">
-              <el-input v-model="form.description" type="textarea" :rows="2" placeholder="请输入工具描述" />
+            <el-form-item :label="$t('描述')" prop="description">
+              <el-input v-model="form.description" type="textarea" :rows="2" :placeholder="$t('请输入工具描述')" />
             </el-form-item>
           </el-col>
 
           <!-- MCP 配置 -->
           <template v-if="form.toolType === 'mcp'">
-            <el-col :span="24"><el-divider content-position="left">MCP 连接配置</el-divider></el-col>
+            <el-col :span="24"><el-divider content-position="left">{{ $t('MCP 连接配置') }}</el-divider></el-col>
             <el-col :span="12">
-              <el-form-item label="服务器类型">
+              <el-form-item :label="$t('服务器类型')">
                 <el-select v-model="form.args.server_type" style="width: 100%">
-                  <el-option label="STDIO(本地进程)" value="stdio" />
+                  <el-option :label="$t('STDIO(本地进程)')" value="stdio" />
                   <el-option label="SSE" value="sse" />
                   <el-option label="Streamable HTTP" value="http" />
                 </el-select>
@@ -116,12 +116,12 @@
 
             <template v-if="form.args.server_type === 'stdio'">
               <el-col :span="24">
-                <el-form-item label="执行命令">
-                  <el-input v-model="form.args.command" placeholder="如: npx / python / uvx" />
+                <el-form-item :label="$t('执行命令')">
+                  <el-input v-model="form.args.command" :placeholder="$t('如: npx / python / uvx')" />
                 </el-form-item>
               </el-col>
               <el-col :span="24">
-                <el-form-item label="命令参数">
+                <el-form-item :label="$t('命令参数')">
                   <el-input
                     v-model="argsJson"
                     type="textarea"
@@ -131,7 +131,7 @@
                 </el-form-item>
               </el-col>
               <el-col :span="24">
-                <el-form-item label="环境变量">
+                <el-form-item :label="$t('环境变量')">
                   <el-input v-model="envJson" type="textarea" :rows="2" placeholder='JSON 对象,如 {"TOKEN":"xxx"}' />
                 </el-form-item>
               </el-col>
@@ -139,12 +139,12 @@
 
             <template v-else>
               <el-col :span="24">
-                <el-form-item label="服务器URL">
-                  <el-input v-model="form.args.url" placeholder="http(s)://host:port/sse 或 /mcp" />
+                <el-form-item :label="$t('服务器URL')">
+                  <el-input v-model="form.args.url" :placeholder="$t('http(s)://host:port/sse 或 /mcp')" />
                 </el-form-item>
               </el-col>
               <el-col :span="24">
-                <el-form-item label="请求头">
+                <el-form-item :label="$t('请求头')">
                   <el-input
                     v-model="headersJson"
                     type="textarea"
@@ -157,7 +157,7 @@
 
             <el-col :span="24" v-if="testResult">
               <el-alert
-                :title="`连接成功,发现 ${testResult.count} 个工具: ${testResult.tools.join(', ')}`"
+                :title="$t('连接成功,发现 {n} 个工具', { n: testResult.count }) + ': ' + testResult.tools.join(', ')"
                 type="success"
                 :closable="false"
               />
@@ -167,9 +167,9 @@
       </el-form>
       <template #footer>
         <div class="dialog-footer">
-          <el-button v-if="form.toolType === 'mcp'" :loading="testing" @click="handleTest">测试连接</el-button>
-          <el-button type="primary" @click="submitForm">确 定</el-button>
-          <el-button @click="cancel">取 消</el-button>
+          <el-button v-if="form.toolType === 'mcp'" :loading="testing" @click="handleTest">{{ $t('测试连接') }}</el-button>
+          <el-button type="primary" @click="submitForm">{{ $t('确 定') }}</el-button>
+          <el-button @click="cancel">{{ $t('取 消') }}</el-button>
         </div>
       </template>
     </el-dialog>
@@ -178,6 +178,7 @@
 
 <script setup name="AiTool">
 import { listTool, addTool, delTool, getTool, updateTool, testTool } from "@/api/ai/tool";
+import { t as $t } from "@/lang";
 
 const { proxy } = getCurrentInstance();
 
@@ -200,8 +201,8 @@ const data = reactive({
     toolType: undefined,
   },
   rules: {
-    name: [{ required: true, message: "工具名称不能为空", trigger: "blur" }],
-    code: [{ required: true, message: "工具代码不能为空", trigger: "blur" }],
+    name: [{ required: true, message: $t("工具名称不能为空"), trigger: "blur" }],
+    code: [{ required: true, message: $t("工具代码不能为空"), trigger: "blur" }],
   },
 });
 
@@ -230,12 +231,12 @@ function buildArgs() {
   if (a.server_type === "stdio") {
     const argsArr = parseJson(argsJson.value, []);
     const env = parseJson(envJson.value, {});
-    if (argsArr === undefined) return proxy.$modal.msgError("命令参数不是合法 JSON 数组"), null;
-    if (env === undefined) return proxy.$modal.msgError("环境变量不是合法 JSON 对象"), null;
+    if (argsArr === undefined) return proxy.$modal.msgError($t("命令参数不是合法 JSON 数组")), null;
+    if (env === undefined) return proxy.$modal.msgError($t("环境变量不是合法 JSON 对象")), null;
     return { server_type: "stdio", command: a.command || "", args: argsArr, env };
   }
   const headers = parseJson(headersJson.value, {});
-  if (headers === undefined) return proxy.$modal.msgError("请求头不是合法 JSON 对象"), null;
+  if (headers === undefined) return proxy.$modal.msgError($t("请求头不是合法 JSON 对象")), null;
   return { server_type: a.server_type, url: a.url || "", headers };
 }
 
@@ -286,7 +287,7 @@ function resetQuery() {
 function handleAdd() {
   reset();
   open.value = true;
-  title.value = "新增工具";
+  title.value = $t("新增工具");
 }
 
 function handleUpdate(row) {
@@ -303,7 +304,7 @@ function handleUpdate(row) {
     headersJson.value = JSON.stringify(a.headers || {}, null, 0);
     isUpdate.value = true;
     open.value = true;
-    title.value = d.builtIn === "1" ? "查看内置工具" : "修改工具";
+    title.value = d.builtIn === "1" ? $t("查看内置工具") : $t("修改工具");
   });
 }
 
@@ -316,7 +317,7 @@ function handleTest() {
   testTool({ toolType: "mcp", args })
     .then((res) => {
       testResult.value = res.data;
-      proxy.$modal.msgSuccess(`连接成功,发现 ${res.data.count} 个工具`);
+      proxy.$modal.msgSuccess($t("连接成功,发现 {n} 个工具", { n: res.data.count }));
     })
     .finally(() => {
       testing.value = false;
@@ -337,7 +338,7 @@ function submitForm() {
     }
     const action = form.value.toolId != undefined ? updateTool : addTool;
     action(payload).then(() => {
-      proxy.$modal.msgSuccess(form.value.toolId != undefined ? "修改成功" : "新增成功");
+      proxy.$modal.msgSuccess(form.value.toolId != undefined ? $t("修改成功") : $t("新增成功"));
       open.value = false;
       getList();
     });
@@ -347,11 +348,11 @@ function submitForm() {
 /** 删除 */
 function handleDelete(row) {
   proxy.$modal
-    .confirm('是否确认删除工具"' + row.name + '"？')
+    .confirm($t('是否确认删除工具"{name}"？', { name: row.name }))
     .then(() => delTool(row.toolId))
     .then(() => {
       getList();
-      proxy.$modal.msgSuccess("删除成功");
+      proxy.$modal.msgSuccess($t("删除成功"));
     })
     .catch(() => {});
 }

@@ -2,27 +2,27 @@
 <template>
    <div class="app-container">
       <el-form :model="queryParams" ref="queryRef" v-show="showSearch" :inline="true">
-         <el-form-item label="用户名称" prop="userName">
+         <el-form-item :label="$t('用户名称')" prop="userName">
             <el-input
                v-model="queryParams.userName"
-               placeholder="请输入用户名称"
+               :placeholder="$t('请输入用户名称')"
                clearable
                style="width: 240px"
                @keyup.enter="handleQuery"
             />
          </el-form-item>
-         <el-form-item label="手机号码" prop="phonenumber">
+         <el-form-item :label="$t('手机号码')" prop="phonenumber">
             <el-input
                v-model="queryParams.phonenumber"
-               placeholder="请输入手机号码"
+               :placeholder="$t('请输入手机号码')"
                clearable
                style="width: 240px"
                @keyup.enter="handleQuery"
             />
          </el-form-item>
          <el-form-item>
-            <el-button type="primary" icon="Search" @click="handleQuery">搜索</el-button>
-            <el-button icon="Refresh" @click="resetQuery">重置</el-button>
+            <el-button type="primary" icon="Search" @click="handleQuery">{{ $t('搜索') }}</el-button>
+            <el-button icon="Refresh" @click="resetQuery">{{ $t('重置') }}</el-button>
          </el-form-item>
       </el-form>
 
@@ -34,7 +34,7 @@
                icon="Plus"
                @click="openSelectUser"
                v-hasPermi="['system:role:add']"
-            >添加用户</el-button>
+            >{{ $t('添加用户') }}</el-button>
          </el-col>
          <el-col :span="1.5">
             <el-button
@@ -44,7 +44,7 @@
                :disabled="multiple"
                @click="cancelAuthUserAll"
                v-hasPermi="['system:role:remove']"
-            >批量取消授权</el-button>
+            >{{ $t('批量取消授权') }}</el-button>
          </el-col>
          <el-col :span="1.5">
             <el-button 
@@ -52,30 +52,30 @@
                plain 
                icon="Close"
                @click="handleClose"
-            >关闭</el-button>
+            >{{ $t('关闭') }}</el-button>
          </el-col>
          <right-toolbar v-model:showSearch="showSearch" @queryTable="getList"></right-toolbar>
       </el-row>
 
       <el-table v-loading="loading" :data="userList" @selection-change="handleSelectionChange">
          <el-table-column type="selection" width="55" align="center" />
-         <el-table-column label="用户名称" prop="userName" :show-overflow-tooltip="true" />
-         <el-table-column label="用户昵称" prop="nickName" :show-overflow-tooltip="true" />
-         <el-table-column label="邮箱" prop="email" :show-overflow-tooltip="true" />
-         <el-table-column label="手机" prop="phonenumber" :show-overflow-tooltip="true" />
-         <el-table-column label="状态" align="center" prop="status">
+         <el-table-column :label="$t('用户名称')" prop="userName" :show-overflow-tooltip="true" />
+         <el-table-column :label="$t('用户昵称')" prop="nickName" :show-overflow-tooltip="true" />
+         <el-table-column :label="$t('邮箱')" prop="email" :show-overflow-tooltip="true" />
+         <el-table-column :label="$t('手机')" prop="phonenumber" :show-overflow-tooltip="true" />
+         <el-table-column :label="$t('状态')" align="center" prop="status">
             <template #default="scope">
                <dict-tag :options="sys_normal_disable" :value="scope.row.status" />
             </template>
          </el-table-column>
-         <el-table-column label="创建时间" align="center" prop="createTime" width="180">
+         <el-table-column :label="$t('创建时间')" align="center" prop="createTime" width="180">
             <template #default="scope">
                <span>{{ parseTime(scope.row.createTime) }}</span>
             </template>
          </el-table-column>
-         <el-table-column label="操作" align="center" class-name="small-padding fixed-width">
+         <el-table-column :label="$t('操作')" align="center" class-name="small-padding fixed-width">
             <template #default="scope">
-               <el-button link type="primary" icon="CircleClose" @click="cancelAuthUser(scope.row)" v-hasPermi="['system:role:remove']">取消授权</el-button>
+               <el-button link type="primary" icon="CircleClose" @click="cancelAuthUser(scope.row)" v-hasPermi="['system:role:remove']">{{ $t('取消授权') }}</el-button>
             </template>
          </el-table-column>
       </el-table>

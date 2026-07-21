@@ -19,12 +19,12 @@
     <!-- 任务趋势 + 快捷入口 -->
     <el-row :gutter="16" class="mt16">
       <el-col :span="16">
-        <el-card shadow="never" header="任务运行趋势(近 7 天)">
+        <el-card shadow="never" :header="$t('任务运行趋势(近 7 天)')">
           <div ref="trendRef" class="chart"></div>
         </el-card>
       </el-col>
       <el-col :span="8">
-        <el-card shadow="never" header="快捷入口">
+        <el-card shadow="never" :header="$t('快捷入口')">
           <div class="quick">
             <div class="quick-item" v-for="q in quickNav" :key="q.to" @click="go(q.to)">
               <el-icon :style="{ color: q.color }"><component :is="q.icon" /></el-icon>
@@ -38,28 +38,28 @@
     <!-- 任务状态 + AI 用量趋势 + 资产分布 -->
     <el-row :gutter="16" class="mt16">
       <el-col :span="6">
-        <el-card shadow="never" header="任务状态(近 7 天)"><div ref="taskStatusRef" class="chart sm"></div></el-card>
+        <el-card shadow="never" :header="$t('任务状态(近 7 天)')"><div ref="taskStatusRef" class="chart sm"></div></el-card>
       </el-col>
       <el-col :span="6">
-        <el-card shadow="never" header="AI 用量趋势(近 7 天)"><div ref="aiUsageRef" class="chart sm"></div></el-card>
+        <el-card shadow="never" :header="$t('AI 用量趋势(近 7 天)')"><div ref="aiUsageRef" class="chart sm"></div></el-card>
       </el-col>
       <el-col :span="6">
-        <el-card shadow="never" header="数据源 · 族分布"><div ref="familyRef" class="chart sm"></div></el-card>
+        <el-card shadow="never" :header="$t('数据源 · 族分布')"><div ref="familyRef" class="chart sm"></div></el-card>
       </el-col>
       <el-col :span="6">
-        <el-card shadow="never" header="知识库文档 · 训练状态"><div ref="ragRef" class="chart sm"></div></el-card>
+        <el-card shadow="never" :header="$t('知识库文档 · 训练状态')"><div ref="ragRef" class="chart sm"></div></el-card>
       </el-col>
     </el-row>
 
     <!-- 最近运行 -->
-    <el-card shadow="never" header="最近运行" class="mt16">
+    <el-card shadow="never" :header="$t('最近运行')" class="mt16">
       <el-table :data="recentRuns" size="small" max-height="300">
-        <el-table-column label="名称" prop="name" min-width="180" show-overflow-tooltip />
-        <el-table-column label="状态" width="100">
+        <el-table-column :label="$t('名称')" prop="name" min-width="180" show-overflow-tooltip />
+        <el-table-column :label="$t('状态')" width="100">
           <template #default="s"><el-tag size="small" effect="plain" :type="STATUS_TAG[s.row.status] || 'info'">{{ s.row.status }}</el-tag></template>
         </el-table-column>
-        <el-table-column label="耗时" prop="dur" width="90" />
-        <el-table-column label="开始时间" prop="startTime" width="170" />
+        <el-table-column :label="$t('耗时')" prop="dur" width="90" />
+        <el-table-column :label="$t('开始时间')" prop="startTime" width="170" />
       </el-table>
     </el-card>
   </div>
@@ -68,10 +68,12 @@
 <script setup name="Dashboard">
 import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import * as echarts from 'echarts'
 import { getOverview } from '@/api/dashboard'
 
 const router = useRouter()
+const { t, locale } = useI18n()
 const loading = ref(false)
 const STATUS_TAG = { SUCCESS: 'success', FAILURE: 'danger', STARTED: 'warning', PENDING: 'info', SKIPPED: 'info' }
 
@@ -83,33 +85,39 @@ let charts = []
 
 // 协调的冷色为主调色板(避免刺眼红绿)
 const PALETTE = ['#5B8FF9', '#5AD8A6', '#6F5EF9', '#945FB9', '#1E9493', '#F6BD16', '#6DC8EC', '#5D7092']
+// token 数字缩写:中文用 万/亿,英文用 K/M(避免 "2.5100M" 之类拼接)
 function fmtTok(n) {
   n = Number(n || 0)
+  if (locale.value === 'en') {
+    if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M'
+    if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K'
+    return String(n)
+  }
   if (n >= 1e8) return (n / 1e8).toFixed(2) + '亿'
   if (n >= 1e4) return (n / 1e4).toFixed(1) + '万'
   return String(n)
 }
 const statCards = computed(() => [
-  { key: 'ds', label: '数据源', value: cards.value.dataSources ?? 0, icon: 'Coin', color: '#5B8FF9',
-    sub: `数据模型 ${cards.value.dataModels ?? 0}`, to: '/data/manage' },
-  { key: 'task', label: '任务', value: (cards.value.tasks ?? 0) + (cards.value.dags ?? 0), icon: 'AlarmClock', color: '#6F5EF9',
-    sub: `调度 ${cards.value.tasks ?? 0} · 工作流 ${cards.value.dags ?? 0}`, to: '/task/info' },
-  { key: 'aiApp', label: 'AI 应用', value: cards.value.aiApps ?? 0, icon: 'Cpu', color: '#945FB9',
-    sub: `工具 ${cards.value.aiTools ?? 0} · 模型 ${cards.value.aiModels ?? 0}`, to: '/ai/app' },
-  { key: 'aiUse', label: 'AI 用量(7天)', value: fmtTok(aiTotals.value.totalTokens), icon: 'TrendCharts', color: '#1E9493',
-    sub: `会话 ${aiTotals.value.sessions ?? 0} · 轮次 ${aiTotals.value.runs ?? 0}`, to: '/ai/metrics' },
+  { key: 'ds', label: t('数据源'), value: cards.value.dataSources ?? 0, icon: 'Coin', color: '#5B8FF9',
+    sub: `${t('数据模型')} ${cards.value.dataModels ?? 0}`, to: '/data/manage' },
+  { key: 'task', label: t('任务'), value: (cards.value.tasks ?? 0) + (cards.value.dags ?? 0), icon: 'AlarmClock', color: '#6F5EF9',
+    sub: `${t('调度')} ${cards.value.tasks ?? 0} · ${t('工作流')} ${cards.value.dags ?? 0}`, to: '/task/info' },
+  { key: 'aiApp', label: t('AI 应用'), value: cards.value.aiApps ?? 0, icon: 'Cpu', color: '#945FB9',
+    sub: `${t('工具')} ${cards.value.aiTools ?? 0} · ${t('模型')} ${cards.value.aiModels ?? 0}`, to: '/ai/app' },
+  { key: 'aiUse', label: t('AI 用量(7天)'), value: fmtTok(aiTotals.value.totalTokens), icon: 'TrendCharts', color: '#1E9493',
+    sub: `${t('会话')} ${aiTotals.value.sessions ?? 0} · ${t('轮次')} ${aiTotals.value.runs ?? 0}`, to: '/ai/metrics' },
 ])
 // 按平台菜单顺序排:数据管理 → AI管理(对话/应用/用量) → 知识库(库/召回) → 任务调度(普通/工作流)
-const quickNav = [
-  { label: '数据管理', icon: 'Coin', color: '#409eff', to: '/data/manage' },
-  { label: 'AI 对话', icon: 'ChatDotRound', color: '#f56c6c', to: '/ai/chat' },
-  { label: 'AI 应用', icon: 'Cpu', color: '#945FB9', to: '/ai/app' },
-  { label: '用量统计', icon: 'TrendCharts', color: '#1E9493', to: '/ai/metrics' },
-  { label: '知识库', icon: 'Collection', color: '#1abc9c', to: '/rag/dataset' },
-  { label: '召回测试', icon: 'Search', color: '#e6a23c', to: '/rag/retrieval' },
-  { label: '任务调度', icon: 'AlarmClock', color: '#6F5EF9', to: '/task/info' },
-  { label: '任务工作流', icon: 'Share', color: '#9b59b6', to: '/task/dag' },
-]
+const quickNav = computed(() => [
+  { label: t('数据管理'), icon: 'Coin', color: '#409eff', to: '/data/manage' },
+  { label: t('AI 对话'), icon: 'ChatDotRound', color: '#f56c6c', to: '/ai/chat' },
+  { label: t('AI 应用'), icon: 'Cpu', color: '#945FB9', to: '/ai/app' },
+  { label: t('用量统计'), icon: 'TrendCharts', color: '#1E9493', to: '/ai/metrics' },
+  { label: t('知识库'), icon: 'Collection', color: '#1abc9c', to: '/rag/dataset' },
+  { label: t('召回测试'), icon: 'Search', color: '#e6a23c', to: '/rag/retrieval' },
+  { label: t('任务调度'), icon: 'AlarmClock', color: '#6F5EF9', to: '/task/info' },
+  { label: t('任务工作流'), icon: 'Share', color: '#9b59b6', to: '/task/dag' },
+])
 
 function go(to) { if (to) router.push(to).catch(() => {}) }
 
@@ -128,18 +136,18 @@ function renderCharts(d) {
 
   const trend = d.taskTrend || []
   init(trendRef.value, {
-    tooltip: { trigger: 'axis' }, legend: { data: ['成功', '失败'], top: 0 },
+    tooltip: { trigger: 'axis' }, legend: { data: [t('成功'), t('失败')], top: 0 },
     grid: { left: 40, right: 20, top: 30, bottom: 30 },
-    xAxis: { type: 'category', data: trend.map((t) => t.date) },
+    xAxis: { type: 'category', data: trend.map((r) => r.date) },
     yAxis: { type: 'value' },
     series: [
-      { name: '成功', type: 'line', smooth: true, areaStyle: { opacity: 0.12 }, itemStyle: { color: '#5B8FF9' }, data: trend.map((t) => t.success) },
-      { name: '失败', type: 'line', smooth: true, areaStyle: { opacity: 0.12 }, itemStyle: { color: '#FF9845' }, data: trend.map((t) => t.failure) },
+      { name: t('成功'), type: 'line', smooth: true, areaStyle: { opacity: 0.12 }, itemStyle: { color: '#5B8FF9' }, data: trend.map((r) => r.success) },
+      { name: t('失败'), type: 'line', smooth: true, areaStyle: { opacity: 0.12 }, itemStyle: { color: '#FF9845' }, data: trend.map((r) => r.failure) },
     ],
   })
-  init(taskStatusRef.value, PIE('任务状态', d.taskStatus || []))
-  init(familyRef.value, PIE('族', d.sourceFamily || []))
-  init(ragRef.value, PIE('文档状态', d.ragDocStatus || []))
+  init(taskStatusRef.value, PIE(t('任务状态'), d.taskStatus || []))
+  init(familyRef.value, PIE(t('族'), d.sourceFamily || []))
+  init(ragRef.value, PIE(t('文档状态'), d.ragDocStatus || []))
 
   // AI 用量趋势(token 折线,左轴自适应缩写)
   const ai = (d.aiUsage && d.aiUsage.series) || []

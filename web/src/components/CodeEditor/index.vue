@@ -10,7 +10,7 @@
         icon="MagicStick"
         :title="formatTip"
         @click="format"
-      >格式化</el-button>
+      >{{ $t('格式化') }}</el-button>
     </div>
     <div ref="el" class="code-editor__body" :style="{ height }"></div>
   </div>

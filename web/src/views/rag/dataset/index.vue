@@ -2,44 +2,44 @@
   <div class="app-container">
     <!-- 查询 -->
     <el-form :model="queryParams" ref="queryRef" :inline="true" v-show="showSearch">
-      <el-form-item label="名称" prop="name">
-        <el-input v-model="queryParams.name" placeholder="知识库名称" clearable style="width: 220px"
+      <el-form-item :label="$t('名称')" prop="name">
+        <el-input v-model="queryParams.name" :placeholder="$t('知识库名称')" clearable style="width: 220px"
           @keyup.enter="handleQuery" />
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" icon="Search" @click="handleQuery">搜索</el-button>
-        <el-button icon="Refresh" @click="resetQuery">重置</el-button>
+        <el-button type="primary" icon="Search" @click="handleQuery">{{ $t('搜索') }}</el-button>
+        <el-button icon="Refresh" @click="resetQuery">{{ $t('重置') }}</el-button>
       </el-form-item>
     </el-form>
 
     <el-row :gutter="10" class="mb8">
       <el-col :span="1.5">
-        <el-button type="primary" plain icon="Plus" @click="handleAdd" v-hasPermi="['rag:dataset:edit']">新建知识库</el-button>
+        <el-button type="primary" plain icon="Plus" @click="handleAdd" v-hasPermi="['rag:dataset:edit']">{{ $t('新建知识库') }}</el-button>
       </el-col>
       <right-toolbar v-model:showSearch="showSearch" @queryTable="getList"></right-toolbar>
     </el-row>
 
     <!-- 知识库列表 -->
     <el-table v-loading="loading" :data="list">
-      <el-table-column label="名称" prop="name" min-width="160" show-overflow-tooltip />
-      <el-table-column label="描述" prop="remark" min-width="180" show-overflow-tooltip />
+      <el-table-column :label="$t('名称')" prop="name" min-width="160" show-overflow-tooltip />
+      <el-table-column :label="$t('描述')" prop="remark" min-width="180" show-overflow-tooltip />
       <el-table-column label="Embedding" min-width="170">
         <template #default="s">
           <span v-if="s.row.embeddingModel">{{ s.row.embeddingModel }}<el-text type="info" size="small" v-if="s.row.embeddingDims"> · {{ s.row.embeddingDims }}维</el-text></span>
-          <el-text v-else type="info" size="small">未训练</el-text>
+          <el-text v-else type="info" size="small">{{ $t('未训练') }}</el-text>
         </template>
       </el-table-column>
-      <el-table-column label="状态" width="90">
+      <el-table-column :label="$t('状态')" width="90">
         <template #default="s">
           <el-tag :type="s.row.status === 1 ? 'success' : 'info'">{{ s.row.status === 1 ? '启用' : '禁用' }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="创建时间" prop="createTime" width="160" />
-      <el-table-column label="操作" width="240" fixed="right">
+      <el-table-column :label="$t('创建时间')" prop="createTime" width="160" />
+      <el-table-column :label="$t('操作')" width="240" fixed="right">
         <template #default="s">
-          <el-button link type="primary" icon="FolderOpened" @click="openDocs(s.row)" v-hasPermi="['rag:dataset:list']">文档管理</el-button>
-          <el-button link type="primary" icon="Edit" @click="handleUpdate(s.row)" v-hasPermi="['rag:dataset:edit']">编辑</el-button>
-          <el-button link type="danger" icon="Delete" @click="handleDelete(s.row)" v-hasPermi="['rag:dataset:edit']">删除</el-button>
+          <el-button link type="primary" icon="FolderOpened" @click="openDocs(s.row)" v-hasPermi="['rag:dataset:list']">{{ $t('文档管理') }}</el-button>
+          <el-button link type="primary" icon="Edit" @click="handleUpdate(s.row)" v-hasPermi="['rag:dataset:edit']">{{ $t('编辑') }}</el-button>
+          <el-button link type="danger" icon="Delete" @click="handleDelete(s.row)" v-hasPermi="['rag:dataset:edit']">{{ $t('删除') }}</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -48,25 +48,25 @@
 
     <!-- 新建/编辑知识库 -->
     <el-dialog :title="title" v-model="open" width="520px" append-to-body>
-      <el-form ref="dsRef" :model="form" :rules="rules" label-width="80px">
-        <el-form-item label="名称" prop="name">
-          <el-input v-model="form.name" placeholder="知识库名称" />
+      <el-form ref="dsRef" :model="form" :rules="rules" label-width="130px">
+        <el-form-item :label="$t('名称')" prop="name">
+          <el-input v-model="form.name" :placeholder="$t('知识库名称')" />
         </el-form-item>
-        <el-form-item label="描述" prop="description">
-          <el-input v-model="form.description" type="textarea" :rows="3" placeholder="描述(可选)" />
+        <el-form-item :label="$t('描述')" prop="description">
+          <el-input v-model="form.description" type="textarea" :rows="3" :placeholder="$t('描述(可选)')" />
         </el-form-item>
-        <el-form-item v-if="form.id" label="状态">
+        <el-form-item v-if="form.id" :label="$t('状态')">
           <el-radio-group v-model="form.status">
-            <el-radio :value="1">启用</el-radio>
-            <el-radio :value="0">禁用</el-radio>
+            <el-radio :value="1">{{ $t('启用') }}</el-radio>
+            <el-radio :value="0">{{ $t('禁用') }}</el-radio>
           </el-radio-group>
         </el-form-item>
         <el-alert v-else type="info" :closable="false" show-icon
-          title="Embedding 模型与向量后端使用系统默认(环境变量),建库后向量维度固定。" style="margin-bottom: 4px" />
+          :title="$t('Embedding 模型与向量后端使用系统默认(环境变量),建库后向量维度固定。')" style="margin-bottom: 4px" />
       </el-form>
       <template #footer>
-        <el-button type="primary" @click="submitForm">确 定</el-button>
-        <el-button @click="open = false">取 消</el-button>
+        <el-button type="primary" @click="submitForm">{{ $t('确 定') }}</el-button>
+        <el-button @click="open = false">{{ $t('取 消') }}</el-button>
       </template>
     </el-dialog>
 
@@ -83,15 +83,15 @@
 
       <div class="fs-body">
         <el-row :gutter="10" class="mb8">
-          <el-col :span="1.5"><el-button type="primary" icon="Plus" @click="handleAddDoc" v-hasPermi="['rag:dataset:edit']">新增文档</el-button></el-col>
-          <el-col :span="1.5"><el-button icon="Refresh" @click="getDocs">刷新</el-button></el-col>
+          <el-col :span="1.5"><el-button type="primary" icon="Plus" @click="handleAddDoc" v-hasPermi="['rag:dataset:edit']">{{ $t('新增文档') }}</el-button></el-col>
+          <el-col :span="1.5"><el-button icon="Refresh" @click="getDocs">{{ $t('刷新') }}</el-button></el-col>
         </el-row>
         <el-table v-loading="docLoading" :data="docs" height="calc(100vh - 190px)">
-          <el-table-column label="文档名" prop="name" min-width="220" show-overflow-tooltip />
-          <el-table-column label="类型" width="110">
+          <el-table-column :label="$t('文档名')" prop="name" min-width="220" show-overflow-tooltip />
+          <el-table-column :label="$t('类型')" width="110">
             <template #default="s"><el-tag size="small" effect="plain">{{ TYPE_TEXT[s.row.documentType] || s.row.documentType }}</el-tag></template>
           </el-table-column>
-          <el-table-column label="状态" width="120">
+          <el-table-column :label="$t('状态')" width="120">
             <template #default="s">
               <el-tag :type="STATUS_TAG[s.row.status]" effect="light">
                 <el-icon v-if="s.row.status === 2" class="is-loading"><Loading /></el-icon>
@@ -99,15 +99,15 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="分段数" prop="chunkCount" width="90" align="center" />
-          <el-table-column label="错误" prop="error" min-width="180" show-overflow-tooltip>
+          <el-table-column :label="$t('分段数')" prop="chunkCount" width="90" align="center" />
+          <el-table-column :label="$t('错误')" prop="error" min-width="180" show-overflow-tooltip>
             <template #default="s"><el-text v-if="s.row.error" type="danger" size="small">{{ s.row.error }}</el-text></template>
           </el-table-column>
-          <el-table-column label="操作" width="240" fixed="right">
+          <el-table-column :label="$t('操作')" width="240" fixed="right">
             <template #default="s">
               <el-button link type="primary" icon="VideoPlay" :disabled="s.row.status === 2" @click="doTrain(s.row)" v-hasPermi="['rag:dataset:edit']">{{ s.row.status === 3 ? '重训' : '训练' }}</el-button>
               <el-button link type="primary" icon="Files" @click="openChunks(s.row)">分段({{ s.row.chunkCount || 0 }})</el-button>
-              <el-button link type="danger" icon="Delete" @click="delDoc(s.row)" v-hasPermi="['rag:dataset:edit']">删除</el-button>
+              <el-button link type="danger" icon="Delete" @click="delDoc(s.row)" v-hasPermi="['rag:dataset:edit']">{{ $t('删除') }}</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -120,26 +120,26 @@
     <!-- 分段抽屉 -->
     <el-drawer v-model="chunkDrawer" :title="`分段 - ${curDoc.name || ''}`" size="58%" append-to-body>
       <el-row :gutter="10" class="mb8">
-        <el-col :span="1.5"><el-button type="primary" plain icon="Plus" @click="handleAddQa" v-hasPermi="['rag:dataset:edit']">新增 QA</el-button></el-col>
-        <el-col :span="1.5"><el-button icon="Refresh" @click="getChunks">刷新</el-button></el-col>
+        <el-col :span="1.5"><el-button type="primary" plain icon="Plus" @click="handleAddQa" v-hasPermi="['rag:dataset:edit']">{{ $t('新增 QA') }}</el-button></el-col>
+        <el-col :span="1.5"><el-button icon="Refresh" @click="getChunks">{{ $t('刷新') }}</el-button></el-col>
       </el-row>
       <el-table v-loading="chunkLoading" :data="chunks">
         <el-table-column label="#" prop="position" width="56" />
-        <el-table-column label="类型" width="76">
+        <el-table-column :label="$t('类型')" width="76">
           <template #default="s"><el-tag size="small" :type="s.row.chunkType === 'qa' ? 'warning' : ''">{{ s.row.chunkType }}</el-tag></template>
         </el-table-column>
-        <el-table-column label="内容/问题" min-width="300">
+        <el-table-column :label="$t('内容/问题')" min-width="300">
           <template #default="s"><div class="chunk-content">{{ s.row.chunkType === 'qa' ? s.row.question : s.row.content }}</div></template>
         </el-table-column>
-        <el-table-column label="标星" width="64">
+        <el-table-column :label="$t('标星')" width="64">
           <template #default="s">
             <el-button link :icon="s.row.starFlag ? 'StarFilled' : 'Star'" :type="s.row.starFlag ? 'warning' : 'info'" @click="toggleStar(s.row)" />
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="130" fixed="right">
+        <el-table-column :label="$t('操作')" width="130" fixed="right">
           <template #default="s">
-            <el-button link type="primary" icon="Edit" @click="editChunk(s.row)" v-hasPermi="['rag:dataset:edit']">编辑</el-button>
-            <el-button link type="danger" icon="Delete" @click="delC(s.row)" v-hasPermi="['rag:dataset:edit']">删除</el-button>
+            <el-button link type="primary" icon="Edit" @click="editChunk(s.row)" v-hasPermi="['rag:dataset:edit']">{{ $t('编辑') }}</el-button>
+            <el-button link type="danger" icon="Delete" @click="delC(s.row)" v-hasPermi="['rag:dataset:edit']">{{ $t('删除') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -149,16 +149,16 @@
 
     <!-- 分段/QA 编辑 -->
     <el-dialog :title="chunkForm.chunkType === 'qa' ? 'QA 问答对' : '分段'" v-model="chunkOpen" width="560px" append-to-body>
-      <el-form ref="cRef" :model="chunkForm" label-width="60px">
+      <el-form ref="cRef" :model="chunkForm" label-width="110px">
         <template v-if="chunkForm.chunkType === 'qa'">
-          <el-form-item label="问题"><el-input v-model="chunkForm.question" type="textarea" :rows="2" /></el-form-item>
-          <el-form-item label="答案"><el-input v-model="chunkForm.answer" type="textarea" :rows="4" /></el-form-item>
+          <el-form-item :label="$t('问题')"><el-input v-model="chunkForm.question" type="textarea" :rows="2" /></el-form-item>
+          <el-form-item :label="$t('答案')"><el-input v-model="chunkForm.answer" type="textarea" :rows="4" /></el-form-item>
         </template>
-        <el-form-item v-else label="内容"><el-input v-model="chunkForm.content" type="textarea" :rows="6" /></el-form-item>
+        <el-form-item v-else :label="$t('内容')"><el-input v-model="chunkForm.content" type="textarea" :rows="6" /></el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="chunkOpen = false">取 消</el-button>
-        <el-button type="primary" @click="submitChunk">确 定</el-button>
+        <el-button @click="chunkOpen = false">{{ $t('取 消') }}</el-button>
+        <el-button type="primary" @click="submitChunk">{{ $t('确 定') }}</el-button>
       </template>
     </el-dialog>
   </div>

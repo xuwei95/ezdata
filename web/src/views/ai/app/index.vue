@@ -1,12 +1,12 @@
 <template>
   <div class="app-container">
     <el-form :model="queryParams" :inline="true">
-      <el-form-item label="关键字">
-        <el-input v-model="queryParams.keyword" placeholder="名称/描述" clearable style="width: 220px" @keyup.enter="getList" />
+      <el-form-item :label="$t('关键字')">
+        <el-input v-model="queryParams.keyword" :placeholder="$t('名称/描述')" clearable style="width: 220px" @keyup.enter="getList" />
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" icon="Search" @click="getList">搜索</el-button>
-        <el-button type="primary" plain icon="Plus" @click="handleAdd" v-hasPermi="['ai:app:add']">新建应用</el-button>
+        <el-button type="primary" icon="Search" @click="getList">{{ $t('搜索') }}</el-button>
+        <el-button type="primary" plain icon="Plus" @click="handleAdd" v-hasPermi="['ai:app:add']">{{ $t('新建应用') }}</el-button>
       </el-form-item>
     </el-form>
 
@@ -21,8 +21,8 @@
               active-value="0"
               inactive-value="1"
               inline-prompt
-              active-text="发布"
-              inactive-text="草稿"
+              :active-text="$t('发布')"
+              :inactive-text="$t('草稿')"
               size="small"
               @click.stop
               @change="handlePublish(app)"
@@ -31,25 +31,25 @@
         </div>
         <div class="app-desc">{{ app.description || "暂无描述" }}</div>
         <div class="app-card-foot" @click.stop>
-          <el-tooltip content="进入对话" placement="top">
+          <el-tooltip :content="$t('进入对话')" placement="top">
             <el-button type="primary" link icon="ChatDotRound" @click="goChat(app)" />
           </el-tooltip>
           <span style="flex: 1"></span>
           <el-tooltip content="API Key" placement="top">
             <el-button type="primary" link icon="Key" @click="openTokens(app)" v-hasPermi="['ai:app:edit']" />
           </el-tooltip>
-          <el-tooltip content="复制" placement="top">
+          <el-tooltip :content="$t('复制')" placement="top">
             <el-button type="primary" link icon="CopyDocument" @click="handleCopy(app)" v-hasPermi="['ai:app:add']" />
           </el-tooltip>
-          <el-tooltip content="编辑" placement="top">
+          <el-tooltip :content="$t('编辑')" placement="top">
             <el-button type="primary" link icon="Edit" @click="handleEdit(app)" v-hasPermi="['ai:app:edit']" />
           </el-tooltip>
-          <el-tooltip content="删除" placement="top">
+          <el-tooltip :content="$t('删除')" placement="top">
             <el-button type="danger" link icon="Delete" @click="handleDelete(app)" v-hasPermi="['ai:app:remove']" />
           </el-tooltip>
         </div>
       </div>
-      <el-empty v-if="!loading && appList.length === 0" description="暂无应用,点「新建应用」创建" style="width: 100%" />
+      <el-empty v-if="!loading && appList.length === 0" :description="$t('暂无应用,点「新建应用」创建')" style="width: 100%" />
     </div>
 
     <TokenDialog v-model:visible="tokenOpen" :app-id="tokenAppId" />

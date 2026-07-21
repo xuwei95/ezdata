@@ -1,60 +1,60 @@
 <template>
   <div class="app-container">
     <el-form :model="queryParams" ref="queryRef" :inline="true" v-show="showSearch">
-      <el-form-item label="任务名称" prop="name">
-        <el-input v-model="queryParams.name" placeholder="请输入任务名称" clearable style="width: 200px" @keyup.enter="handleQuery" />
+      <el-form-item :label="$t('任务名称')" prop="name">
+        <el-input v-model="queryParams.name" :placeholder="$t('请输入任务名称')" clearable style="width: 200px" @keyup.enter="handleQuery" />
       </el-form-item>
-      <el-form-item label="触发方式" prop="triggerType">
-        <el-select v-model="queryParams.triggerType" placeholder="触发方式" clearable style="width: 160px">
-          <el-option label="单次" :value="1" />
-          <el-option label="定时" :value="2" />
+      <el-form-item :label="$t('触发方式')" prop="triggerType">
+        <el-select v-model="queryParams.triggerType" :placeholder="$t('触发方式')" clearable style="width: 160px">
+          <el-option :label="$t('单次')" :value="1" />
+          <el-option :label="$t('定时')" :value="2" />
         </el-select>
       </el-form-item>
-      <el-form-item label="状态" prop="status">
-        <el-select v-model="queryParams.status" placeholder="任务状态" clearable style="width: 160px">
-          <el-option label="启用" :value="1" />
-          <el-option label="停用" :value="0" />
+      <el-form-item :label="$t('状态')" prop="status">
+        <el-select v-model="queryParams.status" :placeholder="$t('任务状态')" clearable style="width: 160px">
+          <el-option :label="$t('启用')" :value="1" />
+          <el-option :label="$t('停用')" :value="0" />
         </el-select>
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" icon="Search" @click="handleQuery">搜索</el-button>
-        <el-button icon="Refresh" @click="resetQuery">重置</el-button>
+        <el-button type="primary" icon="Search" @click="handleQuery">{{ $t('搜索') }}</el-button>
+        <el-button icon="Refresh" @click="resetQuery">{{ $t('重置') }}</el-button>
       </el-form-item>
     </el-form>
 
     <el-row :gutter="10" class="mb8">
       <el-col :span="1.5">
-        <el-button type="primary" plain icon="Plus" @click="handleAdd" v-hasPermi="['task:info:add']">新增</el-button>
+        <el-button type="primary" plain icon="Plus" @click="handleAdd" v-hasPermi="['task:info:add']">{{ $t('新增') }}</el-button>
       </el-col>
       <el-col :span="1.5">
-        <el-button type="danger" plain icon="Delete" :disabled="multiple" @click="handleDelete" v-hasPermi="['task:info:remove']">删除</el-button>
+        <el-button type="danger" plain icon="Delete" :disabled="multiple" @click="handleDelete" v-hasPermi="['task:info:remove']">{{ $t('删除') }}</el-button>
       </el-col>
       <right-toolbar v-model:showSearch="showSearch" @queryTable="getList"></right-toolbar>
     </el-row>
 
     <el-table v-loading="loading" :data="taskList" @selection-change="handleSelectionChange">
       <el-table-column type="selection" width="55" align="center" />
-      <el-table-column label="任务名称" align="center" prop="name" :show-overflow-tooltip="true" />
-      <el-table-column label="模板" align="center" prop="templateCode" :show-overflow-tooltip="true" />
-      <el-table-column label="触发方式" align="center" prop="triggerType">
+      <el-table-column :label="$t('任务名称')" align="center" prop="name" :show-overflow-tooltip="true" />
+      <el-table-column :label="$t('模板')" align="center" prop="templateCode" :show-overflow-tooltip="true" />
+      <el-table-column :label="$t('触发方式')" align="center" prop="triggerType">
         <template #default="scope">
           <el-tag :type="scope.row.triggerType === 2 ? 'success' : 'info'">{{ scope.row.triggerType === 2 ? '定时' : '单次' }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="定时表达式" align="center" prop="crontab" :show-overflow-tooltip="true" />
-      <el-table-column label="运行队列" align="center" prop="runQueue" width="100" />
-      <el-table-column label="状态" align="center" prop="status">
+      <el-table-column :label="$t('定时表达式')" align="center" prop="crontab" :show-overflow-tooltip="true" />
+      <el-table-column :label="$t('运行队列')" align="center" prop="runQueue" width="100" />
+      <el-table-column :label="$t('状态')" align="center" prop="status">
         <template #default="scope">
           <el-switch v-model="scope.row.status" :active-value="1" :inactive-value="0" @change="handleStatusChange(scope.row)" />
         </template>
       </el-table-column>
-      <el-table-column label="操作" align="center" width="340" class-name="small-padding fixed-width">
+      <el-table-column :label="$t('操作')" align="center" width="340" class-name="small-padding fixed-width">
         <template #default="scope">
-          <el-button link type="primary" icon="Edit" @click="handleUpdate(scope.row)" v-hasPermi="['task:info:edit']">修改</el-button>
-          <el-button link type="primary" icon="CopyDocument" @click="handleCopy(scope.row)" v-hasPermi="['task:info:add']">复制</el-button>
-          <el-button link type="primary" icon="CaretRight" @click="handleRun(scope.row)" v-hasPermi="['task:info:run']">执行</el-button>
-          <el-button link type="primary" icon="Histogram" @click="openRecords(scope.row)" v-hasPermi="['task:instance:query']">记录</el-button>
-          <el-button link type="primary" icon="Delete" @click="handleDelete(scope.row)" v-hasPermi="['task:info:remove']">删除</el-button>
+          <el-button link type="primary" icon="Edit" @click="handleUpdate(scope.row)" v-hasPermi="['task:info:edit']">{{ $t('修改') }}</el-button>
+          <el-button link type="primary" icon="CopyDocument" @click="handleCopy(scope.row)" v-hasPermi="['task:info:add']">{{ $t('复制') }}</el-button>
+          <el-button link type="primary" icon="CaretRight" @click="handleRun(scope.row)" v-hasPermi="['task:info:run']">{{ $t('执行') }}</el-button>
+          <el-button link type="primary" icon="Histogram" @click="openRecords(scope.row)" v-hasPermi="['task:instance:query']">{{ $t('记录') }}</el-button>
+          <el-button link type="primary" icon="Delete" @click="handleDelete(scope.row)" v-hasPermi="['task:info:remove']">{{ $t('删除') }}</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -63,19 +63,19 @@
 
     <!-- 新增/修改任务（模板驱动的低代码表单） -->
     <el-dialog :title="title" v-model="open" fullscreen append-to-body class="task-form-dialog">
-      <el-form ref="taskRef" :model="form" :rules="rules" label-width="100px">
-        <el-form-item label="任务名称" prop="name">
-          <el-input v-model="form.name" placeholder="请输入任务名称" />
+      <el-form ref="taskRef" :model="form" :rules="rules" label-width="150px">
+        <el-form-item :label="$t('任务名称')" prop="name">
+          <el-input v-model="form.name" :placeholder="$t('请输入任务名称')" />
         </el-form-item>
-        <el-form-item label="任务模板" prop="templateCode">
-          <el-select v-model="form.templateCode" placeholder="请选择任务模板" style="width: 100%" @change="handleTemplateChange">
+        <el-form-item :label="$t('任务模板')" prop="templateCode">
+          <el-select v-model="form.templateCode" :placeholder="$t('请选择任务模板')" style="width: 100%" @change="handleTemplateChange">
             <el-option v-for="t in templateOptions" :key="t.code" :label="t.name + ' (' + t.code + ')'" :value="t.code" />
           </el-select>
         </el-form-item>
 
         <!-- 模板参数：动态配置模板(type=2)以低代码渲染；内置组件模板(type=1)渲染其专属前端组件 -->
         <template v-if="form.templateCode">
-          <el-divider content-position="left">任务参数</el-divider>
+          <el-divider content-position="left">{{ $t('任务参数') }}</el-divider>
           <schema-renderer v-if="selectedTemplateType === 2" ref="paramsRendererRef" :schema="paramsSchema" v-model="paramsModel" />
           <component
             v-else-if="builtinComp"
@@ -89,32 +89,32 @@
             type="info"
             :closable="false"
             show-icon
-            title="该模板为「内置组件」类型，但未找到对应前端组件，请检查模板 component 配置"
+            :title="$t('该模板为「内置组件」类型，但未找到对应前端组件，请检查模板 component 配置')"
           />
           <el-form-item>
-            <el-button icon="VideoPlay" :loading="debugLoading" @click="debugRun">调试运行</el-button>
-            <span class="form-tip" style="margin-left: 8px">不保存任务、不投调度，执行一次并打开日志窗口实时查看</span>
+            <el-button icon="VideoPlay" :loading="debugLoading" @click="debugRun">{{ $t('调试运行') }}</el-button>
+            <span class="form-tip" style="margin-left: 8px">{{ $t('不保存任务、不投调度，执行一次并打开日志窗口实时查看') }}</span>
           </el-form-item>
         </template>
 
-        <el-divider content-position="left">调度配置</el-divider>
-        <el-form-item label="触发方式" prop="triggerType">
+        <el-divider content-position="left">{{ $t('调度配置') }}</el-divider>
+        <el-form-item :label="$t('触发方式')" prop="triggerType">
           <el-radio-group v-model="form.triggerType">
-            <el-radio :value="1">单次(手动触发)</el-radio>
-            <el-radio :value="2">定时</el-radio>
+            <el-radio :value="1">{{ $t('单次(手动触发)') }}</el-radio>
+            <el-radio :value="2">{{ $t('定时') }}</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item label="定时表达式" prop="crontab" v-if="form.triggerType === 2">
-          <el-input v-model="form.crontab" placeholder="请输入cron执行表达式">
+        <el-form-item :label="$t('定时表达式')" prop="crontab" v-if="form.triggerType === 2">
+          <el-input v-model="form.crontab" :placeholder="$t('请输入cron执行表达式')">
             <template #append>
-              <el-button type="primary" @click="handleShowCron">生成表达式</el-button>
+              <el-button type="primary" @click="handleShowCron">{{ $t('生成表达式') }}</el-button>
             </template>
           </el-input>
         </el-form-item>
         <el-row>
           <el-col :span="12">
-            <el-form-item label="运行队列" prop="runQueue">
-              <el-select v-model="form.runQueue" placeholder="请选择运行队列" style="width: 100%">
+            <el-form-item :label="$t('运行队列')" prop="runQueue">
+              <el-select v-model="form.runQueue" :placeholder="$t('请选择运行队列')" style="width: 100%">
                 <el-option v-for="q in runQueueOptions" :key="q" :label="q" :value="q" />
                 <!-- 兼容历史值不在当前队列列表中的情况 -->
                 <el-option v-if="form.runQueue && !runQueueOptions.includes(form.runQueue)" :key="form.runQueue" :label="form.runQueue" :value="form.runQueue" />
@@ -122,76 +122,76 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="优先级" prop="priority">
+            <el-form-item :label="$t('优先级')" prop="priority">
               <el-input-number v-model="form.priority" :min="1" :max="10" controls-position="right" style="width: 100%" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row>
           <el-col :span="12">
-            <el-form-item label="重试次数" prop="retry">
+            <el-form-item :label="$t('重试次数')" prop="retry">
               <el-input-number v-model="form.retry" :min="0" :max="10" controls-position="right" style="width: 100%" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="重试间隔" prop="countdown">
+            <el-form-item :label="$t('重试间隔')" prop="countdown">
               <el-input-number v-model="form.countdown" :min="0" controls-position="right" style="width: 100%" />
-              <div class="form-tip">单位：秒</div>
+              <div class="form-tip">{{ $t('单位：秒') }}</div>
             </el-form-item>
           </el-col>
         </el-row>
         <el-row>
           <el-col :span="12">
-            <el-form-item label="超时时间" prop="timeout">
+            <el-form-item :label="$t('超时时间')" prop="timeout">
               <el-input-number v-model="form.timeout" :min="-1" controls-position="right" style="width: 100%" />
-              <div class="form-tip">单位：秒。0=用系统默认；-1=不限(流式/超长任务)；&gt;0=超时后终止并告警</div>
+              <div class="form-tip">{{ $t('单位：秒。0=用系统默认；-1=不限(流式/超长任务)；&gt;0=超时后终止并告警') }}</div>
             </el-form-item>
           </el-col>
         </el-row>
-        <el-form-item label="失败告警">
-          <el-select v-model="alertStrategyIdsArr" multiple clearable placeholder="选择告警策略(失败重试耗尽时触发,可多选)" style="width: 100%">
+        <el-form-item :label="$t('失败告警')">
+          <el-select v-model="alertStrategyIdsArr" multiple clearable :placeholder="$t('选择告警策略(失败重试耗尽时触发,可多选)')" style="width: 100%">
             <el-option v-for="s in strategyOptions" :key="s.strategyId" :label="s.strategyName" :value="s.strategyId" />
           </el-select>
         </el-form-item>
-        <el-form-item label="备注">
-          <el-input v-model="form.remark" type="textarea" placeholder="请输入备注" />
+        <el-form-item :label="$t('备注')">
+          <el-input v-model="form.remark" type="textarea" :placeholder="$t('请输入备注')" />
         </el-form-item>
       </el-form>
       <template #footer>
         <div class="dialog-footer">
-          <el-button type="primary" @click="submitForm">确 定</el-button>
-          <el-button @click="cancel">取 消</el-button>
+          <el-button type="primary" @click="submitForm">{{ $t('确 定') }}</el-button>
+          <el-button @click="cancel">{{ $t('取 消') }}</el-button>
         </div>
       </template>
     </el-dialog>
 
-    <el-dialog title="Cron表达式生成器" v-model="openCron" append-to-body destroy-on-close>
+    <el-dialog :title="$t('Cron表达式生成器')" v-model="openCron" append-to-body destroy-on-close>
       <crontab ref="crontabRef" @hide="openCron = false" @fill="crontabFill" :expression="expression"></crontab>
     </el-dialog>
 
     <!-- 执行记录抽屉 -->
     <el-drawer v-model="recordOpen" :title="'执行记录 - ' + recordTaskName" size="62%" append-to-body>
       <div style="margin-bottom: 10px">
-        <el-button size="small" icon="Refresh" @click="getRecords">刷新</el-button>
+        <el-button size="small" icon="Refresh" @click="getRecords">{{ $t('刷新') }}</el-button>
       </div>
       <el-table v-loading="recordLoading" :data="recordList" size="small">
-        <el-table-column label="实例ID" prop="id" :show-overflow-tooltip="true" min-width="200" />
-        <el-table-column label="状态" width="100">
+        <el-table-column :label="$t('实例ID')" prop="id" :show-overflow-tooltip="true" min-width="200" />
+        <el-table-column :label="$t('状态')" width="100">
           <template #default="scope">
             <el-tag :type="statusTagType(scope.row.status)">{{ scope.row.status }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="进度" width="130">
+        <el-table-column :label="$t('进度')" width="130">
           <template #default="scope">
             <el-progress :percentage="Math.round(scope.row.progress || 0)" :status="scope.row.status === 'FAILURE' ? 'exception' : (scope.row.progress >= 100 ? 'success' : '')" />
           </template>
         </el-table-column>
-        <el-table-column label="开始时间" prop="startTime" width="160" />
-        <el-table-column label="操作" width="170">
+        <el-table-column :label="$t('开始时间')" prop="startTime" width="160" />
+        <el-table-column :label="$t('操作')" width="170">
           <template #default="scope">
-            <el-button link type="primary" icon="Document" @click="viewLog(scope.row)" v-hasPermi="['task:instance:query']">日志</el-button>
-            <el-button v-if="scope.row.closed !== 1" link type="warning" icon="VideoPause" @click="stopRecord(scope.row)" v-hasPermi="['task:instance:stop']">终止</el-button>
-            <el-button link type="danger" icon="Delete" @click="delRecord(scope.row)" v-hasPermi="['task:instance:remove']">删除</el-button>
+            <el-button link type="primary" icon="Document" @click="viewLog(scope.row)" v-hasPermi="['task:instance:query']">{{ $t('日志') }}</el-button>
+            <el-button v-if="scope.row.closed !== 1" link type="warning" icon="VideoPause" @click="stopRecord(scope.row)" v-hasPermi="['task:instance:stop']">{{ $t('终止') }}</el-button>
+            <el-button link type="danger" icon="Delete" @click="delRecord(scope.row)" v-hasPermi="['task:instance:remove']">{{ $t('删除') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -199,16 +199,16 @@
     </el-drawer>
 
     <!-- 执行明细日志 -->
-    <el-dialog title="执行明细日志" v-model="logOpen" width="900px" append-to-body destroy-on-close>
-      <el-alert v-if="!logViewable" title="当前任务执行日志后端不支持在线查看(file模式)，请查看日志文件" type="warning" :closable="false" show-icon />
+    <el-dialog :title="$t('执行明细日志')" v-model="logOpen" width="900px" append-to-body destroy-on-close>
+      <el-alert v-if="!logViewable" :title="$t('当前任务执行日志后端不支持在线查看(file模式)，请查看日志文件')" type="warning" :closable="false" show-icon />
       <template v-else>
         <div class="log-toolbar">
-          <el-switch v-model="logAutoRefresh" active-text="自动刷新(3s)" @change="toggleLogAuto" />
-          <el-button size="small" icon="Refresh" @click="getLogList">刷新</el-button>
-          <span class="log-count-label">初始加载</span>
+          <el-switch v-model="logAutoRefresh" :active-text="$t('自动刷新(3s)')" @change="toggleLogAuto" />
+          <el-button size="small" icon="Refresh" @click="getLogList">{{ $t('刷新') }}</el-button>
+          <span class="log-count-label">{{ $t('初始加载') }}</span>
           <el-input-number v-model="logLimit" :min="10" :max="2000" :step="50" size="small"
             controls-position="right" style="width: 110px" @change="reloadLog" />
-          <span class="log-count-label">条 (新日志自动追加)</span>
+          <span class="log-count-label">{{ $t('条 (新日志自动追加)') }}</span>
         </div>
         <div ref="logConsoleRef" class="log-console">
         <div v-for="(line, idx) in logLines" :key="idx" :class="['log-line', 'lvl-' + (line.level || 'INFO')]">
@@ -216,7 +216,7 @@
           <span class="log-level">{{ line.level }}</span>
           <span class="log-content">{{ line.content }}</span>
         </div>
-        <el-empty v-if="!logLoading && !logLines.length" description="暂无日志" :image-size="60" />
+        <el-empty v-if="!logLoading && !logLines.length" :description="$t('暂无日志')" :image-size="60" />
         </div>
         <div class="log-tip">已展示 {{ logLines.length }} 条日志，新日志将持续追加在末尾</div>
       </template>

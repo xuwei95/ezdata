@@ -12,8 +12,8 @@
         <el-tag size="small" :type="TAG[dashType] || 'info'">{{ TYPE_LABEL[dashType] || '单图' }}</el-tag>
         <span v-if="lastUpdate" class="pv-time">更新于 {{ lastUpdate }}</span>
         <div class="pv-actions">
-          <el-button size="small" icon="Refresh" :loading="loading" @click="load">刷新</el-button>
-          <el-button size="small" type="primary" icon="FullScreen" @click="openFull">新标签纯图页</el-button>
+          <el-button size="small" icon="Refresh" :loading="loading" @click="load">{{ $t('刷新') }}</el-button>
+          <el-button size="small" type="primary" icon="FullScreen" @click="openFull">{{ $t('新标签纯图页') }}</el-button>
         </div>
       </div>
     </template>

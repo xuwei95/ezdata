@@ -1,25 +1,25 @@
 <template>
   <div class="ccp">
     <div class="ccp-top">
-      <el-select v-model="local.modelId" filterable placeholder="选择数据模型" style="width: 220px" @change="onModel">
+      <el-select v-model="local.modelId" filterable :placeholder="$t('选择数据模型')" style="width: 220px" @change="onModel">
         <el-option v-for="m in models" :key="m.id" :label="m.name" :value="m.id" />
       </el-select>
-      <el-button icon="MagicStick" :disabled="!local.modelId" @click="aiq.open = !aiq.open">AI 生成查询</el-button>
-      <el-button type="primary" icon="Search" :loading="loading" :disabled="!local.modelId" @click="runQuery">查询</el-button>
+      <el-button icon="MagicStick" :disabled="!local.modelId" @click="aiq.open = !aiq.open">{{ $t('AI 生成查询') }}</el-button>
+      <el-button type="primary" icon="Search" :loading="loading" :disabled="!local.modelId" @click="runQuery">{{ $t('查询') }}</el-button>
     </div>
-    <span class="ccp-tip">选模型 →(可选)AI 生成查询 → 查询 → 右侧配图</span>
+    <span class="ccp-tip">{{ $t('选模型 →(可选)AI 生成查询 → 查询 → 右侧配图') }}</span>
 
     <el-input v-model="local.native" type="textarea" :rows="3" :autosize="{ minRows: 3, maxRows: 8 }"
-      placeholder="原生查询(SQL / ES DSL);选模型后自动预填" @change="emitChange" />
+      :placeholder="$t('原生查询(SQL / ES DSL);选模型后自动预填')" @change="emitChange" />
 
     <!-- AI 生成查询面板 -->
     <div v-if="aiq.open" class="ccp-ai">
       <el-input v-model="aiq.question" type="textarea" :rows="2"
-        placeholder="用自然语言描述你想查什么,如:各城市销售额 top10" @keyup.enter.stop="genQuery" />
+        :placeholder="$t('用自然语言描述你想查什么,如:各城市销售额 top10')" @keyup.enter.stop="genQuery" />
       <div class="ccp-ai-bar">
         <el-button size="small" type="primary" :loading="aiq.loading" @click="genQuery">{{ aiq.output ? '重新生成' : '生成' }}</el-button>
-        <el-button v-if="aiq.output && !aiq.loading" size="small" type="success" @click="applyQuery">采用到查询</el-button>
-        <el-button v-if="aiq.output" size="small" @click="aiq.output = ''">清空</el-button>
+        <el-button v-if="aiq.output && !aiq.loading" size="small" type="success" @click="applyQuery">{{ $t('采用到查询') }}</el-button>
+        <el-button v-if="aiq.output" size="small" @click="aiq.output = ''">{{ $t('清空') }}</el-button>
       </div>
       <pre v-if="aiq.output" class="ccp-ai-out">{{ aiq.output }}<span v-if="aiq.loading" class="cursor">▋</span></pre>
     </div>
@@ -27,7 +27,7 @@
     <div class="ccp-chart">
       <EchartsBuilder v-if="rows.length" :rows="rows" :config="local.cfg" :show-controls="true" :height="chartH"
         ai-enabled :ai-loading="aic.loading" @ai-generate="onAiChart" @update:config="onCfg" />
-      <el-empty v-else description="先「查询」出数据,再配置图表(可用「AI 生成图表」)" :image-size="60" />
+      <el-empty v-else :description="$t('先「查询」出数据,再配置图表(可用「AI 生成图表」)')" :image-size="60" />
     </div>
   </div>
 </template>

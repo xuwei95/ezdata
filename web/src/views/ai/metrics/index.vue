@@ -1,48 +1,48 @@
 <template>
   <div class="app-container" v-loading="loading">
     <div class="ai-metrics-bar">
-      <span class="title">AI 用量可观测</span>
+      <span class="title">{{ $t('AI 用量可观测') }}</span>
       <el-radio-group v-model="days" size="small" @change="load">
-        <el-radio-button :value="1">今日</el-radio-button>
-        <el-radio-button :value="7">7 天</el-radio-button>
-        <el-radio-button :value="30">30 天</el-radio-button>
-        <el-radio-button :value="90">90 天</el-radio-button>
+        <el-radio-button :value="1">{{ $t('今日') }}</el-radio-button>
+        <el-radio-button :value="7">{{ $t('7 天') }}</el-radio-button>
+        <el-radio-button :value="30">{{ $t('30 天') }}</el-radio-button>
+        <el-radio-button :value="90">{{ $t('90 天') }}</el-radio-button>
       </el-radio-group>
     </div>
 
     <!-- 指标卡 -->
     <el-row :gutter="12" class="stat-row">
-      <el-col :span="4"><div class="stat"><div class="v">{{ fmt(totals.totalTokens) }}</div><div class="l">总 Token</div></div></el-col>
-      <el-col :span="4"><div class="stat"><div class="v">{{ fmt(totals.inputTokens) }}</div><div class="l">输入 Token</div></div></el-col>
-      <el-col :span="4"><div class="stat"><div class="v">{{ fmt(totals.outputTokens) }}</div><div class="l">输出 Token</div></div></el-col>
-      <el-col :span="4"><div class="stat"><div class="v">{{ totals.sessions }}</div><div class="l">会话数</div></div></el-col>
-      <el-col :span="4"><div class="stat"><div class="v">{{ totals.runs }}</div><div class="l">对话轮次</div></div></el-col>
-      <el-col :span="4"><div class="stat"><div class="v">{{ totals.avgDuration }}s<small> · {{ totals.successRate }}%</small></div><div class="l">平均时长 · 成功率</div></div></el-col>
+      <el-col :span="4"><div class="stat"><div class="v">{{ fmt(totals.totalTokens) }}</div><div class="l">{{ $t('总 Token') }}</div></div></el-col>
+      <el-col :span="4"><div class="stat"><div class="v">{{ fmt(totals.inputTokens) }}</div><div class="l">{{ $t('输入 Token') }}</div></div></el-col>
+      <el-col :span="4"><div class="stat"><div class="v">{{ fmt(totals.outputTokens) }}</div><div class="l">{{ $t('输出 Token') }}</div></div></el-col>
+      <el-col :span="4"><div class="stat"><div class="v">{{ totals.sessions }}</div><div class="l">{{ $t('会话数') }}</div></div></el-col>
+      <el-col :span="4"><div class="stat"><div class="v">{{ totals.runs }}</div><div class="l">{{ $t('对话轮次') }}</div></div></el-col>
+      <el-col :span="4"><div class="stat"><div class="v">{{ totals.avgDuration }}s<small> · {{ totals.successRate }}%</small></div><div class="l">{{ $t('平均时长 · 成功率') }}</div></div></el-col>
     </el-row>
 
     <!-- 趋势 -->
     <div class="panel">
-      <div class="panel-title">用量趋势(按天)</div>
+      <div class="panel-title">{{ $t('用量趋势(按天)') }}</div>
       <div ref="trendRef" class="chart"></div>
     </div>
 
     <el-row :gutter="12">
       <el-col :span="12">
         <div class="panel">
-          <div class="panel-title">按模型</div>
+          <div class="panel-title">{{ $t('按模型') }}</div>
           <el-table :data="byModel" size="small" border>
-            <el-table-column label="模型" prop="model" show-overflow-tooltip />
-            <el-table-column label="轮次" prop="runs" width="90" align="center" />
+            <el-table-column :label="$t('模型')" prop="model" show-overflow-tooltip />
+            <el-table-column :label="$t('轮次')" prop="runs" width="90" align="center" />
             <el-table-column label="Token" width="130" align="right"><template #default="s">{{ fmt(s.row.tokens) }}</template></el-table-column>
           </el-table>
         </div>
       </el-col>
       <el-col :span="12">
         <div class="panel">
-          <div class="panel-title">按用户(Top 10)</div>
+          <div class="panel-title">{{ $t('按用户(Top 10)') }}</div>
           <el-table :data="byUser" size="small" border>
-            <el-table-column label="用户" prop="userName" show-overflow-tooltip />
-            <el-table-column label="轮次" prop="runs" width="90" align="center" />
+            <el-table-column :label="$t('用户')" prop="userName" show-overflow-tooltip />
+            <el-table-column :label="$t('轮次')" prop="runs" width="90" align="center" />
             <el-table-column label="Token" width="130" align="right"><template #default="s">{{ fmt(s.row.tokens) }}</template></el-table-column>
           </el-table>
         </div>
