@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from agno.agent import Agent
 from agno.db.base import SessionType
+from agno.exceptions import InputCheckError
 from agno.media import Image
 from agno.run.agent import RunEvent, RunOutput, RunOutputEvent
 from agno.run.cancel import acancel_run
@@ -307,6 +308,10 @@ class AiChatService:
         if metric_catalog:
             agent_instructions = [metric_catalog, *agent_instructions]
 
+        # 输入侧护栏(pre_hooks):进 LLM 前拦提示注入 / 高危写操作意图。命中抛 InputCheckError,
+        # 由 _stream_agent 兜住回友好提示。是输入层防线,与沙箱只读隔离叠加。
+        from module_ai.guardrails import build_pre_hooks
+
         return Agent(
             model=model,
             id=agent_id,
@@ -320,6 +325,7 @@ class AiChatService:
             num_history_runs=num_history,
             tools=tools,
             markdown=True,
+            pre_hooks=build_pre_hooks(),
             **cls._memory_kwargs(model_config, enable_memory),
         )
 
@@ -696,6 +702,10 @@ class AiChatService:
             while acts_emitted < len(acts):
                 yield json.dumps({'action': acts[acts_emitted], 'type': 'ui_action'}, ensure_ascii=False) + '\n'
                 acts_emitted += 1
+        except InputCheckError as e:
+            # 输入侧护栏命中(提示注入/高危意图):回友好提示,当作助手正常拒答而非系统错误
+            msg = getattr(e, 'message', None) or str(e)
+            yield json.dumps({'content': msg, 'type': 'content'}, ensure_ascii=False) + '\n'
         except Exception as e:
             yield json.dumps({'error': str(e), 'type': 'error'}) + '\n'
 
