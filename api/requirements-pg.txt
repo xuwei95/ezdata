@@ -1,4 +1,4 @@
-agno==2.4.8
+agno==2.6.22
 aiofiles==25.1.0
 alembic==1.18.3
 anthropic==0.78.0
