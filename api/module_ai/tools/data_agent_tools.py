@@ -116,12 +116,37 @@ class DataAgentTools(Toolkit):
             return f'数据源连接失败: {e}'
         models = _models_of_source(datasource_code)  # {object_name: {name, remark, fdesc}}
         tl = handler.table_labels() if hasattr(handler, 'table_labels') else {}  # 内置说明(如 akshare 函数中文名)
-        is_api = getattr(handler, 'family', '') == 'api'
-        api_hint = (
-            '【API 数据源用法】每个“表”是一个数据接口函数(akshare 财经函数 / ccxt 交易所方法等);'
-            '取数在 run_datasource_query 里写 `result = handler.query("函数名", {参数})`'
-            '(返回 list[dict],已带重试),参数见下方各函数说明/接口文档;**勿用 SQL**。\n'
-        )
+        family = getattr(handler, 'family', '')
+        is_api = family == 'api'
+        # handler.query 的调用形态随 family 不同——务必按对应写法。弱模型最易犯的错:
+        # 把 ES/Mongo 也当成 (名, 参数) 两参调用(如 handler.query("索引", {DSL})),必报错。
+        if is_api:
+            usage_hint = (
+                '【API 数据源用法】每个“表”是一个数据接口函数(akshare 财经函数 / ccxt 交易所方法等);'
+                '取数在 run_datasource_query 里写 `result = handler.query("函数名", {参数})`'
+                '(返回 list[dict],已带重试),参数见下方各函数说明/接口文档;**勿用 SQL**。\n'
+            )
+        elif family == 'search':  # Elasticsearch
+            usage_hint = (
+                '【ES 数据源用法】取数写 `result = handler.query({"index":"索引名","body":{<ES 查询 DSL>}})`——'
+                '**单个 dict 参数**(index + body),切勿写成 handler.query("索引", {DSL}) 这种两参形式。'
+                '要汇总/分组/取前 N 时把聚合放 body.aggs 且 body.size=0(handler 会把聚合桶拍平成行);'
+                '文本字段(text)做 terms 分组/排序/精确过滤用 `字段.keyword`。例:\n'
+                '  result = handler.query({"index":"idx","body":{"size":0,"aggs":{"g":{"terms":'
+                '{"field":"名称.keyword","size":10},"aggs":{"amt":{"sum":{"field":"成交额"}}}}}}})\n'
+            )
+        elif family == 'document':  # MongoDB
+            usage_hint = (
+                '【Mongo 数据源用法】取数写 `result = handler.query({"collection":"集合名","pipeline":[<聚合管道>]})`'
+                '——单个 dict 参数(collection + pipeline)。\n'
+            )
+        elif family == 'rdbms':  # SQL 族
+            usage_hint = (
+                '【SQL 数据源用法】取数写 `result = handler.query("SELECT ... FROM 表 ...")`'
+                '——一条只读 SQL 字符串(单条、不改数据)。\n'
+            )
+        else:
+            usage_hint = ''
 
         def _label(t: str) -> str:
             m = models.get(t)
@@ -148,7 +173,7 @@ class DataAgentTools(Toolkit):
                     )
                 tip = '(括号内为业务名/说明)'
                 return (
-                    (api_hint if is_api else '')
+                    usage_hint
                     + f'表(共 {len(rows)} 张){tip}:\n'
                     + '\n'.join(rows)
                     + '\n\n认出目标表后,用 tables 参数查它的字段/调用参数。'
@@ -181,7 +206,7 @@ class DataAgentTools(Toolkit):
                             dl = dl[:_DOC_LINE_CAP] + ['…(接口文档已截断,需要更多参数说明再问)']
                         block += '\n  【接口文档】\n' + '\n'.join('    ' + ln for ln in dl)
                 out.append(block)
-            return (api_hint if is_api else '') + '\n\n'.join(out)
+            return usage_hint + '\n\n'.join(out)
         except Exception as e:
             return f'查询表结构失败(该源可能不支持 schema): {e}'
 

@@ -15,6 +15,23 @@ SCHEMA_TABLE_CAP = 40
 # native 为 SQL 文本的源族(出 SELECT);其余非 api 源统一走"原生查询"(各用各自查询语法)
 _SQL_FAMILIES = {'rdbms', 'timeseries'}
 
+# 稍弱模型识别(按 model_code 关键词粗判):用于对"一次性结构化生成"追加强化尾注,压制解释/围栏/思考过程
+_WEAK_MODEL_HINTS = (
+    'haiku', 'mini', 'flash', 'turbo', 'lite', 'small', 'nano', 'gemma', 'phi',
+    '1.5b', '3b', '4b', '7b', '8b', '9b',
+)
+# 一次性结构化生成(查询/代码/图表配置)的弱模型强化:逼齐格式、去噪
+WEAK_OUTPUT_REINFORCE = (
+    '\n\n【严格输出】只输出目标内容本身,不要解释、不要思考过程、不要 markdown 代码围栏、不要多余前后缀;'
+    '上面若给了示例,严格照其格式与字段名。'
+)
+
+
+def is_weak_model(model_code: str | None) -> bool:
+    """按模型代码粗判是否稍弱模型(用于是否追加输出强化尾注)。识别不到按强模型处理。"""
+    m = (model_code or '').lower()
+    return any(h in m for h in _WEAK_MODEL_HINTS)
+
 
 def build_query_prompt(handler: Any, object_names: list[str] | None, question: str) -> str:
     """跨源查询提示词入口:按源族分流(api 出函数调用 JSON / SQL 族出 SELECT / 其余出原生 DSL)。"""
@@ -27,7 +44,11 @@ def build_query_prompt(handler: Any, object_names: list[str] | None, question: s
         schema_ctx = _schema_context(handler, object_names)
         return (
             f'你是 {handler.name} 数据库的查询专家。{schema_ctx}'
-            f'请根据下面的自然语言需求,写一条**只读**抽取查询(可按需连表 join;单条语句、不要注释、不要 markdown 代码块)。'
+            '请根据下面的自然语言需求,写一条**只读**抽取查询(可按需连表 join;单条语句、不要注释、不要 markdown 代码块)。\n'
+            '示例:\n'
+            '· 分组求和取前10:SELECT city, SUM(amount) AS amount FROM orders GROUP BY city ORDER BY amount DESC LIMIT 10\n'
+            '· 单值:SELECT MAX(price) AS max_price FROM products\n'
+            "· 明细过滤:SELECT * FROM orders WHERE status='PAID' AND created_at>='2024-01-01' ORDER BY created_at DESC LIMIT 200\n"
             f'只输出查询本身:\n需求:{question}'
         )
     # 其余非 SQL 源(ES/Mongo/图/KV/向量…):统一"原生查询",让模型用该源自身的查询语法/DSL
@@ -87,7 +108,10 @@ def _native_query_prompt(handler: Any, object_names: list[str] | None, question:
         f'你是 {handler.name} 数据查询专家。{schema_ctx}'
         f'该数据源的"原生查询"**不是 SQL**,请用 {handler.name} 自身的查询语法/DSL 编写。\n'
         f'{example}'
-        f'请根据下面的需求写一条**只读**查询,**只输出查询本身**'
+        '要分组/求和/取前 N 时把聚合下推到查询:ES 用 body.size=0 + aggs、文本字段 terms/排序用 `字段.keyword` 子字段;'
+        'Mongo 用 $group 管道。例(ES):{"index":"idx","body":{"size":0,"aggs":{"g":{"terms":{"field":"名称.keyword","size":10},'
+        '"aggs":{"amt":{"sum":{"field":"成交额"}}}}}}}\n'
+        '请根据下面的需求写一条**只读**查询,**只输出查询本身**'
         f'(按该源语法,通常是 JSON/DSL;不要 SQL、不要注释、不要 markdown 代码块):\n需求:{question}'
     )
 
@@ -137,7 +161,12 @@ def build_transform_prompt(columns: list[str] | None, question: str) -> str:
     cols = ('可用字段:' + ', '.join(columns) + '\n\n') if columns else ''
     return (
         f'你是 Python 数据处理专家。{cols}'
-        f'请根据需求写一个函数 `def transform(row):`,入参 row 是一条记录(dict),返回处理后的 dict。'
+        '请根据需求写一个函数 `def transform(row):`,入参 row 是一条记录(dict),返回处理后的 dict。\n'
+        '示例:\n'
+        'def transform(row):\n'
+        '    row["amount"] = float(row.get("amount") or 0)   # 类型规整\n'
+        '    row["date"] = str(row.get("date", ""))[:10]      # 截前10位取日期\n'
+        '    return row\n'
         f'只输出函数代码本身(不要注释外的解释、不要 markdown 代码块):\n需求:{question}'
     )
 
@@ -159,6 +188,10 @@ def build_extract_code_prompt(datasource_codes: list[str] | None, question: str)
         '可用库:requests(HTTP 请求)、bs4 的 BeautifulSoup(HTML 解析)、lxml、json、re、'
         'pandas、numpy、datetime、time 等;可用 print() 打印进度(即日志)。'
         '不要文件/系统/子进程操作,不要 markdown 代码块,只输出可直接运行的 Python 代码本身。\n'
+        '示例(小量直接赋值 result):\n'
+        'import requests\n'
+        'resp = requests.get("https://api.example.com/list", params={"page": 1}, timeout=15)\n'
+        'result = [{"id": it["id"], "name": it["name"]} for it in resp.json()["data"]]\n'
         f'{srcs}'
         f'需求:{question}'
     )

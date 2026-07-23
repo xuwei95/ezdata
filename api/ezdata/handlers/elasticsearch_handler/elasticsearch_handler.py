@@ -21,14 +21,25 @@ def _flatten_aggs(aggs: dict, base: dict | None = None) -> list[dict]:
     """
     base = dict(base or {})
     bucket_aggs = {n: a for n, a in aggs.items() if isinstance(a, dict) and 'buckets' in a}
+    # top_hits 聚合(argmax/取样代表行):形如 {"hits":{"hits":[{"_source":..},..]}}
+    top_hits = {
+        n: a for n, a in aggs.items()
+        if isinstance(a, dict) and isinstance(a.get('hits'), dict) and isinstance(a['hits'].get('hits'), list)
+    }
     # 同层的指标聚合 → 直接作为列
     for n, a in aggs.items():
-        if isinstance(a, dict) and 'buckets' not in a:
+        if isinstance(a, dict) and 'buckets' not in a and n not in top_hits:
             if 'value' in a:
                 base[n] = a['value']
             elif 'values' in a:  # percentiles 等多值
                 base[n] = a['values']
     if not bucket_aggs:
+        if top_hits:  # 无桶但有 top_hits:把命中文档展开成行(_source + _id 拼到 base)
+            rows = []
+            for n, a in top_hits.items():
+                for h in a['hits']['hits']:
+                    rows.append({**base, **(h.get('_source') or {}), '_id': h.get('_id')})
+            return rows or ([base] if base else [])
         return [base] if base else []
     rows: list[dict] = []
     for n, a in bucket_aggs.items():
@@ -105,13 +116,36 @@ class ElasticsearchHandler(Connector):
     def sample_query(self, table: str, limit: int = 100) -> dict:
         return {'index': table, 'body': {'query': {'match_all': {}}, 'size': limit}}
 
-    def query(self, statement: dict, params: dict | None = None, limit: int | None = None) -> list[dict]:
+    @staticmethod
+    def _normalize_stmt(statement: Any, params: dict | None) -> tuple[str, dict]:
+        """把 statement 规整成 (index, body)。容错弱模型/agent 常见的误调用形态:
+        - handler.query("索引", {DSL})           —— statement 为字符串,DSL 落到 params
+        - handler.query({"index":..}, {DSL})     —— body 漏放到 params
+        - handler.query({"index":.., "body":..}) —— 正确形态
+        - handler.query({"index":.., "query":..,"aggs":..}) —— 忘了包 body,顶层就是 DSL
+        """
+        if isinstance(statement, str):
+            return statement, dict(params or {})
+        if isinstance(statement, dict):
+            index = statement.get('index')
+            body = statement.get('body')
+            if body is None:
+                if isinstance(params, dict) and index:
+                    body = params  # index 在 statement,DSL 误放到 params
+                else:  # 忘了 body 包装:除 index 外的键当作 DSL 本身
+                    body = {k: v for k, v in statement.items() if k != 'index'}
+            if not index:
+                raise ValueError("ES 查询缺少 index:请传 {'index':'索引名','body':{DSL}}")
+            return index, dict(body or {})
+        raise ValueError("ES 查询 statement 须为 {'index':'索引名','body':{DSL}}(或 ('索引名', {DSL}))")
+
+    def query(self, statement: Any, params: dict | None = None, limit: int | None = None) -> list[dict]:
         """statement = {'index': ..., 'body': <ES DSL>}(程序化构造 DSL,不做模板注入)。
 
         含聚合(aggs)时返回拍平后的聚合行;否则返回命中文档(hits)。
+        容错:弱模型常写成 handler.query("索引", {DSL}) 或漏掉 body 包装,统一由 _normalize_stmt 规整。
         """
-        index = statement['index']
-        body = dict(statement.get('body') or {})
+        index, body = self._normalize_stmt(statement, params)
         if limit is not None:  # size 已显式给定则取较小值(聚合常用 size:0,保持为 0)
             body['size'] = min(int(limit), body.get('size', limit))
         resp = self.client.search(index=index, body=body)
