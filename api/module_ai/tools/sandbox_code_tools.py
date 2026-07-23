@@ -116,6 +116,8 @@ class SandboxCodeTools(Toolkit):
         """在沙箱跑 Python 做计算/数据加工。可用 pandas/numpy/pyecharts 等;禁文件/网络/系统。
         结果赋给变量并用 variable_to_return 指定(或 print);可整成 {"type":"string|dataframe|html","value":...}
         (dataframe 传 df、html 传 pyecharts render_embed()),也可直接返回 list/数字/字符串。
+        注意:每次调用都是全新隔离进程,**不保留上一次调用的任何变量**(没有 result/df 等历史变量,也无 handler);
+        本次要用的数据必须在这段 code 里直接给出(取数请用 run_datasource_query)。
 
         :param code: 要执行的 Python 代码
         :param variable_to_return: 要返回其值的变量名(可选)
@@ -134,6 +136,8 @@ class SandboxCodeTools(Toolkit):
         SQL 源 handler.query("SELECT ..."); 非 SQL 源(如 akshare)handler.query("函数名", {参数})
         ——先 get_table_schema 查函数名/参数,勿对 akshare 写 SQL。
         结果赋给 result(或 variable_to_return),可为 {"type":"string|dataframe|html","value":...},或直接 list/数字/字符串。
+        注意:每次调用都是全新隔离进程,**不保留上一次调用的变量**;取数与后续加工/多表合并要写进**同一段 code**,
+        不能引用上一次调用留下的 result/df 等(否则 NameError)。
 
         :param datasource_code: 数据源编码
         :param code: 取数 Python 代码(内部可用 handler)
@@ -300,10 +304,33 @@ def _summarize(result: Any) -> str:
     return f'结果: {_preview(result)}'
 
 
+def _error_hint(err: str) -> str:
+    """把弱模型常见报错翻成"下一次该怎么改"的纠错提示,附在错误文本后喂给重试循环。
+    比原始 traceback 更能引导改对——最高频的坑是把沙箱当有状态 notebook。"""
+    e = err or ''
+    if 'NameError' in e or 'is not defined' in e:
+        # handler/datasource 未注入 → 在纯计算沙箱里想取数,指回取数工具
+        if any(k in e for k in ("'handler'", "'datasource'", "'get_handler'")):
+            return (
+                '(run_python_code 是纯计算沙箱,不含 handler;要取数请改用 '
+                'run_datasource_query(datasource_code, code),在 code 里用 handler.query(...) 现取。)'
+            )
+        # 其余未定义变量:几乎都是引用了"上一次调用留下的变量"(如 result/df)——沙箱不跨调用保留状态
+        return (
+            '(沙箱每次执行都是全新隔离进程,变量不跨工具调用保留——不能引用上一次取数得到的变量'
+            '(如 result/df/上一步返回值)。请在本段 code 里重新取到/定义所有用到的数据:'
+            '取数用 run_datasource_query 把 handler.query(...) 与后续加工写进同一段 code;'
+            '纯计算用 run_python_code 时把输入数据直接写进 code。)'
+        )
+    return ''
+
+
 def _format_result(res: dict) -> str:
     """把沙箱响应拼成给 LLM 的文本(按结果类型摘要)。"""
     if not res.get('success'):
-        return f'执行失败: {res.get("error") or "未知错误"}'
+        err = res.get('error') or '未知错误'
+        hint = _error_hint(err)
+        return f'执行失败: {err}' + (f'\n{hint}' if hint else '')
     parts: list[str] = [_summarize(res.get('result'))]
     stdout = _cap_stdout(res.get('stdout') or '')
     if stdout:
