@@ -1045,8 +1045,20 @@ print('红利低波股息率 %d 行(csindex 近20日,累积成史)' % len(result
 """
 C_DIV_BOND = f"""
 h = get_handler('{AK}')
-result = h.query('bond_zh_us_rate', {{'start_date': '20130101'}})
-print('国债收益率 %d 行' % len(result))
+rows = h.query('bond_zh_us_rate', {{'start_date': '20130101'}})
+# 取数阶段清洗:剔除 10年收益率为 0/空的脏数据行(到期收益率不可能为 0,多为源站缺失填 0)
+result = []
+for r in rows:
+    v = r.get('中国国债收益率10年')
+    if v is None or v == '' or v != v:  # 空/NaN
+        continue
+    try:
+        if float(v) == 0:               # 脏数据:值为 0
+            continue
+    except (TypeError, ValueError):
+        continue
+    result.append(r)
+print('国债收益率 %d 行(清洗后,原 %d 行)' % (len(result), len(rows)))
 """
 TF_DIV_INDEX = (
     'def transform(row):\n'
