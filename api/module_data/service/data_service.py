@@ -191,10 +191,12 @@ def _strip_fence(text: str) -> str:
 
 
 async def _ai_complete(db: AsyncSession, prompt: str) -> str:
-    """一次性补全并返回文本(自动去围栏)。"""
+    """一次性补全并返回文本(自动去围栏)。稍弱模型追加"严格只输出目标格式"强化尾注。"""
     from utils.ai_util import AiUtil
 
     cfg = await _ai_resolve_cfg(db)
+    if ez_prompts.is_weak_model(cfg.get('model_code')):
+        prompt = prompt + ez_prompts.WEAK_OUTPUT_REINFORCE
 
     def _run() -> str:
         from agno.agent import Agent
@@ -211,6 +213,8 @@ def _ai_stream(cfg: dict, prompt: str):
 
     from utils.ai_util import AiUtil
 
+    if ez_prompts.is_weak_model(cfg.get('model_code')):
+        prompt = prompt + ez_prompts.WEAK_OUTPUT_REINFORCE
     try:
         agent = Agent(model=AiUtil.get_model_from_factory(**cfg))
         produced = False
@@ -581,7 +585,12 @@ def _chart_cfg_prompt(columns: list[str], question: str) -> str:
         '选型建议:占比看 pie/donut;趋势随时间看 line;类别对比看 bar;单一汇总指标看 kpi;'
         '股票/期货 OHLC 行情看 kline;两个量级差很大的指标同图对比看 combo(双轴);'
         '累计增减/构成看 waterfall;两个维度交叉的热度看 heatmap;数值分布/离群看 boxplot;'
-        '层级占比看 treemap;节点间流向/转化看 sankey。'
+        '层级占比看 treemap;节点间流向/转化看 sankey。\n'
+        '示例输出:\n'
+        '· 各城市销售额 Top10 柱状:{"type":"bar","x":"city","ys":[{"field":"amount","agg":"sum"}],'
+        '"sort":{"by":"amount","dir":"desc"},"topN":10,"style":{"title":"各城市销售额 Top10"}}\n'
+        '· 日线 K 线:{"type":"kline","x":"date","ohlc":{"o":"open","h":"high","l":"low","c":"close"},"style":{"title":"日K"}}\n'
+        '· 单值指标卡:{"type":"kpi","ys":[{"field":"max_price","agg":"none"}],"style":{"title":"最高价"}}\n'
         '只用上面列出的真实列名。**只输出 JSON 本身,不要 markdown 代码块、不要任何解释文字。**'
     )
 
@@ -897,11 +906,33 @@ class DataQueryService:
         """按源类型构造 AI 取数提示词(SQL 出只读 SELECT;ES 出 DSL JSON)。ai_query / prep_ai_query 共用。"""
         if cls._is_es(handler):
             fmt = (
-                f'返回 Elasticsearch 查询 DSL 的 JSON,形如 '
-                f'{{"index":"{object_name}","body":{{"query":{{...}},"size":50}}}};只输出 JSON,不要解释、不要 markdown 围栏。'
+                f'返回 Elasticsearch 查询 DSL 的 JSON,形如 {{"index":"{object_name}","body":{{...}}}};'
+                '只输出 JSON,不要解释、不要 markdown 围栏。\n'
+                '规则:\n'
+                '① 需要汇总/分组/求和/计数/最值/前 N 排名时,用 aggs 把聚合下推,并设 body.size=0(只要聚合、不要原始命中);'
+                'handler 会把聚合桶拍平成表——**桶聚合名与指标名即为返回的列名**。\n'
+                '② 文本字段(type=text)做 terms 分组/精确过滤(term)/排序时**必须**用其 `字段.keyword` 子字段'
+                '(上面字段清单里已列出 `.keyword` 的直接用);数值/日期字段用本名。\n'
+                '③ 只取明细(不聚合)时:query 过滤 +(可选)sort + size 取前 N。范围/日期用 range,精确值用 term。\n'
+                '示例(body 部分;外层务必包成 {"index":"<上面的真实索引>","body":<body>}):\n'
+                '· 分组求和取前10:{"size":0,"aggs":{"by_grp":{"terms":{"field":"行业.keyword","size":10},'
+                '"aggs":{"amt":{"sum":{"field":"成交额"}}}}}} → 得列 by_grp/amt\n'
+                '· 单值 KPI(最大值):{"size":0,"aggs":{"max_v":{"max":{"field":"price"}}}} → 得列 max_v\n'
+                '· 时间序列(按日均值):{"size":0,"aggs":{"by_day":{"date_histogram":{"field":"date",'
+                '"calendar_interval":"day"},"aggs":{"v":{"avg":{"field":"close"}}}}}} → 得列 by_day/v\n'
+                '· 明细前 N:{"query":{"range":{"date":{"gte":"2024-01-01"}}},"sort":[{"date":"desc"}],"size":20}\n'
+                '· 取达到最值/最新的那一行(argmax):**用明细 sort+size:1,不要用 top_hits/aggs**——'
+                '{"query":{"match_all":{}},"sort":[{"pe":"desc"}],"size":1}(PE 最高的一行);'
+                '{"query":{"match_all":{}},"sort":[{"date":"desc"}],"size":1}(最新一行)\n'
             )
         else:
-            fmt = '写一条**只读 SELECT** 查询(单条语句、不要注释、不要 markdown 围栏、不要修改数据);只输出 SQL 本身。'
+            fmt = (
+                '写一条**只读 SELECT** 查询(单条语句、不要注释、不要 markdown 围栏、不要修改数据);只输出 SQL 本身。\n'
+                '示例:\n'
+                '· 分组求和取前10:SELECT city, SUM(amount) AS amount FROM t GROUP BY city ORDER BY amount DESC LIMIT 10\n'
+                '· 单值 KPI:SELECT MAX(price) AS max_price FROM t\n'
+                "· 明细过滤:SELECT * FROM t WHERE status='PAID' ORDER BY created_at DESC LIMIT 100"
+            )
         return (
             kb_block + f'你是 {handler.name} 数据查询专家。表/索引:`{object_name}`,字段:\n{cols}\n\n'
             f'请根据下面的自然语言需求,{fmt}\n需求:{question}'
@@ -1128,15 +1159,46 @@ class EtlService:
 
     @classmethod
     async def ai_query(cls, db: AsyncSession, req: Any) -> dict:
-        """AI 生成原生查询:NL + 源表结构 → 只读查询(提示词构造委托 ezdata.prompts)。"""
-        _, prompt = await cls.prep_query(db, req)
+        """AI 生成原生查询:NL + 源表结构 → 只读查询。生成后按源族轻量校验,不合法把错误喂回重出(≤3 次)。"""
+        ds = await DataSourceDao.get_by_code(db, req.datasource_code)
+        if not ds:
+            raise ServiceException(message='源数据源不存在')
+        handler = _handler_from_ds(ds)
+        family = getattr(handler, 'family', '')
+        base = await run_in_threadpool(ez_prompts.build_query_prompt, handler, req.object_names, req.question)
+        prompt, last_err = base, ''
+        for _ in range(3):
+            try:
+                native = (await _ai_complete(db, prompt)).rstrip(';')
+            except ServiceException:
+                raise
+            except Exception as e:
+                raise ServiceException(message=f'AI 生成失败:{short_err(e)}') from None
+            last_err = cls._validate_native(native, family)
+            if last_err is None:
+                return {'native': native}
+            prompt = base + f'\n\n【纠错】上次生成不合法:{last_err}\n上次输出:\n{native}\n请修正后只输出查询本身。'
+        raise ServiceException(message=f'AI 生成的查询多次校验不通过:{last_err}')
+
+    @staticmethod
+    def _validate_native(native: str, family: str) -> str | None:
+        """轻量校验生成的原生查询:SQL 族须只读 SELECT/WITH;其余(api/ES/Mongo)须合法 JSON。合法返回 None。"""
+        s = (native or '').strip()
+        if not s:
+            return '空结果'
+        if family in ('rdbms', 'timeseries'):  # 与 ez_prompts._SQL_FAMILIES 一致
+            if not s.lower().lstrip().startswith(('select', 'with')):
+                return '不是只读 SELECT/WITH 查询(疑似含写操作或非查询语句)'
+            try:
+                assert_readonly_sql(s, family)
+            except ValueError as e:
+                return str(e)
+            return None
         try:
-            native = (await _ai_complete(db, prompt)).rstrip(';')
-        except ServiceException:
-            raise
-        except Exception as e:
-            raise ServiceException(message=f'AI 生成失败:{short_err(e)}') from None
-        return {'native': native}
+            json.loads(s)
+        except (json.JSONDecodeError, ValueError) as e:
+            return f'不是合法 JSON:{short_err(e)}'
+        return None
 
     @classmethod
     async def prep_query(cls, db: AsyncSession, req: Any) -> tuple[dict, str]:
@@ -1151,15 +1213,33 @@ class EtlService:
 
     @classmethod
     async def ai_transform(cls, db: AsyncSession, req: Any) -> dict:
-        """AI 生成逐行转换函数:NL + 字段 → transform(row)。"""
-        _, prompt = await cls.prep_transform(db, req)
+        """AI 生成逐行转换函数:NL + 字段 → transform(row)。生成后 py_compile 校验,失败喂回重出(≤3 次)。"""
+        base = ez_prompts.build_transform_prompt(req.columns, req.question)
+        prompt, last_err = base, ''
+        for _ in range(3):
+            try:
+                code = await _ai_complete(db, prompt)
+            except ServiceException:
+                raise
+            except Exception as e:
+                raise ServiceException(message=f'AI 生成失败:{short_err(e)}') from None
+            last_err = cls._validate_transform(code)
+            if last_err is None:
+                return {'code': code}
+            prompt = base + f'\n\n【纠错】上次代码有问题:{last_err}\n请修正后只输出函数代码本身。'
+        raise ServiceException(message=f'AI 生成的转换函数多次校验不通过:{last_err}')
+
+    @staticmethod
+    def _validate_transform(code: str) -> str | None:
+        """校验逐行转换函数:须含 def transform 且能编译。合法返回 None。"""
+        c = code or ''
+        if 'def transform' not in c:
+            return '缺少 def transform(row) 函数定义'
         try:
-            code = await _ai_complete(db, prompt)
-        except ServiceException:
-            raise
-        except Exception as e:
-            raise ServiceException(message=f'AI 生成失败:{short_err(e)}') from None
-        return {'code': code}
+            compile(c, '<etl-transform>', 'exec')
+        except SyntaxError as e:
+            return f'语法错误:{short_err(e)}'
+        return None
 
     @classmethod
     async def prep_transform(cls, db: AsyncSession, req: Any) -> tuple[dict, str]:

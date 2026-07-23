@@ -82,6 +82,15 @@ _DATA_AGENT_INSTRUCTIONS: list[str] = [
     '要新建/修改/复制定时任务(含 cron 写法)→ 先 load_skill("task_scheduling") 拿流程与 7 段 Quartz cron 规则再动手,别凭记忆写 cron。',
 ]
 
+# 稍弱模型专项强化(仅弱模型追加):压制跳步/凭记忆硬写,强调按工具返回的写法调用
+_WEAK_AGENT_NUDGE = (
+    '【稳妥执行(要点)】① 严格按上面取数工作流逐步来、不要跳步,一次只做一步、看清工具返回再继续;'
+    '② 出图/建任务/ES 等专项先 load_skill 拿手册再动手,别凭记忆硬写;'
+    '③ handler.query 严格按 get_table_schema 给出的该源写法调用——'
+    'ES 是单个 dict `handler.query({"index":"索引","body":{DSL}})`,不要写成 handler.query("索引", {DSL}) 两参;'
+    '④ 聚合尽量下推到查询(ES 用 aggs+size:0、文本字段用 .keyword),别只靠前端/记忆估算。'
+)
+
 # 用户可在「工具」下拉里自选、按需挂载的内置工具集 code(其余内置工具由平台按能力自动挂载:
 # data_explore/sandbox_code 由「数据分析」数据源选择控制,不在此白名单)。
 _PASSTHROUGH_BUILTIN = {'task_propose', 'baidu_search'}
@@ -307,6 +316,12 @@ class AiChatService:
         metric_catalog = build_metric_catalog(metrics)
         if metric_catalog:
             agent_instructions = [metric_catalog, *agent_instructions]
+
+        # 稍弱模型:追加"稳妥执行"强化(别跳步/别凭记忆硬写/按工具返回写法调用)
+        from ezdata.services.prompts import is_weak_model
+
+        if is_weak_model(getattr(model_config, 'model_code', None)):
+            agent_instructions = [*agent_instructions, _WEAK_AGENT_NUDGE]
 
         # 输入侧护栏(pre_hooks):进 LLM 前拦提示注入 / 高危写操作意图。命中抛 InputCheckError,
         # 由 _stream_agent 兜住回友好提示。是输入层防线,与沙箱只读隔离叠加。
