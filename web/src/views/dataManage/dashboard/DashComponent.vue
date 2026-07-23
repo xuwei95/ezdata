@@ -13,7 +13,24 @@
     </div>
     <!-- 图片 -->
     <img v-else-if="comp.type === 'image'" class="dc-img" :src="comp.props && comp.props.url" alt="" />
-    <!-- 其它(filter/tab 等,P2)占位 -->
+    <!-- 筛选器:绑定看板变量,改值经 filter-change 上抛,联动所有含 {{变量}} 的图 -->
+    <div v-else-if="comp.type === 'filter'" class="dc-filter">
+      <template v-if="filterDef">
+        <span class="dc-flabel">{{ (comp.props && comp.props.title) || filterDef.label || filterDef.name }}</span>
+        <el-date-picker v-if="filterDef.type === 'date'" :model-value="curVal" type="date" value-format="YYYY-MM-DD"
+          size="small" style="width: 150px" @update:model-value="onFilter" />
+        <el-date-picker v-else-if="filterDef.type === 'daterange'" :model-value="curVal" type="daterange" value-format="YYYY-MM-DD"
+          size="small" style="width: 230px" :start-placeholder="$t('开始')" :end-placeholder="$t('结束')" @update:model-value="onFilter" />
+        <el-select v-else-if="filterDef.type === 'select'" :model-value="curVal" size="small" clearable style="width: 150px" @update:model-value="onFilter">
+          <el-option v-for="o in optionList(filterDef)" :key="o" :label="o" :value="o" />
+        </el-select>
+        <el-input-number v-else-if="filterDef.type === 'number'" :model-value="numOf(curVal)" size="small" controls-position="right"
+          style="width: 130px" @update:model-value="onFilter" />
+        <el-input v-else :model-value="curVal" size="small" clearable style="width: 150px" @update:model-value="onFilter" />
+      </template>
+      <div v-else class="dc-empty">{{ $t('未绑定变量') }}</div>
+    </div>
+    <!-- 其它(tab 等,P2)占位 -->
     <div v-else class="dc-empty">{{ comp.type }}</div>
   </div>
 </template>
@@ -28,11 +45,33 @@ const props = defineProps({
   comp: { type: Object, required: true },
   rows: { type: Array, default: null }, // 外部已取好的行(公开页/联动)
   chartSpec: { type: Object, default: null }, // 外部已解析的图表配置
-  params: { type: Object, default: null }, // 全局筛选值 {name: value}
+  params: { type: Object, default: null }, // 全局筛选值 {name: value}(已展开 daterange 为 名_start/名_end)
+  filterDef: { type: Object, default: null }, // type=filter 时:所绑变量的定义 {name,label,type,options}
   height: { type: Number, default: 300 },
   dark: { type: Boolean, default: false }, // 大屏(暗底)模式:图表透明底 + 明色轴/文字
   silent: { type: Boolean, default: false }, // 预览/展示模式:取数失败不弹 msg,只打 console + 卡片内提示
 })
+const emit = defineEmits(['filter-change'])
+
+// ---- 筛选器(type=filter):从 params 读当前值(daterange 由 名_start/名_end 还原为数组),改值上抛 ----
+const curVal = computed(() => {
+  const d = props.filterDef
+  if (!d) return null
+  const p = props.params || {}
+  if (d.type === 'daterange') {
+    const s = p[d.name + '_start'], e = p[d.name + '_end']
+    return s || e ? [s, e] : null
+  }
+  return p[d.name]
+})
+function optionList(d) {
+  if (Array.isArray(d.options) && d.options.length) return d.options
+  return (d.optionsText || '').split(',').map((s) => s.trim()).filter(Boolean)
+}
+function numOf(v) { const n = Number(v); return Number.isFinite(n) ? n : undefined }
+function onFilter(v) {
+  if (props.filterDef && props.filterDef.name) emit('filter-change', { name: props.filterDef.name, value: v })
+}
 
 const localRows = ref([])
 const localCfg = ref(null)
@@ -90,4 +129,6 @@ onMounted(resolveChart)
 .dc-empty { display: flex; align-items: center; justify-content: center; height: 100%; color: #909399; font-size: 13px; }
 .dc-text { padding: 8px 12px; white-space: pre-wrap; word-break: break-word; }
 .dc-img { width: 100%; height: 100%; object-fit: contain; }
+.dc-filter { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; height: 100%; padding: 4px 8px; box-sizing: border-box; }
+.dc-flabel { font-size: 13px; color: #606266; }
 </style>

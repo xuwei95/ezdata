@@ -23,7 +23,8 @@
           </span>
         </div>
         <div class="dg-body">
-          <DashComponent v-if="map[item.i]" :comp="map[item.i]" :params="chartParams" :height="itemH(item)" :silent="!editable" />
+          <DashComponent v-if="map[item.i]" :comp="map[item.i]" :params="chartParams" :filter-def="filterDefFor(map[item.i])"
+            :height="itemH(item)" :silent="!editable" @filter-change="$emit('filter-change', $event)" />
         </div>
       </div>
     </GridItem>
@@ -36,7 +37,8 @@
         <div v-for="c in components" :key="c.id" class="dg-abs" :class="{ editable, selected: editable && c.id === selectedId }"
           :style="{ left: (c.pos && c.pos.x || 0) + 'px', top: (c.pos && c.pos.y || 0) + 'px', width: (c.pos && c.pos.w || 300) + 'px', height: (c.pos && c.pos.h || 200) + 'px', zIndex: (c.pos && c.pos.z) || 1 }"
           @mousedown="editable && startDrag($event, c)" @click.stop="editable && $emit('select-comp', c.id)" @dblclick.stop="editable && $emit('edit-comp', c.id)">
-          <DashComponent :comp="c" :params="chartParams" :height="((c.pos && c.pos.h) || 200) - 4" :dark="isDark" :silent="!editable" />
+          <DashComponent :comp="c" :params="chartParams" :filter-def="filterDefFor(c)" :height="((c.pos && c.pos.h) || 200) - 4"
+            :dark="isDark" :silent="!editable" @filter-change="$emit('filter-change', $event)" />
           <template v-if="editable">
             <span class="dg-ops">
               <el-button link type="primary" icon="Setting" :title="$t('配置')" @mousedown.stop @click.stop="$emit('edit-comp', c.id)" />
@@ -61,9 +63,17 @@ const props = defineProps({
   editable: { type: Boolean, default: false },
   selectedId: { type: String, default: '' },
   rowHeight: { type: Number, default: 40 },
-  chartParams: { type: Object, default: null }, // 全局筛选值(联动,P2)
+  chartParams: { type: Object, default: null }, // 全局筛选值(联动):{name: value},已展开 daterange
+  filters: { type: Array, default: () => [] }, // 看板变量定义,用于解析 filter 组件所绑变量
 })
-const emit = defineEmits(['update:components', 'select-comp', 'remove-comp', 'edit-comp'])
+const emit = defineEmits(['update:components', 'select-comp', 'remove-comp', 'edit-comp', 'filter-change'])
+
+// filter 组件(props.varName)→ 对应变量定义;传给 DashComponent 渲染控件
+function filterDefFor(c) {
+  if (!c || c.type !== 'filter') return null
+  const name = c.props && c.props.varName
+  return name ? (props.filters || []).find((f) => f.name === name) || null : null
+}
 
 const mode = computed(() => props.canvas.mode || 'matrix')
 const cols = computed(() => props.canvas.cols || 24)

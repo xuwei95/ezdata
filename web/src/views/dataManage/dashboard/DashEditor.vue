@@ -17,9 +17,34 @@
         <el-option :value="30" :label="$t('每 30 秒')" />
         <el-option :value="60" :label="$t('每 1 分钟')" />
       </el-select>
+      <el-button size="small" :type="varsMgr.open ? 'primary' : 'default'" icon="Operation" @click="varsMgr.open = !varsMgr.open">{{ $t('变量') }}</el-button>
       <el-button type="primary" icon="Check" :disabled="!dash.name" :loading="saving" @click="save">{{ $t('保存') }}</el-button>
       <span class="tip">{{ $t('拖/点左侧加入画布 → 双击组件(或点⚙)配数据 → 拖动/缩放排版 → 保存') }}</span>
     </div>
+
+    <!-- 看板变量定义(联动):定义 {{变量}},图表 native 里引用即随筛选栏/筛选器重刷 -->
+    <div v-if="varsMgr.open" class="de-vars-mgr">
+      <div v-for="(v, i) in dash.filters" :key="i" class="vrow">
+        <el-input v-model="v.name" size="small" :placeholder="$t('变量名(如 city)')" style="width: 150px" />
+        <el-input v-model="v.label" size="small" :placeholder="$t('显示名')" style="width: 110px" />
+        <el-select v-model="v.type" size="small" style="width: 104px">
+          <el-option :label="$t('文本')" value="text" />
+          <el-option :label="$t('日期')" value="date" />
+          <el-option :label="$t('日期范围')" value="daterange" />
+          <el-option :label="$t('下拉')" value="select" />
+          <el-option :label="$t('数值')" value="number" />
+        </el-select>
+        <el-input v-model="v.default" size="small" :placeholder="$t('默认值')" style="width: 110px" />
+        <el-input v-if="v.type === 'select'" v-model="v.optionsText" size="small" :placeholder="$t('选项,逗号分隔')" style="flex: 1; min-width: 120px" />
+        <el-button size="small" icon="Delete" text @click="dash.filters.splice(i, 1)" />
+      </div>
+      <div class="vrow-add">
+        <el-button size="small" text type="primary" icon="Plus" @click="addVar">{{ $t('添加变量') }}</el-button>
+        <span class="tip">{{ VAR_HINT }}</span>
+      </div>
+    </div>
+    <!-- 顶部筛选栏(编辑器内实时联动)。就地改 filterValues,chartParams computed 会重算 -->
+    <DashFilterBar :filters="dash.filters" :model-value="filterValues" @change="onFilterChange" />
 
     <div class="de-body">
       <!-- 左:组件区 -->
@@ -33,7 +58,10 @@
               </div>
             </div>
             <el-divider content-position="left">{{ $t('其它') }}</el-divider>
-            <el-button size="small" icon="Document" @click="addText">{{ $t('添加文本') }}</el-button>
+            <div class="de-others">
+              <el-button size="small" icon="Document" @click="addText">{{ $t('添加文本') }}</el-button>
+              <el-button size="small" icon="Filter" @click="addFilter">{{ $t('添加筛选器') }}</el-button>
+            </div>
           </el-tab-pane>
           <el-tab-pane :label="$t('引用看板')" name="ref">
             <el-input v-model="boardKw" size="small" clearable :placeholder="$t('搜索单图看板')" prefix-icon="Search" style="margin-bottom: 6px" />
@@ -57,10 +85,13 @@
           :canvas="dash.canvas"
           editable
           :selected-id="selectedId"
+          :chart-params="chartParams"
+          :filters="dash.filters"
           @update:components="(c) => (dash.components = c)"
           @select-comp="onSelect"
           @edit-comp="onEdit"
           @remove-comp="removeComp"
+          @filter-change="onFilterChange"
         />
         <el-empty v-else :description="$t('从左侧拖入 / 点击图表类型加入画布')" />
       </div>
@@ -97,6 +128,22 @@
       <div v-else-if="selectedComp && selectedComp.type === 'text'">
         <el-input v-model="selectedComp.props.text" type="textarea" :rows="4" :placeholder="$t('文本内容')" @input="pokeComponents" />
       </div>
+      <div v-else-if="selectedComp && selectedComp.type === 'filter'" class="de-filter-cfg">
+        <template v-if="dash.filters.length">
+          <div class="de-frow">
+            <span class="de-lb">{{ $t('绑定变量') }}</span>
+            <el-select v-model="selectedComp.props.varName" size="small" style="width: 220px" @change="pokeComponents">
+              <el-option v-for="f in dash.filters" :key="f.name" :label="f.label || f.name" :value="f.name" />
+            </el-select>
+          </div>
+          <div class="de-frow">
+            <span class="de-lb">{{ $t('标题') }}</span>
+            <el-input v-model="selectedComp.props.title" size="small" style="width: 220px" @input="pokeComponents" />
+          </div>
+          <div class="de-fhint">{{ $t('该筛选器改值会联动所有引用了此变量的图表') }}</div>
+        </template>
+        <el-empty v-else :description="$t('请先在顶部「变量」里定义看板变量')" :image-size="48" />
+      </div>
 
       <template #footer>
         <el-button type="danger" plain icon="Delete" @click="removeComp(selectedId)">{{ $t('删除组件') }}</el-button>
@@ -111,7 +158,9 @@
 import { ref, reactive, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { listModel, listAnalysisTemplate, getDashboard, saveDashboard } from '@/api/dataManage/data'
+import { paramsToValues } from '@/views/dataManage/visualization/board.js'
 import DashCanvas from './DashCanvas.vue'
+import DashFilterBar from './DashFilterBar.vue'
 import ChartConfigPanel from './ChartConfigPanel.vue'
 
 const props = defineProps({
@@ -131,6 +180,23 @@ const selectedId = ref('')
 const dragItem = ref(null) // 从左侧拖入画布的载荷 {kind:'chart'|'ref', t|b}
 const dropHover = ref(false)
 const dash = reactive({ id: '', name: '', dashType: 'board', canvas: { mode: 'matrix', cols: 24 }, components: [], filters: [], refreshInterval: 0 })
+
+// ---- 看板变量(联动)----
+const varsMgr = reactive({ open: false })
+const filterValues = reactive({}) // 当前筛选值 {name: value};daterange 存 [start,end]
+// 提示含双花括号,放脚本常量(模板里直接写会被 Vue 当插值)
+const VAR_HINT = '图表 native 里用 {{变量名}} 引用;日期范围生成 {{名_start}} / {{名_end}} 两个占位'
+// 定义 + 当前值 → 取数用 {name: value}(复用 board.js;空值回退默认、daterange 展开)
+const chartParams = computed(() => paramsToValues((dash.filters || []).map((f) => ({ ...f, value: filterValues[f.name] }))))
+function initFilterValues() {
+  Object.keys(filterValues).forEach((k) => delete filterValues[k])
+  for (const f of dash.filters || []) {
+    if (!f || !f.name) continue
+    filterValues[f.name] = f.default ?? (f.type === 'daterange' ? null : '')
+  }
+}
+function addVar() { dash.filters = [...(dash.filters || []), { name: '', label: '', type: 'text', default: '', optionsText: '' }] }
+function onFilterChange({ name, value }) { if (name) filterValues[name] = value }
 
 const CHART_TYPES = [
   { v: 'bar', l: '柱状图' }, { v: 'hbar', l: '横向条' }, { v: 'line', l: '折线图' }, { v: 'area', l: '面积图' },
@@ -153,8 +219,10 @@ function defaultPos(kind) {
   const n = dash.components.length
   if (isFree.value) {
     const off = (n % 8) * 24
+    if (kind === 'filter') return { x: 40 + off, y: 20 + off, w: 320, h: 56 }
     return kind === 'text' ? { x: 60 + off, y: 60 + off, w: 400, h: 60 } : { x: 60 + off, y: 60 + off, w: 640, h: 360 }
   }
+  if (kind === 'filter') return { x: 0, y: 0, w: 6, h: 2 }
   return kind === 'text' ? { x: 0, y: 0, w: 6, h: 2 } : { x: 0, y: 0, w: 8, h: 6 }
 }
 // 注意:用"数组再代入"而非 push —— DashCanvas 的 watch(() => components) 是按引用触发,
@@ -184,6 +252,11 @@ function addText() {
   dash.components = [...dash.components, { id, type: 'text', pos: defaultPos('text'), props: { title: '文本', text: '文本内容' } }]
   selectedId.value = id; cfgDrawer.value = true
 }
+function addFilter() {
+  const id = uid()
+  dash.components = [...dash.components, { id, type: 'filter', pos: defaultPos('filter'), props: { title: '筛选', varName: '' } }]
+  selectedId.value = id; cfgDrawer.value = true
+}
 // 单击只选中(高亮),不弹配置;双击 / 组件上「配置」按钮才打开抽屉(对齐 DataEase,避免一碰就弹)
 function onSelect(id) { selectedId.value = id }
 function onEdit(id) { selectedId.value = id; cfgDrawer.value = true }
@@ -201,8 +274,14 @@ async function load() {
   // 每次打开重置选中态,避免复用组件实例残留
   selectedId.value = ''
   cfgDrawer.value = false
+  varsMgr.open = false
   const id = props.id
   const dashType = props.dashType === 'screen' ? 'screen' : 'board'
+  // 存储态 filters(options 数组)→ 编辑态(optionsText 逗号串,便于行内编辑)
+  const toEditFilters = (arr) => (arr || []).map((f) => ({
+    name: f.name, label: f.label || '', type: f.type || 'text', default: f.default ?? '',
+    optionsText: Array.isArray(f.options) ? f.options.join(',') : (f.optionsText || ''),
+  }))
   // 关键:先同步建好画布态(新建立即重置),再异步取模型/看板列表。
   // 否则 await 期间用户拖入组件,会被随后到达的重置覆盖 →「拖进去不落画布」。
   if (id) {
@@ -210,7 +289,7 @@ async function load() {
     Object.assign(dash, {
       id: d.id, name: d.name || '', dashType: d.dashType || 'board',
       canvas: d.canvas && Object.keys(d.canvas).length ? d.canvas : { mode: dashType === 'screen' ? 'free' : 'matrix', cols: 24 },
-      components: d.components || [], filters: d.filters || [], refreshInterval: d.refreshInterval || 0,
+      components: d.components || [], filters: toEditFilters(d.filters), refreshInterval: d.refreshInterval || 0,
     })
   } else {
     Object.assign(dash, {
@@ -219,6 +298,7 @@ async function load() {
       components: [], filters: [], refreshInterval: 0,
     })
   }
+  initFilterValues()
   // 模型/看板列表(放最后:期间用户即便加了组件也不会被覆盖)
   models.value = (await listModel({ pageNum: 1, pageSize: 1000 })).rows || []
   boards.value = (await listAnalysisTemplate()).data || []
@@ -227,9 +307,14 @@ async function save() {
   if (!dash.name.trim()) { ElMessage.warning('请填写看板名称'); return }
   saving.value = true
   try {
+    // 编辑态 filters(optionsText)→ 存储态(options 数组);丢弃未命名变量
+    const filters = (dash.filters || []).filter((f) => f.name).map((f) => ({
+      name: f.name, label: f.label || '', type: f.type || 'text', default: f.default ?? '',
+      ...(f.type === 'select' ? { options: (f.optionsText || '').split(',').map((s) => s.trim()).filter(Boolean) } : {}),
+    }))
     const { data } = await saveDashboard({
       id: dash.id || undefined, name: dash.name.trim(), dashType: dash.dashType,
-      canvas: dash.canvas, components: dash.components, filters: dash.filters, refreshInterval: dash.refreshInterval,
+      canvas: dash.canvas, components: dash.components, filters, refreshInterval: dash.refreshInterval,
     })
     dash.id = data.id
     ElMessage.success('已保存')
@@ -259,6 +344,13 @@ watch(() => props.modelValue, (v) => { if (v) load() })
 .de-canvas { flex: 1; min-width: 0; overflow: auto; border: 1px solid #ebeef5; border-radius: 6px; background: #f5f7fa; padding: 6px; transition: border-color .15s, background .15s; }
 .de-canvas.drop-hover { border: 1px dashed var(--el-color-primary); background: #eef5ff; }
 .de-refhint { color: #909399; font-size: 13px; line-height: 1.7; }
+.de-others { display: flex; flex-wrap: wrap; gap: 6px; }
+.de-vars-mgr { margin-bottom: 8px; padding: 8px 10px; background: #f5f7fa; border: 1px solid #ebeef5; border-radius: 6px; }
+.de-vars-mgr .vrow { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.de-vars-mgr .vrow-add { display: flex; align-items: center; gap: 10px; }
+.de-vars-mgr .tip { font-size: 12px; color: #909399; }
+.de-filter-cfg .de-frow { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.de-filter-cfg .de-fhint { color: #909399; font-size: 12px; line-height: 1.6; }
 .de-layout { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; padding: 8px 10px; background: #f5f7fa; border-radius: 6px; }
 .de-layout-lb { font-weight: 600; font-size: 13px; color: #303133; margin-right: 4px; }
 .de-lb { font-size: 12px; color: #606266; }
