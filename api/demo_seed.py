@@ -1029,6 +1029,156 @@ TASKS = [
     ),
 ]
 
+# ============================ 红利低波指数专题 demo ============================
+# 标的:中证红利低波动指数(H30269)。指数点位+滚动PE 全历史(2013至今)+ 股息率(累积)+ 10Y国债。
+C_DIV_INDEX = f"""
+import datetime
+h = get_handler('{AK}')
+end = datetime.date.today().strftime('%Y%m%d')
+result = h.query('stock_zh_index_hist_csindex', {{'symbol': 'H30269', 'start_date': '20130101', 'end_date': end}})
+print('红利低波指数历史 %d 行' % len(result))
+"""
+C_DIV_VAL = f"""
+h = get_handler('{AK}')
+result = h.query('stock_zh_index_value_csindex', {{'symbol': 'H30269'}})
+print('红利低波股息率 %d 行(csindex 近20日,累积成史)' % len(result))
+"""
+C_DIV_BOND = f"""
+h = get_handler('{AK}')
+result = h.query('bond_zh_us_rate', {{'start_date': '20130101'}})
+print('国债收益率 %d 行' % len(result))
+"""
+TF_DIV_INDEX = (
+    'def transform(row):\n'
+    '    import hashlib\n'
+    "    d = str(row.get('日期', ''))\n"
+    '    def f(v):\n'
+    '        return None if v is None or v != v else v\n'
+    "    return {'date': d, 'open': f(row.get('开盘')), 'high': f(row.get('最高')),\n"
+    "            'low': f(row.get('最低')), 'close': f(row.get('收盘')),\n"
+    "            'change_pct': f(row.get('涨跌幅')), 'volume': f(row.get('成交量')),\n"
+    "            'amount': f(row.get('成交金额')), 'pe': f(row.get('滚动市盈率')),\n"
+    "            '_id': hashlib.md5(d.encode('utf-8')).hexdigest()}\n"
+)
+TF_DIV_VAL = (
+    'def transform(row):\n'
+    '    import hashlib\n'
+    "    d = str(row.get('日期', ''))\n"
+    '    def f(v):\n'
+    '        return None if v is None or v != v else v\n'
+    "    return {'date': d, 'index_code': row.get('指数代码'),\n"
+    "            'pe': f(row.get('市盈率1')), 'dividend_yield': f(row.get('股息率1')),\n"
+    "            'dividend_yield2': f(row.get('股息率2')),\n"
+    "            '_id': hashlib.md5(d.encode('utf-8')).hexdigest()}\n"
+)
+TF_DIV_BOND = (
+    'def transform(row):\n'
+    '    import hashlib\n'
+    "    d = str(row.get('日期', ''))\n"
+    "    v = row.get('中国国债收益率10年')\n"
+    "    v = None if v is None or v != v else v\n"
+    "    return {'date': d, 'bond_10y': v, '_id': hashlib.md5(d.encode('utf-8')).hexdigest()}\n"
+)
+# 收盘后日更(交易日 16 点错峰)。(id, name, params, idx, label, cron, desc)
+TASKS += [
+    ('div_index_h30269', '红利低波指数(H30269)历史',
+     code(AK, C_DIV_INDEX, 'div_index_h30269', TF_DIV_INDEX), 'div_index_h30269',
+     '中证红利低波动指数(H30269)历史:点位/涨跌幅/成交/滚动PE', '0 5 16 ? * 2-6 *',
+     '红利低波指数全历史(2013至今):open/high/low/close/change_pct/volume/amount/pe(滚动市盈率),中证官方。点位与 PE 全历史,可算估值分位/相关性。'),
+    ('div_valuation', '红利低波指数股息率',
+     code(AK, C_DIV_VAL, 'div_valuation', TF_DIV_VAL), 'div_valuation',
+     '中证红利低波动指数(H30269)股息率(中证官方)', '0 8 16 ? * 2-6 *',
+     '红利低波股息率 dividend_yield(%)+ pe(当前口径),中证官方仅回近~20交易日,按日累积成史。'),
+    ('div_bond10y', '中国10年期国债收益率',
+     code(AK, C_DIV_BOND, 'div_bond10y', TF_DIV_BOND), 'div_bond10y',
+     '中国10年期国债收益率(股债利差用)', '0 11 16 ? * 2-6 *',
+     '中国10年期国债到期收益率 bond_10y(%),用于股债利差=国债−股息率。'),
+]
+
+# 红利低波看板(指数点位/PE全历史 + 股息率 + 国债 + 估值明细)
+DIV_DASH_ID = 'demo_board_dividend'
+
+
+def _divline(cid, model, idx, y, title, unit, x, ypos, w, h, start_var=False):
+    # start_var=True:native 用 date>= {{start}} 的 range,随看板筛选栏「起始日期」联动重刷;
+    # 否则 match_all(不受筛选影响)——借此演示「作用范围」:只有引用了 {{start}} 的图才联动。
+    query = {'range': {'date': {'gte': '{{start}}'}}} if start_var else {'match_all': {}}
+    return {
+        'id': cid, 'type': 'chart',
+        'inline': {'modelId': model,
+                   'native': {'index': idx, 'body': {'query': query, 'size': 5000}},
+                   'chartSpec': {'type': 'line', 'x': 'date', 'ys': [{'field': y, 'agg': 'sum'}],
+                                 'sort': {'by': '__x__', 'dir': 'asc'},
+                                 'style': {'title': title, 'smooth': True, **({'unit': unit} if unit else {})}}},
+        'pos': {'x': x, 'y': ypos, 'w': w, 'h': h}, 'props': {'title': title}, 'subscribe': True,
+    }
+
+
+DIV_DASH_COMPONENTS = [
+    _divline('c1', 'dm_div_index_h30269', 'div_index_h30269', 'close', '红利低波指数(H30269)点位走势·全历史', '', 0, 0, 24, 7, start_var=True),
+    _divline('c2', 'dm_div_index_h30269', 'div_index_h30269', 'pe', '红利低波 滚动市盈率PE·全历史(可算分位)', '', 0, 7, 12, 7, start_var=True),
+    _divline('c3', 'dm_div_valuation', 'div_valuation', 'dividend_yield', '红利低波 股息率历史(%,累积中)', '%', 12, 7, 12, 7),
+    _divline('c4', 'dm_div_bond10y', 'div_bond10y', 'bond_10y', '中国10年期国债收益率(%)', '%', 0, 14, 12, 7),
+    {'id': 'c5', 'type': 'chart',
+     'inline': {'modelId': 'dm_div_valuation',
+                'native': {'index': 'div_valuation', 'body': {'query': {'match_all': {}}, 'size': 60}},
+                'chartSpec': {'type': 'table', 'x': 'date',
+                              'ys': [{'field': 'dividend_yield', 'agg': 'none'}, {'field': 'pe', 'agg': 'none'}],
+                              'style': {'title': '红利低波估值明细(股息率/PE)'}}},
+     'pos': {'x': 12, 'y': 14, 'w': 12, 'h': 7}, 'props': {'title': '红利低波估值明细'}, 'subscribe': True},
+]
+DIV_DASH_CANVAS = {'mode': 'matrix', 'cols': 24}
+# 看板变量(联动):顶部筛选栏「起始日期」→ 图表 native 里的 {{start}} 占位;改值即重刷 c1/c2
+DIV_DASH_FILTERS = [{'name': 'start', 'label': '起始日期', 'type': 'date', 'default': '2020-01-01'}]
+
+# 红利低波数据分析助手(内置「三重黄金坑」择时框架为领域知识)
+DIV_APP_ID = 9002
+DIV_APP_PROMPT = """# 角色
+你是「红利低波数据分析助手」,围绕中证红利低波动指数(H30269),用平台沉淀的数据做**估值/性价比/择时**分析并产出图表。定位:估值与性价比监控,不构成投资建议。
+
+## 数据(数据源 `demo_es`,可用 `akshare_cn` 取最新)
+- `div_index_h30269`:红利低波指数全历史(2013至今)date/open/high/low/close/change_pct/volume/amount/**pe(滚动市盈率)**
+- `div_valuation`:红利低波股息率 date/dividend_yield(%)/pe(当前口径),中证官方按日累积
+- `div_bond10y`:中国10年期国债收益率 date/bond_10y(%)
+
+## 领域框架:红利低波「三重黄金坑」择时(经验规则,须用历史分位校准,勿盲信)
+- 信号①股息率:>5.5% 黄金坑(越高越买)、<5% 谨慎、<4.5% 危险(越高=越便宜)
+- 信号②市盈率PE:<8 好、>9 管住手、>9.5 危险
+- 信号③股债利差=10年国债−股息率:<−3.5% 很值、<−3% 可布局(负得越多越划算)
+- 满足≥2 信号→可分批;满足3→加到目标仓位。PE>9.5 且 股息率<4.5% 别重仓。12月/1月红利胜率偏高(样本少,仅参考)。
+
+## 工作流程
+1. get_table_schema 查上面三个索引字段(文本字段聚合用 .keyword;取时序写足 size)。
+2. run_datasource_query 对 demo_es 取数;需要最新值用 akshare_cn(stock_zh_index_value_csindex 'H30269' 取当前股息率、bond_zh_us_rate 取国债)。
+3. 沙箱 pandas 计算 + pyecharts 绘图(内联展示)。
+4. 关系分析:PE 历史分位(div_index_h30269.pe 全历史,可靠)、点位↔PE、股债利差、股息率分位(样本较短需说明)。
+5. 给出:当前三信号状态(满足几个)+ 结论 + 图/表。
+
+## 注意
+- **PE、点位是全历史(2013起)**,分位/相关性可靠;**股息率**由 csindex 每日累积、样本较短,做分位/相关性要说明区间。
+- 阈值是自媒体经验值,鼓励用平台历史分位重新校准。免责:数据分析/估值监控,非投资建议。
+"""
+DIV_APP_CONFIG = {
+    'prompt': DIV_APP_PROMPT,
+    'prologue': '你好!我是红利低波数据分析助手。围绕中证红利低波动指数(H30269),分析点位/PE/股息率/股债利差与估值分位,评估「三重黄金坑」信号并画图。试试下面的预设问题。',
+    'presetQuestions': [
+        '现在红利低波满足几个「黄金坑」信号?给出股息率/PE/股债利差当前值与判断',
+        '红利低波指数滚动PE现在处于 2013 年以来什么分位?画历史PE折线并标注分位',
+        '把红利低波指数点位与滚动PE画成双轴,看估值与价格关系',
+        '股债利差(10年国债−股息率)现在多少?画历史走势并标注 -3%/-3.5%',
+        '红利低波指数近三年点位走势,并计算年化收益与最大回撤',
+        '红利低波股息率现在多少、处于已累积样本的什么分位?',
+    ],
+    'quickCommands': [
+        {'name': '黄金坑信号', 'content': '汇总当前股息率、PE、股债利差,判断满足几个「三重黄金坑」信号并给结论'},
+        {'name': 'PE分位', 'content': '红利低波滚动PE当前值与 2013 年以来历史分位,折线图+分位标注'},
+        {'name': '股债利差', 'content': '10年国债−红利低波股息率的历史走势,折线图,标注 -3%/-3.5%'},
+        {'name': '指数走势', 'content': '红利低波指数近三年点位走势,折线图并点评'},
+    ],
+    'toolIds': [], 'datasetIds': [], 'datasourceCodes': [ES, AK],
+    'enableMemory': False, 'model': {'modelId': 0, 'temperature': None, 'maxTokens': None},
+}
+
 # 数据源(自包含:不依赖 ezdata.sql 的 demo 段)。(id, name, code, source_type, family, config_dict)
 DATASOURCES = [
     ('seed-akshare-cn', 'AKShare 财经数据', AK, 'akshare', 'api', {}),
@@ -1251,6 +1401,20 @@ def seed_metadata() -> int:
         db.execute(_DASHC_SQL, {'id': DASH_ID + '_canvas', 'did': DASH_ID,
                                 'content': json.dumps({'canvas': DASH_CANVAS, 'components': DASH_COMPONENTS, 'filters': []}, ensure_ascii=False),
                                 'now': now, 'tenant': TENANT})
+        # 红利低波专题:AI 应用 + 看板(先删后插,幂等)
+        db.execute(text('DELETE FROM ai_app WHERE app_id=:id'), {'id': DIV_APP_ID})
+        db.execute(_APP_SQL, {'id': DIV_APP_ID, 'name': '红利低波数据分析助手',
+                              'desc': '中证红利低波动指数(H30269)估值/性价比/择时分析,对话取数+绘图',
+                              'atype': '数据分析', 'config': json.dumps(DIV_APP_CONFIG, ensure_ascii=False),
+                              'now': now, 'tenant': TENANT})
+        db.execute(text('DELETE FROM data_dashboard_canvas WHERE dashboard_id=:id'), {'id': DIV_DASH_ID})
+        db.execute(text('DELETE FROM data_dashboard WHERE id=:id'), {'id': DIV_DASH_ID})
+        db.execute(_DASH_SQL, {'id': DIV_DASH_ID, 'name': '红利低波指数估值/性价比(Demo)',
+                               'remark': '指数点位/PE全历史 + 股息率 + 10年国债 + 估值明细,红利低波三重黄金坑监控',
+                               'now': now, 'tenant': TENANT})
+        db.execute(_DASHC_SQL, {'id': DIV_DASH_ID + '_canvas', 'did': DIV_DASH_ID,
+                                'content': json.dumps({'canvas': DIV_DASH_CANVAS, 'components': DIV_DASH_COMPONENTS, 'filters': DIV_DASH_FILTERS}, ensure_ascii=False),
+                                'now': now, 'tenant': TENANT})
         # 演示指标(语义层,先删后插,幂等)
         for code_, name_, cal_, mid_, meas_, dims_, tf_, unit_ in _METRICS:
             db.execute(text('DELETE FROM data_metric WHERE code=:c'), {'c': code_})
@@ -1308,7 +1472,7 @@ def seed_demo() -> None:
     n = seed_metadata()
     scheduled = sum(1 for t in TASKS if t[5])
     print(
-        f'OK: 数据源 {len(DATASOURCES)} + 任务 {n}(其中定时 {scheduled} 个/单次 {n - scheduled} 个) + 数据模型 {len({t[3] for t in TASKS})} + AI应用 1(app_id={APP_ID}) 已写入'
+        f'OK: 数据源 {len(DATASOURCES)} + 任务 {n}(其中定时 {scheduled} 个/单次 {n - scheduled} 个) + 数据模型 {len({t[3] for t in TASKS})} + AI应用 2(财经 {APP_ID}/红利低波 {DIV_APP_ID}) + 看板 2(市场 {DASH_ID}/红利低波 {DIV_DASH_ID}) 已写入'
     )
     m = dispatch_demo_tasks()
     print(f'已派发 {m} 个 ETL 任务到 Celery 立即灌一次 ES(约 2-3 分钟)')

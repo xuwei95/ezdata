@@ -24,9 +24,11 @@
         <EchartsBuilder v-if="rows.length && cfg" :rows="rows" :config="cfg" :show-controls="false" :height="chartH" />
         <el-empty v-else :description="err || '该看板无图表配置,无法预览'" />
       </template>
-      <!-- 多图 / 大屏:DashCanvas 只读 -->
+      <!-- 多图 / 大屏:筛选栏(有变量才显示)+ DashCanvas 只读 -->
       <template v-else>
-        <DashCanvas v-if="components.length" :key="renderKey" :components="components" :canvas="canvas" />
+        <DashFilterBar :filters="filters" :model-value="filterValues" @change="onFilterChange" />
+        <DashCanvas v-if="components.length" :key="renderKey" :components="components" :canvas="canvas"
+          :chart-params="chartParams" :filters="filters" @filter-change="onFilterChange" />
         <el-empty v-else :description="err || '空看板'" />
       </template>
     </div>
@@ -34,12 +36,13 @@
 </template>
 
 <script setup name="PreviewDialog">
-import { ref, computed, watch } from 'vue'
+import { ref, reactive, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { getAnalysisTemplate, getDashboard } from '@/api/dataManage/data'
 import EchartsBuilder from '../visualization/EchartsBuilder.vue'
 import { isEchartsCfg, fetchBoardRows, paramsToValues } from '../visualization/board.js'
 import DashCanvas from './DashCanvas.vue'
+import DashFilterBar from './DashFilterBar.vue'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -65,6 +68,20 @@ const cfg = ref(null)
 const components = ref([])
 const canvas = ref({ mode: 'matrix', cols: 24 })
 const renderKey = ref(0)
+// 联动筛选
+const filters = ref([])
+const filterValues = reactive({})
+const chartParams = computed(() => paramsToValues((filters.value || []).map((f) => ({ ...f, value: filterValues[f.name] }))))
+function syncFilterValues() {
+  const names = new Set()
+  for (const f of filters.value || []) {
+    if (!f || !f.name) continue
+    names.add(f.name)
+    if (!(f.name in filterValues)) filterValues[f.name] = f.default ?? (f.type === 'daterange' ? null : '')
+  }
+  Object.keys(filterValues).forEach((k) => { if (!names.has(k)) delete filterValues[k] })
+}
+function onFilterChange({ name, value }) { if (name) filterValues[name] = value }
 
 async function load() {
   const id = props.row?.id
@@ -83,6 +100,8 @@ async function load() {
       const d = (await getDashboard(id, true)).data || {}
       canvas.value = d.canvas && Object.keys(d.canvas).length ? d.canvas : { mode: 'matrix', cols: 24 }
       components.value = d.components || []
+      filters.value = d.filters || []
+      syncFilterValues()
       renderKey.value++
     }
     lastUpdate.value = new Date().toLocaleTimeString()
@@ -102,6 +121,7 @@ function openFull() {
 watch(() => props.modelValue, (v) => {
   if (v) {
     rows.value = []; cfg.value = null; components.value = []; err.value = ''; lastUpdate.value = ''
+    filters.value = []; Object.keys(filterValues).forEach((k) => delete filterValues[k])
     load()
   }
 })
