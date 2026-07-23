@@ -88,7 +88,9 @@ _WEAK_AGENT_NUDGE = (
     '② 出图/建任务/ES 等专项先 load_skill 拿手册再动手,别凭记忆硬写;'
     '③ handler.query 严格按 get_table_schema 给出的该源写法调用——'
     'ES 是单个 dict `handler.query({"index":"索引","body":{DSL}})`,不要写成 handler.query("索引", {DSL}) 两参;'
-    '④ 聚合尽量下推到查询(ES 用 aggs+size:0、文本字段用 .keyword),别只靠前端/记忆估算。'
+    '④ 聚合尽量下推到查询(ES 用 aggs+size:0、文本字段用 .keyword),别只靠前端/记忆估算;'
+    '⑤ 沙箱每次执行都是全新隔离进程、不保留上次的变量——取数与加工写进同一段 code,'
+    '别引用上一次调用留下的 result/df(否则 NameError)。'
 )
 
 # 用户可在「工具」下拉里自选、按需挂载的内置工具集 code(其余内置工具由平台按能力自动挂载:
