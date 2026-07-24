@@ -1,0 +1,63 @@
+# 财经 demo 回归用例(对 demo_es 的确定性数据)。
+# fixtures 按 <id>.run<k>.jsonl 自动发现;live 模式实跑后自动录制到 fixtures/。
+
+- id: div_bond10y_trend
+  question: 画一下十年期国债收益率的历史走势折线图
+  model_id: 0
+  runs: 3
+  tags: [取数, 出图]
+  known_tables: [div_bond10y, div_index_h30269, div_valuation]
+  checks:
+    - tool_ran_ok
+    - {type: used_datasource, code: demo_es}
+    - {type: result_nonempty, min_rows: 20}
+    - {type: chart, chart_type: line, min_rows: 20}
+    - no_hallucinated_table
+
+- id: maotai_close_line
+  question: 贵州茅台最近的收盘价走势画成折线
+  model_id: 0
+  runs: 2
+  tags: [取数, 出图]
+  checks:
+    - tool_ran_ok
+    - {type: result_nonempty, min_rows: 10}
+    - {type: chart, min_rows: 10}
+
+- id: stock_topn_amount
+  question: 成交额最高的前10只股票,柱状图
+  model_id: 0
+  runs: 2
+  tags: [出图, TopN]
+  checks:
+    - tool_ran_ok
+    - {type: result_nonempty, min_rows: 5}
+    - {type: chart, min_rows: 5}
+
+- id: div_dividend_yield_kpi
+  question: 红利低波指数当前股息率是多少
+  model_id: 0
+  runs: 1
+  tags: [取数, KPI]
+  checks:
+    - tool_ran_ok
+    - {type: chart}
+
+- id: bond_fetch_only
+  question: 取一下十年期国债收益率数据,给我最近几条
+  model_id: 0
+  runs: 1
+  tags: [取数]
+  checks:
+    - tool_ran_ok
+    - {type: used_datasource, code: demo_es}
+    - {type: result_nonempty, min_rows: 3}
+
+- id: propose_daily_task
+  question: 帮我建一个每天取十年期国债收益率的定时任务
+  model_id: 0
+  runs: 1
+  tags: [任务提议]
+  checks:
+    - tool_ran_ok
+    - {type: task_proposal}

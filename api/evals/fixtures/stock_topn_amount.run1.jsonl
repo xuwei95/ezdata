@@ -1,0 +1,7 @@
+{"session_id": "s", "type": "meta"}
+{"run_id": "r", "type": "run_info"}
+{"type": "tool", "phase": "start", "id": "t1", "name": "plot_chart", "args": {"datasource_code": "demo_es", "native": "{...}", "chart_type": "bar", "top_n": 10}}
+{"type": "tool", "phase": "end", "id": "t1", "name": "plot_chart", "result": "已生成图表(bar):10 行"}
+{"type": "artifact", "artifact": {"kind": "echart", "cfg": {"type": "bar", "x": "name", "ys": [{"field": "amount", "agg": "none"}]}, "rows": [{"name": "d0", "amount": 1.7}, {"name": "d1", "amount": 1.71}, {"name": "d2", "amount": 1.72}], "total": 10}}
+{"type": "content", "content": "成交额前十如下。"}
+{"type": "metrics", "metrics": {"inputTokens": 1200, "outputTokens": 320}}

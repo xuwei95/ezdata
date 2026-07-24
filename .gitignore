@@ -177,3 +177,6 @@ tmp/
 .verify/
 
 logs/
+# eval 运行产物(评测报告/JSON + live 录制子目录),不入库;保留手写 replay fixtures
+api/runs/
+api/evals/fixtures/*/

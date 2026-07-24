@@ -1,0 +1,7 @@
+{"session_id": "s", "type": "meta"}
+{"run_id": "r", "type": "run_info"}
+{"type": "tool", "phase": "start", "id": "t1", "name": "plot_chart", "args": {"datasource_code": "demo_es", "native": "{...}", "chart_type": "kpi"}}
+{"type": "tool", "phase": "end", "id": "t1", "name": "plot_chart", "result": "已生成图表(kpi):1 行"}
+{"type": "artifact", "artifact": {"kind": "echart", "cfg": {"type": "kpi", "x": "", "ys": [{"field": "dividend_yield", "agg": "none"}]}, "rows": [{"": "d0", "dividend_yield": 1.7}], "total": 1}}
+{"type": "content", "content": "当前股息率约 5.6%。"}
+{"type": "metrics", "metrics": {"inputTokens": 1200, "outputTokens": 320}}
