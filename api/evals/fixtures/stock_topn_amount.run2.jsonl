@@ -1,0 +1,7 @@
+{"session_id": "s", "type": "meta"}
+{"run_id": "r", "type": "run_info"}
+{"type": "tool", "phase": "start", "id": "t1", "name": "run_datasource_query", "args": {"datasource_code": "demo_es", "code": "result = rows"}}
+{"type": "tool", "phase": "end", "id": "t1", "name": "run_datasource_query", "result": "返回 10 行"}
+{"type": "artifact", "artifact": {"kind": "table", "rows": [{"a": 0}, {"a": 1}, {"a": 2}], "total": 10}}
+{"type": "content", "content": "这是成交额前十的表格。"}
+{"type": "metrics", "metrics": {"inputTokens": 1200, "outputTokens": 320}}

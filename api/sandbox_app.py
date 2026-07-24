@@ -392,10 +392,11 @@ def _run_pycode(kind: str, payload: dict) -> dict:
         ds = payload.get('datasource') or {}
         try:
             from ezdata.handlers import create_handler
+            from ezdata.handlers.sandbox_guard import read_only
 
-            g['handler'] = create_handler(
+            g['handler'] = read_only(create_handler(
                 ds.get('source_type'), ds.get('config') or {}, ds.get('secrets') or {}, cache=False
-            )  # 沙箱 fork 子进程用完即死,不缓
+            ))  # 沙箱 fork 子进程用完即死,不缓;只读代理:query 走只读护栏、禁写路径
             g['datasource'] = g['handler']  # 别名
         except Exception as e:
             return {'success': False, 'error': f'数据源连接失败: {type(e).__name__}: {e}', 'stdout': '', 'result': None}
@@ -404,14 +405,15 @@ def _run_pycode(kind: str, payload: dict) -> dict:
         dsmap = payload.get('datasources') or {}
         try:
             from ezdata.handlers import create_handler
+            from ezdata.handlers.sandbox_guard import read_only
 
             def _get_handler(code: str) -> Any:
                 ds = dsmap.get(code)
                 if not ds:
                     raise ValueError(f'数据源未授权或未注入: {code}')
-                return create_handler(
+                return read_only(create_handler(  # 只读代理:query 走只读护栏、禁写路径
                     ds.get('source_type'), ds.get('config') or {}, ds.get('secrets') or {}, cache=False
-                )
+                ))
 
             g['get_handler'] = _get_handler
             if len(dsmap) == 1:

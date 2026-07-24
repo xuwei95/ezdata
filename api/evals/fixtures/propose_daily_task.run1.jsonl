@@ -1,0 +1,7 @@
+{"session_id": "s", "type": "meta"}
+{"run_id": "r", "type": "run_info"}
+{"type": "tool", "phase": "start", "id": "t1", "name": "propose_data_integration_task", "args": {"name": "每日国债取数"}}
+{"type": "tool", "phase": "end", "id": "t1", "name": "propose_data_integration_task", "result": "已生成任务提议,请确认"}
+{"type": "ui_action", "action": {"kind": "task_proposal", "template_code": "data_integration", "name": "每日国债取数", "trigger_type": "cron", "crontab": "0 30 16 * * ?"}}
+{"type": "content", "content": "已为你准备好每日取数任务,请在卡片里确认。"}
+{"type": "metrics", "metrics": {"inputTokens": 1200, "outputTokens": 320}}

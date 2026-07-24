@@ -1,0 +1,7 @@
+{"session_id": "s", "type": "meta"}
+{"run_id": "r", "type": "run_info"}
+{"type": "tool", "phase": "start", "id": "t1", "name": "get_table_schema", "args": {"datasource_code": "demo_es", "table": "div_bond10y"}}
+{"type": "tool", "phase": "end", "id": "t1", "name": "get_table_schema", "result": "字段: date, bond_10y"}
+{"type": "tool", "phase": "start", "id": "t2", "name": "run_datasource_query", "args": {"datasource_code": "demo_es", "code": "result = df[['date','bond_10y']]"}}
+{"type": "tool", "phase": "error", "id": "t2", "name": "run_datasource_query", "error": "NameError: name 'df' is not defined"}
+{"type": "content", "content": "抱歉,出错了。"}

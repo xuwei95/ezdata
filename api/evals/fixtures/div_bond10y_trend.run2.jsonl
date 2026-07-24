@@ -1,0 +1,9 @@
+{"session_id": "s", "type": "meta"}
+{"run_id": "r", "type": "run_info"}
+{"type": "tool", "phase": "start", "id": "t1", "name": "get_table_schema", "args": {"datasource_code": "demo_es", "table": "div_bond10y"}}
+{"type": "tool", "phase": "end", "id": "t1", "name": "get_table_schema", "result": "字段: date, bond_10y"}
+{"type": "tool", "phase": "start", "id": "t2", "name": "plot_chart", "args": {"datasource_code": "demo_es", "native": "{...}", "chart_type": "line"}}
+{"type": "tool", "phase": "end", "id": "t2", "name": "plot_chart", "result": "已生成图表(line):130 行数据"}
+{"type": "artifact", "artifact": {"kind": "echart", "cfg": {"type": "line", "x": "date", "ys": [{"field": "bond_10y", "agg": "none"}]}, "rows": [{"date": "d0", "bond_10y": 1.7}, {"date": "d1", "bond_10y": 1.71}, {"date": "d2", "bond_10y": 1.72}], "total": 130}}
+{"type": "content", "content": "十年期国债收益率整体呈下行趋势。"}
+{"type": "metrics", "metrics": {"inputTokens": 1200, "outputTokens": 320}}
