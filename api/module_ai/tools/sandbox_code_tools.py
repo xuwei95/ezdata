@@ -322,6 +322,26 @@ def _error_hint(err: str) -> str:
             '取数用 run_datasource_query 把 handler.query(...) 与后续加工写进同一段 code;'
             '纯计算用 run_python_code 时把输入数据直接写进 code。)'
         )
+    # 顶层 return:代码是在模块级 exec 的,没有函数体——把要返回的值赋给变量 result 即可
+    if "'return' outside function" in e or 'return outside function' in e:
+        return (
+            '(沙箱代码在模块级执行,没有函数体,不能写顶层 return。'
+            '把最终结果**赋值给变量 result** 即可,例如 `result = {"type":"html","value": chart.render_embed()}`;'
+            '不要用 return。)'
+        )
+    # 出图库被拦:沙箱只允许 pyecharts,禁 matplotlib/seaborn/plotly
+    if 'matplotlib' in e or 'seaborn' in e or 'plotly' in e:
+        return (
+            '(沙箱禁止 matplotlib/seaborn/plotly,出图只用 **pyecharts**:'
+            'from pyecharts.charts import Line/Bar/...;算好后 '
+            'result = {"type":"html","value": chart.render_embed()}。)'
+        )
+    # 把 handler.query 的返回(list[dict])当成了 DataFrame
+    if "'list' object has no attribute" in e:
+        return (
+            '(handler.query 返回的是 **list[dict]**,不是 DataFrame;'
+            '要用 pandas 请先 `import pandas as pd; df = pd.DataFrame(result)` 再 .head()/.groupby() 等。)'
+        )
     return ''
 
 

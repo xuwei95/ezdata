@@ -415,6 +415,10 @@ class AiSettings(BaseSettings):
     llm_max_tokens: int = 128000
     llm_reasoning: bool = False  # LLM_REASONING=true:兜底模型是"深度思考(带 think)"模型,放开推理内容展示
     llm_support_images: bool = False  # LLM_SUPPORT_IMAGES=true:兜底模型支持图片输入(多模态)
+    # agno 2.8 工具调用旋钮(0=显式关闭):对话 Agent 全局生效,治弱模型工具暴走循环 + 控历史 token
+    # tool_call_limit 默认 25 当安全阀:正常数据任务极少超 ~15,只兜住失控打转(实测弱模型曾单轮 28 次)
+    llm_tool_call_limit: int = 25  # LLM_TOOL_CALL_LIMIT:单轮最多工具调用数(0=关)
+    llm_max_tool_calls_from_history: int = 0  # LLM_MAX_TOOL_CALLS_FROM_HISTORY:载入上下文的历史工具调用对上限(控 token,0=关)
 
     @property
     def enabled(self) -> bool:

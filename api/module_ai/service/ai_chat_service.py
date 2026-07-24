@@ -344,7 +344,25 @@ class AiChatService:
             markdown=True,
             pre_hooks=build_pre_hooks(),
             **cls._memory_kwargs(model_config, enable_memory),
+            **cls._tool_call_kwargs(),
         )
+
+    @classmethod
+    def _tool_call_kwargs(cls) -> dict:
+        """agno 2.8 工具调用旋钮(env 可调,0=不启用,不改既有行为):
+
+        - tool_call_limit:单轮工具调用上限,防弱模型工具暴走循环 / 失控成本;
+        - max_tool_calls_from_history:载入上下文的历史工具调用对上限,控长会话 token。
+        默认全关;要试就设 LLM_TOOL_CALL_LIMIT / LLM_MAX_TOOL_CALLS_FROM_HISTORY,再用 evals 对拍通过率。
+        """
+        from config.env import AiConfig
+
+        kw: dict = {}
+        if getattr(AiConfig, 'llm_tool_call_limit', 0):
+            kw['tool_call_limit'] = int(AiConfig.llm_tool_call_limit)
+        if getattr(AiConfig, 'llm_max_tool_calls_from_history', 0):
+            kw['max_tool_calls_from_history'] = int(AiConfig.llm_max_tool_calls_from_history)
+        return kw
 
     @classmethod
     def _memory_kwargs(cls, model_config: AiModelModel, enable_memory: bool) -> dict:
