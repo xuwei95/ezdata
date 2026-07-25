@@ -52,6 +52,14 @@ export default defineConfig(({ mode, command }) => {
           target: process.env.VITE_DEV_PROXY_TARGET || 'http://127.0.0.1:9099',
           changeOrigin: true,
           rewrite: (p) => p.replace(/^\/dev-api/, '')
+        },
+        // GitHub SSO 回调走 /api（GITHUB_REDIRECT_URI 钉死在 /api），与前端自身的 /dev-api 前缀不一致。
+        // 加一条 /api 代理到同一后端，使 /api/oauth/github/callback 能被后端接住（否则落到 SPA→守卫弹回登录页）。
+        // 前端路由无 /api 前缀，不冲突。
+        '/api': {
+          target: process.env.VITE_DEV_PROXY_TARGET || 'http://127.0.0.1:9099',
+          changeOrigin: true,
+          rewrite: (p) => p.replace(/^\/api/, '')
         }
       }
     },

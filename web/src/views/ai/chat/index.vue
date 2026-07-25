@@ -474,6 +474,7 @@ import {
   cancelChatRun,
 } from "@/api/ai/chat";
 import { getToken } from "@/utils/auth";
+import { copyToClipboard } from "@/utils/clipboard";
 import AiMessage from "./components/AiMessage.vue";
 import { Picture, DocumentCopy } from "@element-plus/icons-vue";
 import { v4 as uuidv4 } from "uuid";
@@ -887,19 +888,15 @@ function clearChat() {
   currentSessionAgentData.value = null;
 }
 
-function copyText(text) {
+async function copyText(text) {
   if (!text) {
     proxy.$modal.msgWarning("内容为空，无法复制");
     return;
   }
-  navigator.clipboard
-    .writeText(text)
-    .then(() => {
-      proxy.$modal.msgSuccess("复制成功");
-    })
-    .catch(() => {
-      proxy.$modal.msgError("复制失败");
-    });
+  // navigator.clipboard 仅安全上下文(https/localhost)可用;http://公网IP 下为 undefined,
+  // 直接调 .writeText 会同步抛错、连 .catch 都进不去 → 点了没反应。改走健壮工具(自动降级 execCommand)。
+  const ok = await copyToClipboard(text);
+  ok ? proxy.$modal.msgSuccess("复制成功") : proxy.$modal.msgError("复制失败");
 }
 
 function triggerImageUpload() {

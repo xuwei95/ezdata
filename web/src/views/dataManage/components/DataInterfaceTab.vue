@@ -68,6 +68,7 @@
 import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { t as $t } from '@/lang'
+import { copyToClipboard } from '@/utils/clipboard'
 import { getOperators, searchModel } from '@/api/dataManage/data'
 import { listToken, addToken, delToken } from '@/api/apitoken/token'
 import FilterBuilder from './FilterBuilder.vue'
@@ -171,7 +172,11 @@ async function preview() {
   }
 }
 
-function copyText(t) { navigator.clipboard.writeText(t); ElMessage.success($t('已复制')) }
+// http://公网IP 非安全上下文下 navigator.clipboard 为 undefined,直接调会抛错;走健壮工具(自动降级 execCommand)
+async function copyText(t) {
+  const ok = await copyToClipboard(t)
+  ok ? ElMessage.success($t('已复制')) : ElMessage.error($t('复制失败'))
+}
 
 function copyQueryString() {
   const s = qs()
