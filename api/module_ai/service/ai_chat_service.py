@@ -115,7 +115,15 @@ def _default_builtin_codes(message: str | None) -> list[str]:
 
 
 def _make_baidu_tools() -> Any:
-    """百度搜索工具集(懒加载:缺依赖时仅此工具不可用,不影响其它工具装配)。"""
+    """百度搜索工具集。
+
+    构造时 eager 校验可选依赖(baidusearch/pycountry)——agno 的 BaiduSearchTools 是懒加载
+    (import 在搜索方法内),不校验会"挂得上、调用才 ImportError",冒泡到流处理外层拖垮整轮对话。
+    这里主动 import 触发依赖检查:缺依赖→抛错→由 _assemble_tools 的 try/except 跳过并告警(工具缺席
+    而非中途炸),符合"单个内置工具构造失败只跳过"的既定策略。
+    """
+    import baidusearch  # noqa: F401  eager 触发依赖检查
+    import pycountry  # noqa: F401
     from agno.tools.baidusearch import BaiduSearchTools
 
     return BaiduSearchTools()
@@ -265,6 +273,7 @@ class AiChatService:
         skills: list | None = None,
         metrics: list | None = None,
         question: str | None = None,
+        is_reasoning: bool = False,
     ) -> Agent:
         """
         构建对话Agent对象
@@ -282,7 +291,7 @@ class AiChatService:
         :param num_history: 历史消息轮数
         :return: Agent对象
         """
-        model = cls._make_model(model_config, temperature)
+        model = cls._make_model(model_config, temperature, is_reasoning)
         storage = AiUtil.get_storage_engine()
         tools = cls._assemble_tools(
             artifacts=artifacts,
@@ -381,8 +390,15 @@ class AiChatService:
         return {'memory_manager': mm, 'enable_user_memories': True, 'add_memories_to_context': True}
 
     @classmethod
-    def _make_model(cls, model_config: AiModelModel, temperature: float) -> Any:
-        """按模型配置造 agno 模型对象(含 Anthropic 禁并行工具调用的网关修复)。"""
+    def _make_model(cls, model_config: AiModelModel, temperature: float, is_reasoning: bool = False) -> Any:
+        """按模型配置造 agno 模型对象(含 Anthropic 禁并行工具调用的网关修复)。
+
+        is_reasoning=True 且为 OpenAI 兼容网关时,显式在请求体注入思考开关:这类聚合网关
+        (如本兜底的 deepseek-v4-pro)默认「不思考」,思考须 opt-in——经 agno 的 extra_body
+        透传到下游 JSON 顶层。实测该网关接受 Anthropic 风格 {"thinking":{"type":"enabled"}}
+        (reasoning_effort 被无视、enable_thinking 报 400)。仅在深度思考开启时注入,故
+        LLM_REASONING=false / 前端关思考 时 is_reasoning 恒 False → 走默认快模式(首 token 快)。
+        """
         # api_key 由调用方解密(DB 模型)或本就明文(环境变量兜底模型)后传入
         model = AiUtil.get_model_from_factory(
             provider=model_config.provider,
@@ -393,10 +409,16 @@ class AiChatService:
             temperature=temperature,
             max_tokens=model_config.max_tokens,
         )
+        provider = (model_config.provider or '').lower()
+        # OpenAI 兼容网关:开思考时显式注入 extra_body(Anthropic 自有 thinking 通道,此处不管)
+        if is_reasoning and provider != 'anthropic':
+            eb = dict(getattr(model, 'extra_body', None) or {})
+            eb.setdefault('thinking', {'type': 'enabled'})
+            model.extra_body = eb
         # Anthropic(经网关)在"并行工具调用 + 多个工具结果一次回灌"时,续轮会返回空 → 任务半截
         # 而止("调了两个工具就断")。禁用并行工具调用(强制模型一次只调一个),续轮即正常。
         # 该 tool_choice 形态为 Anthropic 专用;经 request_params 才会真正传到下游。
-        if (model_config.provider or '').lower() == 'anthropic':
+        if provider == 'anthropic':
             rp = dict(getattr(model, 'request_params', None) or {})
             rp.setdefault('tool_choice', {'type': 'auto', 'disable_parallel_tool_use': True})
             model.request_params = rp
@@ -870,6 +892,7 @@ class AiChatService:
             skills=skills,
             metrics=metrics,
             question=chat_req.message,
+            is_reasoning=is_reasoning,
         )
         stream_kwargs = dict(
             chat_req=chat_req,
