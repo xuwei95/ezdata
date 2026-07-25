@@ -29,6 +29,7 @@
 <script setup name="TokenDialog">
 import { ref } from "vue";
 import { ElMessage } from "element-plus";
+import { copyToClipboard } from "@/utils/clipboard";
 import { listToken, addToken, delToken } from "@/api/apitoken/token";
 
 const visible = defineModel("visible", { type: Boolean, default: false });
@@ -60,9 +61,10 @@ function apply() {
 function remove(id) {
   delToken(id).then(() => load());
 }
-function copy(t) {
-  navigator.clipboard?.writeText(t);
-  ElMessage.success("已复制");
+async function copy(t) {
+  // http://公网IP 下 navigator.clipboard 为 undefined,原来 ?. 静默失败却仍提示"已复制"。走健壮工具并按结果提示。
+  const ok = await copyToClipboard(t);
+  ok ? ElMessage.success("已复制") : ElMessage.error("复制失败");
 }
 </script>
 
