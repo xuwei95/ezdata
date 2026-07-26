@@ -9,6 +9,15 @@ export function listTool(query) {
   });
 }
 
+// 查询AI工具不分页列表(仅需登录，供对话/应用选工具，普通用户可用)
+export function listToolAll(query) {
+  return request({
+    url: "/ai/tool/all",
+    method: "get",
+    params: query,
+  });
+}
+
 // 查询AI工具详细
 export function getTool(toolId) {
   return request({
