@@ -48,6 +48,24 @@ async def get_ai_tool_list(
     return ResponseUtil.success(model_content=result)
 
 
+@ai_tool_controller.get(
+    '/all',
+    summary='获取AI工具不分页列表(供对话/应用选工具)',
+    response_model=DataResponseModel[AiToolModel],
+)
+async def get_ai_tool_all(
+    request: Request,
+    ai_tool_page_query: Annotated[AiToolPageQueryModel, Query()],
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
+    data_scope_sql: Annotated[ColumnElement, DataScopeDependency(AiTool)],
+) -> Response:
+    # 对话「选 MCP 工具」等场景普通用户需可读工具列表,故不挂 ai:tool:list 管理权限(仅控制器级登录校验),
+    # 与 /ai/model/all(供选模型下拉)一致;数据范围仍按 DataScopeDependency 隔离。
+    result = await AiToolService.get_ai_tool_list_services(query_db, ai_tool_page_query, data_scope_sql, is_page=False)
+    logger.info('获取成功')
+    return ResponseUtil.success(data=result)
+
+
 @ai_tool_controller.post(
     '',
     summary='新增AI工具接口',

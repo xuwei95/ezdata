@@ -463,7 +463,7 @@
 
 <script setup name="AiChat">
 import { listModelAll } from "@/api/ai/model";
-import { listTool } from "@/api/ai/tool";
+import { listToolAll } from "@/api/ai/tool";
 import { listAppAll } from "@/api/ai/app";
 import {
   listChatSession,
@@ -563,8 +563,9 @@ const agentAppOptions = ref([]);
 const selectedAgentAppIds = ref([]);
 
 function loadMcpTools() {
-  listTool({ pageNum: 1, pageSize: 200, toolType: "mcp" }).then((res) => {
-    mcpToolOptions.value = res.rows || [];
+  // 用 /ai/tool/all(仅需登录)而非 /list(需 ai:tool:list 管理权限),否则普通用户选 MCP 工具时报错
+  listToolAll({ toolType: "mcp" }).then((res) => {
+    mcpToolOptions.value = res.data || [];
   });
 }
 
