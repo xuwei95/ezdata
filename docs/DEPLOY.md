@@ -1,3 +1,5 @@
+> **简体中文** | [English](DEPLOY.en.md)
+
 # ezdata 部署指南
 
 > 适用分支:`v2.0`。本文反映**当前实际部署形态**(容器-per-service,无 supervisord;Scheduler 进程内;ES8 + MinIO 已纳入 compose;调试层沙箱已就位)。

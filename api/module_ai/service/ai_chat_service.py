@@ -61,7 +61,7 @@ def _short_args(args: Any, n: int = 600) -> Any:
 # 这是工具用法层面的固定规则(由我们提供的工具决定),与用户自定义 system_prompt 叠加生效。
 # 常驻核心(每轮注入):只保留不可省的漏斗主流程。出图/ES/任务cron 等条件性专题已抽成
 # 内置 Skill(chart_building/es_query/task_scheduling),由模型按需 load_skill 拉取——
-# 详见 module_ai/docs/skill-agent-optimization.md。
+# 详见 docs/skill-agent-optimization.md。
 _DATA_AGENT_INSTRUCTIONS: list[str] = [
     '你是 ezdata 的数据分析助手:可发现数据源、查表结构、检索数据源知识库,并在沙箱里跑取数/计算代码、产出结论与图表表格。',
     '取数工作流(务必按序,目标是尽量少绕圈、少调工具):',
@@ -75,7 +75,7 @@ _DATA_AGENT_INSTRUCTIONS: list[str] = [
     '4. 取数/计算成功后正常作答;无需声称”已存入知识库”(由用户点”收藏到知识库”决定)。',
     '一句话:先复用已验证解法,不行再发现现写;能省一轮工具调用就省一轮。',
     # 条件性专题的完整手册在内置技能里,按需 load_skill;此处只留各自「一条最易错的关键规则」兜底,
-    # 防模型跳过加载时丢掉要点(完整版见 module_ai/docs/skill-agent-optimization.md)。
+    # 防模型跳过加载时丢掉要点(完整版见 docs/skill-agent-optimization.md)。
     '出图:默认 plot_chart 且让 native(SQL 写 GROUP BY/ORDER BY/LIMIT、度量 agg=none)**直接返回要画的最终值**,'
     '别靠前端二次聚合(会把总和/极值算错);多重聚合/多步计算才改 run_datasource_query 写代码——完整分流规则 load_skill("chart_building")。',
     'Elasticsearch 源:文本字段做聚合/精确匹配/排序必须用 .keyword 子字段;取明细/时序要显式写足 size(默认只回10条)——更多注意 load_skill("es_query")。',

@@ -1,3 +1,5 @@
+> **简体中文** | [English](SECURITY.en.md)
+
 # Security Policy / 安全策略
 
 ## Supported Versions / 支持版本
@@ -53,4 +55,4 @@ In scope / 属于范围内(欢迎报告):
 - SSRF / injection / RCE reachable **without** the code-execution permission
   （无需代码执行权限即可触达的 SSRF / 注入 / RCE)
 
-Hardening guidance for operators is in [`docs/DEPLOY.md` §10](docs/DEPLOY.md)（部署加固见 DEPLOY §10:强随机密钥、沙箱默认开启 + egress 白名单、收敛暴露面、多租户默认拒绝等)。
+Hardening guidance for operators is in [`docs/DEPLOY.md` §10](DEPLOY.md)（部署加固见 DEPLOY §10:强随机密钥、沙箱默认开启 + egress 白名单、收敛暴露面、多租户默认拒绝等)。

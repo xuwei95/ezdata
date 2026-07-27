@@ -1,3 +1,5 @@
+> **简体中文** | [English](metric-layer-and-lineage-design.en.md)
+
 # 设计文档:指标层(P1)+ 任务级血缘(P2)—— 可执行方案
 
 > 状态:P1a 指标层 + P1b 下推 + P2a 血缘图 **已落地**;P1b「AI 起草候选」待做(见 §3)。

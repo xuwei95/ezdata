@@ -1,3 +1,5 @@
+> **简体中文** | [English](DATA_MODULE_DESIGN.en.md)
+
 # 数据模块设计说明(数据管理 + 数据集成 + 数据接口)
 
 > 本文描述 `module_data`(数据管理 / 数据集成 / 数据接口)的设计与实现,以已落地代码为准:`module_data/handlers`(60+ 源连接器 + 能力位 + 统一 filters + connection_schema)。
