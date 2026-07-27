@@ -92,16 +92,21 @@ const loginForm = ref({
   uuid: ""
 });
 
-const loginRules = {
+// 验证码开关(getCode 时按后端 sys.account.captchaEnabled 更新)
+const captchaEnabled = ref(true);
+
+// code 规则随验证码开关动态:关闭验证码时不校验。否则隐藏的 code 字段仍 required,
+// 表单校验永远失败 → handleLogin 不发请求 → 关验证码后无法从 UI 登录。
+const loginRules = computed(() => ({
   username: [{ required: true, trigger: "blur", message: "请输入您的账号" }],
   password: [{ required: true, trigger: "blur", message: "请输入您的密码" }],
-  code: [{ required: true, trigger: "change", message: "请输入验证码" }]
-};
+  ...(captchaEnabled.value
+    ? { code: [{ required: true, trigger: "change", message: "请输入验证码" }] }
+    : {})
+}));
 
 const codeUrl = ref("");
 const loading = ref(false);
-// 验证码开关
-const captchaEnabled = ref(true);
 // 注册开关
 const register = ref(false);
 const redirect = ref(undefined);
