@@ -1,3 +1,5 @@
+> **简体中文** | [English](DAG_WORKFLOW.en.md)
+
 # DAG 工作流编排 设计说明
 
 > 本文描述 `module_task_schedule` 之上的 DAG(有向无环图)工作流编排的设计与实现:多任务按依赖串/并行执行、AntV X6 可视化画布编辑、运行态监控;不引入重型外部引擎,复用 Celery + runner 执行底座。

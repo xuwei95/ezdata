@@ -1,3 +1,5 @@
+> **简体中文** | [English](CHANGELOG.en.md)
+
 # 更新日志
 
 > 下方为上游 RuoYi-Vue3-FastAPI 的更新日志;ezdata 自身变更记于此段。

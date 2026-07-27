@@ -1,3 +1,5 @@
+> **简体中文** | [English](catalog-retrieval-narrowing-design.en.md)
+
 # 设计文档:数据目录检索收窄(Catalog Retrieval)—— 全量注入 → 向量 Top-K
 
 > 状态:草案 / 待评审

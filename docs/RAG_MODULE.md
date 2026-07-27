@@ -1,3 +1,5 @@
+> **简体中文** | [English](RAG_MODULE.en.md)
+
 # 知识库(RAG)模块 设计说明
 
 > 本文描述 `module_rag` 知识库(RAG)的设计与实现,作为 AI 原生数据平台的「知识层」。

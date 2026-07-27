@@ -1,3 +1,5 @@
+> **简体中文** | [English](skill-agent-optimization.en.md)
+
 # 设计文档:内置 Skill 化 + Skill×数据绑定 —— 精简 agent 常驻上下文
 
 > 状态:草案 / 待评审

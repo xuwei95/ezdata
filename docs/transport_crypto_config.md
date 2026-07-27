@@ -1,3 +1,5 @@
+> **简体中文** | [English](transport_crypto_config.en.md)
+
 # 传输层加解密配置说明
 
 ## 模式说明

@@ -1,7 +1,7 @@
 """数据目录向量检索(catalog retrieval narrowing)。
 
 把 data_model(表)做 embedding 存入独立索引 `ez_catalog_index`,按当轮问题检索 Top-K 相关表,
-替代 build_data_catalog 的全量注入(见 module_ai/docs/catalog-retrieval-narrowing-design.md)。
+替代 build_data_catalog 的全量注入(见 docs/catalog-retrieval-narrowing-design.md)。
 
 - 复用 module_rag 的 EmbeddingClient + ES 向量库(EsVectorStore),与用户知识库**物理隔离**。
 - 索引 mapping 复用 EsVectorStore.ensure_index:用 dataset_id 存 datasource_code(可过滤 scope),

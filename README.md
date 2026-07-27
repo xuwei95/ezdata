@@ -1,5 +1,5 @@
 <h1 align="center">ezdata</h1>
-<h4 align="center">AI 原生数据平台 —— 数据接入 · ETL 集成 · 任务编排 · 知识库 RAG · AI 分析</h4>
+<h4 align="center">AI-native data platform — data ingestion · ETL integration · task orchestration · knowledge base (RAG) · AI analysis</h4>
 
 <p align="center">
   <img alt="python" src="https://img.shields.io/badge/python-≥3.10-blue">
@@ -10,108 +10,113 @@
 </p>
 
 <p align="center">
-  🌐 在线演示:<a href="http://124.220.57.72/"><b>http://124.220.57.72/</b></a>
+  <b>English</b> | <a href="README.zh-CN.md">简体中文</a>
 </p>
 
-> ezdata 是一个 AI 原生的数据平台:统一接入异构数据源,做 ETL 集成与任务编排,沉淀数据源专属知识库(RAG),并把知识喂给 AI 取数/分析。内置 RBAC + 多租户 + 数据权限(构建在 [RuoYi-Vue3-FastAPI](https://github.com/insistence/RuoYi-Vue3-FastAPI) 脚手架之上)。
+<p align="center">
+  🌐 Live demo: <a href="http://124.220.57.72/"><b>http://124.220.57.72/</b></a>
+</p>
 
-## ✨ 核心能力
+> ezdata is an AI-native data platform: unify heterogeneous data sources, run ETL integration and task orchestration, build per-source knowledge bases (RAG), and feed that knowledge to AI for data retrieval and analysis. Ships with RBAC + multi-tenancy + data permissions (built on the [RuoYi-Vue3-FastAPI](https://github.com/insistence/RuoYi-Vue3-FastAPI) scaffold).
 
-- **数据管理** `module_data`:60+ 连接器(RDBMS / Elasticsearch / MongoDB / Kafka / 向量库 / 对象存储 …),数据源 → 数据模型 → 取数 / 数据接口,基于 [dlt](https://dlthub.com/) 的 ETL 集成;只读护栏 + AI 取数。**指标层**——指标定义一次(度量 + 维度 + 口径 + 审定样例,建在 data_model 之上、复用 handler 编译执行),AI 按指标名取权威一致的数(定义人拍板);**任务级血缘**——从任务的抽取/写入参数与模型/指标/看板/技能的绑定关系,声明式(非 SQL 解析,始终新鲜)构建「源 → 任务 → 模型 → 指标/看板/技能」血缘图,支撑影响分析 / 防过期(改模型 → 下游依赖标「待复核」)。
-- **任务调度 & 工作流** `module_task_schedule`:Celery + APScheduler 定时调度;**任务工作流(DAG)** 用 AntV X6 画布编排,事件驱动、版本化、单机/分布式两种运行模式 + 运行监控。
-- **知识库(RAG)** `module_rag`:文档(pdf/docx/excel/pptx/csv/md/网页…)抽取 → 切分(含语义/Markdown)→ 向量化 → **ES8 向量库(dense_vector + kNN + BM25 混合检索)**;Contextual Retrieval、增量训练、QA、**每个数据源的专属知识库**;处理层接入 [Agno](https://github.com/agno-agi/agno)(readers / chunking / VectorDb 封装)。
-- **AI** `module_ai` / `module_dashboard`:统一 AI 模型管理(密钥 AES 加密,支持**深度思考**模型);Agno Agent 对话——发现数据源、查表结构、检索知识库,在沙箱里跑取数/计算并产出结论 + **图表/表格**;**Agent Skills**(类 Claude Skills:能力包 = 描述 + SKILL.md 正文 + 附加文件 + 软引用,**渐进式披露**按需 `load_skill`;流程型/知识型;全屏 IDE 编辑器 + 导入文件夹/zip + 导出);**AI 工具**(内置工具 + MCP 接入)、**AI 应用**(把提示词/工具/知识库/技能打包成独立助手 + 对外 APIKey)、**跨会话长期记忆**;对话内还能**提议 / 修改 / 复制 / 调试运行任务**(AI 填表、人拍板)。**数据目录向量检索收窄**——大库按问题检索 Top-K 相关表注入、替代全量目录(省 token、更聚焦),配合上下文/工具瘦身与 prompt caching;取数漏斗**指标层命中优先**(`query_metric` 取权威数,不自写 SQL/agg)→ 未命中经**血缘**定位受治理模型 → 检索认源 → 原始表自由取数;控制台总览(ECharts)。
-- **系统**:用户 / 角色 / 菜单 / 部门 / 字典,RBAC + **多租户** + 数据权限。
-- **轻量查数 UI** `ezdata/interface/web`(可选):脱离平台也能单跑的极简工具——标准库 `http.server` + `sqlite3` 连接目录 + agno LLM(openai/anthropic),连数据源 → 浏览表/字段 → 原生/AI 取数 → 导出 Excel。`python -m ezdata.interface.web`,详见该目录 `README.md`。
+## ✨ Core capabilities
 
-## 🧱 技术栈
+- **Data management** `module_data`: 60+ connectors (RDBMS / Elasticsearch / MongoDB / Kafka / vector stores / object storage …), data source → data model → query / data API, ETL integration built on [dlt](https://dlthub.com/); read-only guardrails + AI-driven querying. **Metric layer** — define a metric once (measures + dimensions + semantics + reviewed sample, built on top of `data_model` and executed by reusing the handler), and AI fetches authoritative, consistent numbers by metric name (the definer has the final say). **Task-level lineage** — from a task's extract/load parameters and its bindings to models/metrics/dashboards/skills, a declarative (no SQL parsing, always fresh) "source → task → model → metric/dashboard/skill" lineage graph powers impact analysis and staleness protection (edit a model → downstream dependencies are flagged "needs review").
+- **Scheduling & workflows** `module_task_schedule`: Celery + APScheduler for scheduled jobs; **task workflows (DAG)** orchestrated on an AntV X6 canvas — event-driven, versioned, single-node/distributed run modes, plus run monitoring.
+- **Knowledge base (RAG)** `module_rag`: document (pdf/docx/excel/pptx/csv/md/web…) extraction → chunking (incl. semantic / Markdown) → embedding → **ES8 vector store (dense_vector + kNN + BM25 hybrid retrieval)**; Contextual Retrieval, incremental training, QA, and **a dedicated knowledge base per data source**; the processing layer integrates [Agno](https://github.com/agno-agi/agno) (readers / chunking / VectorDb wrappers).
+- **AI** `module_ai` / `module_dashboard`: unified AI model management (keys AES-encrypted, **reasoning/thinking** models supported); Agno Agent chat — discover data sources, inspect table schemas, retrieve from knowledge bases, run queries/computation in a sandbox and produce conclusions + **charts/tables**; **Agent Skills** (Claude-Skills-style: a capability pack = description + SKILL.md body + attached files + soft references, **progressive disclosure** via on-demand `load_skill`; procedural/knowledge types; full-screen IDE editor + import folder/zip + export); **AI tools** (built-in tools + MCP integration), **AI apps** (package a prompt/tools/knowledge base/skills into a standalone assistant + outward-facing API key), and **cross-session long-term memory**; within a conversation you can also **propose / edit / duplicate / debug-run tasks** (AI fills the form, a human decides). **Catalog vector-retrieval narrowing** — for large databases, retrieve and inject only the Top-K relevant tables per question instead of the full catalog (saves tokens, stays focused), together with context/tool slimming and prompt caching; the retrieval funnel is **metric-layer-first** (`query_metric` returns authoritative numbers, no hand-written SQL/aggregation) → on miss, use **lineage** to locate governed models → source-recognized retrieval → free-form querying against raw tables; console overview (ECharts).
+- **System**: users / roles / menus / departments / dictionaries, RBAC + **multi-tenancy** + data permissions.
+- **Lightweight query UI** `ezdata/interface/web` (optional): a minimal standalone tool that runs without the platform — stdlib `http.server` + `sqlite3` connection catalog + agno LLM (openai/anthropic); connect a data source → browse tables/fields → native or AI querying → export to Excel. `python -m ezdata.interface.web`; see that directory's `README.md`.
 
-| 层 | 技术 |
+## 🧱 Tech stack
+
+| Layer | Tech |
 |---|---|
-| 前端 | Vue 3 · Element Plus · ECharts · AntV X6 · Vite |
-| 后端 | FastAPI · SQLAlchemy 2.0(async) · Pydantic v2 |
-| 任务 | Celery · APScheduler · dlt |
+| Frontend | Vue 3 · Element Plus · ECharts · AntV X6 · Vite |
+| Backend | FastAPI · SQLAlchemy 2.0 (async) · Pydantic v2 |
+| Tasks | Celery · APScheduler · dlt |
 | AI / RAG | Agno · DashScope/OpenAI embedding · chonkie · unstructured |
-| 存储 | MySQL 8 / PostgreSQL · Redis · **Elasticsearch 8** · MinIO/S3 |
+| Storage | MySQL 8 / PostgreSQL · Redis · **Elasticsearch 8** · MinIO/S3 |
 
-## 🏛 架构
+## 🏛 Architecture
 
-容器-per-service:前端(nginx + Vue3)反代 `/api` 到后端;后端(FastAPI)进程内跑 APScheduler(启动锁选主,多副本只一个实例调度),Celery worker 独立执行 ETL / Python / Shell / DAG 任务;调试态代码在隔离沙箱执行、出网经 egress 白名单。配置由同目录单份 `.env` 统一驱动。
+Container-per-service: the frontend (nginx + Vue3) reverse-proxies `/api` to the backend; the backend (FastAPI) runs APScheduler in-process (a startup lock elects a leader, so only one instance schedules across replicas); Celery workers independently execute ETL / Python / Shell / DAG tasks; debug-mode code runs in an isolated sandbox with egress allow-listed. Everything is driven by a single `.env` in the same directory.
 
 ```mermaid
 flowchart TB
-  U["浏览器 / 轻量查数 UI"] --> FE["前端<br/>nginx + Vue3(反代 /api)"]
-  FE --> BE["后端 FastAPI<br/>+ APScheduler 选主调度"]
-  BE <-->|"派发任务 / 回写状态"| WK["Celery Worker<br/>ETL · Python · Shell · DAG"]
+  U["Browser / Lightweight query UI"] --> FE["Frontend<br/>nginx + Vue3 (proxies /api)"]
+  FE --> BE["Backend FastAPI<br/>+ APScheduler leader scheduling"]
+  BE <-->|"dispatch tasks / write back status"| WK["Celery Worker<br/>ETL · Python · Shell · DAG"]
 
-  subgraph MOD["后端模块"]
+  subgraph MOD["Backend modules"]
     direction LR
-    M1["module_data<br/>数据源/模型/ETL"]
-    M2["module_task_schedule<br/>调度 + DAG"]
-    M3["module_rag<br/>知识库/向量检索"]
-    M4["module_ai<br/>模型/对话/工具/应用"]
-    M5["module_admin<br/>用户/角色/多租户"]
-    M6["module_dashboard<br/>控制台"]
+    M1["module_data<br/>source/model/ETL"]
+    M2["module_task_schedule<br/>scheduling + DAG"]
+    M3["module_rag<br/>knowledge base / vector search"]
+    M4["module_ai<br/>model/chat/tools/apps"]
+    M5["module_admin<br/>users/roles/multi-tenant"]
+    M6["module_dashboard<br/>console"]
   end
   BE --- MOD
   WK --- MOD
 
   BE --> DB[("MySQL / PostgreSQL")]
-  BE --> RD[("Redis<br/>broker · 缓存 · 选主锁")]
-  BE --> ES[("Elasticsearch 8<br/>任务日志 + RAG 向量库")]
-  BE --> S3[("MinIO / S3<br/>对象存储")]
+  BE --> RD[("Redis<br/>broker · cache · leader lock")]
+  BE --> ES[("Elasticsearch 8<br/>task logs + RAG vector store")]
+  BE --> S3[("MinIO / S3<br/>object storage")]
   WK --> DB
   WK --> ES
   WK --> S3
 
-  BE -. "调试态代码执行" .-> SB["Sandbox 隔离执行"]
-  WK -. "调试态代码执行" .-> SB
-  SB -. "出网白名单" .-> EG["egress-proxy"]
+  BE -. "debug-mode code exec" .-> SB["Sandbox (isolated exec)"]
+  WK -. "debug-mode code exec" .-> SB
+  SB -. "egress allow-list" .-> EG["egress-proxy"]
 ```
 
-> 部署形态、网络隔离与各服务职责详见 [docs/DEPLOY.md](docs/DEPLOY.md)。
+> Deployment topology, network isolation, and per-service responsibilities: see [docs/DEPLOY.md](docs/DEPLOY.en.md).
 
-## 🚀 快速开始(Docker)
+## 🚀 Quick start (Docker)
 
 ```bash
-# 1) 准备环境变量(必需:.env.dev 被 git 忽略,缺失会导致后端回退到默认库名而连不上)
+# 1) Prepare env vars (required: .env.dev is git-ignored; if missing, the backend
+#    falls back to default DB names and can't connect)
 cp api/.env.dev.example api/.env.dev
 
-# 2) 一键起开发环境(MySQL + Redis + ES8 + MinIO + 后端 + worker + 前端)
+# 2) Bring up the dev stack (MySQL + Redis + ES8 + MinIO + backend + worker + frontend)
 docker compose -f docker-compose.dev.yml up -d
 
-# 生产参考:docker-compose.yml(默认 MySQL;PostgreSQL 加 --env-file .env.pg)
+# Production reference: docker-compose.yml (MySQL by default; for PostgreSQL add --env-file .env.pg)
 ```
 
-- 前端默认 `http://localhost:12580`,后端 `http://localhost:9099`(Swagger:`/docs`)。
-- **默认登录**:`admin` / `admin123`。
-- **开箱即用财经演示**(首启自动导入,可重跑 `api/demo_seed.py`):AKShare 财经数据源 + 内置 ES(`demo_es`)+ **28 个数据集成任务 / 27 个数据模型**(A股/港股/美股/ETF 快照、A股日线(快照第一页定时增量 + 全量单次回填,共用 `fin_stock_daily`)、指数日线、涨停池、龙虎榜、资金流、融资融券、概念/行业板块、技术选股、业绩/新股/可转债、宏观 CPI/PPI/GDP/LPR 等,按**北京时间**定时)+ **A股市场总览多图看板** + 一个「财经数据分析助手」AI 应用(对话取数 + 绘图)。定时表达式为 7 段 Quartz(秒 分 时 日 月 周 年),与前端 cron 组件一致。
-- **默认中间件口令**(dev / prod compose 已统一,仅供本地 / 内网):`ezdata123456` —— MySQL `root`、PostgreSQL `postgres`、Redis、MinIO `minio`、Elasticsearch `elastic`。⚠️ 正式对外部署务必改强口令或改用环境变量 / secret 注入。
-- 初始化 SQL:`api/sql/ezdata.sql`(MySQL)/ `api/sql/ezdata-pg.sql`(PostgreSQL),首次启动自动挂载导入。
+- Frontend defaults to `http://localhost:12580`, backend to `http://localhost:9099` (Swagger: `/docs`).
+- **Default login**: `admin` / `admin123`.
+- **Out-of-the-box finance demo** (auto-imported on first start; re-runnable via `api/demo_seed.py`): an AKShare finance data source + built-in ES (`demo_es`) + **28 data-integration tasks / 27 data models** (A-share/HK/US/ETF snapshots; A-share daily bars (scheduled incremental on page-1 snapshots + a one-shot full backfill, sharing `fin_stock_daily`); index daily bars; limit-up pool; dragon-tiger list; capital flows; margin trading; concept/industry sectors; technical screening; earnings/IPOs/convertible bonds; macro CPI/PPI/GDP/LPR, etc., scheduled in **Beijing time**) + an **A-share market overview multi-chart dashboard** + a "Finance Data Analysis Assistant" AI app (conversational querying + charting). Schedule expressions are 7-field Quartz (sec min hour day month week year), matching the frontend cron component.
+- **Default middleware credentials** (unified across dev / prod compose, for local / intranet only): `ezdata123456` — MySQL `root`, PostgreSQL `postgres`, Redis, MinIO `minio`, Elasticsearch `elastic`. ⚠️ For any public deployment, change to strong passwords or inject via env vars / secrets.
+- Init SQL: `api/sql/ezdata.sql` (MySQL) / `api/sql/ezdata-pg.sql` (PostgreSQL), auto-mounted and imported on first start.
 
-本地(非容器)开发见 [docs/DEPLOY.md](docs/DEPLOY.md)。
+For local (non-container) development, see [docs/DEPLOY.md](docs/DEPLOY.en.md).
 
-## 📁 目录结构
+## 📁 Layout
 
 ```
-api/                 后端(FastAPI)
-  module_admin/      系统:用户/角色/菜单/多租户
-  module_data/       数据源 / 模型 / 取数 / ETL(dlt)/ 指标层 / 血缘
-  module_task_schedule/  任务调度 + DAG 工作流编排
-  module_rag/        知识库(RAG):抽取/切分/向量库(ES8)/检索/专属库
-  module_ai/         AI 模型 / 对话 / 工具 / 应用 / 技能(Agent Skills)/ 目录检索
-  module_dashboard/  控制台概览
-web/                 前端(Vue3 + Element Plus)
-docs/                设计与部署文档(另:api/module_ai·module_data 下 docs/ 存模块级设计)
+api/                 Backend (FastAPI)
+  module_admin/      System: users/roles/menus/multi-tenancy
+  module_data/       Data sources / models / querying / ETL (dlt) / metric layer / lineage
+  module_task_schedule/  Task scheduling + DAG workflow orchestration
+  module_rag/        Knowledge base (RAG): extraction/chunking/vector store (ES8)/retrieval/per-source KB
+  module_ai/         AI models / chat / tools / apps / skills (Agent Skills) / catalog retrieval
+  module_dashboard/  Console overview
+web/                 Frontend (Vue3 + Element Plus)
+docs/                Design & deployment docs (module-level design also lives under api/module_ai·module_data/docs/)
 ```
 
-## 📚 文档
+## 📚 Docs
 
-- [部署指南](docs/DEPLOY.md)
-- [数据模块设计](docs/DATA_MODULE_DESIGN.md)
-- [指标层 + 任务级血缘设计](api/module_data/docs/metric-layer-and-lineage-design.md)
-- [DAG 工作流设计](docs/DAG_WORKFLOW.md)
-- [知识库(RAG)设计](docs/RAG_MODULE.md)
-- [Agent Skills 与上下文/工具瘦身](api/module_ai/docs/skill-agent-optimization.md)
-- [数据目录检索收窄设计](api/module_ai/docs/catalog-retrieval-narrowing-design.md)
-- [变更记录](docs/CHANGELOG.md)
+- [Deployment guide](docs/DEPLOY.en.md)
+- [Data module design](docs/DATA_MODULE_DESIGN.en.md)
+- [Metric layer + task-level lineage design](docs/metric-layer-and-lineage-design.en.md)
+- [DAG workflow design](docs/DAG_WORKFLOW.en.md)
+- [Knowledge base (RAG) design](docs/RAG_MODULE.en.md)
+- [Agent Skills & context/tool slimming](docs/skill-agent-optimization.en.md)
+- [Catalog retrieval narrowing design](docs/catalog-retrieval-narrowing-design.en.md)
+- [Changelog](docs/CHANGELOG.en.md)

@@ -1,3 +1,5 @@
+> **简体中文** | [English](cli_usage.en.md)
+
 # RuoYi Backend CLI 使用文档
 
 ## 1. 文档说明
