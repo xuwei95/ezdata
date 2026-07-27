@@ -4,7 +4,7 @@
 
 > 下方为上游 RuoYi-Vue3-FastAPI 的更新日志;ezdata 自身变更记于此段。
 
-## ezdata(v2.0)
+## ezdata(v2.0) — 2026-07-27
 
 ### 新增
 - **Agent Skills(类 Claude Skills)** `module_ai`:能力包 = 名称 + 描述 + `SKILL.md` 正文 + 附加文件(可含目录)+ 软引用其它技能;**渐进式披露**——技能目录常驻(L1)、`load_skill` 拉正文(L2)、`read_skill_file` 拉附加文件(L3);分**流程型**(全局常驻清单)/**知识型**(绑数据源、认源时经 `search_datasource_knowledge` 浮现)。全屏 IDE 编辑器(文件树 + Monaco + 导入文件夹/zip + 导出 zip)。内置技能 `chart_building`/`es_query`/`task_scheduling`;应用可绑定技能。表 `ai_skill`,菜单/权限 `ai:skill:*`。
@@ -19,6 +19,12 @@
 ### 修复 / 优化
 - **内部 AI 生成(ETL 取数/转换、数据查询)改为优先用系统兜底模型(`LLM_*`)**:这些入口无选模型 UI,不再挑库内启用模型,避免被未配 key 的模型带跑(修 `AIMLAPI_API_KEY not set` 之类报错);启用模型空 key 时给友好提示。
 - 编辑数据源时测试连接不再因密钥留空失败(`/api/test` 传 name 以原连接为底合并)。
+- **对话选 MCP 工具普通用户报错**:`/ai/tool/list` 挂了 `ai:tool:list` 管理权限,普通用户选 MCP 工具即报错;新增仅需登录的 `/ai/tool/all`(仿 `/ai/model/all`),对话改用之。
+- **关闭验证码后无法从 UI 登录**:登录表单 `code` 校验原为无条件 required,而验证码框仅 `v-if=captchaEnabled` 渲染——关验证码时隐藏却仍必填 → 校验永久失败、`handleLogin` 不发登录请求;改 `loginRules` 为随 `captchaEnabled` 动态。
+- **GitHub SSO 登录原地打转**:dev 部署前端前缀为 `/dev-api` 而 `GITHUB_REDIRECT_URI` 钉在 `/api`,回调落到 SPA 被守卫弹回登录页;vite 代理并列补 `/api` 使回调落到后端(`GITHUB_REDIRECT_URI` 与 GitHub OAuth App 无需改)。
+- **复制按钮在 `http://IP` 下失效**:非安全上下文 `navigator.clipboard` 为 undefined、裸调同步抛错(连 `.catch` 都进不去);对话消息 / APIKey / 接口测试三处统一走健壮剪贴板工具(自动降级 `execCommand`)。
+- **OpenAI 兼容网关思考 opt-in**:兜底模型深度思考按 `LLM_REASONING` / 前端开关注入 `thinking` 请求参数(网关不认时静默无害);同轮修内置工具缺依赖拖垮整轮对话。
+- **文档**:设计 / 部署文档集中到 `docs/` 并做成中英双份(`X.md` + `X.en.md`),`README` 中英双语互链。
 
 ### 升级注意
 - 已存在的库(从 `*.sql` 初始化、不在 alembic 管控下)需补 `task.timeout` 列:`alembic stamp 0002_seed_system && alembic upgrade head`,或手动 `ALTER TABLE task ADD COLUMN timeout INT NULL DEFAULT 0`。详见 `docs/DEPLOY.md` §9.5。

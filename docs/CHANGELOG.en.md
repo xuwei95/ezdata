@@ -4,7 +4,7 @@
 
 > Below is the changelog of the upstream RuoYi-Vue3-FastAPI; ezdata's own changes are recorded in this section.
 
-## ezdata (v2.0)
+## ezdata (v2.0) — 2026-07-27
 
 ### Added
 - **Agent Skills (Claude Skills-like)** `module_ai`: a capability pack = name + description + `SKILL.md` body + attached files (may include directories) + soft references to other skills; **progressive disclosure** — the skill directory is always resident (L1), `load_skill` pulls the body (L2), `read_skill_file` pulls attached files (L3); split into **process-type** (globally resident manifest) / **knowledge-type** (bound to a data source, surfaced via `search_datasource_knowledge` when the source is identified). Full-screen IDE editor (file tree + Monaco + import folder/zip + export zip). Built-in skills `chart_building`/`es_query`/`task_scheduling`; apps can bind skills. Table `ai_skill`, menu/permission `ai:skill:*`.
@@ -19,6 +19,12 @@
 ### Fixed / Optimized
 - **Internal AI generation (ETL data fetching/transformation, data query) now prefers the system fallback model (`LLM_*`)**: these entry points have no model-selection UI, and no longer pick an enabled model from the store, avoiding being dragged down by a model whose key is not configured (fixing errors like `AIMLAPI_API_KEY not set`); a friendly prompt is shown when an enabled model has an empty key.
 - Testing the connection while editing a data source no longer fails because the secret is left blank (`/api/test` passes name to merge onto the original connection as the base).
+- **Normal users got an error when picking MCP tools in chat**: `/ai/tool/list` carries the `ai:tool:list` management permission, so a normal user picking an MCP tool errored out; added a login-only `/ai/tool/all` (mirroring `/ai/model/all`) and switched chat to use it.
+- **UI login impossible with captcha disabled**: the login form's `code` validation rule was unconditionally `required`, while the captcha field only renders `v-if=captchaEnabled` — with captcha off the field is hidden yet still required, so validation always failed and `handleLogin` never sent the login request; `loginRules` is now dynamic based on `captchaEnabled`.
+- **GitHub SSO login bounced back to the login page**: the dev deployment's frontend prefix is `/dev-api` while `GITHUB_REDIRECT_URI` was pinned to `/api`, so the callback fell through to the SPA and the router guard bounced it to login; the vite proxy now also serves `/api` so the callback reaches the backend (no change to `GITHUB_REDIRECT_URI` or the GitHub OAuth App).
+- **Copy buttons broken over `http://IP`**: in a non-secure context `navigator.clipboard` is undefined and calling it throws synchronously (not even reaching `.catch`); chat message / API key / data-API test now all use a robust clipboard helper (auto-falls back to `execCommand`).
+- **OpenAI-compatible gateway reasoning opt-in**: the fallback model's reasoning is opted in via `LLM_REASONING` / the frontend toggle by injecting the `thinking` request param (silently harmless when the gateway ignores it); same change fixed a built-in tool's missing dependency dragging down the whole conversation turn.
+- **Docs**: design/deployment docs consolidated under `docs/` and made bilingual (`X.md` + `X.en.md`); `README` cross-links the two languages.
 
 ### Upgrade Notes
 - An existing database (initialized from `*.sql`, not under alembic control) needs the `task.timeout` column added: `alembic stamp 0002_seed_system && alembic upgrade head`, or manually `ALTER TABLE task ADD COLUMN timeout INT NULL DEFAULT 0`. See `docs/DEPLOY.md` §9.5 for details.
