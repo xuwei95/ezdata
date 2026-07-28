@@ -265,10 +265,13 @@ services:
       - ezdata-dev-network
       - ezdata-sandbox-net                # 沙箱经内网取内部数据源
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pezdata123456"]
+      # 用 TCP(-h127.0.0.1,而非走 socket 的 localhost)+ 真查询 SELECT 1,确保「healthy」= 真能网络连+查;
+      # start_period 给首次 initdb 留时间(其临时服务器 --skip-networking 期 TCP 会拒,不该被判 healthy)。
+      test: ["CMD", "mysql", "-h127.0.0.1", "-uroot", "-pezdata123456", "-e", "SELECT 1"]
       interval: 5s
       timeout: 10s
       retries: 30
+      start_period: 40s
 
   # ---------------- Redis ----------------
   ezdata-redis-dev:
