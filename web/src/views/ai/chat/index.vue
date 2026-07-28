@@ -825,7 +825,12 @@ async function sendRequest(text, images) {
           } else if (data.type === "metrics") {
             messageList.value[aiMsgIndex].metrics = data.metrics;
           } else if (data.type === "error") {
+            // 流级错误:除 toast 外,追加内联错误块(持久留在对话里,避免答案静默中断)
             proxy.$modal.msgError(data.error);
+            (messageList.value[aiMsgIndex].blocks ||= []).push({
+              type: "error",
+              error: data.error,
+            });
           } else if (data.type === "artifact") {
             // 结构化产物(图表/表格):按顺序入 blocks,内联渲染
             (messageList.value[aiMsgIndex].blocks ||= []).push({
