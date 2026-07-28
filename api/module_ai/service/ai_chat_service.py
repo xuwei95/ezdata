@@ -814,11 +814,12 @@ class AiChatService:
 
     @classmethod
     async def _stream_recipe_fastpath(
-        cls, session_id: str, code: str, datasource_code: str, datasource_scope: list | None
+        cls, session_id: str, code: str, datasource_code: str, datasource_scope: list | None, out: dict | None = None
     ) -> AsyncGenerator[Any, None]:
         """流式执行命中的解法(不经模型):meta → 命中提示 → 沙箱直跑 → 成功吐 artifact+结果+metrics;
         失败/异常则吐提示并 yield `_RECIPE_FALLBACK`,由 chat_services 回退到模型继续。
-        沙箱执行沿用 SandboxCodeTools.run_datasource_query(只读护栏 + egress 白名单 + 图表可存看板)。"""
+        沙箱执行沿用 SandboxCodeTools.run_datasource_query(只读护栏 + egress 白名单 + 图表可存看板)。
+        out(可选可变字典):成功时写入 out['answer']=结果文本,供 chat_services 落会话记录。"""
         from fastapi.concurrency import run_in_threadpool
 
         from module_ai.tools.sandbox_code_tools import SandboxCodeTools
@@ -846,7 +847,60 @@ class AiChatService:
         if text:
             yield json.dumps({'content': str(text), 'type': 'content'}, ensure_ascii=False) + '\n'
         yield json.dumps({'metrics': {'fastPath': True, 'inputTokens': 0, 'outputTokens': 0, 'totalTokens': 0}, 'type': 'metrics'}) + '\n'
+        if out is not None:
+            out['answer'] = str(text) if text else ''  # 供上层落会话记录
         logger.info(f'[recipe-fastpath] 命中直跑成功: ds={datasource_code}')
+
+    @classmethod
+    async def _persist_fastpath_turn(cls, session_id: str, user_id: int, question: str, answer: str) -> None:
+        """把 recipe 快路这一轮(用户问题 + 助手答案)落进 agno 会话,保证 transcript 与下一轮历史一致。
+        用 agno 原生 AgentSession/RunOutput/RunInput/Message 构造,schema 正确;失败只告警、不影响本轮。
+        (图表 artifact 的历史回放属增量,B 版先落文字。)"""
+        try:
+            import time
+            import uuid as _uuid
+
+            from agno.db.base import SessionType
+            from agno.models.message import Message
+            from agno.run.agent import RunInput, RunOutput
+            from agno.run.base import RunStatus
+            from agno.session import AgentSession
+
+            storage = AiUtil.get_storage_engine()
+            uid = str(user_id)
+            ts = int(time.time())
+            sess = await storage.get_session(session_id=session_id, session_type=SessionType.AGENT, user_id=uid)
+            if sess is None:
+                sess = await storage.get_session(session_id=session_id, session_type=SessionType.AGENT)
+            if sess is None:
+                # agent_id='chat-agent' 使会话进入普通对话列表(get_sessions 按 component_id 过滤);
+                # session_data/agent_data 置空 dict,对齐 agno 正常会话、避免 transcript 读取 NoneType。
+                sess = AgentSession(
+                    session_id=session_id, user_id=uid, agent_id='chat-agent',
+                    runs=[], session_data={}, agent_data={}, created_at=ts, updated_at=ts,
+                )
+            run = RunOutput(
+                run_id=str(_uuid.uuid4()),
+                session_id=session_id,
+                user_id=uid,
+                agent_id='chat-agent',  # 关键:AgentSession.from_dict 只保留 run dict 里含 agent_id 的 run,否则反序列化丢弃
+                input=RunInput(input_content=question),
+                content=answer,
+                created_at=ts,
+                status=RunStatus.completed,  # 关键:非 completed 的 run 会在反序列化时被 agno 过滤掉
+                messages=[
+                    Message(role='user', content=question, created_at=ts),
+                    Message(role='assistant', content=answer, created_at=ts),
+                ],
+            )
+            if sess.runs is None:
+                sess.runs = []
+            sess.runs.append(run)
+            sess.updated_at = ts
+            await storage.upsert_session(sess)
+            logger.info(f'[recipe-fastpath] 已落会话: session={session_id} runs={len(sess.runs)}')
+        except Exception as e:
+            logger.warning(f'[recipe-fastpath] 落会话失败(不影响本轮): {e}')
 
     @classmethod
     async def chat_services(
@@ -942,12 +996,15 @@ class AiChatService:
             _hit = await cls._recipe_fastpath_lookup(query_db, chat_req, datasource_scope)
             if _hit:
                 _fell_back = False
-                async for _sse in cls._stream_recipe_fastpath(session_id, _hit[0], _hit[1], datasource_scope):
+                _out: dict = {}
+                async for _sse in cls._stream_recipe_fastpath(session_id, _hit[0], _hit[1], datasource_scope, _out):
                     if _sse is _RECIPE_FALLBACK:
                         _fell_back = True
                         break
                     yield _sse
                 if not _fell_back:
+                    # 落会话记录(transcript + 下一轮历史一致);失败只告警,不影响已返回结果
+                    await cls._persist_fastpath_turn(session_id, user_id, chat_req.message, _out.get('answer', ''))
                     return  # 命中直跑成功 → 本轮结束,不进模型
 
         artifacts: list = []  # 工具(沙箱)产出的图表/表格收集器,经 _stream_agent 推给前端渲染
@@ -1366,8 +1423,8 @@ class AiChatService:
         if not session:
             raise ServiceException(message='会话不存在')
 
-        session_data: dict[str, Any] = session.session_data
-        agent_data: dict[str, Any] = session.agent_data
+        session_data: dict[str, Any] = session.session_data or {}  # 快路/异常会话可能为空,兜底避免 NoneType
+        agent_data: dict[str, Any] = session.agent_data or {}
         runs: list[RunOutput | TeamRunOutput | WorkflowRunOutput] = session.runs
         messages: list[Message] = session.get_messages(skip_roles=['system'])
 
@@ -1422,7 +1479,7 @@ class AiChatService:
             sessionData=SessionDataModel(
                 sessionState=session_data.get('session_state'),
                 sessionMetrics=SessionMetricsModel(
-                    **CamelCaseUtil.transform_result(session_data.get('session_metrics'))
+                    **CamelCaseUtil.transform_result(session_data.get('session_metrics') or {})
                 ),
             ),
             agentData=AgentDataModel(**CamelCaseUtil.transform_result(agent_data)),
