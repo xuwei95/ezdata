@@ -124,6 +124,11 @@
           v-else-if="b.type === 'ui_action' && b.action && (b.action.kind === 'task_proposal' || b.action.kind === 'task_update_proposal')"
           :action="b.action"
         />
+        <!-- 流级错误:内联持久显示(不只弹 toast、不让答案静默中断) -->
+        <div v-else-if="b.type === 'error'" class="inline-error">
+          <el-icon class="err-icon"><CircleCloseFilled /></el-icon>
+          <span class="err-text">{{ b.error || $t('对话出错') }}</span>
+        </div>
       </template>
     </template>
     <!-- 历史消息(无 blocks)回退:纯文本 -->
@@ -673,6 +678,29 @@ function toggleReasoning() {
     &.step-err {
       color: var(--el-color-danger);
     }
+  }
+}
+
+/* 流级错误:内联红色横幅(持久留在对话里,替代"只弹 toast 后答案静默消失") */
+.inline-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 8px 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--el-color-danger-light-9);
+  border: 1px solid var(--el-color-danger-light-5);
+  color: var(--el-color-danger);
+  font-size: 13px;
+  line-height: 1.5;
+  .err-icon {
+    margin-top: 2px;
+    flex-shrink: 0;
+  }
+  .err-text {
+    white-space: pre-wrap;
+    word-break: break-word;
   }
 }
 

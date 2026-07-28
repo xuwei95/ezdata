@@ -27,11 +27,32 @@ async def init_create_table() -> None:
     :return:
     """
     logger.info('🔎 初始化数据库连接...')
-    # 可选:启动时自动 alembic 迁移(AUTO_MIGRATE=true 才执行,默认关);先于 create_all 跑,先改表结构再建缺失表。
+    import asyncio
+
     from fastapi.concurrency import run_in_threadpool
+    from sqlalchemy import text
+    from sqlalchemy.exc import DBAPIError, OperationalError
 
     from config.migrate import run_auto_migrate
 
+    # DB 就绪重试:整体 compose 启动时,MySQL 的 healthcheck 可能在 TCP 尚未接受连接前就转绿
+    # (mysqladmin ping 走 socket;首次 initdb 期还有个 --skip-networking 的临时服务器),导致后端首连被拒。
+    # 这里带退避重试等 DB 真正就绪,使后端不依赖 compose 的 depends_on/healthcheck/restart 兜底也能稳起。
+    last_err: Exception | None = None
+    for attempt in range(1, 31):  # 最多 ~60s(每次 2s)
+        try:
+            async with async_engine.connect() as conn:
+                await conn.execute(text('SELECT 1'))
+            break
+        except (OperationalError, DBAPIError, OSError) as e:
+            last_err = e
+            logger.warning(f'⏳ DB 未就绪(第 {attempt}/30 次),2s 后重试: {str(e).splitlines()[0][:120]}')
+            await asyncio.sleep(2)
+    else:
+        logger.error(f'❌ DB 连接重试 30 次仍失败: {last_err}')
+        raise last_err  # type: ignore[misc]
+
+    # 可选:启动时自动 alembic 迁移(AUTO_MIGRATE=true 才执行,默认关);先于 create_all 跑,先改表结构再建缺失表。
     await run_in_threadpool(run_auto_migrate)
     async with async_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

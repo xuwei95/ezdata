@@ -152,10 +152,13 @@ services:
       - ezdata-sandbox-net                # 沙箱经内网取内部数据源
     healthcheck:
       # 字符串形式 = CMD-SHELL;$$ 转义为容器内的 $,由容器 shell 展开自身 env(自动跟随 DB_PASSWORD)
-      test: ${DB_HEALTHCHECK:-mysqladmin ping -h localhost -u root -p"$$MYSQL_ROOT_PASSWORD"}
+      # 默认走 TCP(-h127.0.0.1)+ SELECT 1:确保「healthy」= 真能网络连+查(避免 socket ping 在 initdb 期误绿);
+      # PG 等其它 DB 用 DB_HEALTHCHECK 覆盖。
+      test: ${DB_HEALTHCHECK:-mysql -h127.0.0.1 -uroot -p"$$MYSQL_ROOT_PASSWORD" -e "SELECT 1"}
       interval: 5s
       timeout: 10s
       retries: 30
+      start_period: 40s
 
   # ---------------- 数据库定时备份(sidecar,默认关闭) ----------------
   # 复用 DB 镜像,循环跑 deploy/backup/backup.sh(mysqldump/pg_dump → gzip,保留最近 N 份)。
