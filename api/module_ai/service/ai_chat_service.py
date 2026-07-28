@@ -71,9 +71,11 @@ _DATA_AGENT_INSTRUCTIONS: list[str] = [
     'search_datasource_knowledge(datasource_code, query=用户的原始问题),查该源是否已有”验证过的解法”'
     '(标注 QA 的历史问答,answer 即可直接运行的取数/分析代码):命中→**直接复用、或仅按本次差异微调后运行**,'
     '不要从零重写、也不必再逐个 get_table_schema;未命中→进第 3 步。',
-    '3. 没有可用解法时:用 get_table_schema 查清目标表字段/调用参数 → run_datasource_query 编写取数代码。',
+    '3. 没有可用解法时:用 get_table_schema 查清目标表字段/调用参数 → run_datasource_query 编写取数代码。'
+    '**优先一段成型**:取数+清洗+计算+(需要就出图)写进同一段 run_datasource_query 代码里一次跑完,别拆成多次调用来回试'
+    '(沙箱无状态,分多次要重复取数、更慢更费轮次);要看中间数据就在同段 print。',
     '4. 取数/计算成功后正常作答;无需声称”已存入知识库”(由用户点”收藏到知识库”决定)。',
-    '一句话:先复用已验证解法,不行再发现现写;能省一轮工具调用就省一轮。',
+    '一句话:先复用已验证解法,不行再发现现写;单次调用尽量一段成型,能省一轮工具调用就省一轮。',
     # 条件性专题的完整手册在内置技能里,按需 load_skill;此处只留各自「一条最易错的关键规则」兜底,
     # 防模型跳过加载时丢掉要点(完整版见 docs/skill-agent-optimization.md)。
     '出图:默认 plot_chart 且让 native(SQL 写 GROUP BY/ORDER BY/LIMIT、度量 agg=none)**直接返回要画的最终值**,'
@@ -81,6 +83,9 @@ _DATA_AGENT_INSTRUCTIONS: list[str] = [
     'Elasticsearch 源:文本字段做聚合/精确匹配/排序必须用 .keyword 子字段;取明细/时序要显式写足 size(默认只回10条)——更多注意 load_skill("es_query")。',
     '要新建/修改/复制定时任务(含 cron 写法)→ 先 load_skill("task_scheduling") 拿流程与 7 段 Quartz cron 规则再动手,别凭记忆写 cron。',
 ]
+
+# Recipe 快路的"回退哨兵":_stream_recipe_fastpath 执行失败时 yield 此对象,chat_services 见到即回退到模型。
+_RECIPE_FALLBACK = object()
 
 # 稍弱模型专项强化(仅弱模型追加):压制跳步/凭记忆硬写,强调按工具返回的写法调用
 _WEAK_AGENT_NUDGE = (
@@ -767,6 +772,83 @@ class AiChatService:
             yield json.dumps({'error': str(e), 'type': 'error'}) + '\n'
 
     @classmethod
+    async def _recipe_fastpath_lookup(
+        cls, query_db: AsyncSession, chat_req: AiChatRequestModel, datasource_scope: list | None
+    ) -> tuple[str, str] | None:
+        """Recipe 快路查询:问题**一字不差**命中某数据源专属库里⭐收藏的解法(QA,question_hash=md5)
+        → 返回 (可直跑取数代码, 数据源编码);未命中/被关/多模态 → None(照常走模型)。
+
+        这是"确定性执行缓存":精确命中即确定,故可绕开模型直跑;非精确不进此路,避免误判。
+        """
+        from config.env import AiConfig
+
+        if not getattr(AiConfig, 'llm_recipe_fastpath', True):
+            return None
+        if getattr(chat_req, 'images', None):  # 多模态需模型
+            return None
+        q = (chat_req.message or '').strip()
+        if not q:
+            return None
+        from sqlalchemy import select
+
+        from module_data.entity.do.data_do import DataSource
+        from module_rag.entity.do.rag_do import RagChunk, RagDataset
+        from module_rag.runtime_util import md5
+
+        stmt = (
+            select(RagChunk.answer, DataSource.code)
+            .join(RagDataset, RagDataset.id == RagChunk.dataset_id)
+            .join(DataSource, DataSource.id == RagDataset.source_id)
+            .where(
+                RagChunk.chunk_type == 'qa',
+                RagChunk.question_hash == md5(q),
+                RagDataset.status == 1,
+            )
+        )
+        if datasource_scope:
+            stmt = stmt.where(DataSource.code.in_(list(datasource_scope)))
+        row = (await query_db.execute(stmt.limit(1))).first()
+        if not row or not (row[0] and row[1]):
+            return None
+        return row[0], row[1]
+
+    @classmethod
+    async def _stream_recipe_fastpath(
+        cls, session_id: str, code: str, datasource_code: str, datasource_scope: list | None
+    ) -> AsyncGenerator[Any, None]:
+        """流式执行命中的解法(不经模型):meta → 命中提示 → 沙箱直跑 → 成功吐 artifact+结果+metrics;
+        失败/异常则吐提示并 yield `_RECIPE_FALLBACK`,由 chat_services 回退到模型继续。
+        沙箱执行沿用 SandboxCodeTools.run_datasource_query(只读护栏 + egress 白名单 + 图表可存看板)。"""
+        from fastapi.concurrency import run_in_threadpool
+
+        from module_ai.tools.sandbox_code_tools import SandboxCodeTools
+
+        yield json.dumps({'session_id': session_id, 'type': 'meta'}) + '\n'
+        yield json.dumps({'content': '🔖 命中已验证解法,直接执行(未经模型)…\n', 'type': 'content'}, ensure_ascii=False) + '\n'
+        arts: list = []
+        try:
+            tools = SandboxCodeTools(artifacts=arts, allowed_codes=datasource_scope, enable_datasource=True)
+            text = await run_in_threadpool(tools.run_datasource_query, datasource_code, code)
+        except Exception as e:
+            logger.warning(f'[recipe-fastpath] 执行异常,回退模型: {e}')
+            yield json.dumps({'content': '解法执行异常,转由模型继续处理…\n', 'type': 'content'}, ensure_ascii=False) + '\n'
+            yield _RECIPE_FALLBACK
+            return
+        _FAIL_PREFIX = ('执行失败', '查询失败', '调用沙箱失败', '数据源解析失败', '查询未执行', '该应用未授权')
+        if isinstance(text, str) and text.startswith(_FAIL_PREFIX):
+            logger.info(f'[recipe-fastpath] 解法执行失败,回退模型: {text[:80]}')
+            yield json.dumps({'content': '已验证解法这次没跑通,转由模型继续处理…\n', 'type': 'content'}, ensure_ascii=False) + '\n'
+            yield _RECIPE_FALLBACK
+            return
+        # 成功:先排空图表/表格产物,再吐结果文本 + 快路 metrics(标注未经模型、零 token)
+        for a in arts:
+            yield json.dumps({'artifact': a, 'type': 'artifact'}, ensure_ascii=False) + '\n'
+        if text:
+            yield json.dumps({'content': str(text), 'type': 'content'}, ensure_ascii=False) + '\n'
+        yield json.dumps({'metrics': {'fastPath': True, 'inputTokens': 0, 'outputTokens': 0, 'totalTokens': 0}, 'type': 'metrics'}) + '\n'
+        logger.info(f'[recipe-fastpath] 命中直跑成功: ds={datasource_code}')
+
+    @classmethod
     async def chat_services(
         cls,
         query_db: AsyncSession,
@@ -853,6 +935,20 @@ class AiChatService:
                 spec = await cls._resolve_app_agent_spec(query_db, aid, user_id, session_id, temperature)
                 if spec:
                     member_specs.append(spec)
+
+        # —— Recipe 快路:问题一字不差命中⭐收藏的解法 → 沙箱直跑一次(不经模型),失败/异常再回退模型 ——
+        # 放在 agent 装配之前:命中即秒回、省下模型与工具的一整轮开销;未命中/跑挂则 fall through 到下方正常流程。
+        if datasource_query_enabled:
+            _hit = await cls._recipe_fastpath_lookup(query_db, chat_req, datasource_scope)
+            if _hit:
+                _fell_back = False
+                async for _sse in cls._stream_recipe_fastpath(session_id, _hit[0], _hit[1], datasource_scope):
+                    if _sse is _RECIPE_FALLBACK:
+                        _fell_back = True
+                        break
+                    yield _sse
+                if not _fell_back:
+                    return  # 命中直跑成功 → 本轮结束,不进模型
 
         artifacts: list = []  # 工具(沙箱)产出的图表/表格收集器,经 _stream_agent 推给前端渲染
         ui_actions: list = []  # 任务提议(确认表单)收集器,经 _stream_agent 推给前端渲染成卡片
