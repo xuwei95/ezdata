@@ -20,6 +20,26 @@ from utils.log_util import logger
 
 CATALOG_INDEX = 'ez_catalog_index'
 
+# 域路由(借鉴 Uber QueryGPT「纯 RAG 大 schema 不 scale」教训):先多召回候选看源分布,
+# 只保留相关度最高的前 N 个数据源,再域内取 Top-K,避免大库跨源把 Top-K 摊薄。
+_OVERSAMPLE = 3           # 先召回 k*_OVERSAMPLE 个候选
+_ROUTER_MAX_SOURCES = 3   # 保留相关度最高的前 N 个源
+
+
+def _route_topk(cand: list[dict], k: int) -> tuple[list[dict], int, int]:
+    """纯函数:域路由 + Top-K。按各源的最高相关度保留前 _ROUTER_MAX_SOURCES 个源,再取全局 Top-K。
+    返回 (topk 表, 候选覆盖的源数, 路由后保留的源数)。可脱离 ES/embedding 单测。"""
+    if not cand:
+        return [], 0, 0
+    by_src: dict[Any, list[dict]] = {}
+    for c in cand:
+        by_src.setdefault(c.get('datasource_code'), []).append(c)
+    ranked = sorted(by_src, key=lambda s: max((x.get('score') or 0) for x in by_src[s]), reverse=True)
+    kept = set(ranked[:_ROUTER_MAX_SOURCES])
+    focused = [c for c in cand if c.get('datasource_code') in kept]
+    focused.sort(key=lambda x: (x.get('score') or 0), reverse=True)
+    return focused[:k], len(by_src), len(kept)
+
 
 def _conn() -> dict[str, Any]:
     """向量库连接:复用 RagConfig(与 module_rag runtime_util._vector_connection 同源)。"""
@@ -264,11 +284,12 @@ class CatalogRetrievalService:
             filters.append({'terms': {'tenant_id': [str(tenant_id), '']}})
         if scope_codes:
             filters.append({'terms': {'dataset_id': list(scope_codes)}})
-        hits = _store().vector_search(vec, k=k, filters=filters or None)
-        out = []
+        # 域路由:先多召回候选(k*_OVERSAMPLE),再按源相关度收敛到前 N 个源、域内取 Top-K
+        hits = _store().vector_search(vec, k=k * _OVERSAMPLE, filters=filters or None)
+        cand = []
         for h in hits:
             m = h.get('meta') or {}
-            out.append(
+            cand.append(
                 {
                     'datasource_code': m.get('datasource_code') or h.get('dataset_id'),
                     'object_name': m.get('object_name'),
@@ -278,4 +299,9 @@ class CatalogRetrievalService:
                     'score': h.get('score'),
                 }
             )
+        out, n_src_before, n_src_after = _route_topk(cand, k)
+        logger.info(
+            f'[catalog_index] retrieve q={question[:24]!r}: 候选 {len(cand)} 表/{n_src_before} 源 '
+            f'→ 路由保留 {n_src_after} 源、注入 Top-{len(out)};候选中未注入 {max(0, len(cand) - len(out))} 表'
+        )
         return out

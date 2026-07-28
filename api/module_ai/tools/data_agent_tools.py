@@ -360,6 +360,12 @@ def _retrieved_catalog(allowed_codes: list | None, question: str, k: int, max_so
     hits = CatalogRetrievalService.retrieve_tables(question, scope_codes=allowed_codes, tenant_id=tenant, k=k)
     if not hits:
         return None
+    # 丢弃日志(防静默漏表):域内共 total 表,只注入了检索命中的 len(hits) 表,其余需 agent 主动探索
+    if total - len(hits) > 0:
+        logger.info(
+            f'[catalog] 收窄注入: 域内共 {total} 表 → 注入 {len(hits)};'
+            f'未注入 {total - len(hits)} 表(agent 可经 list_datasources/get_table_schema 探索,防静默漏表)'
+        )
     # Tier A:源级(不含表)
     a_lines = [f'【{s["code"]}】{s["name"] or ""}({s["source_type"] or ""})' for s in sources[:max_sources]]
     # Tier B:与问题最相关的表——对齐全量目录的密度(仅「表名=业务名」),相关性由 embedding 内部处理;

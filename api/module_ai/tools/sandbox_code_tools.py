@@ -136,8 +136,9 @@ class SandboxCodeTools(Toolkit):
         SQL 源 handler.query("SELECT ..."); 非 SQL 源(如 akshare)handler.query("函数名", {参数})
         ——先 get_table_schema 查函数名/参数,勿对 akshare 写 SQL。
         结果赋给 result(或 variable_to_return),可为 {"type":"string|dataframe|html","value":...},或直接 list/数字/字符串。
-        注意:每次调用都是全新隔离进程,**不保留上一次调用的变量**;取数与后续加工/多表合并要写进**同一段 code**,
-        不能引用上一次调用留下的 result/df 等(否则 NameError)。
+        **尽量一段成型**:把 取数 → 清洗 → 计算/多表合并 →(需要就构造图表)写进**这一段 code** 一次跑完,
+        别拆成多次调用来回试——沙箱每次都是全新隔离进程、**不保留上次的变量**(引用上次的 result/df 会 NameError),
+        分多次只会重复取数、更慢更费轮次;中间要看数据就在同段里 print 关键片段。
 
         :param datasource_code: 数据源编码
         :param code: 取数 Python 代码(内部可用 handler)
@@ -206,13 +207,18 @@ class SandboxCodeTools(Toolkit):
             datasource = _resolve_datasource(datasource_code)
         except Exception as e:
             return f'数据源解析失败: {e}'
+        lint = _lint_native(stmt, datasource.get('source_type'))  # dry-run 轻校验:类型不匹配早返回,省一轮
+        if lint:
+            return f'查询未执行(dry-run 校验): {lint}'
         code = f'result = handler.query({stmt!r}, None, {_CHART_ROW_CAP})'
         try:
             res = sandbox_client.run_python_data(code, datasource, 'result')
         except Exception as e:
             return f'调用沙箱失败: {e}'
         if not res.get('success'):
-            return f'查询失败: {res.get("error") or "未知错误"}'
+            err = res.get('error') or '未知错误'
+            hint = _error_hint(err)  # 与 run_datasource_query 一致:失败附纠错提示,引导下一轮改对
+            return f'查询失败: {err}' + (f'\n{hint}' if hint else '')
         rows = res.get('result')
         if isinstance(rows, dict) and 'value' in rows:  # 若被规整成 {type,value}
             rows = rows['value']
@@ -302,6 +308,23 @@ def _summarize(result: Any) -> str:
             return f'结论: {val}'
         return f'结果({t}): {_preview(val)}'
     return f'结果: {_preview(result)}'
+
+
+def _lint_native(stmt: Any, source_type: str | None) -> str | None:
+    """出图 dry-run 轻校验:进沙箱前 catch 最高频的「查询语句与源类型不匹配」(如给 akshare/ES 写 SQL、
+    给 SQL 源传 dict),直接返回纠错提示、省一整轮失败往返。通过返回 None。"""
+    st = (source_type or '').lower()
+    sql_family = ('mysql', 'postgres', 'clickhouse', 'doris', 'starrocks', 'oracle', 'mssql',
+                  'sqlserver', 'sqlite', 'tidb', 'mariadb', 'oceanbase', 'greenplum', 'rdbms', 'sql')
+    is_sql_src = any(x in st for x in sql_family)
+    if isinstance(stmt, str):
+        head = stmt.lstrip().lower()
+        if (head.startswith('select') or head.startswith('with')) and st and not is_sql_src:
+            return (f'该数据源类型为「{source_type}」,不接受 SQL 语句;请传该源原生查询'
+                    '(ES 用 DSL dict、Mongo 用 pipeline dict、akshare 等用「函数名」+参数——先 get_table_schema 查用法)。')
+    elif isinstance(stmt, dict) and is_sql_src:
+        return f'该数据源类型为「{source_type}」(SQL 源),native 应传 SQL 字符串,而不是 dict。'
+    return None
 
 
 def _error_hint(err: str) -> str:
