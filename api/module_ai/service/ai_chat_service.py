@@ -801,6 +801,7 @@ class AiChatService:
             .join(DataSource, DataSource.id == RagDataset.source_id)
             .where(
                 RagChunk.chunk_type == 'qa',
+                RagChunk.star_flag == 1,  # 只有⭐标星的 QA(收藏的已验证解法)才走快路;普通/导入 QA 不绕开模型
                 RagChunk.question_hash == md5(q),
                 RagDataset.status == 1,
             )

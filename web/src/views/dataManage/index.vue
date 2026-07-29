@@ -316,7 +316,9 @@ async function removeModel(m) {
 .tree-filter { flex-shrink: 0; margin: 0 4px 6px; }
 .src-tree { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; }
 .src-icon { width: 16px; height: 16px; object-fit: contain; vertical-align: middle; flex-shrink: 0; }
-.right-panel { padding: 0 12px; }
+/* 填满右侧 pane 并在内容超高时纵向滚动:小分辨率下「数据查询」的可视化图表(min 360px)+ 查询框会超出 pane,
+   原来无 height/overflow 被 pane 裁掉、无法滚动;这里让右面板自身可滚。 */
+.right-panel { height: 100%; overflow-y: auto; box-sizing: border-box; padding: 0 12px; }
 .tree-node { display: flex; align-items: center; gap: 6px; }
 .tree-node .label { font-size: 13px; }
 .tree-node .dot { width: 8px; height: 8px; border-radius: 50%; background: #c0c4cc; }

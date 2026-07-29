@@ -195,3 +195,43 @@ def build_extract_code_prompt(datasource_codes: list[str] | None, question: str)
         f'{srcs}'
         f'需求:{question}'
     )
+
+
+def build_plot_code_prompt(
+    datasource_code: str, source_type: str = '', family: str = '', question: str = '', current_code: str = ''
+) -> str:
+    """代码看板绘图代码生成提示词:NL(+可选现有代码)→ 取数 + pyecharts 出图、赋值 result 的 Python。
+
+    沙箱以 run_python_data 执行,注入单个只读 `handler`(即该数据源连接);代码需把图表 HTML 赋给 result。
+    """
+    src = f'数据源编码:{datasource_code}' + (f'(类型 {source_type}/{family})' if source_type else '')
+    base = (
+        '【当前已有代码,如下】\n'
+        f'{current_code.strip()}\n'
+        '【重要】请在此基础上做**最小改动**满足下面需求:保留仍适用的取数/字段/绘图逻辑,只改需要变的部分,'
+        '不要推倒重写、不要无谓改动无关代码。若需求只是小调整(改图型/标题/颜色/排序/取前N等),就在原代码上改。\n'
+        if (current_code or '').strip()
+        else ''
+    )
+    return (
+        '你是 Python 数据可视化专家。请写一段代码:用注入的只读 `handler` 取数,再用 pyecharts 画图,'
+        '最后把图表 HTML 赋值给变量 `result`,格式必须是 `result = {"type": "html", "value": 图表对象.render_embed()}`。\n'
+        'handler.query(...) 返回 list[dict](不是 DataFrame),按数据源类型调用:\n'
+        '  · SQL 源:   handler.query("SELECT col_a, col_b FROM 表 LIMIT 100")\n'
+        '  · ES 源:    handler.query({"index": "索引名", "body": {"size": 100, "query": {"match_all": {}}}}, None, 100)\n'
+        '  · akshare:  handler.query("接口函数名", {"参数名": "值"})\n'
+        '可用库:pyecharts(charts/options)、json、re、datetime、math;可 print() 打印进度。'
+        '不要文件/系统/网络/子进程操作,不要 markdown 代码块,只输出可直接运行的 Python 代码本身。\n'
+        '【pyecharts 用法约束,避免报错】只用常见配置:TitleOpts/AxisOpts/LabelOpts/TooltipOpts/LegendOpts、'
+        'add_xaxis/add_yaxis/reversal_axis;颜色一律用字符串(如 "#c62828")不要用 opts.color;'
+        '不确定的生僻选项(visualmap/markline/graphic 等)一律不用。务必保证代码能直接跑通。\n'
+        '示例:\n'
+        'from pyecharts.charts import Bar\n'
+        'from pyecharts import options as opts\n'
+        'rows = handler.query("SELECT name, val FROM t ORDER BY val DESC LIMIT 10")\n'
+        'c = Bar().add_xaxis([r["name"] for r in rows]).add_yaxis("值", [r["val"] for r in rows])\n'
+        'result = {"type": "html", "value": c.render_embed()}\n'
+        f'{src}\n'
+        f'{base}'
+        f'需求:{question}'
+    )

@@ -859,6 +859,63 @@ class DataQueryService:
         return cfg, prompt
 
     @classmethod
+    async def prep_plot_code(cls, db: AsyncSession, datasource_code: str, question: str, current_code: str = '') -> tuple[dict, str]:
+        """代码看板 AI 辅助:自然语言(+可选现有代码)→ 取数+pyecharts 绘图代码(流式)。返回 (模型cfg, prompt)。"""
+        if not (question or '').strip():
+            raise ServiceException(message='请描述要画的图')
+        ds = await DataSourceDao.get_by_code(db, datasource_code) if datasource_code else None
+        prompt = ez_prompts.build_plot_code_prompt(
+            datasource_code, ds.source_type if ds else '', getattr(ds, 'family', '') if ds else '',
+            question, current_code or '',
+        )
+        cfg = await _ai_resolve_cfg(db)
+        return cfg, prompt
+
+    @classmethod
+    async def run_code_chart_by_id(cls, db: AsyncSession, did: str) -> dict:
+        """按看板 id 渲染代码看板:后端查该看板画布里的代码组件 → 沙箱跑 → {html}。
+        渲染态(预览/纯图页/刷新)用这条,代码留在服务端不随请求来回传,客户端也无法改代码。"""
+        if not (did or '').strip():
+            raise ServiceException(message='缺少看板 id')
+        canvas = await DashboardCanvasDao.get_by_dashboard(db, did)
+        content = (canvas.content if canvas else None) or {}
+        comps = content.get('components') or []
+        code_comp = next((c for c in comps if isinstance(c, dict) and c.get('type') == 'code'), None)
+        if not code_comp:
+            raise ServiceException(message='该看板无代码组件')
+        inl = code_comp.get('inline') or {}
+        return await cls.run_code_chart(db, inl.get('datasourceCode', ''), inl.get('code', ''))
+
+    @classmethod
+    async def run_code_chart(cls, db: AsyncSession, datasource_code: str, code: str) -> dict:
+        """代码看板渲染:在沙箱直接跑存的取数+绘图代码,产出 pyecharts HTML(不经 LLM convert_code_to_board 转换)。
+        代码需把图表 HTML 赋给 result,如 `result = {"type":"html","value": 图表对象.render_embed()}`。
+        只读/出网护栏由沙箱 handler 内部保证(与 run_datasource_query 同)。"""
+        from module_data import sandbox_client
+
+        if not (code or '').strip():
+            raise ServiceException(message='无代码可执行')
+        ds = await DataSourceDao.get_by_code(db, datasource_code)
+        if not ds:
+            raise ServiceException(message='数据源不存在')
+        datasource = {'source_type': ds.source_type, 'config': ds.config or {}, 'secrets': _decrypt_secrets(ds)}
+        try:
+            res = sandbox_client.run_python_data(code, datasource, 'result')
+        except Exception as e:
+            raise ServiceException(message=f'沙箱执行失败:{short_err(e)}')
+        if not res.get('success'):
+            raise ServiceException(message=f'代码执行失败:{res.get("error") or "未知错误"}')
+        result = res.get('result')
+        html = None
+        if isinstance(result, dict) and result.get('type') == 'html':
+            html = result.get('value')
+        elif isinstance(result, str) and '<' in result:
+            html = result
+        if not html:
+            raise ServiceException(message='代码未产出 HTML 图表(需 result={"type":"html","value": 图表.render_embed()})')
+        return {'html': str(html)}
+
+    @classmethod
     async def preview_native(
         cls, db: AsyncSession, datasource_code: str, native: Any, limit: int = 500, params: dict | None = None
     ) -> dict:
@@ -1482,21 +1539,27 @@ class AnalysisTemplateService:
         remark: str,
         operator: str,
     ) -> str:
-        """代码取数的图表存为看板:LLM 把代码转成 {native, cfg} → get-or-create custom_query 模型 → 存模板。"""
+        """代码取数的图表存为看板:**直接存 {数据源, 代码} 的代码组件**(dash_type='code' 一等类型),渲染时沙箱跑代码出图。
+        不再走 convert_code_to_board(LLM 代码→声明式转换,老失败)。question 保留签名兼容,现忽略。"""
         if not (name or '').strip():
             raise ServiceException(message='请填写看板名称')
-        res = await DataQueryService.convert_code_to_board(db, datasource_code, code, question)
-        model_id = await DataModelService.ensure_custom_query_model(db, datasource_code, operator)
-        m = await DataModelDao.get_by_id(db, model_id)
-        vo = AnalysisTemplateVo(
-            name=name.strip(),
-            model_id=model_id,
-            model_name=(m.name if m else ''),
-            query={'type': 'native', 'native': res['native']},
-            chart_spec=res['cfg'],
-            remark=remark or 'AI 对话·代码转看板',
-        )
-        return await cls.save(db, vo, operator)
+        if not (code or '').strip():
+            raise ServiceException(message='无代码可保存')
+        if not (datasource_code or '').strip():
+            raise ServiceException(message='缺少数据源')
+        content = {
+            'canvas': {'mode': 'single'},
+            'components': [{'id': 'c1', 'type': 'code', 'inline': {'datasourceCode': datasource_code, 'code': code}}],
+            'filters': [],
+        }
+        tid = uuid.uuid4().hex
+        await DashboardDao.add(db, {
+            'id': tid, 'name': name.strip(), 'dash_type': 'code',
+            'model_name': '代码看板', 'remark': remark or 'AI 对话·代码看板', 'create_by': operator,
+        })
+        await DashboardCanvasDao.upsert(db, tid, content, operator)
+        await db.commit()
+        return tid
 
     @classmethod
     async def delete(cls, db: AsyncSession, ids: list[str]) -> None:
@@ -1628,6 +1691,15 @@ class DashboardService:
                             rows = []
                     item['rows'] = rows
                     item['chartSpec'] = (chart or {}).get('chartSpec')
+                elif comp.get('type') == 'code':
+                    # 代码看板:匿名页也实时跑沙箱出图,把 HTML 预挂到组件上(前端直接 iframe 渲染)
+                    inline = comp.get('inline') if isinstance(comp.get('inline'), dict) else {}
+                    try:
+                        item['html'] = (
+                            await DataQueryService.run_code_chart(db, inline.get('datasourceCode', ''), inline.get('code', ''))
+                        ).get('html', '')
+                    except Exception:
+                        item['html'] = ''
                 out_comps.append(item)
             return {
                 'name': base.name, 'dashType': base.dash_type,

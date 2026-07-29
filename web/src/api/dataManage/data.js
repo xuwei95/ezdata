@@ -151,6 +151,11 @@ export function getDashboard(id, silent = false) {
 export function saveDashboard(data) {
   return request({ url: '/data/dashboard', method: 'post', data })
 }
+// 代码看板渲染:沙箱跑 {datasourceCode, code} 出图,返回 {html}(pyecharts render_embed)
+export function runCodeChart(data, silent = false) {
+  // 沙箱跑代码可能较慢(取数+画图),超时放宽;silent=展示模式失败不弹 msg
+  return request({ url: '/data/dashboard/run-code', method: 'post', data, timeout: 300000, silent })
+}
 export function delDashboard(ids) {
   return request({ url: '/data/dashboard/' + ids, method: 'delete' })
 }

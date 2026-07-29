@@ -4,6 +4,7 @@
       <el-radio-group v-model="typeFilter">
         <el-radio-button label="">{{ $t('全部') }}</el-radio-button>
         <el-radio-button label="chart">{{ $t('单图') }}</el-radio-button>
+        <el-radio-button label="code">{{ $t('代码') }}</el-radio-button>
         <el-radio-button label="board">{{ $t('多图') }}</el-radio-button>
         <el-radio-button label="screen">{{ $t('大屏') }}</el-radio-button>
       </el-radio-group>
@@ -13,6 +14,7 @@
         <template #dropdown>
           <el-dropdown-menu>
             <el-dropdown-item command="chart">{{ $t('单图看板') }}</el-dropdown-item>
+            <el-dropdown-item command="code">{{ $t('代码看板') }}</el-dropdown-item>
             <el-dropdown-item command="board">{{ $t('多图看板') }}</el-dropdown-item>
             <el-dropdown-item command="screen">{{ $t('数据大屏') }}</el-dropdown-item>
           </el-dropdown-menu>
@@ -63,8 +65,9 @@
       </div>
     </el-dialog>
 
-    <!-- 编辑器:统一全屏弹窗(单图 / 多图·大屏),保存后回调刷新列表 -->
+    <!-- 编辑器:统一全屏弹窗(单图 / 代码 / 多图·大屏),保存后回调刷新列表 -->
     <ChartEditor v-model="chartEd.visible" :id="chartEd.id" @saved="loadList" />
+    <CodeBoardEditor v-model="codeEd.visible" :id="codeEd.id" @saved="loadList" />
     <DashEditor v-model="boardEd.visible" :id="boardEd.id" :dash-type="boardEd.dashType" @saved="loadList" />
     <!-- 预览:统一全屏弹窗;内含「新标签纯图页」跳转 -->
     <PreviewDialog v-model="pv.visible" :row="pv.row" />
@@ -77,6 +80,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { listDashboards, delDashboard, genDashboardShare, revokeDashboardShare } from '@/api/dataManage/data'
 import ChartEditor from './ChartEditor.vue'
+import CodeBoardEditor from './CodeBoardEditor.vue'
 import DashEditor from './DashEditor.vue'
 import PreviewDialog from './PreviewDialog.vue'
 import { copyToClipboard } from '@/utils/clipboard'
@@ -86,11 +90,12 @@ const loading = ref(false)
 const list = ref([])
 const typeFilter = ref('')
 const kw = ref('')
-const TYPE_LABEL = { chart: '单图', board: '多图', screen: '大屏' }
-const TAG = { chart: '', board: 'success', screen: 'warning' }
+const TYPE_LABEL = { chart: '单图', code: '代码', board: '多图', screen: '大屏' }
+const TAG = { chart: '', code: 'danger', board: 'success', screen: 'warning' }
 
-// 编辑器弹窗状态(单图 / 多图·大屏)
+// 编辑器弹窗状态(单图 / 代码 / 多图·大屏)
 const chartEd = reactive({ visible: false, id: '' })
+const codeEd = reactive({ visible: false, id: '' })
 const boardEd = reactive({ visible: false, id: '', dashType: 'board' })
 // 预览弹窗(单图/多图/大屏统一)
 const pv = reactive({ visible: false, row: null })
@@ -110,11 +115,14 @@ async function loadList() {
 }
 function onNew(type) {
   if (type === 'chart') { chartEd.id = ''; chartEd.visible = true }
+  else if (type === 'code') { codeEd.id = ''; codeEd.visible = true }
   else { boardEd.id = ''; boardEd.dashType = type; boardEd.visible = true }
 }
 function toEditor(row) {
-  if ((row.dashType || 'chart') === 'chart') { chartEd.id = row.id; chartEd.visible = true }
-  else { boardEd.id = row.id; boardEd.dashType = row.dashType || 'board'; boardEd.visible = true }
+  const t = row.dashType || 'chart'
+  if (t === 'chart') { chartEd.id = row.id; chartEd.visible = true }
+  else if (t === 'code') { codeEd.id = row.id; codeEd.visible = true }
+  else { boardEd.id = row.id; boardEd.dashType = t; boardEd.visible = true }
 }
 function toView(row) {
   pv.row = row

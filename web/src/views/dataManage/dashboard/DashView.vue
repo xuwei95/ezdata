@@ -3,7 +3,8 @@
     <!-- 纯图页:无头部,顶部筛选栏(有变量才显示)+ 画布 -->
     <DashFilterBar :filters="filters" :model-value="filterValues" @change="onFilterChange" />
     <DashCanvas v-if="dash.components.length" :key="renderKey" :components="dash.components" :canvas="dash.canvas"
-      :chart-params="chartParams" :filters="filters" @filter-change="onFilterChange" />
+      :chart-params="chartParams" :filters="filters" :refresh-tick="refreshTick" :board-id="String(route.params.id || '')"
+      @filter-change="onFilterChange" />
     <el-empty v-else :description="err || '空看板'" />
   </div>
 </template>
@@ -18,7 +19,8 @@ import DashFilterBar from './DashFilterBar.vue'
 
 const route = useRoute()
 const err = ref('')
-const renderKey = ref(0)
+const renderKey = ref(0)   // 结构挂载 key(组件集/画布变化时重挂)
+const refreshTick = ref(0) // 自动刷新信号:递增触发各组件原地重取数(不重挂,代码看板不再反复重跑)
 const dash = reactive({ name: '', canvas: { mode: 'matrix', cols: 24 }, components: [], refreshInterval: 0 })
 const filters = ref([]) // 看板变量定义(存储态,options 数组)
 const filterValues = reactive({}) // 当前筛选值 {name: value}
@@ -47,8 +49,8 @@ async function load() {
     dash.refreshInterval = d.refreshInterval || 0
     filters.value = d.filters || []
     syncFilterValues()
-    renderKey.value++ // 强制各组件重新取数(自动刷新)
-    if (!timer && dash.refreshInterval > 0) timer = setInterval(load, dash.refreshInterval * 1000)
+    renderKey.value++ // 结构挂载(仅首次/结构变化);自动刷新走 refreshTick 原地更新,不再重挂
+    if (!timer && dash.refreshInterval > 0) timer = setInterval(() => { refreshTick.value++ }, dash.refreshInterval * 1000)
   } catch (e) { err.value = e?.msg || e?.message || '加载失败'; console.warn('[DashView] 展示加载失败', err.value) }
 }
 

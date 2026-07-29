@@ -282,17 +282,13 @@ async function saveRecipeOf(b) {
 const savingChart = ref({});
 async function saveDashboard(art, i) {
   if (!art || !art.saveable || art.saved) return;
-  if (art.saveable.mode === "code") {
-    openConvert(art, i);
-    return;
-  }
-  // 声明式:已有 native + chartSpec,命名后直存
+  const sv = art.saveable;
   let name;
   try {
     const r = await ElMessageBox.prompt("给看板起个名字", "存为看板", {
       confirmButtonText: "保存",
       cancelButtonText: "取消",
-      inputValue: art.saveable.title || "",
+      inputValue: sv.title || "",
       inputPlaceholder: "看板名称",
       inputValidator: (v) => (v && v.trim() ? true : "请输入名称"),
     });
@@ -300,10 +296,15 @@ async function saveDashboard(art, i) {
   } catch (e) {
     return; // 取消
   }
-  const sv = art.saveable;
   savingChart.value[i] = true;
   try {
-    await saveChartAsBoard({ name: name.trim(), datasourceCode: sv.datasourceCode, native: sv.native, chartSpec: sv.chartSpec });
+    // code 模式:直接存「代码看板」——渲染时在沙箱跑这段代码出图,不再走 LLM 代码→配置转换(老失败)。
+    // 声明式(plot_chart):存 native + chartSpec。后端 /from-chart 端点按有无 code 自动分派。
+    const payload =
+      sv.mode === "code"
+        ? { name: name.trim(), datasourceCode: sv.datasourceCode, code: sv.code }
+        : { name: name.trim(), datasourceCode: sv.datasourceCode, native: sv.native, chartSpec: sv.chartSpec };
+    await saveChartAsBoard(payload);
     art.saved = true;
     ElMessage.success("已存为看板,可在「数据管理 → 数据看板」查看");
   } catch (e) {
@@ -453,7 +454,8 @@ function fitChart(html) {
     `<script type="text/javascript" src="${localEcharts}" onerror="this.onerror=null;var s=document.createElement('script');s.src='$1';document.head.appendChild(s);"><\/script>`,
   );
   const css =
-    "<style>html,body{height:100%;margin:0;overflow:hidden}" +
+    // overflow:auto(原 hidden):图表大于 iframe(小屏/大图)时可滚动查看,正好铺满时无滚动条、行为不变
+    "<style>html,body{height:100%;margin:0;overflow:auto}" +
     ".chart-container{width:100%!important;height:100%!important}</style>";
   const js =
     '<script>window.addEventListener("resize",function(){' +
