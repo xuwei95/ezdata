@@ -57,6 +57,14 @@ _SQL_DANGEROUS = re.compile(
     r'load\s+data|lock|unlock)\b|into\s+(out|dump)file',
     re.IGNORECASE,
 )
+# 字符串/标识符字面量:'...'(含 '' 转义)、"..."、`...`。扫危险关键字前先抠掉,
+# 否则数据值/标识符里的关键字(如姓名 'Grant'、列名 "update")会误触黑名单。
+_SQL_LITERAL = re.compile(r"'(?:[^']|'')*'" r'|"(?:[^"]|"")*"' r'|`(?:[^`]|``)*`')
+
+
+def _mask_sql_literals(s: str) -> str:
+    """把字符串/标识符字面量替换为中性占位,消除"数据值撞关键字"的误判(也顺带中和字面量里的 `;`)。"""
+    return _SQL_LITERAL.sub(' ? ', s)
 
 
 # native 为 SQL 文本的数据源族,才做只读 SQL 护栏;api(akshare/ccxt 的函数名)、
@@ -77,11 +85,13 @@ def assert_readonly_sql(statement: Any, family: str | None = None) -> None:
     s = statement.strip().rstrip(';').strip()
     if not s:
         return
-    if ';' in s:  # 多语句(防堆叠注入)
+    # 先抠掉字符串/标识符字面量,再做多语句/危险关键字判定,避免数据值(如姓名 'Grant')误触黑名单
+    masked = _mask_sql_literals(s)
+    if ';' in masked:  # 多语句(防堆叠注入)
         raise ReadOnlyViolation('查询仅允许单条只读语句(检测到多条语句)')
     if not _SQL_READONLY_START.match(s):
         raise ReadOnlyViolation('查询仅允许只读语句(SELECT / WITH / SHOW / EXPLAIN)')
-    if _SQL_DANGEROUS.search(s):
+    if _SQL_DANGEROUS.search(masked):
         raise ReadOnlyViolation('检测到写入/DDL 关键字,已拦截(查询仅限只读,写入请用数据集成任务)')
 
 

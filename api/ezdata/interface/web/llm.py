@@ -50,6 +50,8 @@ def _build_model(cfg: dict, temperature: float | None):
             # Claude 不接受顶层 base_url;自定义网关须走 client_params(对齐主项目 AiUtil 的处理)
             if base_url:
                 params['client_params'] = {'base_url': base_url}
+            # 新版 Claude(如 opus-4-8)已弃用 temperature 参数,带上会 400;直接剔除(对齐主项目 AiUtil)
+            params.pop('temperature', None)
             return Claude(**params)
 
         from agno.models.openai import OpenAIChat
