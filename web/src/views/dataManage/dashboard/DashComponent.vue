@@ -7,6 +7,11 @@
       </div>
       <div v-else class="dc-empty">{{ err || (loading ? '加载中…' : '无数据') }}</div>
     </template>
+    <!-- 代码看板:沙箱跑存的代码出 pyecharts HTML,iframe 渲染(公开页用预挂的 comp.html) -->
+    <template v-else-if="comp.type === 'code'">
+      <iframe v-if="codeHtml" class="dc-code-frame" :srcdoc="fitChart(codeHtml)" sandbox="allow-scripts" frameborder="0" />
+      <div v-else class="dc-empty">{{ err || (loading ? '渲染中…' : '无图表') }}</div>
+    </template>
     <!-- 文本 -->
     <div v-else-if="comp.type === 'text'" class="dc-text" :style="comp.props && comp.props.style">
       {{ (comp.props && comp.props.text) || '文本' }}
@@ -38,7 +43,7 @@
 <script setup name="DashComponent">
 import { ref, computed, watch, onMounted } from 'vue'
 import EchartsBuilder from '@/views/dataManage/visualization/EchartsBuilder.vue'
-import { fetchBoardRows } from '@/views/dataManage/visualization/board.js'
+import { fetchBoardRows, fetchBoardCodeHtml, fetchBoardCodeHtmlById, fitChart } from '@/views/dataManage/visualization/board.js'
 import { getDashboard } from '@/api/dataManage/data'
 
 const props = defineProps({
@@ -50,6 +55,8 @@ const props = defineProps({
   height: { type: Number, default: 300 },
   dark: { type: Boolean, default: false }, // 大屏(暗底)模式:图表透明底 + 明色轴/文字
   silent: { type: Boolean, default: false }, // 预览/展示模式:取数失败不弹 msg,只打 console + 卡片内提示
+  refreshTick: { type: Number, default: 0 }, // 自动刷新信号:值变化 → 原地重取数/重跑代码(不重挂,避免闪烁/代码看板反复重跑跑不出)
+  boardId: { type: String, default: '' }, // 代码看板所属看板 id:有则按 id 渲染(后端查代码执行,代码不下发)
 })
 const emit = defineEmits(['filter-change'])
 
@@ -77,6 +84,7 @@ const localRows = ref([])
 const localCfg = ref(null)
 const loading = ref(false)
 const err = ref('')
+const codeHtml = ref('') // 代码看板:沙箱产出的 pyecharts HTML
 
 // 优先级:显式 props > 组件自带(公开页 /open/dashboard 已附 rows/chartSpec)> 自取
 const displayRows = computed(() => (props.rows != null ? props.rows : (props.comp.rows != null ? props.comp.rows : localRows.value)))
@@ -119,13 +127,44 @@ watch(
   resolveChart,
   { deep: true }
 )
-onMounted(resolveChart)
+
+// 代码看板:公开页(/open/dashboard)已把渲染好的 comp.html 预挂上,直接用;否则调后端沙箱跑代码出图。
+// 自动刷新时原地重跑:已有图则不清空 codeHtml(不显示 loading 遮罩),新 html 到手再替换 —— 避免闪烁,
+// 也避免"刷新间隔 < 沙箱耗时"时反复重挂导致永远停在'渲染中'画不出来。
+async function resolveCode() {
+  const c = props.comp
+  if (c.type !== 'code') return
+  if (c.html != null && c.html !== '') { codeHtml.value = c.html; return }
+  const inl = c.inline || {}
+  // 优先按 id 渲染(后端查代码执行,代码不随请求下发);无 id 时(理论上不走)回退用内嵌代码
+  if (!props.boardId && (!inl.datasourceCode || !inl.code)) { err.value = '代码组件缺数据源/代码'; return }
+  const hadChart = !!codeHtml.value
+  loading.value = !hadChart; err.value = ''
+  try {
+    const html = props.boardId
+      ? await fetchBoardCodeHtmlById(props.boardId, props.silent)
+      : await fetchBoardCodeHtml(inl.datasourceCode, inl.code, props.silent)
+    if (html) codeHtml.value = html
+    else if (!hadChart) err.value = '未产出图表'
+  } catch (e) {
+    if (!hadChart) err.value = '渲染失败'
+    if (props.silent) console.warn('[DashComponent] 代码看板渲染失败', e?.message || e)
+  } finally { loading.value = false }
+}
+watch(() => [props.comp && props.comp.inline && props.comp.inline.datasourceCode,
+  props.comp && props.comp.inline && props.comp.inline.code, props.comp && props.comp.html, props.boardId], resolveCode, { deep: true })
+
+// 自动刷新信号:原地重取数(chart)/重跑代码(code),不重挂组件
+watch(() => props.refreshTick, () => { resolveChart(); resolveCode() })
+
+onMounted(() => { resolveChart(); resolveCode() })
 </script>
 
 <style scoped>
 /* 底色交给外层:矩阵卡片由 .dg-item 提供白底;自由模式(大屏)保持透明,透出暗背景 */
 .dash-comp { width: 100%; height: 100%; overflow: hidden; background: transparent; }
 .dc-chart { width: 100%; height: 100%; }
+.dc-code-frame { width: 100%; height: 100%; border: 0; display: block; }
 .dc-empty { display: flex; align-items: center; justify-content: center; height: 100%; color: #909399; font-size: 13px; }
 .dc-text { padding: 8px 12px; white-space: pre-wrap; word-break: break-word; }
 .dc-img { width: 100%; height: 100%; object-fit: contain; }

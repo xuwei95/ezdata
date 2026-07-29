@@ -95,7 +95,7 @@ class SandboxCodeTools(Toolkit):
     def _collect(self, res: dict, saveable: dict | None = None) -> None:
         """把沙箱结果里的 html/dataframe 归一成前端可渲染的产物,append 到收集器。
 
-        saveable:数据源取数的图可带上 {mode:'code', datasourceCode, code},供前端「存为看板」时经 LLM 转看板。
+        saveable:数据源取数的图可带上 {mode:'code', datasourceCode, code},供前端「存为看板」直存为代码看板(渲染时沙箱跑代码出图)。
         """
         if not (res and res.get('success')):
             return
@@ -105,7 +105,7 @@ class SandboxCodeTools(Toolkit):
         t, val = result['type'], result['value']
         if t == 'html':
             art = {'kind': 'chart', 'html': str(val)}
-            if saveable:  # 代码取数产出的图 → 可存看板(存时 convert_code_to_board 转)
+            if saveable:  # 代码取数产出的图 → 可直存为代码看板(渲染时沙箱跑 code 出图)
                 art['saveable'] = saveable
             self.artifacts.append(art)
         elif t == 'dataframe':
@@ -156,7 +156,7 @@ class SandboxCodeTools(Toolkit):
             res = sandbox_client.run_python_data(code, datasource, variable_to_return)
         except Exception as e:
             return f'调用沙箱失败: {e}'
-        # 代码取数产出的图带上 code,前端「存为看板」时经 convert_code_to_board 转成可复用看板
+        # 代码取数产出的图带上 code,前端「存为看板」直存为代码看板(渲染时沙箱跑这段 code 出图)
         self._collect(res, saveable={'mode': 'code', 'datasourceCode': datasource_code, 'code': code})
         return _format_result(res)
 

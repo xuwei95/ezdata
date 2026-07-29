@@ -1,7 +1,14 @@
 <template>
+  <!-- 单组件模式(代码看板):整块铺满,无栅格/拖拽/标题栏 -->
+  <div v-if="mode === 'single'" class="dg-single">
+    <DashComponent v-if="components[0]" :comp="components[0]" :params="chartParams" :height="singleH"
+      :silent="!editable" :refresh-tick="refreshTick" :board-id="boardId" @filter-change="$emit('filter-change', $event)" />
+    <el-empty v-else :description="$t('空看板')" />
+  </div>
+
   <!-- 矩阵模式:栅格拖拽/挤压(grid-layout-plus) -->
   <GridLayout
-    v-if="mode !== 'free'"
+    v-else-if="mode !== 'free'"
     :layout="layout"
     :col-num="cols"
     :row-height="RH"
@@ -24,7 +31,7 @@
         </div>
         <div class="dg-body">
           <DashComponent v-if="map[item.i]" :comp="map[item.i]" :params="chartParams" :filter-def="filterDefFor(map[item.i])"
-            :height="itemH(item)" :silent="!editable" @filter-change="$emit('filter-change', $event)" />
+            :height="itemH(item)" :silent="!editable" :refresh-tick="refreshTick" @filter-change="$emit('filter-change', $event)" />
         </div>
       </div>
     </GridItem>
@@ -38,7 +45,7 @@
           :style="{ left: (c.pos && c.pos.x || 0) + 'px', top: (c.pos && c.pos.y || 0) + 'px', width: (c.pos && c.pos.w || 300) + 'px', height: (c.pos && c.pos.h || 200) + 'px', zIndex: (c.pos && c.pos.z) || 1 }"
           @mousedown="editable && startDrag($event, c)" @click.stop="editable && $emit('select-comp', c.id)" @dblclick.stop="editable && $emit('edit-comp', c.id)">
           <DashComponent :comp="c" :params="chartParams" :filter-def="filterDefFor(c)" :height="((c.pos && c.pos.h) || 200) - 4"
-            :dark="isDark" :silent="!editable" @filter-change="$emit('filter-change', $event)" />
+            :dark="isDark" :silent="!editable" :refresh-tick="refreshTick" @filter-change="$emit('filter-change', $event)" />
           <template v-if="editable">
             <span class="dg-ops">
               <el-button link type="primary" icon="Setting" :title="$t('配置')" @mousedown.stop @click.stop="$emit('edit-comp', c.id)" />
@@ -65,6 +72,8 @@ const props = defineProps({
   rowHeight: { type: Number, default: 40 },
   chartParams: { type: Object, default: null }, // 全局筛选值(联动):{name: value},已展开 daterange
   filters: { type: Array, default: () => [] }, // 看板变量定义,用于解析 filter 组件所绑变量
+  refreshTick: { type: Number, default: 0 }, // 自动刷新信号:透传给各 DashComponent 原地重取数(不重挂)
+  boardId: { type: String, default: '' }, // 代码看板(single 模式)所属看板 id:透传给 DashComponent 按 id 渲染
 })
 const emit = defineEmits(['update:components', 'select-comp', 'remove-comp', 'edit-comp', 'filter-change'])
 
@@ -90,6 +99,8 @@ function isLightColor(c) {
 const isDark = computed(() => mode.value === 'free' && !isLightColor(props.canvas.background || '#0b1a2b'))
 const RH = computed(() => props.rowHeight)
 const map = computed(() => Object.fromEntries((props.components || []).map((c) => [c.id, c])))
+// single 模式给个可视高度(代码看板 iframe 铺满容器;容器自身无固定高时用它兜底)
+const singleH = computed(() => Math.max(420, window.innerHeight - 200))
 
 // ---- 大屏整体等比缩放(ResizeObserver 按容器算,编辑器/预览/纯图页统一)----
 const freeVp = ref(null)
@@ -167,6 +178,8 @@ function compTitle(c) {
 </script>
 
 <style scoped>
+/* 单组件模式(代码看板):铺满可用高度;无固定高时用 min-height 兜底,保证 iframe 图表显示 */
+.dg-single { width: 100%; height: 100%; min-height: 420px; }
 .dg-item { width: 100%; height: 100%; display: flex; flex-direction: column; border: 1px solid #ebeef5; border-radius: 6px; background: #fff; box-sizing: border-box; overflow: hidden; }
 .dg-item.editable { cursor: move; }
 .dg-item.selected { border-color: var(--el-color-primary); box-shadow: 0 0 0 2px var(--el-color-primary-light-5); }

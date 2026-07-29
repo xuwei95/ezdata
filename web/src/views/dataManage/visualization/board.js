@@ -1,6 +1,39 @@
 // 单图看板共享工具:图表类型清单、cfg 版本、native 文本/对象互转、取数。
 // 供 index.vue(编辑器)/ preview.vue(独立预览)/ share.vue(公开分享)复用,避免各拷一份。
-import { queryModel } from '@/api/dataManage/data'
+import { queryModel, runCodeChart } from '@/api/dataManage/data'
+
+// 代码看板:沙箱跑 {datasourceCode, code} 出图(编辑器草稿预览用),返回 pyecharts HTML
+export async function fetchBoardCodeHtml(datasourceCode, code, silent = false) {
+  const res = await runCodeChart({ datasourceCode, code }, silent)
+  return (res.data && res.data.html) || ''
+}
+
+// 代码看板:按看板 id 渲染(后端查存的代码执行,代码不随请求来回传)——渲染/刷新态用这条
+export async function fetchBoardCodeHtmlById(id, silent = false) {
+  const res = await runCodeChart({ id }, silent)
+  return (res.data && res.data.html) || ''
+}
+
+// pyecharts render_embed 的 HTML → 适配 iframe:CDN echarts 换本地源(带 CDN 兜底)+ 铺满容器 + overflow:auto 可滚。
+// 与对话产物图表(AiMessage)共用一套,保证渲染一致。
+export function fitChart(html) {
+  if (!html) return html
+  const localEcharts = window.location.origin + '/echarts.min.js'
+  html = html.replace(
+    /<script\s+type="text\/javascript"\s+src="(https?:\/\/[^"]*\/echarts\.min\.js)"><\/script>/i,
+    `<script type="text/javascript" src="${localEcharts}" onerror="this.onerror=null;var s=document.createElement('script');s.src='$1';document.head.appendChild(s);"><\/script>`,
+  )
+  const css =
+    '<style>html,body{height:100%;margin:0;overflow:auto}' +
+    '.chart-container{width:100%!important;height:100%!important}</style>'
+  const js =
+    '<script>window.addEventListener("resize",function(){' +
+    'var e=document.querySelector(".chart-container");' +
+    'if(window.echarts&&e){var c=echarts.getInstanceByDom(e);if(c)c.resize();}});<\/script>'
+  let out = html.includes('</head>') ? html.replace('</head>', css + '</head>') : css + html
+  out = out.includes('</body>') ? out.replace('</body>', js + '</body>') : out + js
+  return out
+}
 
 // 与 EchartsBuilder 的 TYPE_GROUPS 保持一致(用于 isEchartsCfg 守卫,区分旧 pygwalker 数组格式)
 export const CHART_TYPES = [

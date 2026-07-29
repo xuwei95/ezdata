@@ -28,7 +28,7 @@
       <template v-else>
         <DashFilterBar :filters="filters" :model-value="filterValues" @change="onFilterChange" />
         <DashCanvas v-if="components.length" :key="renderKey" :components="components" :canvas="canvas"
-          :chart-params="chartParams" :filters="filters" @filter-change="onFilterChange" />
+          :chart-params="chartParams" :filters="filters" :board-id="String((row && row.id) || '')" @filter-change="onFilterChange" />
         <el-empty v-else :description="err || '空看板'" />
       </template>
     </div>
@@ -51,8 +51,8 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue'])
 const visible = computed({ get: () => props.modelValue, set: (v) => emit('update:modelValue', v) })
 
-const TYPE_LABEL = { chart: '单图', board: '多图', screen: '大屏' }
-const TAG = { chart: '', board: 'success', screen: 'warning' }
+const TYPE_LABEL = { chart: '单图', code: '代码', board: '多图', screen: '大屏' }
+const TAG = { chart: '', code: 'danger', board: 'success', screen: 'warning' }
 const QUERY_CAP = 5000
 const router = useRouter()
 

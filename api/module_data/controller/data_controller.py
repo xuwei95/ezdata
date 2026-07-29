@@ -405,7 +405,7 @@ async def analysis_template_from_chart(
     db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
-    """统一存看板入口:带 code(代码取数的图)→ LLM 转;否则用 native+chartSpec(plot_chart 声明式图)直存。"""
+    """统一存看板入口:带 code(代码取数的图)→ 直存代码看板(渲染时沙箱跑代码);否则用 native+chartSpec(plot_chart 声明式图)直存。"""
     operator = current_user.user.user_name
     if body.get('code'):
         tid = await AnalysisTemplateService.save_from_code(
@@ -517,6 +517,44 @@ async def dashboard_save(
 ) -> Response:
     did = await DashboardService.save(db, vo, current_user.user.user_name)
     return ResponseUtil.success(data={'id': did}, msg='已保存')
+
+
+@data_controller.post(
+    '/dashboard/run-code', summary='代码看板渲染(沙箱跑代码出图 HTML)',
+    dependencies=[UserInterfaceAuthDependency('data:query')],
+)
+async def dashboard_run_code(
+    body: dict,
+    db: Annotated[AsyncSession, DBSessionDependency()],
+) -> Response:
+    """代码看板渲染 → {html}(pyecharts render_embed)。两种入参:
+    - {id}:存量看板,后端按 id 查画布里的代码执行(代码不出服务端,渲染/刷新走这条);
+    - {datasourceCode, code}:编辑器里跑未保存的草稿代码(预览用)。"""
+    if body.get('id'):
+        return ResponseUtil.success(data=await DataQueryService.run_code_chart_by_id(db, body['id']))
+    return ResponseUtil.success(
+        data=await DataQueryService.run_code_chart(db, body.get('datasourceCode', ''), body.get('code', ''))
+    )
+
+
+@data_controller.post(
+    '/dashboard/ai-code/stream', summary='代码看板 AI 辅助生成绘图代码(流式)',
+    dependencies=[UserInterfaceAuthDependency('data:query')],
+)
+async def dashboard_ai_code_stream(
+    body: dict,
+    db: Annotated[AsyncSession, DBSessionDependency()],
+) -> StreamingResponse:
+    """body {datasourceCode, question, code?} → 流式吐出「取数 + pyecharts 绘图」Python 代码(赋值 result)。"""
+    cfg, prompt = await DataQueryService.prep_plot_code(
+        db, body.get('datasourceCode', ''), body.get('question', ''), body.get('code', '')
+    )
+    # text/event-stream:绕开 gzip 缓冲,与其它 AI 代码生成流一致
+    return StreamingResponse(
+        _ai_stream(cfg, prompt),
+        media_type='text/event-stream',
+        headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'},
+    )
 
 
 @data_controller.post(
