@@ -4,3 +4,6 @@ chinook.db
 bird_dev/
 _*_store.db
 _*_run.json
+
+# 运行日志
+*.log

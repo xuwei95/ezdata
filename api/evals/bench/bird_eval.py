@@ -76,6 +76,59 @@ def _build_pool(items, sample_ids):
     return pool
 
 
+_EC = None
+_SEM_INDEX = {}  # db_id -> (归一化向量矩阵, items)
+
+
+def _emb_client():
+    global _EC
+    if _EC is None:
+        from ezdata.interface.web import config as w
+        from module_rag.embedding import EmbeddingClient
+
+        _EC = EmbeddingClient(
+            provider=w.get('EMBEDDING_TYPE', 'dashscope'),
+            model=w.get('EMBEDDING_MODEL'),
+            api_key=w.get('EMBEDDING_API_KEY') or w.get('DASHSCOPE_API_KEY'),
+            base_url=(w.get('EMBEDDING_URL') or None),
+        )
+    return _EC
+
+
+def _sem_prepare(pool):
+    """把已验证解法库按 db_id 向量化(项目同款 embedding 模型),建归一化矩阵供余弦检索。"""
+    import numpy as np
+
+    ec = _emb_client()
+    for db_id, items in pool.items():
+        texts = [it['question'] for it in items]
+        vecs = []
+        for i in range(0, len(texts), 64):
+            vecs.extend(ec.embed(texts[i : i + 64]))
+        m = np.asarray(vecs, dtype='float32')
+        m /= np.linalg.norm(m, axis=1, keepdims=True) + 1e-9
+        _SEM_INDEX[db_id] = (m, items)
+
+
+def _fewshot_block_sem(it, k=3):
+    """语义检索(与真实 RAG 同款 bge-m3 向量 + 余弦)取同库 top-k 已验证解法作示范。"""
+    import numpy as np
+
+    idx = _SEM_INDEX.get(it['db_id'])
+    if not idx:
+        return ''
+    m, items = idx
+    q = np.asarray(_emb_client().embed_query(it['question']), dtype='float32')
+    q /= np.linalg.norm(q) + 1e-9
+    top = np.argsort(-(m @ q))[:k]
+    lines = ['参考(该数据源上已验证的相似问题 → 正确查询,请模仿其口径/选表选列/join 写法):']
+    for j in top:
+        c = items[int(j)]
+        ev = f'(提示:{c["evidence"]})' if c.get('evidence') else ''
+        lines.append(f'问题:{c["question"]}{ev}\nSQL:{c["SQL"]}')
+    return '\n'.join(lines) + '\n\n'
+
+
 def _fewshot_block(it, pool, k=3):
     """检索同库最相似的 k 条已验证(问题→gold SQL),拼成示范。词面相似(difflib),可复现、无需 embedding。"""
     import difflib
@@ -121,12 +174,16 @@ def _sample(items, total):
 def main():
     args = [a for a in sys.argv[1:]]
     retry = 'retry' in args
-    fewshot = 'fewshot' in args
+    semantic = 'semantic' in args
+    fewshot = 'fewshot' in args or semantic
     nums = [a for a in args if a.isdigit()]
     total = int(nums[0]) if nums else 0
     items = json.load(open(_DEV_JSON, encoding='utf-8'))
     sample = _sample(items, total)
     pool = _build_pool(items, {it['question_id'] for it in sample}) if fewshot else {}
+    if semantic:
+        print('向量化已验证解法库(bge-m3)...')
+        _sem_prepare(pool)
 
     store = ConnectionStore(os.path.join(_HERE, '_bird_store.db'))
     core = Core(store, LLMClient(config.llm_config()))
@@ -134,7 +191,12 @@ def main():
         if not store.get(db_id):
             store.add(db_id, 'sqlite', {'db_file': _db_path(db_id)}, {})
 
-    mode = '自纠(execute+retry×2)' if retry else ('few-shot(同库相似解法×3)' if fewshot else '单次(single-shot)')
+    mode = (
+        '自纠(execute+retry×2)' if retry
+        else 'few-shot·语义检索(bge-m3×3)' if semantic
+        else 'few-shot·词面(difflib×3)' if fewshot
+        else '单次(single-shot)'
+    )
     print(f'BIRD-dev | 模型 {core.llm.cfg.get("model")} | 抽样 {len(sample)} 题 | 模式 {mode}')
     print('=' * 74)
     results = []
@@ -151,7 +213,8 @@ def main():
         if it.get('evidence'):
             q += f'\n\n【外部知识提示】{it["evidence"]}'
         if fewshot:
-            q = _fewshot_block(it, pool) + '【实际需求(仿照上面已验证示例的写法)】\n' + q
+            block = _fewshot_block_sem(it) if semantic else _fewshot_block(it, pool)
+            q = block + '【实际需求(仿照上面已验证示例的写法)】\n' + q
         t0 = time.time()
         try:
             r = ask_retry(core, db_id, q, limit=100000) if retry else core.ask(db_id, q, tables=None, limit=100000)
@@ -179,7 +242,7 @@ def main():
         if sub:
             s = sum(r['strict'] for r in sub)
             print(f'  {tier:12}: {s}/{len(sub)} = {s / len(sub) * 100:.0f}%')
-    tag = 'retry' if retry else ('fewshot' if fewshot else 'single')
+    tag = 'retry' if retry else ('semantic' if semantic else 'fewshot' if fewshot else 'single')
     out = os.path.join(_HERE, f'_bird_{tag}_run.json')
     json.dump(results, open(out, 'w', encoding='utf-8'), ensure_ascii=False, indent=2, default=str)
     print(f'明细已写: {out}')
