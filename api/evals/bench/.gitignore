@@ -1,0 +1,6 @@
+# 基准数据与运行产物:体积大 / 可下载 / 可复现,不入库(只留 *.py 脚本)
+chinook.db
+*.zip
+bird_dev/
+_*_store.db
+_*_run.json
