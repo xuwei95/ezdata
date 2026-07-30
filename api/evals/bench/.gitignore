@@ -2,6 +2,8 @@
 chinook.db
 *.zip
 bird_dev/
+infiagent_src/
+dabstep/
 _*_store.db
 _*_run.json
 
