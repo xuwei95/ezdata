@@ -1,5 +1,6 @@
 from importlib import import_module
 from typing import TYPE_CHECKING
+from urllib.parse import urlparse
 
 from config.database import async_engine
 from config.env import DataBaseConfig
@@ -48,6 +49,15 @@ _PROVIDER_REGISTRY: dict[str, tuple[str, str]] = {
     'VLLM': ('agno.models.vllm', 'VLLM'),
     'xAI': ('agno.models.xai', 'xAI'),
 }
+
+# OpenAI 兼容(经 agno OpenAIChat 走线)的提供商:这类才认 collect_metrics_on_completion 参数,
+# 且才可能遇到「流式每块重复带累计 usage」的放大坑。Anthropic/Gemini 等各有自己的用量通道,不在此列。
+_OPENAI_COMPAT_PROVIDERS: frozenset[str] = frozenset({'OpenAI', 'OpenAIResponses'})
+# 「官方 OpenAI 线」主机:usage 单独放在 choices 为空的独立末块里,须保持 agno 默认逐块采集,
+# 不能开 collect_metrics_on_completion(开了会命中 `if not response.choices: return False` 而漏采,记 0)。
+# api.openai.com 以及 Azure OpenAI(*.openai.azure.com)属此类;其余自建/聚合网关一律按「累计 usage」处理。
+_OPENAI_WIRE_HOST = 'api.openai.com'
+_AZURE_OPENAI_SUFFIX = '.openai.azure.com'
 
 # 存储引擎名称 -> (模块路径, 类名) 的映射
 _STORAGE_ENGINE_REGISTRY: dict[str, tuple[str, str]] = {
@@ -127,6 +137,30 @@ class AiUtil:
         )
 
     @classmethod
+    def _wants_completion_metrics(cls, provider: str, base_url: str | None) -> bool:
+        """是否应开启 collect_metrics_on_completion(仅收尾块采一次 usage)。
+
+        背景(见 agno models/openai/chat.py 的 _should_collect_metrics):agno 默认(False)对
+        每个带 usage 的流式块都采集并累加。SiliconFlow / DeepSeek / 自建 one-api 等聚合网关流式时
+        每块都重复带「累计 usage」,于是 token 被放大成「真实值 × 流式块数」(一句话记成几十万/几亿)。
+        置 True 改为只在 finish_reason 收尾块采一次,结果正确。
+
+        唯一不能开的是「官方 OpenAI 线」(api.openai.com / *.openai.azure.com):其 usage 单独放在
+        choices 为空的独立末块里,开了反而漏采记 0。故判据是「OpenAI 兼容 且 base_url 指向非官方主机」。
+        判据只认 provider 名 + base_url,不发网络请求,兜底模型(无 DB 行)与库内模型同样适用——
+        这也是把 .env 里 LLM_TYPE=openai + 第三方 DeepSeek 网关 那个放大坑永久修掉的地方。
+        """
+        if provider == 'SiliconFlow':
+            return True
+        # OpenAI 兼容 provider,或未知 provider(下方会回退到 OpenAIChat)——两者都走 OpenAI 兼容线
+        is_openai_compat = provider in _OPENAI_COMPAT_PROVIDERS or provider not in _PROVIDER_REGISTRY
+        if is_openai_compat and base_url:
+            host = (urlparse(base_url).hostname or '').lower()
+            if host and host != _OPENAI_WIRE_HOST and not host.endswith(_AZURE_OPENAI_SUFFIX):
+                return True
+        return False
+
+    @classmethod
     def get_model_from_factory(
         cls,
         provider: str,
@@ -170,11 +204,9 @@ class AiUtil:
             client_params = dict(params.get('client_params') or {})
             client_params.setdefault('base_url', base_url)
             params['client_params'] = client_params
-        if provider == 'SiliconFlow':
-            # SiliconFlow(及其上的 DeepSeek 等)流式时每个块都重复带 usage,agno 默认(collect_metrics_on_completion=False)
-            # 逐块累加 usage,会把 token 放大成「真实值 × 流式块数」(一句话被记成几十万)。
-            # 设为 True 改为仅在收尾块(finish_reason)采集一次;SiliconFlow 收尾块带完整 usage,结果正确。
-            # 注意:不要对标准 OpenAI 开启——其 usage 在 choices 为空的独立末块里,开了会漏采。
+        if cls._wants_completion_metrics(provider, base_url):
+            # 非官方 OpenAI 线(SiliconFlow / DeepSeek / 自建聚合网关)流式时每块重复带累计 usage,
+            # agno 默认逐块累加会放大成「真实值 × 流式块数」。仅在收尾块采一次,结果正确。详见 _wants_completion_metrics。
             params.setdefault('collect_metrics_on_completion', True)
         model_class = cls._resolve_provider_class(provider)
         if model_class is None:

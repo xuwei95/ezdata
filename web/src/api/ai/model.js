@@ -50,3 +50,12 @@ export function delModel(modelId) {
     method: "delete",
   });
 }
+
+// 测试AI模型连接(真跑一次极小补全,回连通性/时延/用量)
+export function testModel(data) {
+  return request({
+    url: "/ai/model/test",
+    method: "post",
+    data: data,
+  });
+}

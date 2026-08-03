@@ -1,3 +1,5 @@
+import asyncio
+import time
 from typing import Any
 
 from sqlalchemy import ColumnElement
@@ -7,6 +9,7 @@ from common.vo import CrudResponseModel, PageModel
 from exceptions.exception import ServiceException
 from module_ai.dao.ai_model_dao import AiModelDao
 from module_ai.entity.vo.ai_model_vo import AiModelModel, AiModelPageQueryModel, DeleteAiModelModel
+from utils.ai_util import AiUtil
 from utils.common_util import CamelCaseUtil
 from utils.crypto_util import CryptoUtil
 
@@ -169,6 +172,101 @@ class AiModelService:
                 raise e
         else:
             raise ServiceException(message='传入AI模型id为空')
+
+    @classmethod
+    async def test_ai_model_services(cls, query_db: AsyncSession, page_object: AiModelModel) -> dict[str, Any]:
+        """测试连接:用表单/库内配置真跑一次极小的流式补全,回连通性、时延与真实用量。
+
+        api_key 解析:表单填了明文用表单的;传的是掩码(编辑已存模型未改密钥)或空且有 model_id,
+        则回读库内并解密。其余缺省字段(provider/model_code/base_url/max_tokens)同样用库内兜底。
+        与「数据源测试连接」一致——失败不抛异常,而是回 {success: False, message},由前端就地展示。
+        """
+        api_key = page_object.api_key
+        masked = api_key == '********' * 3
+        if (not api_key or masked) and page_object.model_id:
+            ai_model = await AiModelDao.get_ai_model_detail_by_id(query_db, page_object.model_id)
+            if ai_model:
+                stored = AiModelModel(**CamelCaseUtil.transform_result(ai_model))
+                if stored.api_key:
+                    api_key = CryptoUtil.decrypt(stored.api_key)
+                page_object.provider = page_object.provider or stored.provider
+                page_object.model_code = page_object.model_code or stored.model_code
+                page_object.base_url = page_object.base_url or stored.base_url
+                page_object.max_tokens = page_object.max_tokens or stored.max_tokens
+        if not page_object.provider or not page_object.model_code:
+            raise ServiceException(message='缺少提供商或模型编码')
+        if not api_key or api_key == '********' * 3:
+            raise ServiceException(message='缺少 API Key:新模型请在表单填写,已存模型请确认已保存过密钥')
+
+        return await cls._probe_model(
+            provider=page_object.provider,
+            model_code=page_object.model_code,
+            api_key=api_key,
+            base_url=page_object.base_url or None,
+            max_tokens=page_object.max_tokens,
+        )
+
+    @classmethod
+    async def _probe_model(
+        cls,
+        *,
+        provider: str,
+        model_code: str,
+        api_key: str,
+        base_url: str | None,
+        max_tokens: int | None,
+    ) -> dict[str, Any]:
+        """构建模型并流式跑一句话,采集用量(与生产同一 factory 路径,故用量已按 metrics 修正口径)。"""
+        from agno.agent import Agent
+
+        started = time.perf_counter()
+        completion_metrics = AiUtil._wants_completion_metrics(provider, base_url)
+        try:
+            model = AiUtil.get_model_from_factory(
+                provider=provider,
+                model_code=model_code,
+                api_key=api_key,
+                base_url=base_url,
+                temperature=0,
+                max_tokens=min(int(max_tokens or 64), 64),  # 探针只需极少输出
+            )
+            agent = Agent(model=model, telemetry=False)
+
+            reply_parts: list[str] = []
+            metrics: dict[str, Any] = {}
+
+            async def _run() -> None:
+                async for ev in agent.arun('用简短一句话回复「连接正常」即可,不要调用任何工具。', stream=True):
+                    content = getattr(ev, 'content', None)
+                    if isinstance(content, str):
+                        reply_parts.append(content)
+                    m = getattr(ev, 'metrics', None)
+                    if m is not None and hasattr(m, 'to_dict'):
+                        md = m.to_dict()
+                        if md:
+                            metrics.clear()
+                            metrics.update(md)
+
+            await asyncio.wait_for(_run(), timeout=45)
+        except (TimeoutError, asyncio.TimeoutError):
+            return {'success': False, 'message': '测试超时(45s):检查网络 / base_url / 模型是否可用'}
+        except Exception as e:
+            return {'success': False, 'message': f'调用失败:{str(e)[:300]}', 'completionMetrics': completion_metrics}
+
+        it = int(metrics.get('input_tokens') or 0)
+        ot = int(metrics.get('output_tokens') or 0)
+        tt = int(metrics.get('total_tokens') or (it + ot))
+        return {
+            'success': True,
+            'message': '连接正常',
+            'latencyMs': round((time.perf_counter() - started) * 1000),
+            'reply': ''.join(reply_parts).strip()[:200],
+            'inputTokens': it,
+            'outputTokens': ot,
+            'totalTokens': tt,
+            # 该网关是否被判定为「需仅收尾采一次 usage」(治 token 放大):便于用户核对用量口径
+            'completionMetrics': completion_metrics,
+        }
 
     @classmethod
     async def ai_model_detail_services(cls, query_db: AsyncSession, model_id: int) -> AiModelModel:

@@ -162,6 +162,25 @@ async def delete_ai_model(
     return ResponseUtil.success(msg=delete_ai_model_result.message)
 
 
+@ai_model_controller.post(
+    '/test',
+    summary='测试AI模型连接接口',
+    description='用表单或库内配置真跑一次极小的流式补全,返回连通性、时延与真实用量',
+    response_model=DataResponseModel,
+    dependencies=[UserInterfaceAuthDependency('ai:model:query')],
+)
+async def test_ai_model(
+    request: Request,
+    test_ai_model: AiModelModel,
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
+) -> Response:
+    result = await AiModelService.test_ai_model_services(query_db, test_ai_model)
+    logger.info(f'模型连接测试: {result.get("message")}')
+
+    return ResponseUtil.success(data=result)
+
+
 @ai_model_controller.get(
     '/{model_id}',
     summary='获取AI模型详情接口',

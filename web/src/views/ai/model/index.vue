@@ -141,6 +141,15 @@
           <el-button
             link
             type="primary"
+            icon="Connection"
+            :loading="testingId === scope.row.modelId"
+            @click="handleTest(scope.row)"
+            v-hasPermi="['ai:model:query']"
+            >{{ $t('测试') }}</el-button
+          >
+          <el-button
+            link
+            type="primary"
             icon="Edit"
             @click="handleUpdate(scope.row)"
             v-hasPermi="['ai:model:edit']"
@@ -301,6 +310,7 @@
       </el-form>
       <template #footer>
         <div class="dialog-footer">
+          <el-button :loading="formTesting" @click="handleTestForm">{{ $t('测试连接') }}</el-button>
           <el-button type="primary" @click="submitForm">{{ $t('确 定') }}</el-button>
           <el-button @click="cancel">{{ $t('取 消') }}</el-button>
         </div>
@@ -316,7 +326,9 @@ import {
   delModel,
   getModel,
   updateModel,
+  testModel,
 } from "@/api/ai/model";
+import { ElMessageBox } from "element-plus";
 import { t as $t } from "@/lang";
 
 const { proxy } = getCurrentInstance();
@@ -335,6 +347,8 @@ const single = ref(true);
 const multiple = ref(true);
 const total = ref(0);
 const title = ref("");
+const testingId = ref(null); // 行内「测试」按钮 loading 的模型ID
+const formTesting = ref(false); // 弹窗「测试连接」按钮 loading
 
 const data = reactive({
   form: {},
@@ -453,6 +467,60 @@ function submitForm() {
       }
     }
   });
+}
+
+/** 展示测试结果:成功列出时延/用量,失败弹出错误信息 */
+function showTestResult(res) {
+  const d = res && res.data ? res.data : {};
+  if (d.success) {
+    const rows = [
+      `<div>时延：<b>${d.latencyMs ?? "-"}</b> ms</div>`,
+      `<div>用量：输入 ${d.inputTokens ?? 0} / 输出 ${d.outputTokens ?? 0} / 总 ${d.totalTokens ?? 0} tokens</div>`,
+    ];
+    if (d.completionMetrics) {
+      rows.push(
+        `<div style="color:#909399;font-size:12px;margin-top:6px">已按「仅收尾采集用量」口径校正（该网关流式每块重复带累计 usage，防 token 放大）</div>`,
+      );
+    }
+    if (d.reply) {
+      rows.push(
+        `<div style="color:#909399;font-size:12px;margin-top:6px">回复：${d.reply}</div>`,
+      );
+    }
+    ElMessageBox.alert(rows.join(""), $t("连接正常"), {
+      dangerouslyUseHTMLString: true,
+      type: "success",
+      confirmButtonText: $t("确 定"),
+    });
+  } else {
+    ElMessageBox.alert(d.message || $t("连接失败"), $t("连接失败"), {
+      dangerouslyUseHTMLString: true,
+      type: "error",
+      confirmButtonText: $t("确 定"),
+    });
+  }
+}
+
+/** 行内测试：用已存模型ID测试 */
+function handleTest(row) {
+  testingId.value = row.modelId;
+  testModel({ modelId: row.modelId })
+    .then(showTestResult)
+    .catch(() => {})
+    .finally(() => {
+      testingId.value = null;
+    });
+}
+
+/** 弹窗测试：用当前表单(含未保存的新配置)测试 */
+function handleTestForm() {
+  formTesting.value = true;
+  testModel(form.value)
+    .then(showTestResult)
+    .catch(() => {})
+    .finally(() => {
+      formTesting.value = false;
+    });
 }
 
 /** 删除按钮操作 */
