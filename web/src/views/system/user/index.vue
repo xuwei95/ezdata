@@ -1,69 +1,46 @@
 <template>
-  <div class="app-container">
-    <el-row :gutter="20">
-      <splitpanes
-        :horizontal="appStore.device === 'mobile'"
-        class="default-theme"
-      >
-        <!--部门数据-->
-        <pane size="16">
-          <el-col>
-            <div class="head-container">
-              <el-input
-                v-model="deptName"
-                :placeholder="$t('请输入部门名称')"
-                clearable
-                prefix-icon="Search"
-                style="margin-bottom: 20px"
-              />
-            </div>
-            <div class="head-container">
-              <el-tree
-                :data="deptOptions"
-                :props="{ label: 'label', children: 'children' }"
-                :expand-on-click-node="false"
-                :filter-node-method="filterNode"
-                ref="deptTreeRef"
-                node-key="id"
-                highlight-current
-                default-expand-all
-                @node-click="handleNodeClick"
-              />
-            </div>
-          </el-col>
-        </pane>
-        <!--用户数据-->
-        <pane size="84">
-          <el-col>
+  <div class="app-container tree-sidebar-manage-wrap">
+    <tree-panel
+      title="组织机构"
+      :tree-data="deptOptions"
+      search-placeholder="请输入部门名称"
+      storage-key="dept-sidebar-width"
+      :defaultExpandAll="true"
+      @node-click="handleNodeClick"
+      @refresh="getDeptTree"
+      ref="deptTreeRef"
+    />
+    <div class="tree-sidebar-content">
+      <div class="content-inner">
             <el-form
               :model="queryParams"
               ref="queryRef"
               :inline="true"
               v-show="showSearch"
-              label-width="118px"
+              label-width="68px"
             >
-              <el-form-item :label="$t('用户名称')" prop="userName">
+              <el-form-item label="用户名称" prop="userName">
                 <el-input
                   v-model="queryParams.userName"
-                  :placeholder="$t('请输入用户名称')"
+                  placeholder="请输入用户名称"
                   clearable
                   style="width: 240px"
                   @keyup.enter="handleQuery"
                 />
               </el-form-item>
-              <el-form-item :label="$t('手机号码')" prop="phonenumber">
+              <el-form-item label="手机号码" prop="phonenumber">
                 <el-input
                   v-model="queryParams.phonenumber"
-                  :placeholder="$t('请输入手机号码')"
+                  placeholder="请输入手机号码"
                   clearable
                   style="width: 240px"
                   @keyup.enter="handleQuery"
                 />
               </el-form-item>
-              <el-form-item :label="$t('状态')" prop="status">
+              <el-form-item label="状态" prop="status">
                 <el-select
                   v-model="queryParams.status"
-                  :placeholder="$t('用户状态')"
+                  placeholder="用户状态"
                   clearable
                   style="width: 240px"
                 >
@@ -75,7 +52,7 @@
                   />
                 </el-select>
               </el-form-item>
-              <el-form-item :label="$t('创建时间')" style="width: 308px">
+              <el-form-item label="创建时间" style="width: 308px">
                 <el-date-picker
                   v-model="dateRange"
                   value-format="YYYY-MM-DD"
@@ -87,9 +64,9 @@
               </el-form-item>
               <el-form-item>
                 <el-button type="primary" icon="Search" @click="handleQuery"
-                  >{{ $t('搜索') }}</el-button
+                  >搜索</el-button
                 >
-                <el-button icon="Refresh" @click="resetQuery">{{ $t('重置') }}</el-button>
+                <el-button icon="Refresh" @click="resetQuery">重置</el-button>
               </el-form-item>
             </el-form>
 
@@ -101,7 +78,7 @@
                   icon="Plus"
                   @click="handleAdd"
                   v-hasPermi="['system:user:add']"
-                  >{{ $t('新增') }}</el-button
+                  >新增</el-button
                 >
               </el-col>
               <el-col :span="1.5">
@@ -112,7 +89,7 @@
                   :disabled="single"
                   @click="handleUpdate"
                   v-hasPermi="['system:user:edit']"
-                  >{{ $t('修改') }}</el-button
+                  >修改</el-button
                 >
               </el-col>
               <el-col :span="1.5">
@@ -123,7 +100,7 @@
                   :disabled="multiple"
                   @click="handleDelete"
                   v-hasPermi="['system:user:remove']"
-                  >{{ $t('删除') }}</el-button
+                  >删除</el-button
                 >
               </el-col>
               <el-col :span="1.5">
@@ -133,7 +110,7 @@
                   icon="Upload"
                   @click="handleImport"
                   v-hasPermi="['system:user:import']"
-                  >{{ $t('导入') }}</el-button
+                  >导入</el-button
                 >
               </el-col>
               <el-col :span="1.5">
@@ -143,13 +120,14 @@
                   icon="Download"
                   @click="handleExport"
                   v-hasPermi="['system:user:export']"
-                  >{{ $t('导出') }}</el-button
+                  >导出</el-button
                 >
               </el-col>
               <right-toolbar
                 v-model:showSearch="showSearch"
                 @queryTable="getList"
                 :columns="columns"
+                storageKey="xxxxxxxx"
               ></right-toolbar>
             </el-row>
 
@@ -160,22 +138,30 @@
             >
               <el-table-column type="selection" width="50" align="center" />
               <el-table-column
-                :label="$t('用户编号')"
+                label="用户编号"
                 align="center"
                 key="userId"
                 prop="userId"
                 v-if="columns.userId.visible"
               />
               <el-table-column
-                :label="$t('用户名称')"
+                label="用户名称"
                 align="center"
                 key="userName"
-                prop="userName"
                 v-if="columns.userName.visible"
                 :show-overflow-tooltip="true"
-              />
+              >
+                <template #default="scope">
+                  <a
+                    class="link-type"
+                    style="cursor: pointer"
+                    @click="handleViewData(scope.row)"
+                    >{{ scope.row.userName }}</a
+                  >
+                </template>
+              </el-table-column>
               <el-table-column
-                :label="$t('用户昵称')"
+                label="用户昵称"
                 align="center"
                 key="nickName"
                 prop="nickName"
@@ -183,7 +169,7 @@
                 :show-overflow-tooltip="true"
               />
               <el-table-column
-                :label="$t('部门')"
+                label="部门"
                 align="center"
                 key="deptName"
                 prop="dept.deptName"
@@ -191,7 +177,7 @@
                 :show-overflow-tooltip="true"
               />
               <el-table-column
-                :label="$t('手机号码')"
+                label="手机号码"
                 align="center"
                 key="phonenumber"
                 prop="phonenumber"
@@ -199,7 +185,7 @@
                 width="120"
               />
               <el-table-column
-                :label="$t('状态')"
+                label="状态"
                 align="center"
                 key="status"
                 v-if="columns.status.visible"
@@ -214,7 +200,7 @@
                 </template>
               </el-table-column>
               <el-table-column
-                :label="$t('创建时间')"
+                label="创建时间"
                 align="center"
                 prop="createTime"
                 v-if="columns.createTime.visible"
@@ -225,14 +211,14 @@
                 </template>
               </el-table-column>
               <el-table-column
-                :label="$t('操作')"
+                label="操作"
                 align="center"
                 width="150"
                 class-name="small-padding fixed-width"
               >
                 <template #default="scope">
                   <el-tooltip
-                    :content="$t('修改')"
+                    content="修改"
                     placement="top"
                     v-if="scope.row.userId !== 1"
                   >
@@ -245,7 +231,7 @@
                     ></el-button>
                   </el-tooltip>
                   <el-tooltip
-                    :content="$t('删除')"
+                    content="删除"
                     placement="top"
                     v-if="scope.row.userId !== 1"
                   >
@@ -258,7 +244,7 @@
                     ></el-button>
                   </el-tooltip>
                   <el-tooltip
-                    :content="$t('重置密码')"
+                    content="重置密码"
                     placement="top"
                     v-if="scope.row.userId !== 1"
                   >
@@ -271,7 +257,7 @@
                     ></el-button>
                   </el-tooltip>
                   <el-tooltip
-                    :content="$t('分配角色')"
+                    content="分配角色"
                     placement="top"
                     v-if="scope.row.userId !== 1"
                   >
@@ -293,32 +279,30 @@
               v-model:limit="queryParams.pageSize"
               @pagination="getList"
             />
-          </el-col>
-        </pane>
-      </splitpanes>
-    </el-row>
+      </div>
+    </div>
 
     <!-- 添加或修改用户配置对话框 -->
     <el-dialog :title="title" v-model="open" width="600px" append-to-body>
-      <el-form :model="form" :rules="rules" ref="userRef" label-width="130px">
+      <el-form :model="form" :rules="rules" ref="userRef" label-width="80px">
         <el-row>
           <el-col :span="12">
-            <el-form-item :label="$t('用户昵称')" prop="nickName">
+            <el-form-item label="用户昵称" prop="nickName">
               <el-input
                 v-model="form.nickName"
-                :placeholder="$t('请输入用户昵称')"
+                placeholder="请输入用户昵称"
                 maxlength="30"
               />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item :label="$t('归属部门')" prop="deptId">
+            <el-form-item label="归属部门" prop="deptId">
               <el-tree-select
                 v-model="form.deptId"
                 :data="enabledDeptOptions"
                 :props="{ value: 'id', label: 'label', children: 'children' }"
                 value-key="id"
-                :placeholder="$t('请选择归属部门')"
+                placeholder="请选择归属部门"
                 clearable
                 check-strictly
               />
@@ -327,19 +311,19 @@
         </el-row>
         <el-row>
           <el-col :span="12">
-            <el-form-item :label="$t('手机号码')" prop="phonenumber">
+            <el-form-item label="手机号码" prop="phonenumber">
               <el-input
                 v-model="form.phonenumber"
-                :placeholder="$t('请输入手机号码')"
+                placeholder="请输入手机号码"
                 maxlength="11"
               />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item :label="$t('邮箱')" prop="email">
+            <el-form-item label="邮箱" prop="email">
               <el-input
                 v-model="form.email"
-                :placeholder="$t('请输入邮箱')"
+                placeholder="请输入邮箱"
                 maxlength="50"
               />
             </el-form-item>
@@ -349,12 +333,12 @@
           <el-col :span="12">
             <el-form-item
               v-if="form.userId == undefined"
-              :label="$t('用户名称')"
+              label="用户名称"
               prop="userName"
             >
               <el-input
                 v-model="form.userName"
-                :placeholder="$t('请输入用户名称')"
+                placeholder="请输入用户名称"
                 maxlength="30"
               />
             </el-form-item>
@@ -362,12 +346,13 @@
           <el-col :span="12">
             <el-form-item
               v-if="form.userId == undefined"
-              :label="$t('用户密码')"
+              label="用户密码"
               prop="password"
+              :rules="pwdValidator"
             >
               <el-input
                 v-model="form.password"
-                :placeholder="$t('请输入用户密码')"
+                placeholder="请输入用户密码"
                 type="password"
                 maxlength="20"
                 show-password
@@ -377,8 +362,8 @@
         </el-row>
         <el-row>
           <el-col :span="12">
-            <el-form-item :label="$t('用户性别')">
-              <el-select v-model="form.sex" :placeholder="$t('请选择')">
+            <el-form-item label="用户性别">
+              <el-select v-model="form.sex" placeholder="请选择">
                 <el-option
                   v-for="dict in sys_user_sex"
                   :key="dict.value"
@@ -389,7 +374,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item :label="$t('状态')">
+            <el-form-item label="状态">
               <el-radio-group v-model="form.status">
                 <el-radio
                   v-for="dict in sys_normal_disable"
@@ -403,8 +388,8 @@
         </el-row>
         <el-row>
           <el-col :span="12">
-            <el-form-item :label="$t('岗位')">
-              <el-select v-model="form.postIds" multiple :placeholder="$t('请选择')">
+            <el-form-item label="岗位">
+              <el-select v-model="form.postIds" multiple placeholder="请选择">
                 <el-option
                   v-for="item in postOptions"
                   :key="item.postId"
@@ -416,8 +401,8 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item :label="$t('角色')">
-              <el-select v-model="form.roleIds" multiple :placeholder="$t('请选择')">
+            <el-form-item label="角色">
+              <el-select v-model="form.roleIds" multiple placeholder="请选择">
                 <el-option
                   v-for="item in roleOptions"
                   :key="item.roleId"
@@ -431,8 +416,8 @@
         </el-row>
         <el-row>
           <el-col :span="24">
-            <el-form-item :label="$t('所属租户')">
-              <el-select v-model="form.tenantIds" multiple :placeholder="$t('不选则默认归其部门所属租户')" style="width: 100%">
+            <el-form-item label="所属租户">
+              <el-select v-model="form.tenantIds" multiple placeholder="不选则默认归其部门所属租户" style="width: 100%">
                 <el-option
                   v-for="item in tenantOptions"
                   :key="item.tenantId"
@@ -445,11 +430,11 @@
         </el-row>
         <el-row>
           <el-col :span="24">
-            <el-form-item :label="$t('备注')">
+            <el-form-item label="备注">
               <el-input
                 v-model="form.remark"
                 type="textarea"
-                :placeholder="$t('请输入内容')"
+                placeholder="请输入内容"
               ></el-input>
             </el-form-item>
           </el-col>
@@ -457,65 +442,32 @@
       </el-form>
       <template #footer>
         <div class="dialog-footer">
-          <el-button type="primary" @click="submitForm">{{ $t('确 定') }}</el-button>
-          <el-button @click="cancel">{{ $t('取 消') }}</el-button>
+          <el-button type="primary" @click="submitForm">确 定</el-button>
+          <el-button @click="cancel">取 消</el-button>
         </div>
       </template>
     </el-dialog>
 
+    <!-- 用户详情抽屉 -->
+    <user-view-drawer ref="userViewRef" />
     <!-- 用户导入对话框 -->
-    <el-dialog
-      :title="upload.title"
-      v-model="upload.open"
-      width="400px"
-      append-to-body
-    >
-      <el-upload
-        ref="uploadRef"
-        :limit="1"
-        accept=".xlsx, .xls"
-        :headers="upload.headers"
-        :action="upload.url + '?updateSupport=' + upload.updateSupport"
-        :disabled="upload.isUploading"
-        :on-progress="handleFileUploadProgress"
-        :on-success="handleFileSuccess"
-        :on-change="handleFileChange"
-        :on-remove="handleFileRemove"
-        :auto-upload="false"
-        drag
-      >
-        <el-icon class="el-icon--upload"><upload-filled /></el-icon>
-        <div class="el-upload__text">{{ $t('将文件拖到此处，或') }}<em>{{ $t('点击上传') }}</em></div>
-        <template #tip>
-          <div class="el-upload__tip text-center">
-            <div class="el-upload__tip">
-              <el-checkbox
-                v-model="upload.updateSupport"
-              />{{ $t('是否更新已经存在的用户数据') }} </div>
-            <span>{{ $t('仅允许导入xls、xlsx格式文件。') }}</span>
-            <el-link
-              type="primary"
-              :underline="false"
-              style="font-size: 12px; vertical-align: baseline"
-              @click="importTemplate"
-              >{{ $t('下载模板') }}</el-link
-            >
-          </div>
-        </template>
-      </el-upload>
-      <template #footer>
-        <div class="dialog-footer">
-          <el-button type="primary" @click="submitFileForm">{{ $t('确 定') }}</el-button>
-          <el-button @click="upload.open = false">{{ $t('取 消') }}</el-button>
-        </div>
-      </template>
-    </el-dialog>
+    <excel-import-dialog
+      ref="importUserRef"
+      title="用户导入"
+      action="/system/user/importData"
+      template-action="/system/user/importTemplate"
+      template-file-name="user_template"
+      update-support-label="是否更新已经存在的用户数据"
+      @success="getList"
+    />
   </div>
 </template>
 
 <script setup name="User">
-import { getToken } from "@/utils/auth";
-import useAppStore from "@/store/modules/app";
+import TreePanel from "@/components/TreePanel";
+import ExcelImportDialog from "@/components/ExcelImportDialog";
+import UserViewDrawer from "./view";
+import { usePasswordRule } from "@/utils/passwordRule";
 import {
   changeUserStatus,
   listUser,
@@ -526,12 +478,10 @@ import {
   addUser,
   deptTreeSelect,
 } from "@/api/system/user";
-import { Splitpanes, Pane } from "splitpanes";
-import "splitpanes/dist/splitpanes.css";
 
 const router = useRouter();
-const appStore = useAppStore();
 const { proxy } = getCurrentInstance();
+const { pwdValidator, pwdPromptValidator } = usePasswordRule();
 const { sys_normal_disable, sys_user_sex } = proxy.useDict(
   "sys_normal_disable",
   "sys_user_sex"
@@ -547,28 +497,12 @@ const multiple = ref(true);
 const total = ref(0);
 const title = ref("");
 const dateRange = ref([]);
-const deptName = ref("");
 const deptOptions = ref(undefined);
 const enabledDeptOptions = ref(undefined);
 const initPassword = ref(undefined);
 const postOptions = ref([]);
 const roleOptions = ref([]);
 const tenantOptions = ref([]);
-/*** 用户导入参数 */
-const upload = reactive({
-  // 是否显示弹出层（用户导入）
-  open: false,
-  // 弹出层标题（用户导入）
-  title: "",
-  // 是否禁用上传
-  isUploading: false,
-  // 是否更新已经存在的用户数据
-  updateSupport: 0,
-  // 设置上传的请求头部
-  headers: { Authorization: "Bearer " + getToken() },
-  // 上传的地址
-  url: import.meta.env.VITE_APP_BASE_API + "/system/user/importData",
-});
 // 列显隐信息
 
 const columns = ref({
@@ -604,20 +538,6 @@ const data = reactive({
     nickName: [
       { required: true, message: "用户昵称不能为空", trigger: "blur" },
     ],
-    password: [
-      { required: true, message: "用户密码不能为空", trigger: "blur" },
-      {
-        min: 5,
-        max: 20,
-        message: "用户密码长度必须介于 5 和 20 之间",
-        trigger: "blur",
-      },
-      {
-        pattern: /^[^<>"'|\\]+$/,
-        message: "不能包含非法字符：< > \" ' \\\ |",
-        trigger: "blur",
-      },
-    ],
     email: [
       {
         type: "email",
@@ -637,15 +557,6 @@ const data = reactive({
 
 const { queryParams, form, rules } = toRefs(data);
 
-/** 通过条件过滤节点  */
-const filterNode = (value, data) => {
-  if (!value) return true;
-  return data.label.indexOf(value) !== -1;
-};
-/** 根据名称筛选部门树 */
-watch(deptName, (val) => {
-  proxy.$refs["deptTreeRef"].filter(val);
-});
 /** 查询用户列表 */
 function getList() {
   loading.value = true;
@@ -756,20 +667,14 @@ function handleAuthRole(row) {
 /** 重置密码按钮操作 */
 function handleResetPwd(row) {
   proxy
-    .$prompt('请输入"' + row.userName + '"的新密码', "提示", {
+    .$prompt(`请输入「${row.userName}」的新密码`, "重置密码", {
       confirmButtonText: "确定",
       cancelButtonText: "取消",
       closeOnClickModal: false,
-      inputPattern: /^.{5,20}$/,
-      inputErrorMessage: "用户密码长度必须介于 5 和 20 之间",
-      inputValidator: (value) => {
-        if (/<|>|"|'|\||\\/.test(value)) {
-          return "不能包含非法字符：< > \" ' \\\ |";
-        }
-      },
+      inputValidator: pwdPromptValidator,
     })
     .then(({ value }) => {
-      resetUserPwd(row.userId, value).then((response) => {
+      resetUserPwd(row.userId, value).then(() => {
         proxy.$modal.msgSuccess("修改成功，新密码是：" + value);
       });
     })
@@ -781,59 +686,13 @@ function handleSelectionChange(selection) {
   single.value = selection.length != 1;
   multiple.value = !selection.length;
 }
+/** 详情按钮操作 */
+function handleViewData(row) {
+  proxy.$refs["userViewRef"].open(row.userId);
+}
 /** 导入按钮操作 */
 function handleImport() {
-  upload.title = "用户导入";
-  upload.open = true;
-  upload.selectedFile = null;
-}
-/** 下载模板操作 */
-function importTemplate() {
-  proxy.download(
-    "system/user/importTemplate",
-    {},
-    `user_template_${new Date().getTime()}.xlsx`
-  );
-}
-/**文件上传中处理 */
-const handleFileUploadProgress = (event, file, fileList) => {
-  upload.isUploading = true;
-};
-/** 文件选择处理 */
-const handleFileChange = (file, fileList) => {
-  upload.selectedFile = file;
-};
-/** 文件删除处理 */
-const handleFileRemove = (file, fileList) => {
-  upload.selectedFile = null;
-};
-/** 文件上传成功处理 */
-const handleFileSuccess = (response, file, fileList) => {
-  upload.open = false;
-  upload.isUploading = false;
-  proxy.$refs["uploadRef"].handleRemove(file);
-  proxy.$alert(
-    "<div style='overflow: auto;overflow-x: hidden;max-height: 70vh;padding: 10px 20px 0;'>" +
-      response.msg +
-      "</div>",
-    "导入结果",
-    { dangerouslyUseHTMLString: true }
-  );
-  getList();
-};
-/** 提交上传文件 */
-function submitFileForm() {
-  const file = upload.selectedFile;
-  if (
-    !file ||
-    file.length === 0 ||
-    (!file.name.toLowerCase().endsWith(".xls") &&
-      !file.name.toLowerCase().endsWith(".xlsx"))
-  ) {
-    proxy.$modal.msgError("请选择后缀为 “xls”或“xlsx”的文件。");
-    return;
-  }
-  proxy.$refs["uploadRef"].submit();
+  proxy.$refs["importUserRef"].open();
 }
 /** 重置操作表单 */
 function reset() {
@@ -879,9 +738,9 @@ function handleUpdate(row) {
     form.value = response.data;
     postOptions.value = response.posts;
     roleOptions.value = response.roles;
-    tenantOptions.value = response.tenants || [];
     form.value.postIds = response.postIds;
     form.value.roleIds = response.roleIds;
+    tenantOptions.value = response.tenants || [];
     form.value.tenantIds = response.tenantIds || [];
     open.value = true;
     title.value = "修改用户";
@@ -893,13 +752,13 @@ function submitForm() {
   proxy.$refs["userRef"].validate((valid) => {
     if (valid) {
       if (form.value.userId != undefined) {
-        updateUser(form.value).then((response) => {
+        updateUser(form.value).then(() => {
           proxy.$modal.msgSuccess("修改成功");
           open.value = false;
           getList();
         });
       } else {
-        addUser(form.value).then((response) => {
+        addUser(form.value).then(() => {
           proxy.$modal.msgSuccess("新增成功");
           open.value = false;
           getList();
