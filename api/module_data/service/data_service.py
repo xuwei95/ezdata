@@ -786,6 +786,28 @@ class DataQueryService:
         return _normalize_chart_cfg(cfg)
 
     @classmethod
+    async def prep_ask(cls, db: AsyncSession, m_id: str) -> dict:
+        """「AI 洞察」上下文:锁定该模型的 数据源编码 / 表名 / 列 / 业务说明,喂给 scoped_ask_stream。
+
+        列优先取 fields 缓存(introspect),空则实时 get_columns 兜底(种子直插/建模时空表的模型)。
+        """
+        m, handler = await cls._load(db, m_id)
+        fields = m.fields or []
+        columns = [f.get('name') for f in fields if isinstance(f, dict) and f.get('name')]
+        if not columns and m.object_name:
+            try:
+                cols = await run_in_threadpool(handler.get_columns, m.object_name)
+                columns = [c.name for c in cols]
+            except Exception:
+                columns = []
+        return {
+            'datasource_code': m.datasource_code,
+            'table': m.object_name or m.name,
+            'columns': columns,
+            'business': m.remark or '',
+        }
+
+    @classmethod
     async def convert_code_to_board(cls, db: AsyncSession, datasource_code: str, code: str, question: str) -> dict:
         """把 agent 的取数+绘图代码经 LLM 转成 {native(可重跑只读查询), cfg}。转出后跑一次校验,失败自动纠错重试。"""
         if not (code or '').strip():

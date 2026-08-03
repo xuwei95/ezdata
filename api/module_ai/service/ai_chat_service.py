@@ -98,6 +98,14 @@ _WEAK_AGENT_NUDGE = (
     '别引用上一次调用留下的 result/df(否则 NameError)。'
 )
 
+# 「AI 洞察」锁定单表的交互式问数:行为约束(与主对话 _DATA_AGENT_INSTRUCTIONS 并列,但聚焦单表、只读、简洁)
+_SCOPED_ASK_INSTRUCTIONS = (
+    '你是聚焦「当前这张表」的数据分析助手,只针对上文指定的数据源+表回答用户问题。'
+    '工作流:必要时用 get_table_schema 确认字段 → 用 run_datasource_query 编写只读取数/计算代码(优先一段成型)'
+    '→ 需要图表时用 plot_chart 或在代码里出图(经产物通道渲染)。'
+    '只读:绝不写库/改数。尽量少绕圈,单次问答控制在约 6 次工具调用内。最后给要点式中文结论。'
+)
+
 # 用户可在「工具」下拉里自选、按需挂载的内置工具集 code(其余内置工具由平台按能力自动挂载:
 # data_explore/sandbox_code 由「数据分析」数据源选择控制,不在此白名单)。
 _PASSTHROUGH_BUILTIN = {'task_propose', 'baidu_search'}
@@ -902,6 +910,71 @@ class AiChatService:
             logger.info(f'[recipe-fastpath] 已落会话: session={session_id} runs={len(sess.runs)}')
         except Exception as e:
             logger.warning(f'[recipe-fastpath] 落会话失败(不影响本轮): {e}')
+
+    @classmethod
+    async def scoped_ask_stream(
+        cls,
+        query_db: AsyncSession,
+        *,
+        question: str,
+        datasource_code: str,
+        table: str,
+        columns: list[str] | None,
+        business: str | None,
+        user_id: int,
+        session_id: str | None = None,
+        model_id: int = 0,
+        is_reasoning: bool = False,
+    ) -> AsyncGenerator[str, None]:
+        """「AI 洞察」:锁定单张表的交互式问数流(复用 agent + artifact 通道,多轮靠 session 历史)。
+
+        与主对话 chat_services 隔离:独立 agent_id='model-ask' + 独立 session_id 命名空间,不走 recipe/记忆/MCP。
+        model_id=0 走环境变量兜底 LLM(与「AI 生成查询/图表」一致,零配置)。
+        """
+        if not (question or '').strip():
+            raise ServiceException(message='请输入问题')
+        model_config = await cls._resolve_chat_model_config(query_db, model_id)
+        session_id = session_id or f'model-ask-{datasource_code}-{user_id}-{uuid.uuid4()}'
+        col_line = ', '.join(str(c) for c in (columns or []) if c) or '(未知)'
+        system_prompt = (
+            f'你是数据分析助手,专注数据源「{datasource_code}」的表「{table}」。'
+            f'该表字段: {col_line}。业务说明: {(business or "").strip() or "(暂无)"}。'
+            '用户会针对这张表提问,请用工具查数/画图作答。'
+        )
+        chat_req = AiChatRequestModel(
+            sessionId=session_id, modelId=model_id, message=question, isReasoning=is_reasoning
+        )
+        artifacts: list = []
+        ui_actions: list = []
+        agent = cls._build_agent(
+            model_config=model_config,
+            temperature=model_config.temperature,
+            system_prompt=system_prompt,
+            user_id=user_id,
+            session_id=session_id,
+            add_history=True,
+            num_history=5,
+            artifacts=artifacts,
+            ui_actions=ui_actions,
+            builtin_codes=['data_explore', 'sandbox_code'],
+            instructions=[_SCOPED_ASK_INSTRUCTIONS],
+            datasource_scope=[datasource_code],
+            datasource_query_enabled=True,
+            agent_id='model-ask',
+            enable_memory=False,
+            question=question,
+            is_reasoning=is_reasoning,
+        )
+        async for chunk in cls._stream_agent(
+            agent=agent,
+            chat_req=chat_req,
+            run_kwargs={'stream': True, 'stream_events': True},
+            is_reasoning=is_reasoning,
+            session_id=session_id,
+            artifacts=artifacts,
+            ui_actions=ui_actions,
+        ):
+            yield chunk
 
     @classmethod
     async def chat_services(

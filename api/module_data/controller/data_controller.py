@@ -626,6 +626,40 @@ async def model_ai_query_stream(
 
 
 @data_controller.post(
+    '/model/{m_id}/ask/stream',
+    summary='AI 洞察(锁定当前表的交互式问数,流式)',
+    dependencies=[UserInterfaceAuthDependency('data:query')],
+)
+async def model_ask_stream(
+    m_id: Annotated[str, Path()],
+    body: dict,
+    db: Annotated[AsyncSession, DBSessionDependency()],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
+) -> StreamingResponse:
+    """锁定当前表的迷你对话:复用 chat agent + artifact 通道,多轮问数。body: {question, sessionId?, isReasoning?}。"""
+    from module_ai.service.ai_chat_service import AiChatService  # 局部导入避免 module_data↔module_ai 环
+
+    ctx = await DataQueryService.prep_ask(db, m_id)
+    user_id = current_user.user.user_id if current_user and current_user.user else 1
+    gen = AiChatService.scoped_ask_stream(
+        db,
+        question=body.get('question', ''),
+        datasource_code=ctx['datasource_code'],
+        table=ctx['table'],
+        columns=ctx['columns'],
+        business=ctx['business'],
+        user_id=user_id,
+        session_id=body.get('sessionId') or None,
+        is_reasoning=bool(body.get('isReasoning')),
+    )
+    return StreamingResponse(
+        gen,
+        media_type='text/event-stream',
+        headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'},
+    )
+
+
+@data_controller.post(
     '/model/{m_id}/search', summary='数据接口(分页)', dependencies=[UserInterfaceAuthDependency('data:api')]
 )
 async def model_search(

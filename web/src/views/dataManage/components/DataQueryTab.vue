@@ -45,6 +45,30 @@
         </div>
       </el-tab-pane>
 
+      <el-tab-pane :label="$t('AI 洞察')" name="ask">
+        <div class="ask-wrap" :style="{ height: askH + 'px' }">
+          <div class="ask-thread" ref="askThread">
+            <el-empty v-if="!askMsgs.length"
+              :description="$t('针对当前表提问:按主要维度统计并出个图 / 有没有异常值 / 各列分布如何')" />
+            <div v-for="(m, i) in askMsgs" :key="i" class="ask-msg">
+              <div v-if="m.role === 'user'" class="ask-user">{{ m.content }}</div>
+              <AiMessage v-else :content="m.content" :reasoning-content="m.reasoningContent"
+                :blocks="m.blocks" :session-id="askSessionId" :loading="asking && i === askMsgs.length - 1" />
+            </div>
+          </div>
+          <div v-if="!askMsgs.length" class="ask-quick">
+            <el-tag v-for="q in askQuick" :key="q" class="quick-chip" effect="plain" @click="sendAsk(q)">{{ q }}</el-tag>
+          </div>
+          <div class="ask-input">
+            <el-input v-model="askInput" type="textarea" :rows="2" :autosize="{ minRows: 2, maxRows: 6 }"
+              :placeholder="$t('针对当前表提问,Enter 发送 / Shift+Enter 换行')"
+              @keydown.enter.exact.prevent="onAskEnter" />
+            <el-button type="primary" :icon="asking ? 'Loading' : 'Promotion'" :loading="asking"
+              @click="() => sendAsk()">{{ $t('发送') }}</el-button>
+          </div>
+        </div>
+      </el-tab-pane>
+
       <el-tab-pane :label="$t('可视化')" name="viz">
         <div class="viz-bar">
           <el-select v-model="curTpl" size="small" :placeholder="$t('应用看板')" clearable filterable style="width: 160px"
@@ -93,6 +117,7 @@ import {
 } from '@/api/dataManage/data'
 import { getToken } from '@/utils/auth'
 import EchartsBuilder from '@/views/dataManage/visualization/EchartsBuilder.vue'
+import AiMessage from '@/views/ai/chat/components/AiMessage.vue'
 
 const props = defineProps({ model: { type: Object, required: true } })
 
@@ -114,6 +139,15 @@ const aic = reactive({ loading: false }) // AI 生成图表配置
 const templates = ref([])
 const curTpl = ref('')
 const tplDlg = reactive({ visible: false, name: '', remark: '' })
+
+// AI 洞察(锁定当前表的迷你对话:多轮问数,复用对话 agent + 产物通道 + AiMessage 渲染器)
+const askMsgs = ref([])        // [{role:'user'|'ai', content, reasoningContent, blocks}]
+const askInput = ref('')
+const asking = ref(false)
+const askSessionId = ref('')   // 首条 meta 回填,后续回传实现多轮上下文;随 model 切换重置
+const askThread = ref()
+const askH = ref(480)
+const askQuick = ['数据概况:行数与各列分布', '按主要维度统计总量并出个柱状图', '有没有异常值或缺失?']
 
 // 表格高度:按表格实际位置算,正好贴到视口底部(留出横向滚动条空间)
 const gridH = ref(400)
@@ -163,6 +197,7 @@ async function syncModel() {
   native.value = ''; rows.value = []; columns.value = []
   aiq.open = false; aiq.question = ''; aiq.output = ''
   subTab.value = 'grid'; vizCfg.value = null; curTpl.value = ''; templates.value = []
+  askMsgs.value = []; askInput.value = ''; askSessionId.value = ''; asking.value = false
   if (!props.model || !props.model.id) return
   loadTemplates()
   // 预填原生查询默认示例(各源对应方言,limit 100)
@@ -174,7 +209,81 @@ async function syncModel() {
 watch(() => props.model && props.model.id, syncModel)
 watch(() => aiq.open, computeH)
 watch(() => aiq.loading, computeH)
-watch(subTab, (v) => { if (v === 'viz') computeVizH() })
+watch(subTab, (v) => { if (v === 'viz') computeVizH(); if (v === 'ask') computeAskH() })
+
+async function computeAskH() {
+  await nextTick()
+  const top = askThread.value ? askThread.value.getBoundingClientRect().top : 240
+  askH.value = Math.max(360, Math.floor(window.innerHeight - top - 90))
+}
+async function scrollAskBottom() {
+  await nextTick()
+  if (askThread.value) askThread.value.scrollTop = askThread.value.scrollHeight
+}
+function onAskEnter(e) { if (e.isComposing) return; sendAsk() }
+
+// 发送一条问数:流式消费 JSONL(与 AI 对话页同款分发),渲染到当前 AI 消息
+async function sendAsk(q) {
+  const question = (q ?? askInput.value).trim()
+  if (!question) { ElMessage.warning($t('请输入问题')); return }
+  if (asking.value || !props.model || !props.model.id) return
+  askInput.value = ''
+  askMsgs.value.push({ role: 'user', content: question })
+  const ai = reactive({ role: 'ai', content: '', reasoningContent: '', blocks: [] })
+  askMsgs.value.push(ai)
+  asking.value = true
+  scrollAskBottom()
+  let buffer = ''
+  try {
+    const resp = await fetch(AI_BASE + `/data/model/${props.model.id}/ask/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() },
+      body: JSON.stringify({ question, sessionId: askSessionId.value || undefined })
+    })
+    if (!resp.ok || !resp.body) throw new Error('HTTP ' + resp.status)
+    const reader = resp.body.getReader()
+    const dec = new TextDecoder()
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += dec.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop()
+      for (const line of lines) {
+        if (!line.trim()) continue
+        let data
+        try { data = JSON.parse(line) } catch (e) { continue }
+        if (data.type === 'content') {
+          ai.content += data.content
+          const last = ai.blocks[ai.blocks.length - 1]
+          if (last && last.type === 'text' && last.agentName === data.agentName) last.text += data.content
+          else ai.blocks.push({ type: 'text', text: data.content, agentName: data.agentName })
+        } else if (data.type === 'reasoning') {
+          ai.reasoningContent += data.content
+        } else if (data.type === 'meta') {
+          askSessionId.value = data.session_id
+        } else if (data.type === 'artifact') {
+          ai.blocks.push({ type: 'artifact', artifact: data.artifact })
+        } else if (data.type === 'error') {
+          ai.blocks.push({ type: 'error', error: data.error })
+        } else if (data.type === 'tool') {
+          if (data.phase === 'start') {
+            ai.blocks.push({ type: 'tool', id: data.id, name: data.name, args: data.args, status: 'running', agentName: data.agentName })
+          } else {
+            const s = ai.blocks.find((b) => b.type === 'tool' && b.id === data.id)
+            if (s) { s.status = data.phase === 'error' ? 'error' : 'done'; s.result = data.result; s.error = data.error }
+          }
+        }
+        scrollAskBottom()
+      }
+    }
+  } catch (e) {
+    ai.blocks.push({ type: 'error', error: (e && e.message) || $t('请求失败') })
+  } finally {
+    asking.value = false
+    scrollAskBottom()
+  }
+}
 onMounted(() => {
   syncModel(); computeH()
   window.addEventListener('resize', onResize)
@@ -286,6 +395,18 @@ function applyQuery() {
 .viz-bar { display: flex; align-items: center; gap: 8px; margin: 2px 0 8px; flex-wrap: wrap; }
 .viz-bar .muted { color: #909399; font-size: 12px; margin-left: auto; }
 .viz-wrap { min-height: 360px; }
+.ask-wrap { display: flex; flex-direction: column; min-height: 360px; }
+.ask-thread { flex: 1; overflow-y: auto; padding: 4px 2px; }
+.ask-msg { margin-bottom: 10px; }
+.ask-user {
+  display: inline-block; max-width: 80%; margin-left: auto; padding: 8px 12px;
+  background: #ecf5ff; color: #303133; border-radius: 8px; white-space: pre-wrap; word-break: break-word;
+  float: right; clear: both;
+}
+.ask-quick { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0; }
+.quick-chip { cursor: pointer; }
+.ask-input { display: flex; gap: 8px; align-items: flex-end; padding-top: 8px; border-top: 1px solid #ebeef5; }
+.ask-input .el-textarea { flex: 1; }
 .ai-out {
   margin: 8px 0; padding: 8px 10px; max-height: 220px; overflow: auto;
   background: #1e1e1e; color: #d4d4d4; border-radius: 4px;
