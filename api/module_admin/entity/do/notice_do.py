@@ -62,3 +62,29 @@ class SysNoticeRead(Base):
     notice_id = Column(Integer, nullable=False, comment='公告ID')
     user_id = Column(BigInteger, nullable=False, comment='用户ID')
     read_time = Column(DateTime, nullable=False, default=datetime.now, comment='阅读时间')
+
+
+class SysNoticeUser(Base):
+    """
+    公告收件人表(定向投递)
+
+    某条公告定向给哪些用户;**没有任何行 = 广播(全员可见)**,有行 = 只对这些用户可见。
+    非 TenantMixin:notice_id 全局唯一,join sys_notice/sys_user 时随其租户过滤。
+    """
+
+    __tablename__ = 'sys_notice_user'
+    __table_args__ = (
+        UniqueConstraint('notice_id', 'user_id', name='uk_notice_user'),
+        {'comment': '公告收件人表'},
+    )
+
+    id = Column(
+        BigInteger().with_variant(Integer, 'sqlite'),
+        primary_key=True,
+        nullable=False,
+        autoincrement=True,
+        comment='主键',
+    )
+    notice_id = Column(Integer, nullable=False, comment='公告ID')
+    user_id = Column(BigInteger, nullable=False, comment='收件人用户ID')
+    create_time = Column(DateTime, nullable=False, default=datetime.now, comment='投递时间')

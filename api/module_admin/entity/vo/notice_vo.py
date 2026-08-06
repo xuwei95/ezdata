@@ -23,6 +23,8 @@ class NoticeModel(BaseModel):
     update_by: str | None = Field(default=None, description='更新者')
     update_time: datetime | None = Field(default=None, description='更新时间')
     remark: str | None = Field(default=None, description='备注')
+    # 定向收件人用户名(逗号分隔);非 sys_notice 列,仅用于发/取通知时承载收件人选择,空=全员广播
+    notice_users: str | None = Field(default=None, description='定向收件人用户名(逗号分隔;空=全员广播)')
 
     @Xss(field_name='notice_title', message='公告标题不能包含脚本字符')
     @NotBlank(field_name='notice_title', message='公告标题不能为空')

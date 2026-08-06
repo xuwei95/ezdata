@@ -1,7 +1,7 @@
 from datetime import datetime, time
 from typing import Any
 
-from sqlalchemy import and_, case, delete, func, or_, select, update
+from sqlalchemy import and_, case, delete, exists, func, or_, select, update
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.vo import PageModel
 from module_admin.entity.do.dept_do import SysDept
-from module_admin.entity.do.notice_do import SysNotice, SysNoticeRead
+from module_admin.entity.do.notice_do import SysNotice, SysNoticeRead, SysNoticeUser
 from module_admin.entity.do.user_do import SysUser
 from module_admin.entity.vo.notice_vo import NoticeModel, NoticePageQueryModel, NoticeReadUserPageQueryModel
 from utils.page_util import PageUtil
@@ -92,10 +92,21 @@ class NoticeDao:
 
         return notice_list
 
+    @staticmethod
+    def _received_by(user_id: int):
+        """本人收到的公告条件:广播(无任何收件人行)或定向给本人的。"""
+        targeted_any = exists(select(SysNoticeUser.id).where(SysNoticeUser.notice_id == SysNotice.notice_id))
+        targeted_me = exists(
+            select(SysNoticeUser.id).where(
+                SysNoticeUser.notice_id == SysNotice.notice_id, SysNoticeUser.user_id == user_id
+            )
+        )
+        return or_(~targeted_any, targeted_me)
+
     @classmethod
     async def get_notice_list_with_read_status(cls, db: AsyncSession, user_id: int, limit: int) -> list[dict[str, Any]]:
         """
-        查询带当前用户已读状态的正常公告列表
+        查询带当前用户已读状态的正常公告列表(仅本人收到的:广播或定向给本人)
 
         :param db: orm对象
         :param user_id: 用户ID
@@ -116,7 +127,7 @@ class NoticeDao:
                 SysNoticeRead,
                 and_(SysNoticeRead.notice_id == SysNotice.notice_id, SysNoticeRead.user_id == user_id),
             )
-            .where(SysNotice.status == '0')
+            .where(SysNotice.status == '0', cls._received_by(user_id))
             .order_by(SysNotice.notice_id.desc())
             .limit(limit)
         )
@@ -139,7 +150,11 @@ class NoticeDao:
             .exists()
         )
         unread_count = (
-            await db.execute(select(func.count()).select_from(SysNotice).where(SysNotice.status == '0', ~read_exists))
+            await db.execute(
+                select(func.count())
+                .select_from(SysNotice)
+                .where(SysNotice.status == '0', cls._received_by(user_id), ~read_exists)
+            )
         ).scalar_one()
 
         return unread_count
@@ -181,6 +196,53 @@ class NoticeDao:
         )
 
         return await PageUtil.paginate(db, query, query_object.page_num, query_object.page_size, is_page)
+
+    @staticmethod
+    def _user_ids_stmt(names: list[str]):
+        """构造"按用户名查 user_id"的 select;名字全空返回 None。随上下文租户自动过滤。"""
+        unique_names = [n for n in dict.fromkeys(n.strip() for n in names) if n]
+        if not unique_names:
+            return None
+        return select(SysUser.user_id).where(SysUser.user_name.in_(unique_names), SysUser.del_flag == '0')
+
+    @classmethod
+    def resolve_user_ids_by_names(cls, db, names: list[str]) -> list[int]:
+        """按用户名解析 user_id(同步会话,供告警渠道用)。未命中者忽略。"""
+        stmt = cls._user_ids_stmt(names)
+        if stmt is None:
+            return []
+        return list(db.execute(stmt).scalars().all())
+
+    @classmethod
+    async def resolve_user_ids_by_names_async(cls, db: AsyncSession, names: list[str]) -> list[int]:
+        """按用户名解析 user_id(异步会话,供手工发通知用)。未命中者忽略。"""
+        stmt = cls._user_ids_stmt(names)
+        if stmt is None:
+            return []
+        return list((await db.execute(stmt)).scalars().all())
+
+    @classmethod
+    def add_notice_users(cls, db, notice_id: int, user_ids: list[int]) -> None:
+        """写入公告收件人(去重)。db.add_all 对同步/异步会话通用,commit 由调用方负责。"""
+        ids = list(dict.fromkeys(user_ids))
+        if ids:
+            db.add_all(SysNoticeUser(notice_id=notice_id, user_id=uid) for uid in ids)
+
+    @classmethod
+    async def delete_notice_users(cls, db: AsyncSession, notice_ids: list[int]) -> None:
+        """按公告ID删除收件人行(删除公告 / 编辑重设收件人时用)。"""
+        if notice_ids:
+            await db.execute(delete(SysNoticeUser).where(SysNoticeUser.notice_id.in_(notice_ids)))
+
+    @classmethod
+    async def get_notice_user_names(cls, db: AsyncSession, notice_id: int) -> list[str]:
+        """取某公告的收件人用户名(供编辑回填;空=广播)。"""
+        stmt = (
+            select(SysUser.user_name)
+            .join(SysNoticeUser, SysNoticeUser.user_id == SysUser.user_id)
+            .where(SysNoticeUser.notice_id == notice_id)
+        )
+        return list((await db.execute(stmt)).scalars().all())
 
     @classmethod
     async def add_notice_reads(cls, db: AsyncSession, user_id: int, notice_ids: list[int]) -> None:
@@ -257,7 +319,8 @@ class NoticeDao:
         :param notice: 通知公告对象
         :return:
         """
-        db_notice = SysNotice(**notice.model_dump())
+        # notice_users 是承载收件人选择的临时字段,非 sys_notice 列,构造 DO 时排除
+        db_notice = SysNotice(**notice.model_dump(exclude={'notice_users'}))
         db.add(db_notice)
         await db.flush()
 

@@ -94,35 +94,46 @@ def _send_kafka(record: dict[str, Any], conf: dict[str, Any]) -> None:
 
 @register_channel('notice')
 def _send_notice(record: dict[str, Any], conf: dict[str, Any]) -> None:
-    """转系统通知：写入 sys_notice(通知)，将告警通知到指定用户(用户名写入通知内容)。
+    """转系统通知：写入 sys_notice。
 
     conf: {type:'notice', notice_users:'admin,zhangsan'}
-    说明：本项目通知公告(sys_notice)为全局通知，无逐用户投递表，故将目标用户写入通知内容，
-    在「系统管理-通知公告」中可见。
+    - notice_users 为空 → 建 1 条广播通知(user_id 空,全租户可见);
+    - notice_users 非空 → 解析用户名为 user_id,**每人一条**(user_id=该用户),只有本人可见;
+      用户名一个都没命中(全错/不在本租户)→ 不建通知,记 warning(避免定向退化成广播泄露)。
+    租户由上层告警服务设入上下文(alert_service 转发前 set_current_tenant_id),写入/解析均自动落在该租户。
     """
     from datetime import datetime
 
+    from module_admin.dao.notice_dao import NoticeDao
     from module_admin.entity.do.notice_do import SysNotice
     from module_task_schedule.sync_db import get_sync_session_local
 
-    users = (conf.get('notice_users') or '').strip()
     title = (record.get('title') or '告警通知')[:50]
     body = record.get('content', '')
-    content = f'【告警通知】通知用户: {users}\n{body}' if users else f'【告警通知】\n{body}'
+    content = f'【告警通知】\n{body}'
+    names = [n.strip() for n in (conf.get('notice_users') or '').split(',') if n.strip()]
 
     session_local = get_sync_session_local()
     db = session_local()
     try:
-        db.add(
-            SysNotice(
-                notice_title=title,
-                notice_type='1',
-                notice_content=content.encode('utf-8'),
-                status='0',
-                create_by='system',
-                create_time=datetime.now(),
-            )
+        # 指定了收件人却一个都没命中(全错/不在本租户)→ 不建通知,避免定向退化成广播泄露
+        user_ids = NoticeDao.resolve_user_ids_by_names(db, names) if names else []
+        if names and not user_ids:
+            loguru_logger.warning(f'告警渠道[notice]:指定用户 {names} 在当前租户内均未命中,跳过通知')
+            return
+
+        notice = SysNotice(
+            notice_title=title,
+            notice_type='1',
+            notice_content=content.encode('utf-8'),
+            status='0',
+            create_by='system',
+            create_time=datetime.now(),
         )
+        db.add(notice)
+        db.flush()  # 取 notice_id
+        # 有收件人 → 定向;无 → 不写收件人行 = 广播
+        NoticeDao.add_notice_users(db, notice.notice_id, user_ids)
         db.commit()
     finally:
         db.close()

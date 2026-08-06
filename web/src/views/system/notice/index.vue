@@ -142,6 +142,11 @@
                   </el-form-item>
                </el-col>
                <el-col :span="24">
+                  <el-form-item :label="$t('接收人')">
+                     <notice-user-select v-model="form.noticeUsers" :placeholder="$t('留空 = 全员可见；选人 = 仅所选用户可见')" />
+                  </el-form-item>
+               </el-col>
+               <el-col :span="24">
                   <el-form-item :label="$t('内容')">
                     <editor v-model="form.noticeContent" :min-height="192"/>
                   </el-form-item>
@@ -163,6 +168,7 @@
 <script setup name="Notice">
 import NoticeDetailView from "@/layout/components/HeaderNotice/DetailView";
 import ReadUsersDialog from "./ReadUsers";
+import NoticeUserSelect from "@/views/alert/strategy/components/NoticeUserSelect.vue";
 import { listNotice, getNotice, delNotice, addNotice, updateNotice } from "@/api/system/notice";
 
 const { proxy } = getCurrentInstance();
@@ -216,6 +222,7 @@ function reset() {
     noticeTitle: undefined,
     noticeType: undefined,
     noticeContent: undefined,
+    noticeUsers: "",
     status: "0"
   };
   proxy.resetForm("noticeRef");
