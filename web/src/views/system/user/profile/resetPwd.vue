@@ -3,7 +3,7 @@
       <el-form-item :label="$t('旧密码')" prop="oldPassword">
          <el-input v-model="user.oldPassword" :placeholder="$t('请输入旧密码')" type="password" show-password />
       </el-form-item>
-      <el-form-item :label="$t('新密码')" prop="newPassword">
+      <el-form-item :label="$t('新密码')" prop="newPassword" :rules="infoPwdValidator">
          <el-input v-model="user.newPassword" :placeholder="$t('请输入新密码')" type="password" show-password />
       </el-form-item>
       <el-form-item :label="$t('确认密码')" prop="confirmPassword">
@@ -17,9 +17,11 @@
 </template>
 
 <script setup>
+import { usePasswordRule } from "@/utils/passwordRule";
 import { updateUserPwd } from "@/api/system/user";
 
 const { proxy } = getCurrentInstance();
+const { infoPwdValidator } = usePasswordRule();
 
 const user = reactive({
   oldPassword: undefined,
@@ -36,7 +38,6 @@ const equalToPassword = (rule, value, callback) => {
 };
 const rules = ref({
   oldPassword: [{ required: true, message: "旧密码不能为空", trigger: "blur" }],
-  newPassword: [{ required: true, message: "新密码不能为空", trigger: "blur" }, { min: 6, max: 20, message: "长度在 6 到 20 个字符", trigger: "blur" }, { pattern: /^[^<>"'|\\]+$/, message: "不能包含非法字符：< > \" ' \\\ |", trigger: "blur" }],
   confirmPassword: [{ required: true, message: "确认密码不能为空", trigger: "blur" }, { required: true, validator: equalToPassword, trigger: "blur" }]
 });
 
@@ -44,7 +45,7 @@ const rules = ref({
 function submit() {
   proxy.$refs.pwdRef.validate(valid => {
     if (valid) {
-      updateUserPwd(user.oldPassword, user.newPassword).then(response => {
+      updateUserPwd(user.oldPassword, user.newPassword).then(() => {
         proxy.$modal.msgSuccess("修改成功");
       });
     }

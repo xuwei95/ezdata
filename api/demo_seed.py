@@ -1298,6 +1298,481 @@ APP_CONFIG = {
     'model': {'modelId': 0, 'temperature': None, 'maxTokens': None},
 }
 
+# ============================ 每日多市场股票分析 demo(对标 daily_stock_analysis)============================
+# A股/港股/美股各 6 只观察池 → akshare 日线 + pandas 技术指标(MA/RSI/MACD/KDJ)→ fin_watch_daily;
+# 决策报告任务读指标 + 大盘上下文 → 规则打分(+可选 LLM 叙述)→ fin_daily_report,末尾按 env 推送到群机器人。
+
+# 自选股日线 + 技术指标(逐只按市场取 akshare 日线,pandas 算指标,取近120根 emit 流式装载)
+C_WATCH_DAILY = """
+import pandas as pd
+
+WATCH = {
+    'A': [('sh600519','贵州茅台'),('sz300750','宁德时代'),('sz000651','格力电器'),
+          ('sh601318','中国平安'),('sz000858','五粮液'),('sz002594','比亚迪')],
+    'HK': [('00700','腾讯控股'),('09988','阿里巴巴-W'),('03690','美团-W'),
+           ('01810','小米集团-W'),('00939','建设银行'),('02318','中国平安')],
+    'US': [('AAPL','苹果'),('MSFT','微软'),('NVDA','英伟达'),
+           ('TSLA','特斯拉'),('GOOGL','谷歌-A'),('AMZN','亚马逊')],
+}
+FUNC = {'A': 'stock_zh_a_daily', 'HK': 'stock_hk_daily', 'US': 'stock_us_daily'}
+
+def _num(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+def _col(df, *names):
+    for n in names:
+        if n in df.columns:
+            return pd.to_numeric(df[n], errors='coerce')
+    return pd.Series([float('nan')] * len(df))
+
+def indicators(df):
+    close = _col(df, 'close', '收盘', '收盘价')
+    high = _col(df, 'high', '最高', '最高价')
+    low = _col(df, 'low', '最低', '最低价')
+    out = pd.DataFrame(index=df.index)
+    for n in (5, 10, 20, 60):
+        out['ma%d' % n] = close.rolling(n).mean()
+    diff = close.diff()
+    gain = diff.clip(lower=0)
+    loss = (-diff).clip(lower=0)
+    ag = gain.ewm(alpha=1/14, adjust=False).mean()
+    al = loss.ewm(alpha=1/14, adjust=False).mean().replace(0, float('nan'))
+    out['rsi14'] = 100 - 100 / (1 + ag / al)
+    e12 = close.ewm(span=12, adjust=False).mean()
+    e26 = close.ewm(span=26, adjust=False).mean()
+    dif = e12 - e26
+    dea = dif.ewm(span=9, adjust=False).mean()
+    out['macd_dif'] = dif
+    out['macd_dea'] = dea
+    out['macd'] = (dif - dea) * 2
+    lmin = low.rolling(9).min()
+    hmax = high.rolling(9).max()
+    rsv = (close - lmin) / (hmax - lmin).replace(0, float('nan')) * 100
+    k = rsv.ewm(alpha=1/3, adjust=False).mean()
+    d = k.ewm(alpha=1/3, adjust=False).mean()
+    out['kdj_k'] = k
+    out['kdj_d'] = d
+    out['kdj_j'] = 3 * k - 2 * d
+    out['change_pct'] = close.pct_change() * 100
+    return out
+
+IND_COLS = ('ma5','ma10','ma20','ma60','rsi14','macd_dif','macd_dea','macd','kdj_k','kdj_d','kdj_j','change_pct')
+total = 0
+for market, lst in WATCH.items():
+    for sym, nm in lst:
+        try:
+            params = {'symbol': sym}
+            if market == 'A':
+                params['adjust'] = 'qfq'
+            raw = handler.query(FUNC[market], params)
+        except Exception as e:
+            print('跳过 %s/%s: %s' % (market, sym, e))
+            continue
+        if not raw:
+            continue
+        df = pd.DataFrame(raw).reset_index(drop=True)
+        ind = indicators(df)
+        n = len(df)
+        rows = []
+        for i in range(max(0, n - 120), n):
+            d = df.iloc[i]
+            r = {'market': market, 'symbol': sym, 'name': nm,
+                 'date': str(d.get('date') or d.get('日期') or '')[:10],
+                 'open': _num(d.get('open', d.get('开盘'))),
+                 'high': _num(d.get('high', d.get('最高'))),
+                 'low': _num(d.get('low', d.get('最低'))),
+                 'close': _num(d.get('close', d.get('收盘'))),
+                 'volume': _num(d.get('volume', d.get('成交量'))),
+                 'amount': _num(d.get('amount', d.get('成交额')))}
+            for c in IND_COLS:
+                v = ind.iloc[i][c]
+                r[c] = None if v != v else round(float(v), 4)
+            rows.append(r)
+        if rows:
+            emit(rows)
+            total += len(rows)
+        print('%s/%s(%s) %d 行' % (market, sym, nm, len(rows)))
+print('自选股日线+指标完成,共 %d 行 → fin_watch_daily' % total)
+result = []
+"""
+
+# 决策报告:读 fin_watch_daily 最新指标 → 规则打分 + 可选 LLM 叙述 → fin_daily_report,末尾按 env 推送
+C_DAILY_REPORT = """
+import datetime
+import os
+
+es = get_handler('demo_es')
+today = datetime.date.today().isoformat()
+MKT_NAME = {'A': 'A股', 'HK': '港股', 'US': '美股'}
+
+def _q(idx, body):
+    try:
+        return es.query({'index': idx, 'body': body}) or []
+    except Exception as e:
+        print('查询 %s 失败(%s),按空处理' % (idx, e))
+        return []
+
+def _f(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+# 1) 自选股最新技术指标
+latest = {}
+for r in _q('fin_watch_daily', {'query': {'match_all': {}}, 'size': 20000}):
+    s = r.get('symbol')
+    dt = r.get('date') or ''
+    if not s:
+        continue
+    if s not in latest or dt > (latest[s].get('date') or ''):
+        latest[s] = r
+print('自选股最新指标 %d 只(来自 fin_watch_daily)' % len(latest))
+
+# 2) 融合上下文:A股基本面(业绩报表)/个股新闻/大盘背景(平台已有 ES 索引)
+def _code6(sym):
+    s = str(sym or '')
+    return s[2:] if s[:2] in ('sh', 'sz', 'bj') else s
+
+yjbb = {}  # 6位代码 -> 业绩报表最新报告期
+for r in _q('fin_yjbb', {'query': {'match_all': {}}, 'size': 6000}):
+    c = str(r.get('code') or '')
+    if c and (c not in yjbb or (r.get('report_period') or '') > (yjbb[c].get('report_period') or '')):
+        yjbb[c] = r
+news = {}  # 6位代码 -> 新闻列表
+for r in _q('fin_news', {'query': {'match_all': {}}, 'size': 2000}):
+    c = str(r.get('query_symbol') or '')
+    if c:
+        news.setdefault(c, []).append(r)
+
+def _latest_row(idx, date_field='date'):
+    rs = [x for x in _q(idx, {'query': {'match_all': {}}, 'size': 400}) if x.get(date_field)]
+    return max(rs, key=lambda x: x.get(date_field) or '') if rs else {}
+
+flow = _latest_row('fin_market_fund_flow')
+activity = {r.get('item'): r.get('value') for r in _q('fin_market_activity', {'query': {'match_all': {}}, 'size': 50}) if r.get('item')}
+zt_cnt = len(_q('fin_zt_pool', {'query': {'match_all': {}}, 'size': 2000}))
+main_net = _f(flow.get('main_net'))
+a_tilt = 2 if (main_net or 0) > 0 else -2 if (main_net or 0) < 0 else 0
+backdrop = 'A股大盘背景:主力净流入%s;涨停%d家;活跃度%s' % (
+    ('%.1f亿元' % (main_net / 1e8)) if main_net is not None else '—', zt_cnt, activity.get('活跃度', '—'))
+print(backdrop)
+
+def fund_of(sym, market):
+    return yjbb.get(_code6(sym)) if market == 'A' else None
+
+def news_of(sym, market):
+    if market != 'A':
+        return []
+    lst = sorted(news.get(_code6(sym)) or [], key=lambda x: x.get('publish_time') or '', reverse=True)
+    return lst[:3]
+
+# 把各维度拆成 4 个因子增量,不同策略给不同权重 → 同一份数据、不同策略出不同结论
+def factors(r, fund, news_cnt, market):
+    close, ma20, ma60 = r.get('close'), r.get('ma20'), r.get('ma60')
+    rsi, macd, j, chg = r.get('rsi14'), r.get('macd'), r.get('kdj_j'), r.get('change_pct')
+    f = {'trend': 0.0, 'momentum': 0.0, 'growth': 0.0, 'event': 0.0}
+    if close and ma20 and ma60:
+        f['trend'] = 18.0 if close > ma20 > ma60 else 8.0 if close > ma20 else -18.0 if close < ma20 < ma60 else -6.0
+    m = 0.0
+    if macd is not None:
+        m += 8 if macd > 0 else -8
+    if rsi is not None:
+        m += -6 if rsi >= 70 else 6 if rsi <= 30 else 4 if rsi >= 55 else 0
+    if j is not None:
+        m += -5 if j >= 100 else 5 if j <= 0 else 0
+    f['momentum'] = m
+    if fund:
+        npy, roe = _f(fund.get('net_profit_yoy')), _f(fund.get('roe'))
+        g = 0.0
+        if npy is not None:
+            g += 6 if npy > 0 else -8
+        if roe is not None and roe >= 15:
+            g += 6
+        f['growth'] = g
+    ev = min(news_cnt, 2) * 4.0
+    if chg is not None:
+        ev += 5 if chg > 3 else -5 if chg < -3 else 0
+    if market == 'A':
+        ev += a_tilt * 2 + (2 if zt_cnt > 50 else 0)
+    f['event'] = ev
+    return f
+
+# 可切换策略(对标 daily_stock_analysis 的策略选择):名称 + 因子权重 + LLM 侧重提示词
+STRATEGIES = [
+    {'name': '趋势跟随', 'w': {'trend': 1.0, 'momentum': 1.0, 'growth': 0.3, 'event': 0.4},
+     'sys': '你按"趋势跟随"策略研判:重点看均线多空排列与 MACD/动量,顺势而为、回避均线空头与破位,基本面/消息仅作辅助。'},
+    {'name': '成长质量', 'w': {'trend': 0.4, 'momentum': 0.3, 'growth': 1.6, 'event': 0.2},
+     'sys': '你按"成长质量"策略研判:重点看净利润同比增速、ROE、毛利率等基本面质量,优选高成长高盈利,技术面仅作择时;无基本面(港美股)时以技术面为准并说明。'},
+    {'name': '热点事件', 'w': {'trend': 0.5, 'momentum': 0.7, 'growth': 0.2, 'event': 1.6},
+     'sys': '你按"热点事件"策略研判:重点看近期新闻催化、涨停/资金情绪、短期涨跌幅等事件驱动信号,关注题材与资金并提示追高风险。'},
+]
+_DISC = '用不超过100字中文给出多空研判与关键理由,口吻中性专业,不承诺收益,结尾固定加"(仅供参考,不构成投资建议)"。'
+
+def action_of(sc):
+    return '买入' if sc >= 68 else '持有' if sc >= 55 else '观望' if sc >= 42 else '回避'
+
+def combine(f, w):
+    sc = 50 + w['trend'] * f['trend'] + w['momentum'] * f['momentum'] + w['growth'] * f['growth'] + w['event'] * f['event']
+    return int(max(0, min(100, round(sc))))
+
+def rule_reason(r, fund, news_cnt, strat, sc, act):
+    p = ['[%s]' % strat['name']]
+    close, ma20, ma60 = r.get('close'), r.get('ma20'), r.get('ma60')
+    if close and ma20 and ma60:
+        p.append('均线多头排列' if close > ma20 > ma60 else '均线空头排列' if close < ma20 < ma60 else '均线纠缠')
+    if r.get('macd') is not None:
+        p.append('MACD' + ('翻红' if r['macd'] > 0 else '翻绿'))
+    if r.get('rsi14') is not None:
+        p.append('RSI14=%.0f' % r['rsi14'])
+    if fund:
+        npy, roe = _f(fund.get('net_profit_yoy')), _f(fund.get('roe'))
+        if npy is not None:
+            p.append('净利同比%+.0f%%' % npy)
+        if roe is not None:
+            p.append('ROE=%.1f' % roe)
+    if news_cnt:
+        p.append('新闻%d条' % news_cnt)
+    return '；'.join(p) + '。评分%d→%s' % (sc, act)
+
+llm = None
+try:
+    from ezdata.interface.web.llm import LLMClient
+    _c = LLMClient()
+    if _c.ready:
+        llm = _c
+        print('LLM 已就绪,生成融合研判')
+    else:
+        print('LLM 未配置(缺 LLM_API_KEY/LLM_MODEL),使用规则理由')
+except Exception as e:
+    print('LLM 不可用(%s),使用规则理由' % e)
+
+def llm_reason(r, fund, news_list, strat, sc, act):
+    if llm is None:
+        return None
+    parts = ['市场=%s 代码=%s 名称=%s' % (r.get('market'), r.get('symbol'), r.get('name')),
+             '技术面: 收盘=%s MA20=%s MA60=%s RSI14=%s MACD=%s KDJ_J=%s 涨跌幅=%s%%'
+             % (r.get('close'), r.get('ma20'), r.get('ma60'), r.get('rsi14'), r.get('macd'), r.get('kdj_j'), r.get('change_pct'))]
+    if fund:
+        parts.append('基本面: 净利同比=%s%% ROE=%s 毛利率=%s%% 行业=%s'
+                     % (fund.get('net_profit_yoy'), fund.get('roe'), fund.get('gross_margin'), fund.get('industry')))
+    if news_list:
+        parts.append('近期新闻: ' + ' / '.join((n.get('title') or '')[:30] for n in news_list))
+    if r.get('market') == 'A':
+        parts.append(backdrop)
+    parts.append('规则结论=%s(评分%d)' % (act, sc))
+    try:
+        # 每套策略用各自 system 提示词(侧重不同);temperature=None 跳过 complete 默认 0.0(opus-4-8 弃用会 400)
+        txt = (llm.complete('\\n'.join(parts), system=strat['sys'] + _DISC, temperature=None) or '').strip()
+    except Exception as e:
+        print('LLM 生成失败(%s),回退规则理由' % e)
+        return None
+    low = txt.lower()
+    # agno 部分版本会吞掉 provider 报错、把错误串当 content 返回;识别到就回退规则理由
+    if len(txt) < 4 or 'error code' in low or 'invalid_request' in low or 'error in agent' in low:
+        print('LLM 返回异常内容,回退规则理由:%s' % txt[:80])
+        return None
+    return txt[:240]
+
+result = []
+stat = {}  # (market, strategy) -> 统计
+for s, r in latest.items():
+    mk = r.get('market')
+    fund = fund_of(s, mk)
+    news_list = news_of(s, mk)
+    ncnt = len(news_list)
+    f = factors(r, fund, ncnt, mk)  # 因子只算一次,各策略共享
+    base = {'date': today, 'market': mk, 'symbol': s, 'name': r.get('name'),
+            'close': r.get('close'), 'change_pct': r.get('change_pct'),
+            'ma20': r.get('ma20'), 'ma60': r.get('ma60'), 'rsi14': r.get('rsi14'),
+            'macd': r.get('macd'), 'kdj_j': r.get('kdj_j'),
+            'net_profit_yoy': _f(fund.get('net_profit_yoy')) if fund else None,
+            'roe': _f(fund.get('roe')) if fund else None, 'news_cnt': ncnt}
+    for strat in STRATEGIES:
+        sc = combine(f, strat['w'])
+        act = action_of(sc)
+        reason = llm_reason(r, fund, news_list, strat, sc, act) or rule_reason(r, fund, ncnt, strat, sc, act)
+        row = dict(base)
+        row.update({'strategy': strat['name'], 'action': act, 'score': sc, 'reason': reason})
+        result.append(row)
+        d = stat.setdefault((mk, strat['name']), {'n': 0, 'bull': 0, 'sum': 0})
+        d['n'] += 1
+        d['sum'] += sc
+        if act in ('买入', '持有'):
+            d['bull'] += 1
+
+for (mk, sname), d in stat.items():
+    n = d['n'] or 1
+    breadth = round(100.0 * d['bull'] / n)
+    avg = round(d['sum'] / n)
+    tone = '偏多' if breadth >= 60 else '偏空' if breadth <= 35 else '中性'
+    extra = ('  ' + backdrop) if mk == 'A' else ''
+    result.append({'date': today, 'market': mk, 'symbol': '__MARKET__', 'strategy': sname,
+                   'name': '%s·%s综述' % (MKT_NAME.get(mk, mk), sname), 'action': tone, 'score': breadth,
+                   'reason': '[%s]%s自选池%d只,看多占比%d%%(均分%d),整体%s。%s(仅供参考,不构成投资建议)'
+                             % (sname, MKT_NAME.get(mk, mk), d['n'], breadth, avg, tone, extra)})
+print('生成多策略融合决策报告 %d 行(%d 策略×%d 市场;基本面命中 %d 行/新闻命中 %d 行)→ fin_daily_report'
+      % (len(result), len(STRATEGIES), len({m for m, _ in stat}),
+         sum(1 for x in result if x.get('roe') is not None),
+         sum(1 for x in result if x.get('news_cnt'))))
+
+# —— 推送(env 驱动:配了哪个渠道的 webhook 就推哪个,都没配则跳过,不报错)——
+confs = []
+for _env, _ctype in [('DEMO_PUSH_WECOM', 'wecom'), ('DEMO_PUSH_FEISHU', 'feishu'), ('DEMO_PUSH_DINGTALK', 'dingtalk')]:
+    _url = os.environ.get(_env)
+    if _url:
+        confs.append({'type': _ctype, 'webhook_url': _url})
+if not confs:
+    print('未配置推送 webhook(DEMO_PUSH_WECOM/FEISHU/DINGTALK),跳过推送')
+else:
+    _strat = os.environ.get('DEMO_PUSH_STRATEGY') or STRATEGIES[0]['name']  # 推送用哪套策略(默认第一套)
+    _lines = ['# 每日多市场股票分析 %s(策略:%s)' % (today, _strat)]
+    for mk in ('A', 'HK', 'US'):
+        _picks = sorted([x for x in result if x['market'] == mk and x['symbol'] != '__MARKET__' and x.get('strategy') == _strat],
+                        key=lambda x: x['score'], reverse=True)
+        _summ = [x for x in result if x['market'] == mk and x['symbol'] == '__MARKET__' and x.get('strategy') == _strat]
+        _lines.append('\\n## %s  %s' % (MKT_NAME.get(mk, mk), _summ[0]['reason'] if _summ else ''))
+        for x in _picks[:3]:
+            _lines.append('- %s(%s) %s 评分%d' % (x['name'], x['symbol'], x['action'], x['score']))
+    try:
+        from module_alert.channels.base import dispatch_forward
+        dispatch_forward({'title': '每日多市场股票分析 %s' % today, 'content': '\\n'.join(_lines)}, confs)
+        print('已推送到 %d 个渠道(策略:%s)' % (len(confs), _strat))
+    except Exception as e:
+        print('推送失败(%s)' % e)
+"""
+
+# 观察池只 18 只,轮询 akshare 约 1-2 分钟。crons:美股盘后+A/H 上一交易日均已收 → 早晨统一出报告
+CRON_WATCH = '0 40 6 * * ? *'  # 每天 06:40 抓三市场自选股日线+指标
+CRON_REPORT = '0 10 7 * * ? *'  # 每天 07:10 生成决策报告并推送(紧随 watch)
+
+TASKS += [
+    (
+        'demo_fin_watch_daily',
+        '自选股日线+技术指标(A/H/US)→ fin_watch_daily',
+        code(AK, C_WATCH_DAILY, 'fin_watch_daily', tf({}, ['market', 'symbol', 'date'])),
+        'fin_watch_daily',
+        '自选股日线+指标',
+        CRON_WATCH,
+        'A股/港股/美股各6只观察池(茅台/宁德/平安/腾讯/阿里/小米/苹果/英伟达/特斯拉等),逐只 akshare 日线(A股前复权)+ pandas 计算 '
+        'MA5/10/20/60、RSI14、MACD(dif/dea/macd)、KDJ(k/d/j)、涨跌幅,取近120根 emit 流式装载。'
+        'market 区分市场,md5(market+symbol+date) 幂等。每天06:40更新,是决策报告与K线/均线看板的数据底座。',
+    ),
+    (
+        'demo_fin_daily_report',
+        '每日多市场·多策略融合决策报告(技术+基本面+新闻+大盘)→ fin_daily_report',
+        code(ES, C_DAILY_REPORT, 'fin_daily_report', tf({}, ['date', 'market', 'symbol', 'strategy'])),
+        'fin_daily_report',
+        '每日决策报告',
+        CRON_REPORT,
+        '读 fin_watch_daily 每只最新指标,融合平台已有数据:A股基本面(fin_yjbb 净利同比/ROE/毛利)、个股新闻(fin_news)、'
+        '大盘背景(fin_market_fund_flow 主力净流入 + fin_market_activity 活跃度 + fin_zt_pool 涨停家数)。把指标拆成 趋势/动量/成长/事件 四因子,'
+        '按 **3 套可切换策略(趋势跟随/成长质量/热点事件)** 各自权重打分 → 同一份数据不同策略出不同 action(买入/持有/观望/回避);'
+        '配了 LLM(env LLM_*)再按各策略侧重提示词产出研判 reason(每股每策略一条),否则规则理由。strategy 字段区分策略,'
+        '另产出每市场每策略"综述"(看多广度)。每天07:10生成,末尾按 env(DEMO_PUSH_*,DEMO_PUSH_STRATEGY 选推送策略)推送群机器人。'
+        '基本面/新闻仅 A股有(平台无H/US对应索引),H/US 纯技术面。数据分析仅供参考,不构成投资建议。',
+    ),
+]
+
+# 每日股票分析看板(dash_type=board,声明式):决策表 + 三市场代表股K线均线 + 市场多头广度
+STOCK_DASH_ID = 'demo_board_stock'
+
+
+def _scomp(cid, term_val, ys, title, x, y, w, h, ctype='line'):
+    # 按 symbol 精确过滤(symbol.keyword)取单只时序,x=date 升序;ys 各字段一条线
+    return {
+        'id': cid, 'type': 'chart',
+        'inline': {'modelId': 'dm_fin_watch_daily',
+                   'native': {'index': 'fin_watch_daily',
+                              'body': {'query': {'term': {'symbol.keyword': term_val}}, 'size': 400,
+                                       'sort': [{'date': 'asc'}]}},
+                   'chartSpec': {'type': ctype, 'x': 'date', 'ys': ys,
+                                 'style': {'title': title, 'legend': True, 'smooth': True}}},
+        'pos': {'x': x, 'y': y, 'w': w, 'h': h}, 'props': {'title': title}, 'subscribe': True,
+    }
+
+
+_MA_YS = [{'field': 'close', 'agg': 'sum'}, {'field': 'ma20', 'agg': 'sum'}, {'field': 'ma60', 'agg': 'sum'}]
+# 顶部策略切换:select 筛选器 → 变量 {{strategy}} 注入决策表/综述图的 native term,改选即重刷(联动)
+_STRATEGY_OPTIONS = ['趋势跟随', '成长质量', '热点事件']
+STOCK_DASH_FILTERS = [{'name': 'strategy', 'label': '策略', 'type': 'select',
+                       'options': _STRATEGY_OPTIONS, 'default': _STRATEGY_OPTIONS[0]}]
+STOCK_DASH_COMPONENTS = [
+    {'id': 'f1', 'type': 'filter', 'props': {'varName': 'strategy', 'title': '策略切换'},
+     'pos': {'x': 0, 'y': 0, 'w': 24, 'h': 1}},
+    {'id': 'c1', 'type': 'chart',
+     'inline': {'modelId': 'dm_fin_daily_report',
+                'native': {'index': 'fin_daily_report',
+                           'body': {'query': {'bool': {'must': [{'term': {'strategy.keyword': '{{strategy}}'}}],
+                                                       'must_not': [{'term': {'symbol.keyword': '__MARKET__'}}]}},
+                                    'size': 200, 'sort': [{'score': 'desc'}]}},
+                'chartSpec': {'type': 'table', 'x': 'name',
+                              'ys': [{'field': 'market', 'agg': 'none'}, {'field': 'close', 'agg': 'none'},
+                                     {'field': 'change_pct', 'agg': 'none'}, {'field': 'action', 'agg': 'none'},
+                                     {'field': 'score', 'agg': 'none'}, {'field': 'reason', 'agg': 'none'}],
+                              'style': {'title': '决策报告(按所选策略)'}}},
+     'pos': {'x': 0, 'y': 1, 'w': 24, 'h': 8}, 'props': {'title': '每日决策报告'}, 'subscribe': True},
+    _scomp('c2', 'sh600519', _MA_YS, '贵州茅台 收盘/MA20/MA60(A股)', 0, 9, 12, 7),
+    _scomp('c3', '00700', _MA_YS, '腾讯控股 收盘/MA20/MA60(港股)', 12, 9, 12, 7),
+    _scomp('c4', 'AAPL', _MA_YS, '苹果 收盘/MA20/MA60(美股)', 0, 15, 12, 7),
+    {'id': 'c5', 'type': 'chart',
+     'inline': {'modelId': 'dm_fin_daily_report',
+                'native': {'index': 'fin_daily_report',
+                           'body': {'query': {'bool': {'must': [{'term': {'symbol.keyword': '__MARKET__'}},
+                                                                {'term': {'strategy.keyword': '{{strategy}}'}}]}},
+                                    'size': 50}},
+                'chartSpec': {'type': 'bar', 'x': 'name', 'ys': [{'field': 'score', 'agg': 'sum'}],
+                              'style': {'title': '各市场多头广度(%,按所选策略)', 'label': True}}},
+     'pos': {'x': 12, 'y': 15, 'w': 12, 'h': 7}, 'props': {'title': '各市场多头广度'}, 'subscribe': True},
+]
+STOCK_DASH_CANVAS = {'mode': 'matrix', 'cols': 24}
+
+# 每日多市场股票分析助手(AI 应用 9003):对话追问决策报告/指标(对标 DSA 的对话能力)
+STOCK_APP_ID = 9003
+STOCK_APP_PROMPT = """# 角色
+你是「每日多市场股票分析助手」,基于平台每天沉淀的 A股/港股/美股自选股技术指标与决策报告,回答择时/多空/对比问题并出图。定位:技术面数据分析,不构成投资建议。
+
+## 数据(数据源 `demo_es`)
+- `fin_watch_daily`:自选股日线+指标 market(A/HK/US)/symbol/name/date/open/high/low/close/volume/amount/ma5/ma10/ma20/ma60/rsi14/macd_dif/macd_dea/macd/kdj_k/kdj_d/kdj_j/change_pct
+- `fin_daily_report`:每日**多策略融合**决策报告(技术+基本面+新闻+大盘)date/market/**strategy(趋势跟随/成长质量/热点事件)**/symbol/name/close/change_pct/ma20/ma60/rsi14/macd/kdj_j/**net_profit_yoy(净利同比%,A股)/roe(A股)/news_cnt(新闻条数,A股)**/action(买入/持有/观望/回避)/score(0-100)/reason;symbol='__MARKET__' 为该市场该策略综述(score=看多广度%,A股 reason 附大盘背景)。**同一只股在 3 套策略下各有一行**;基本面/新闻仅 A股有,H/US 为纯技术面
+也可用 `akshare_cn` 取最新日线(stock_zh_a_daily 前缀 sh/sz、stock_hk_daily 纯数字、stock_us_daily 代码)。
+
+## 可切换策略(用户问"用X策略"时按 strategy 字段过滤)
+- **趋势跟随**:重均线排列+MACD/动量,顺势;**成长质量**:重净利同比/ROE/毛利等基本面;**热点事件**:重新闻催化/涨停资金情绪/短期涨幅。
+- 同一份数据不同策略权重 → 不同 action;可对比"同一只股在三套策略下的评分差异"。
+- 综合 score≥68 买入、≥55 持有、≥42 观望、否则回避。
+
+## 工作流程
+1. get_table_schema 查两个索引字段(文本字段聚合/精确匹配用 .keyword,如 strategy.keyword/market.keyword/symbol.keyword;取时序写足 size)。
+2. run_datasource_query 对 demo_es 取数(按 strategy/market/symbol 过滤,date 排序);问到某策略务必加 strategy.keyword 过滤。
+3. 沙箱 pandas 计算 + pyecharts 绘图(内联展示);K线叠加均线时 close 与 ma20/ma60 同图。
+4. 给出结论 + 图/表。免责:数据分析,非投资建议。
+"""
+STOCK_APP_CONFIG = {
+    'prompt': STOCK_APP_PROMPT,
+    'prologue': '你好!我是每日多市场股票分析助手。基于 A股/港股/美股自选股的技术指标与每日决策报告,帮你看多空、比强弱、画K线均线。试试下面的预设问题。',
+    'presetQuestions': [
+        '用「趋势跟随」策略,今天三大市场哪个多头广度最高?给出各市场综述',
+        '同一只贵州茅台,在「趋势跟随/成长质量/热点事件」三套策略下的评分与结论有何差异?',
+        '用「成长质量」策略,A股自选股评分 Top5,列出净利同比/ROE 与结论',
+        '用「热点事件」策略,近期有新闻催化、评分靠前的个股',
+        '贵州茅台最近120日收盘价叠加 MA20/MA60,画K线均线图并点评趋势',
+        '腾讯控股 MACD 与 KDJ 当前状态如何?结合评分给出研判',
+    ],
+    'quickCommands': [
+        {'name': '策略对比', 'content': '贵州茅台在趋势跟随/成长质量/热点事件三套策略下的评分与action对比,并说明为何不同'},
+        {'name': '趋势选股', 'content': '用「趋势跟随」策略,三大市场评分 Top5 个股,表格展示 market/name/action/score'},
+        {'name': '成长选股', 'content': '用「成长质量」策略,A股自选股评分 Top5,附净利同比/ROE'},
+        {'name': '事件选股', 'content': '用「热点事件」策略,评分靠前且有新闻催化的个股'},
+        {'name': 'K线均线', 'content': '贵州茅台近120日收盘价叠加 MA20/MA60 折线图'},
+    ],
+    'toolIds': [], 'datasetIds': [], 'datasourceCodes': [ES, AK],
+    'enableMemory': False, 'model': {'modelId': 0, 'temperature': None, 'maxTokens': None},
+}
+
 # 定时任务联动:APScheduler 从 sys_job 表加载调度(invoke_target=dispatch.run_task, job_args=task_id),
 # task.trigger_type=2 + crontab,task.job_id 指向 sys_job。仅插 task 不建 sys_job 不会真触发。
 _INVOKE = 'module_task_schedule.dispatch.run_task'
@@ -1427,6 +1902,20 @@ def seed_metadata() -> int:
         db.execute(_DASHC_SQL, {'id': DIV_DASH_ID + '_canvas', 'did': DIV_DASH_ID,
                                 'content': json.dumps({'canvas': DIV_DASH_CANVAS, 'components': DIV_DASH_COMPONENTS, 'filters': DIV_DASH_FILTERS}, ensure_ascii=False),
                                 'now': now, 'tenant': TENANT})
+        # 每日多市场股票分析:AI 应用 9003 + 决策看板(先删后插,幂等)
+        db.execute(text('DELETE FROM ai_app WHERE app_id=:id'), {'id': STOCK_APP_ID})
+        db.execute(_APP_SQL, {'id': STOCK_APP_ID, 'name': '每日多市场股票分析助手',
+                              'desc': 'A股/港股/美股自选股技术指标与每日决策报告,对话取数+绘图',
+                              'atype': '数据分析', 'config': json.dumps(STOCK_APP_CONFIG, ensure_ascii=False),
+                              'now': now, 'tenant': TENANT})
+        db.execute(text('DELETE FROM data_dashboard_canvas WHERE dashboard_id=:id'), {'id': STOCK_DASH_ID})
+        db.execute(text('DELETE FROM data_dashboard WHERE id=:id'), {'id': STOCK_DASH_ID})
+        db.execute(_DASH_SQL, {'id': STOCK_DASH_ID, 'name': '每日多市场股票分析(Demo)',
+                               'remark': '决策报告表 + A股/港股/美股代表股K线均线 + 各市场多头广度(对标 daily_stock_analysis)',
+                               'now': now, 'tenant': TENANT})
+        db.execute(_DASHC_SQL, {'id': STOCK_DASH_ID + '_canvas', 'did': STOCK_DASH_ID,
+                                'content': json.dumps({'canvas': STOCK_DASH_CANVAS, 'components': STOCK_DASH_COMPONENTS, 'filters': STOCK_DASH_FILTERS}, ensure_ascii=False),
+                                'now': now, 'tenant': TENANT})
         # 演示指标(语义层,先删后插,幂等)
         for code_, name_, cal_, mid_, meas_, dims_, tf_, unit_ in _METRICS:
             db.execute(text('DELETE FROM data_metric WHERE code=:c'), {'c': code_})
@@ -1484,7 +1973,7 @@ def seed_demo() -> None:
     n = seed_metadata()
     scheduled = sum(1 for t in TASKS if t[5])
     print(
-        f'OK: 数据源 {len(DATASOURCES)} + 任务 {n}(其中定时 {scheduled} 个/单次 {n - scheduled} 个) + 数据模型 {len({t[3] for t in TASKS})} + AI应用 2(财经 {APP_ID}/红利低波 {DIV_APP_ID}) + 看板 2(市场 {DASH_ID}/红利低波 {DIV_DASH_ID}) 已写入'
+        f'OK: 数据源 {len(DATASOURCES)} + 任务 {n}(其中定时 {scheduled} 个/单次 {n - scheduled} 个) + 数据模型 {len({t[3] for t in TASKS})} + AI应用 3(财经 {APP_ID}/红利低波 {DIV_APP_ID}/多市场股票 {STOCK_APP_ID}) + 看板 3(市场 {DASH_ID}/红利低波 {DIV_DASH_ID}/多市场股票 {STOCK_DASH_ID}) 已写入'
     )
     m = dispatch_demo_tasks()
     print(f'已派发 {m} 个 ETL 任务到 Celery 立即灌一次 ES(约 2-3 分钟)')

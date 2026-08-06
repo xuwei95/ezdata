@@ -2,7 +2,6 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Annotated
 
-import jwt
 from fastapi import Depends, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import RedirectResponse
@@ -25,6 +24,7 @@ from module_admin.entity.vo.user_vo import CurrentUserModel, EditUserModel, Swit
 from module_admin.service.login_service import CustomOAuth2PasswordRequestForm, LoginService, oauth2_scheme
 from module_admin.service.oauth_service import GithubOauthService, gen_state
 from module_admin.service.user_service import UserService
+from utils.jwt_util import JwtUtil
 from utils.log_util import logger
 from utils.response_util import ResponseUtil
 
@@ -207,9 +207,7 @@ async def register_user(
 )
 @ApiCacheEvict(namespaces=ApiGroup.LOGOUT_MUTATION)
 async def logout(request: Request, token: Annotated[str | None, Depends(oauth2_scheme)]) -> Response:
-    payload = jwt.decode(
-        token, JwtConfig.jwt_secret_key, algorithms=[JwtConfig.jwt_algorithm], options={'verify_exp': False}
-    )
+    payload = JwtUtil.decode(token, options={'verify_exp': False})
     if AppConfig.app_same_time_login:
         token_id: str = payload.get('session_id')
     else:

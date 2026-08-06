@@ -25,11 +25,16 @@
     <!-- 文件列表 -->
     <transition-group ref="uploadFileList" class="upload-file-list el-upload-list el-upload-list--text" name="el-fade-in-linear" tag="ul">
       <li :key="file.uid" class="el-upload-list__item ele-upload-list__item-content" v-for="(file, index) in fileList">
-        <el-link :href="`${baseUrl}${file.url}`" :underline="false" target="_blank">
+        <el-link
+          :href="`${baseUrl}${file.url}`"
+          underline="never"
+          target="_blank"
+          @click="handleFileDownload($event, file)"
+        >
           <span class="el-icon-document"> {{ getFileName(file.name) }} </span>
         </el-link>
         <div class="ele-upload-list__item-content-action">
-          <el-link :underline="false" @click="handleDelete(index)" type="danger" v-if="!disabled">{{ $t('删除') }}</el-link>
+          <el-link underline="never" @click="handleDelete(index)" type="danger" v-if="!disabled">{{ $t('删除') }}</el-link>
         </div>
       </li>
     </transition-group>
@@ -46,6 +51,11 @@ const props = defineProps({
   action: {
     type: String,
     default: "/common/upload"
+  },
+  // 是否上传受保护文件
+  isPrivate: {
+    type: Boolean,
+    default: false
   },
   // 上传携带的参数
   data: {
@@ -88,7 +98,8 @@ const emit = defineEmits();
 const number = ref(0);
 const uploadList = ref([]);
 const baseUrl = import.meta.env.VITE_APP_BASE_API;
-const uploadFileUrl = ref(import.meta.env.VITE_APP_BASE_API + props.action); // 上传文件服务器地址
+const uploadAction = props.isPrivate && props.action === "/common/upload" ? "/common/files/upload" : props.action;
+const uploadFileUrl = ref(import.meta.env.VITE_APP_BASE_API + uploadAction); // 上传文件服务器地址
 const headers = ref({ Authorization: "Bearer " + getToken() });
 const fileList = ref([]);
 const showTip = computed(
@@ -166,6 +177,14 @@ function handleUploadSuccess(res, file) {
     proxy.$modal.msgError(res.msg);
     proxy.$refs.fileUpload.handleRemove(file);
     uploadedSuccessfully();
+  }
+}
+
+// 下载受保护文件
+function handleFileDownload(event, file) {
+  if (typeof file.url === "string" && file.url.startsWith("/common/files/")) {
+    event.preventDefault();
+    proxy.$download.file(file.url);
   }
 }
 
