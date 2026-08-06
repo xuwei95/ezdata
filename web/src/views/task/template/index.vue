@@ -31,7 +31,7 @@
 
     <el-table v-loading="loading" :data="templateList" @selection-change="handleSelectionChange">
       <el-table-column type="selection" width="55" align="center" />
-      <el-table-column :label="$t('模板名称')" align="center" prop="name" :show-overflow-tooltip="true" />
+      <el-table-column :label="$t('模板名称')" align="center" prop="name" min-width="200" :show-overflow-tooltip="true" />
       <el-table-column :label="$t('模板编码')" align="center" prop="code" :show-overflow-tooltip="true" />
       <el-table-column :label="$t('表单类型')" align="center" prop="type">
         <template #default="scope">

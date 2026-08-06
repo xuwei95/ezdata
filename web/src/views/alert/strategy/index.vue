@@ -28,7 +28,7 @@
 
     <el-table v-loading="loading" :data="strategyList" @selection-change="handleSelectionChange">
       <el-table-column type="selection" width="55" align="center" />
-      <el-table-column :label="$t('策略名称')" align="center" prop="strategyName" :show-overflow-tooltip="true" />
+      <el-table-column :label="$t('策略名称')" align="center" prop="strategyName" min-width="200" :show-overflow-tooltip="true" />
       <el-table-column :label="$t('业务')" align="center" prop="biz" width="110" />
       <el-table-column :label="$t('告警等级')" align="center" width="100">
         <template #default="scope">

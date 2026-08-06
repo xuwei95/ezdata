@@ -18,7 +18,7 @@
     </el-row>
 
     <el-table v-loading="loading" :data="list">
-      <el-table-column :label="$t('名称')" align="center" prop="name" show-overflow-tooltip />
+      <el-table-column :label="$t('名称')" align="center" prop="name" min-width="200" show-overflow-tooltip />
       <el-table-column :label="$t('运行队列')" align="center" prop="runQueue" width="120" />
       <el-table-column :label="$t('状态')" align="center" width="90">
         <template #default="s">

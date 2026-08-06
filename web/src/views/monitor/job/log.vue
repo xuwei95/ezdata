@@ -99,7 +99,7 @@
       <el-table v-loading="loading" :data="jobLogList" @selection-change="handleSelectionChange">
          <el-table-column type="selection" width="55" align="center" />
          <el-table-column :label="$t('日志编号')" width="80" align="center" prop="jobLogId" />
-         <el-table-column :label="$t('任务名称')" align="center" prop="jobName" :show-overflow-tooltip="true" />
+         <el-table-column :label="$t('任务名称')" align="center" prop="jobName" min-width="200" :show-overflow-tooltip="true" />
          <el-table-column :label="$t('任务组名')" align="center" prop="jobGroup" :show-overflow-tooltip="true">
             <template #default="scope">
                <dict-tag :options="sys_job_group" :value="scope.row.jobGroup" />

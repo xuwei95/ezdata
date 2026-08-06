@@ -34,7 +34,7 @@
 
     <el-table v-loading="loading" :data="taskList" @selection-change="handleSelectionChange">
       <el-table-column type="selection" width="55" align="center" />
-      <el-table-column :label="$t('任务名称')" align="center" prop="name" :show-overflow-tooltip="true" />
+      <el-table-column :label="$t('任务名称')" align="center" prop="name" min-width="220" :show-overflow-tooltip="true" />
       <el-table-column :label="$t('模板')" align="center" prop="templateCode" :show-overflow-tooltip="true" />
       <el-table-column :label="$t('触发方式')" align="center" prop="triggerType">
         <template #default="scope">
