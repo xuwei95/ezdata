@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import CHAR, Column, DateTime, Integer, LargeBinary, String
+from sqlalchemy import CHAR, BigInteger, Column, DateTime, Integer, LargeBinary, String, UniqueConstraint
 from sqlalchemy.dialects import mysql
 
 from config.database import Base, TenantMixin
@@ -36,3 +36,29 @@ class SysNotice(Base, TenantMixin):
         server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.db_type),
         comment='备注',
     )
+
+
+class SysNoticeRead(Base):
+    """
+    公告已读记录表
+
+    以 (user_id, notice_id) 唯一约束记录某用户已读某条公告;notice_id 全局唯一,
+    故本表无需 TenantMixin(join 到 sys_notice/sys_user 时由全局租户事件过滤)。
+    """
+
+    __tablename__ = 'sys_notice_read'
+    __table_args__ = (
+        UniqueConstraint('user_id', 'notice_id', name='uk_user_notice'),
+        {'comment': '公告已读记录表'},
+    )
+
+    read_id = Column(
+        BigInteger().with_variant(Integer, 'sqlite'),
+        primary_key=True,
+        nullable=False,
+        autoincrement=True,
+        comment='已读主键',
+    )
+    notice_id = Column(Integer, nullable=False, comment='公告ID')
+    user_id = Column(BigInteger, nullable=False, comment='用户ID')
+    read_time = Column(DateTime, nullable=False, default=datetime.now, comment='阅读时间')
