@@ -299,7 +299,7 @@ services:
       - ELASTIC_PASSWORD=ezdata123456             # 仅在数据目录为空(首次初始化)时生效
       - ES_JAVA_OPTS=-Xms512m -Xmx512m
     ports:
-      - "9200:9200"
+      - "19200:9200"                      # 宿主 9200 被其它服务占用 → 改发布 19200(容器内部仍走 9200,服务间不受影响)
     volumes:
       - ezdata-es-dev-data:/usr/share/elasticsearch/data
     networks:

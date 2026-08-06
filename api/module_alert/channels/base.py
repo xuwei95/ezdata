@@ -2,7 +2,7 @@
 告警渠道分发
 
 按 forward_conf 中每一项的 type 分发到对应渠道。渠道实现为同步函数(供 Celery worker 调用)。
-内置渠道：webhook / kafka / email / notice；可通过 register_channel 扩展。
+内置渠道：webhook / kafka / email / notice / wecom / feishu / dingtalk；可通过 register_channel 扩展。
 
 格式参考 ezdata(api/web_apps/alert)：
 - webhook：POST 告警记录的完整 JSON(alert.to_dict())到 webhook_url；
@@ -158,3 +158,65 @@ def _send_email(record: dict[str, Any], conf: dict[str, Any]) -> None:
         server.sendmail(msg['From'], recipients, msg.as_string())
     finally:
         server.quit()
+
+
+def _markdown_content(record: dict[str, Any]) -> str:
+    """群机器人 markdown 正文:标题加粗 + 正文(缺省用 title)。"""
+    title = record.get('title', '告警')
+    body = record.get('content', '')
+    return f'**{title}**\n{body}' if body else f'**{title}**'
+
+
+def _post_bot_webhook(conf: dict[str, Any], payload: dict[str, Any]) -> None:
+    """群机器人通用 POST:取 webhook_url,发 JSON。供企微/飞书/钉钉复用。"""
+    url = conf.get('webhook_url') or conf.get('url')
+    if not url:
+        raise ValueError('群机器人缺少 webhook_url')
+    import httpx
+
+    with httpx.Client(timeout=10) as client:
+        resp = client.post(url, json=payload)
+        # 群机器人返回 200 但 body 里 errcode!=0 也算失败,抛出以便 dispatch_forward 记录
+        try:
+            data = resp.json()
+        except Exception:
+            data = {}
+        code = data.get('errcode', data.get('code', data.get('StatusCode', 0)))
+        if code not in (0, None):
+            raise RuntimeError(f'群机器人返回错误: {data}')
+
+
+@register_channel('wecom')
+def _send_wecom(record: dict[str, Any], conf: dict[str, Any]) -> None:
+    """企业微信群机器人(markdown)。conf: {type:'wecom', webhook_url:'https://qyapi.weixin.qq.com/.../send?key=xxx'}
+
+    企微 markdown content 上限约 4096 字节,超长截断。
+    """
+    content = _markdown_content(record)
+    content = content.encode('utf-8')[:4000].decode('utf-8', 'ignore')
+    _post_bot_webhook(conf, {'msgtype': 'markdown', 'markdown': {'content': content}})
+
+
+@register_channel('feishu')
+def _send_feishu(record: dict[str, Any], conf: dict[str, Any]) -> None:
+    """飞书(Lark)群机器人(text)。conf: {type:'feishu', webhook_url:'https://open.feishu.cn/open-apis/bot/v2/hook/xxx'}
+
+    用 text 消息(无需富文本卡片鉴权);标题拼进正文首行。
+    """
+    text = _text_content(record)
+    _post_bot_webhook(conf, {'msg_type': 'text', 'content': {'text': text}})
+
+
+@register_channel('dingtalk')
+def _send_dingtalk(record: dict[str, Any], conf: dict[str, Any]) -> None:
+    """钉钉群机器人(markdown)。conf: {type:'dingtalk', webhook_url:'https://oapi.dingtalk.com/robot/send?access_token=xxx'}
+
+    钉钉安全设置若为"自定义关键词",需保证 title/正文包含关键词方可送达。
+    """
+    _post_bot_webhook(
+        conf,
+        {
+            'msgtype': 'markdown',
+            'markdown': {'title': record.get('title', '告警'), 'text': _markdown_content(record)},
+        },
+    )
