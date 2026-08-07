@@ -1402,7 +1402,6 @@ result = []
 # 决策报告:读 fin_watch_daily 最新指标 → 规则打分 + 可选 LLM 叙述 → fin_daily_report,末尾按 env 推送
 C_DAILY_REPORT = """
 import datetime
-import os
 
 es = get_handler('demo_es')
 today = datetime.date.today().isoformat()
@@ -1423,7 +1422,7 @@ def _f(v):
 
 # 1) 自选股最新技术指标
 latest = {}
-for r in _q('fin_watch_daily', {'query': {'match_all': {}}, 'size': 20000}):
+for r in _q('fin_watch_daily', {'query': {'match_all': {}}, 'size': 10000}):  # 上限=ES 默认 max_result_window;超过会 400 被 _q 吞成空
     s = r.get('symbol')
     dt = r.get('date') or ''
     if not s:
@@ -1620,14 +1619,20 @@ print('生成多策略融合决策报告 %d 行(%d 策略×%d 市场;基本面�
          sum(1 for x in result if x.get('news_cnt'))))
 
 # —— 推送(env 驱动:配了哪个渠道的 webhook 就推哪个,都没配则跳过,不报错)——
+# os 收进 try:沙箱预览无 os → 当作"未配推送"跳过;worker 正式执行 os 可用,照常推送。
 confs = []
-for _env, _ctype in [('DEMO_PUSH_WECOM', 'wecom'), ('DEMO_PUSH_FEISHU', 'feishu'), ('DEMO_PUSH_DINGTALK', 'dingtalk')]:
-    _url = os.environ.get(_env)
-    if _url:
-        confs.append({'type': _ctype, 'webhook_url': _url})
+try:
+    import os
+    for _env, _ctype in [('DEMO_PUSH_WECOM', 'wecom'), ('DEMO_PUSH_FEISHU', 'feishu'), ('DEMO_PUSH_DINGTALK', 'dingtalk')]:
+        _url = os.environ.get(_env)
+        if _url:
+            confs.append({'type': _ctype, 'webhook_url': _url})
+except Exception:
+    pass
 if not confs:
-    print('未配置推送 webhook(DEMO_PUSH_WECOM/FEISHU/DINGTALK),跳过推送')
+    print('未配置推送 webhook(DEMO_PUSH_WECOM/FEISHU/DINGTALK,或沙箱预览环境),跳过推送')
 else:
+    import os
     _strat = os.environ.get('DEMO_PUSH_STRATEGY') or STRATEGIES[0]['name']  # 推送用哪套策略(默认第一套)
     _lines = ['# 每日多市场股票分析 %s(策略:%s)' % (today, _strat)]
     for mk in ('A', 'HK', 'US'):
