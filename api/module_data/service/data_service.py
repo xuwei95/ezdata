@@ -265,9 +265,14 @@ class DataSourceService:
 
     @classmethod
     async def get_list(cls, db: AsyncSession, q: DataSourceQuery, is_page: bool = False) -> Any:
+        from ezdata.handlers import get_write_modes
+
         result = await DataSourceDao.get_list(db, q, is_page)
         for row in result.rows if is_page else result:
             row['secrets'] = None  # 列表不回密文
+            # 作为 ETL 写入目标支持的装载模式(纯读源为空);前端据此过滤写入模式选项。
+            # PageUtil 已把行序列化成 camelCase,故读 sourceType、写 writeModes(与前端消费一致)。
+            row['writeModes'] = get_write_modes(row.get('sourceType') or '')
         return result
 
     @classmethod
@@ -1211,18 +1216,26 @@ class EtlService:
         if not req.records:
             raise ServiceException(message='没有可写入的样本,请先预览抽取数据')
 
+        mode = req.mode or 'append'
+        try:  # 门禁:所选写入模式须被该源支持(避免选了 replace/merge 却被静默当 append)
+            handler.check_write_mode(mode)
+        except ValueError as e:
+            raise ServiceException(message=str(e)) from None
+
         fmt = getattr(req, 'format', None) or 'csv'
+        id_field = getattr(req, 'id_field', None)
         to_file = is_file_target(ds.family)
 
         def _write() -> Any:
             if to_file:  # 对象/文件存储:序列化为整对象写入 key=table
-                return handler.write(serialize_records(req.records, fmt), req.table, mode=req.mode or 'append')
+                return handler.write(serialize_records(req.records, fmt), req.table, mode=mode)
             return handler.write(
                 req.records,
                 req.table,
-                mode=req.mode or 'append',
+                mode=mode,
                 dataset=req.dataset or 'public',
                 pipeline_name=f'etl_test_{req.table}',
+                id_field=id_field,
             )
 
         try:

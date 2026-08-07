@@ -15,6 +15,7 @@ class DataSourceVo(BaseModel):
     code: str | None = Field(default=None, description='编码')
     source_type: str | None = Field(default=None, description='源类型')
     family: str | None = Field(default=None, description='源族')
+    write_modes: list[str] | None = Field(default=None, description='作为写入目标支持的装载模式(append/replace/merge);纯读源为空')
     config: dict | None = Field(default=None, description='非密钥连接参数')
     secrets: Any | None = Field(default=None, description='密钥参数(提交时传明文 dict,返回时脱敏 dict)')
     status: str | None = Field(default=None, description='状态')
@@ -141,6 +142,7 @@ class EtlTestLoadReq(BaseModel):
     table: str = Field(description='目标表(文件目标时为对象 key)')
     mode: str = Field(default='append', description='写入模式 append/replace/merge')
     dataset: str = Field(default='public', description='目标数据集/库')
+    id_field: str | None = Field(default=None, description='唯一键/主键(merge 按此 upsert;append 时同键覆写幂等);多字段逗号分隔')
     format: str | None = Field(default='csv', description='文件目标的序列化格式 csv/json/jsonl')
     records: list[dict] = Field(description='待写入的样本记录(来自预览)')
 

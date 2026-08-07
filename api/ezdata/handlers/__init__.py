@@ -306,8 +306,36 @@ def connection_schema(source_type: str) -> dict:
     return to_json_schema(meta.connection_args, meta.connection_args_example)
 
 
+# source_type -> 支持的写入模式(懒解析并缓存,避免重复导入 handler 类)
+_write_modes_cache: dict[str, list[str]] = {}
+
+
+def get_write_modes(source_type: str) -> list[str]:
+    """该源支持的装载写入模式(如 ['append','replace','merge'])。ETL 前端据此过滤、后端据此门禁。
+
+    无 WRITE 能力的源(akshare/ccxt/rest_api 等纯读)直接返回 [],不加载类——避开重依赖导入。
+    有 WRITE 能力才懒加载 handler 类读 write_modes 类属性;导入失败兜底 ['append']。结果按类型缓存。
+    """
+    if source_type in _write_modes_cache:
+        return _write_modes_cache[source_type]
+    meta = _handlers.get(source_type)
+    if meta is None or 'WRITE' not in meta.capabilities:
+        _write_modes_cache[source_type] = []
+        return []
+    try:
+        modes = list(meta.load().write_modes)
+    except Exception:
+        modes = ['append']  # 驱动缺失等:至少 append 兜底,不阻断前端
+    _write_modes_cache[source_type] = modes
+    return modes
+
+
 def list_source_types() -> list[dict]:
-    """列出已注册源类型 + 能力(给前端/权限可选项)。走轻量元数据,不加载任何 Handler 类。"""
+    """列出已注册源类型 + 能力(给前端/权限可选项)。走轻量元数据,不加载任何 Handler 类。
+
+    注:写入模式(write_modes)需加载类才知,故不在此返回(保持轻量);
+    ETL 前端经数据源列表的 DataSourceVo.write_modes 拿(仅解析用户已配置的少数源类型)。
+    """
     return [
         {
             'source_type': meta.name,
@@ -331,6 +359,7 @@ __all__ = [
     'connection_schema',
     'create_handler',
     'get_handler_cls',
+    'get_write_modes',
     'handler_cache_stats',
     'handler_dependencies',
     'handler_icon',

@@ -21,6 +21,7 @@ class SqlConnector(Connector):
     capabilities = (
         Capability.READ | Capability.WRITE | Capability.EXTRACT | Capability.SCHEMA | Capability.GEN_API | Capability.AGGREGATE
     )
+    write_modes = ('append', 'replace', 'merge')  # dlt write_disposition;merge 需 id_field 作主键
     driver: str = ''  # SQLAlchemy driver 前缀,如 'mysql+pymysql'
     default_port: int | None = None
 
@@ -196,10 +197,18 @@ class SqlConnector(Connector):
         *,
         dataset: str = 'public',
         pipeline_name: str = 'data_write',
+        id_field: str | None = None,
         **kwargs: Any,
     ) -> Any:
         import dlt
 
+        # merge(按主键 upsert)= dlt merge write_disposition,必须给 primary_key,否则 dlt 运行时报错。
+        # id_field 支持逗号分隔的复合主键;append/replace 不需要主键。
+        if mode == 'merge':
+            keys = [k.strip() for k in (id_field or '').split(',') if k.strip()]
+            if not keys:
+                raise ValueError('merge(按主键 upsert)写入模式需指定 id_field(唯一键)')
+            kwargs.setdefault('primary_key', keys if len(keys) > 1 else keys[0])
         dest = dlt.destinations.sqlalchemy(credentials=self.engine)
         pipe = dlt.pipeline(pipeline_name=pipeline_name, destination=dest, dataset_name=dataset)
         return pipe.run(data, table_name=table, write_disposition=mode, **kwargs)

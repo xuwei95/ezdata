@@ -379,7 +379,9 @@ class DataIntegrationRunner(BaseRunner):
 
         mode = load.get('mode') or 'append'
         dataset = load.get('dataset') or 'public'
-        if is_file_target(getattr(dst, 'family', None)):
+        id_field = load.get('id_field') or None
+        if is_file_target(getattr(dst, 'family', None)):  # 文件/对象存储:mode 无意义,按 key 整写
             return dst.write(serialize_records(data, load.get('format') or 'csv'), table, mode=mode)
+        dst.check_write_mode(mode)  # 门禁:该源不支持所选 mode 即报清晰错误(而非静默当 append)
         pname = f'etl_{self.context.get("task_id") or src_code}_{table}'
-        return dst.write(data, table, mode=mode, dataset=dataset, pipeline_name=pname)
+        return dst.write(data, table, mode=mode, dataset=dataset, pipeline_name=pname, id_field=id_field)
