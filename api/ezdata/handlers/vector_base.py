@@ -17,6 +17,7 @@ from ezdata.handlers.base import Capability, Connector, ConnectResult
 class VectorConnector(Connector):
     family = 'vector'
     capabilities = Capability.WRITE | Capability.VECTOR | Capability.SCHEMA
+    write_modes = ('append', 'replace')  # replace = drop collection 重建
     agno_path: str = ''  # 'agno.vectordb.qdrant.Qdrant'
 
     @staticmethod

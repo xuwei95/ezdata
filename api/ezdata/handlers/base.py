@@ -55,6 +55,10 @@ class Connector(ABC):
     title: str = ''  # 'MySQL'
     family: str = ''  # 'rdbms' / 'search' / 'document' / 'file' ...
     capabilities: Capability = Capability(0)
+    # 支持的写入模式(装载 mode 的白名单,权限上界)。默认只 append——append-only 源
+    # (kafka/redis/dynamodb/cassandra/couchbase/对象存储 等)继承此默认即正确;
+    # 可清空重建的源(SQL/ES/mongo/向量)在子类覆写。ETL 前端据此过滤、runner 据此门禁。
+    write_modes: tuple[str, ...] = ('append',)
     connection_args: 'OrderedDict[str, dict]' = OrderedDict()
     connection_args_example: 'OrderedDict[str, dict]' = OrderedDict()
 
@@ -192,6 +196,13 @@ class Connector(ABC):
     def write(self, data: Iterable[dict] | Any, table: str, mode: str = 'append', **kwargs: Any) -> Any:
         self._require(Capability.WRITE)
         raise NotImplementedError
+
+    def check_write_mode(self, mode: str) -> None:
+        """校验写入模式是否被本源支持(不支持则抛可读错误)。供 runner/service 门禁调用。"""
+        if mode not in self.write_modes:
+            raise ValueError(
+                f'{self.name} 不支持写入模式 {mode!r};仅支持 {list(self.write_modes)}'
+            )
 
     def stream(self, **kwargs: Any) -> Iterator[dict]:
         """流式消费(长驻):持续 yield 记录(Kafka 消息 / binlog 变更事件)。供长驻 worker 调用。"""

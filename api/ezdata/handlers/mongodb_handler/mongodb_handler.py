@@ -17,6 +17,7 @@ class MongoDBHandler(Connector):
     title = 'MongoDB'
     family = 'document'
     capabilities = Capability.READ | Capability.WRITE | Capability.EXTRACT | Capability.SCHEMA | Capability.GEN_API
+    write_modes = ('append', 'replace')  # replace = drop collection 重建
     connection_args = connection_args
     connection_args_example = connection_args_example
 

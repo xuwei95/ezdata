@@ -155,10 +155,14 @@
           </el-form-item>
           <el-form-item :label="$t('写入模式')" v-else>
             <el-radio-group v-model="model.load.mode" class="write-mode-group">
-              <el-radio value="append" style="display:flex;height:auto;align-items:baseline;margin:2px 0">{{ $t('追加') }}<span class="muted" style="margin-left:8px">{{ $t('保留已有数据,新数据追加;数据带唯一键(如 _id)则同键幂等 upsert、重跑不重复') }}</span></el-radio>
-              <el-radio value="replace" style="display:flex;height:auto;align-items:baseline;margin:2px 0">{{ $t('覆盖') }}<span class="muted" style="margin-left:8px">{{ $t('先清空目标表/索引,再写入本次全量 —— 全量快照刷新') }}</span></el-radio>
-              <el-radio value="merge" style="display:flex;height:auto;align-items:baseline;margin:2px 0">{{ $t('合并') }}<span class="muted" style="margin-left:8px">{{ $t('按主键 upsert:同键更新、新键插入、其余保留(需数据带唯一键)') }}</span></el-radio>
+              <el-radio v-for="o in writeModeOpts" :key="o.value" :value="o.value"
+                style="display:flex;height:auto;align-items:baseline;margin:2px 0">{{ $t(o.label) }}<span class="muted" style="margin-left:8px">{{ $t(o.desc) }}</span></el-radio>
             </el-radio-group>
+            <div v-if="model.load.datasource_code && !writeModeOpts.length" class="muted">{{ $t('该目标源不支持作为写入目标') }}</div>
+          </el-form-item>
+          <el-form-item :label="$t('唯一键')" v-if="showIdField" :required="idFieldRequired">
+            <el-input v-model="model.load.id_field" clearable style="width: 100%"
+              :placeholder="idFieldRequired ? $t('合并必填:作为主键的字段,多个用逗号分隔') : $t('选填:填了则按此键幂等 upsert(重跑不重复),多个用逗号分隔')" />
           </el-form-item>
         </el-form>
       </el-col>
@@ -267,8 +271,15 @@ const model = reactive({
   extract: { mode: 'datasource', datasource_code: '', object: '', tables: [], native: '', max_events: 100,
              code: '', datasource_codes: [] },
   transform: { enabled: false, code: DEFAULT_TRANSFORM },
-  load: { datasource_code: '', table: '', mode: 'append', dataset: 'public', format: 'csv' }
+  load: { datasource_code: '', table: '', mode: 'append', dataset: 'public', format: 'csv', id_field: '' }
 })
+
+// 写入模式元信息(标签+说明);实际可选项按目标源 write_modes 过滤
+const WRITE_MODE_OPTS = [
+  { value: 'append', label: '追加', desc: '保留已有数据,新数据追加;数据带唯一键(如 _id)则同键幂等 upsert、重跑不重复' },
+  { value: 'replace', label: '覆盖', desc: '先清空目标表/索引,再写入本次全量 —— 全量快照刷新' },
+  { value: 'merge', label: '合并', desc: '按主键 upsert:同键更新、新键插入、其余保留(需填唯一键)' }
+]
 
 const isCode = computed(() => model.extract.mode === 'code')
 
@@ -281,6 +292,21 @@ const srcFamily = computed(() => sources.value.find((x) => x.code === model.extr
 const destIsFile = computed(() => {
   const s = sources.value.find((x) => x.code === model.load.datasource_code)
   return !!s && s.family === 'file'
+})
+// 目标源支持的写入模式(后端 DataSourceVo.writeModes 下发)。字段缺失(旧后端)→ 兼容给全三项;
+// 明确返回 [](纯读源)→ 无可选项。据此过滤模式单选,避免给 append-only 源误报 replace/merge。
+const destWriteModes = computed(() => {
+  const s = sources.value.find((x) => x.code === model.load.datasource_code)
+  const wm = s?.writeModes
+  return Array.isArray(wm) ? wm : ['append', 'replace', 'merge']
+})
+const writeModeOpts = computed(() => WRITE_MODE_OPTS.filter((o) => destWriteModes.value.includes(o.value)))
+// merge 必须填唯一键;append 可选填(用于同键幂等)。replace 不需要。
+const showIdField = computed(() => !destIsFile.value && ['append', 'merge'].includes(model.load.mode))
+const idFieldRequired = computed(() => model.load.mode === 'merge')
+// 切换目标源后,若当前模式不被新目标支持,回落到第一个可选项(默认 append)
+watch(destWriteModes, (modes) => {
+  if (modes.length && !modes.includes(model.load.mode)) model.load.mode = modes[0]
 })
 // 目标表兜底:流式=消费对象;批量=只选 1 张时用它,多张/不选需手填
 const defaultTable = computed(() =>
@@ -506,7 +532,8 @@ async function doTestLoad() {
   try {
     const res = await testLoadEtl({
       datasourceCode: model.load.datasource_code, table, mode: model.load.mode,
-      dataset: model.load.dataset, format: model.load.format, records
+      dataset: model.load.dataset, format: model.load.format,
+      idField: (model.load.id_field || '').trim() || undefined, records
     })
     ElMessage.success(`已写入 ${res.data.written} 条到 ${res.data.table}`)
   } finally {
@@ -522,6 +549,7 @@ function genTaskParams() {
     if (!model.load.datasource_code) return { error: '请选择目标数据源' }
     const t = (model.load.table || '').trim()
     if (!t) return { error: '请填写目标表' }
+    if (model.load.mode === 'merge' && !(model.load.id_field || '').trim()) return { error: '合并(merge)写入需填写唯一键' }
     return {
       params: {
         extract: { mode: 'code', code: model.extract.code,
@@ -530,7 +558,7 @@ function genTaskParams() {
         load: {
           datasource_code: model.load.datasource_code, table: t,
           mode: model.load.mode || 'append', dataset: model.load.dataset || 'public',
-          format: model.load.format || 'csv'
+          format: model.load.format || 'csv', id_field: (model.load.id_field || '').trim() || undefined
         }
       }
     }
@@ -544,6 +572,7 @@ function genTaskParams() {
   if (!model.load.datasource_code) return { error: '请选择目标数据源' }
   const table = (model.load.table || '').trim() || defaultTable.value
   if (!table) return { error: '请填写目标表' }
+  if (model.load.mode === 'merge' && !(model.load.id_field || '').trim()) return { error: '合并(merge)写入需填写唯一键' }
   const oneTable = !srcIsStream.value && model.extract.tables.length === 1 ? model.extract.tables[0] : null
   return {
     params: {
@@ -561,7 +590,8 @@ function genTaskParams() {
         table,
         mode: model.load.mode || 'append',
         dataset: model.load.dataset || 'public',
-        format: model.load.format || 'csv'
+        format: model.load.format || 'csv',
+        id_field: (model.load.id_field || '').trim() || undefined
       }
     }
   }

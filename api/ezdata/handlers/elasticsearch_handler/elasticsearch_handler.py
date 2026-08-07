@@ -62,6 +62,8 @@ class ElasticsearchHandler(Connector):
     capabilities = (
         Capability.READ | Capability.WRITE | Capability.EXTRACT | Capability.SCHEMA | Capability.GEN_API | Capability.AGGREGATE
     )
+    # append 带 id_field/_id 即同键覆写(等价 upsert);replace 删索引重建。merge 语义归 append+id_field,不单列。
+    write_modes = ('append', 'replace')
     connection_args = connection_args
     connection_args_example = connection_args_example
 
