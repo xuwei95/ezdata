@@ -120,17 +120,20 @@ class NoticeService:
         return CommonConstant.UNIQUE
 
     @classmethod
-    async def _sync_notice_recipients(cls, query_db: AsyncSession, notice_id: int, notice_users: str | None) -> None:
-        """按 notice_users(逗号用户名)重设某公告的收件人:先清后加。
-        None=不改动(未提交收件人字段);空串=广播(清空收件人);有名字=定向。
+    async def _resolve_recipients(cls, query_db: AsyncSession, notice_users: str | None) -> list[int] | None:
+        """把 notice_users(逗号用户名)解析成 user_id 列表。
+        返回:None=未提交该字段(不改动收件人);[]=广播(留空);非空=定向。
+        指定了用户名却一个都没匹配到(全错/不在租户/已删)→ 抛异常,调用方据此不写公告记录。
         """
         if notice_users is None:
-            return
-        await NoticeDao.delete_notice_users(query_db, [notice_id])
+            return None
         names = [n.strip() for n in notice_users.split(',') if n.strip()]
-        if names:
-            user_ids = await NoticeDao.resolve_user_ids_by_names_async(query_db, names)
-            NoticeDao.add_notice_users(query_db, notice_id, user_ids)
+        if not names:
+            return []  # 留空 = 广播
+        user_ids = await NoticeDao.resolve_user_ids_by_names_async(query_db, names)
+        if not user_ids:
+            raise ServiceException(message='所选接收人均无效(不在当前租户或已删除),未保存通知')
+        return user_ids
 
     @classmethod
     async def add_notice_services(cls, query_db: AsyncSession, page_object: NoticeModel) -> CrudResponseModel:
@@ -144,9 +147,11 @@ class NoticeService:
         if not await cls.check_notice_unique_services(query_db, page_object):
             raise ServiceException(message=f'新增通知公告{page_object.notice_title}失败，通知公告已存在')
         try:
+            # 先解析收件人:指定了人却 0 命中会在此抛出,从而不创建任何公告记录
+            recipients = await cls._resolve_recipients(query_db, page_object.notice_users)
             db_notice = await NoticeDao.add_notice_dao(query_db, page_object)
-            # 选了收件人 → 定向投递;留空 → 广播(不写收件人行)
-            await cls._sync_notice_recipients(query_db, db_notice.notice_id, page_object.notice_users)
+            if recipients:  # 有命中 → 定向;None/[] → 广播(不写收件人行)
+                NoticeDao.add_notice_users(query_db, db_notice.notice_id, recipients)
             await query_db.commit()
             return CrudResponseModel(is_success=True, message='新增成功')
         except Exception as e:
@@ -170,9 +175,13 @@ class NoticeService:
             if not await cls.check_notice_unique_services(query_db, page_object):
                 raise ServiceException(message=f'修改通知公告{page_object.notice_title}失败，通知公告已存在')
             try:
+                # 先解析收件人:指定了人却 0 命中会在此抛出,从而不改动公告
+                recipients = await cls._resolve_recipients(query_db, page_object.notice_users)
                 await NoticeDao.edit_notice_dao(query_db, edit_notice)
-                # 重设收件人(留空=改回广播)
-                await cls._sync_notice_recipients(query_db, page_object.notice_id, page_object.notice_users)
+                if recipients is not None:  # 提交了收件人字段才重设:先清后加(留空=改回广播)
+                    await NoticeDao.delete_notice_users(query_db, [page_object.notice_id])
+                    if recipients:
+                        NoticeDao.add_notice_users(query_db, page_object.notice_id, recipients)
                 await query_db.commit()
                 return CrudResponseModel(is_success=True, message='更新成功')
             except Exception as e:
