@@ -26,6 +26,7 @@ from module_data.dao.data_dao import (
     DataSourceDao,
 )
 from module_data.entity.do.data_do import DataModel, DataSource
+from module_data.service.access_audit import audit
 from module_data.entity.vo.data_vo import (
     AnalysisTemplateVo,
     DashboardVo,
@@ -754,13 +755,19 @@ class DataQueryService:
                 assert_readonly_sql(native, handler.family)  # 只读护栏(仅 SQL 文本族):拦截 DML/DDL
             except ValueError as e:
                 raise ServiceException(message=str(e)) from None
-            records = await run_in_threadpool(handler.query, native, None, req.limit)
+            with audit(access_type='query', datasource_code=m.datasource_code, object_name=m.object_name,
+                       statement=native, model_id=m.id, source_type=handler.name) as a:
+                records = await run_in_threadpool(handler.query, native, None, req.limit)
+                a.rows = len(records)
         else:
             cls._check_fields(m, req.filters)
             if not handler.has(Capability.GEN_API):
                 raise ServiceException(message=f'{handler.name} 不支持条件查询,请用原生查询')
-            res = await run_in_threadpool(handler.search, m.object_name, req.filters, 1, req.limit or 5000)
-            records = res['records']
+            with audit(access_type='search', datasource_code=m.datasource_code, object_name=m.object_name,
+                       filters=req.filters, model_id=m.id, source_type=handler.name) as a:
+                res = await run_in_threadpool(handler.search, m.object_name, req.filters, 1, req.limit or 5000)
+                records = res['records']
+                a.rows = len(records)
         return {'records': json_safe_rows(records), 'total': len(records)}
 
     @classmethod
@@ -1070,7 +1077,10 @@ class DataQueryService:
             stmt, display, gen_err = cls._prep_statement(text, handler)
             if gen_err is None:
                 try:
-                    records = await run_in_threadpool(handler.query, stmt, None, limit)
+                    with audit(access_type='query', datasource_code=m.datasource_code, object_name=m.object_name,
+                               statement=display, model_id=m.id, source_type=handler.name) as a:
+                        records = await run_in_threadpool(handler.query, stmt, None, limit)
+                        a.rows = len(records)
                     return {
                         'query': display,
                         'records': json_safe_rows(records),
@@ -1107,7 +1117,10 @@ class DataQueryService:
         if not handler.has(Capability.GEN_API):
             raise ServiceException(message=f'{handler.name} 不支持分页接口')
         cls._check_fields(m, req.filters)
-        res = await run_in_threadpool(handler.search, m.object_name, req.filters, req.page, req.pagesize)
+        with audit(access_type='search', datasource_code=m.datasource_code, object_name=m.object_name,
+                   filters=req.filters, model_id=m.id, source_type=handler.name) as a:
+            res = await run_in_threadpool(handler.search, m.object_name, req.filters, req.page, req.pagesize)
+            a.rows = len(res['records']) if isinstance(res, dict) and 'records' in res else None
         if isinstance(res, dict) and 'records' in res:
             res['records'] = json_safe_rows(res['records'])
         return res
@@ -1136,10 +1149,18 @@ class EtlService:
                 except ValueError as e:
                     raise ServiceException(message=str(e)) from None
                 limit = min(int(req.limit or 50), 200)
-                rows = await run_in_threadpool(handler.query, native, None, limit)
+                with audit(access_type='preview', datasource_code=req.datasource_code,
+                           object_name=getattr(req, 'object_name', None), statement=native,
+                           source_type=handler.name) as a:
+                    rows = await run_in_threadpool(handler.query, native, None, limit)
+                    a.rows = len(rows)
             elif handler.has(Capability.STREAM):  # 流式源:有界抽 1 条
                 stmt = stream_statement(req.object_name)
-                rows = await run_in_threadpool(handler.query, stmt, None, 1)
+                with audit(access_type='preview', datasource_code=req.datasource_code,
+                           object_name=getattr(req, 'object_name', None), statement=str(stmt),
+                           source_type=handler.name) as a:
+                    rows = await run_in_threadpool(handler.query, stmt, None, 1)
+                    a.rows = len(rows)
             else:
                 raise ServiceException(message=f'{handler.name} 不支持预览抽取')
         except ServiceException:
@@ -1409,7 +1430,11 @@ class OpenDataService:
         filters = parse_query_params(params)
         page = int(params.get('page', 1))
         pagesize = min(int(params.get('pagesize', 20)), 200)  # 对外强制上限
-        return await run_in_threadpool(handler.search, m.object_name, filters, page, pagesize)
+        with audit(access_type='api', datasource_code=m.datasource_code, object_name=m.object_name,
+                   filters=filters, model_id=m.id, source_type=handler.name, source='api') as a:
+            res = await run_in_threadpool(handler.search, m.object_name, filters, page, pagesize)
+            a.rows = len(res['records']) if isinstance(res, dict) and 'records' in res else None
+        return res
 
     @classmethod
     async def public_board(cls, db: AsyncSession, token: str) -> dict:
