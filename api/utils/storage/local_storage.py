@@ -7,6 +7,7 @@
 import os
 import shutil
 from collections.abc import Generator
+from typing import BinaryIO
 
 from utils.storage.base_storage import BaseStorage
 
@@ -42,6 +43,39 @@ class LocalStorage(BaseStorage):
                     yield chunk
 
         return generate()
+
+    def save_fileobj(self, filename: str, fileobj: BinaryIO) -> None:
+        filepath = self._full(filename)
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+        with open(filepath, 'wb') as f:
+            shutil.copyfileobj(fileobj, f)
+
+    def load_range(self, filename: str, start: int = 0, length: int | None = None) -> Generator:
+        if start < 0 or (length is not None and length < 0):
+            raise ValueError('文件读取范围不合法')
+
+        def generate(filepath: str = self._full(filename)) -> Generator:
+            if not os.path.exists(filepath):
+                raise FileNotFoundError('File not found')
+            with open(filepath, 'rb') as f:
+                f.seek(start)
+                remaining = length
+                while remaining is None or remaining > 0:
+                    chunk_size = 1024 * 1024 if remaining is None else min(1024 * 1024, remaining)
+                    chunk = f.read(chunk_size)
+                    if not chunk:
+                        break
+                    if remaining is not None:
+                        remaining -= len(chunk)
+                    yield chunk
+
+        return generate()
+
+    def stat(self, filename: str) -> int:
+        filepath = self._full(filename)
+        if not os.path.exists(filepath):
+            raise FileNotFoundError('File not found')
+        return os.path.getsize(filepath)
 
     def download(self, filename, target_filepath):
         filepath = self._full(filename)
