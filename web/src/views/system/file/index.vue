@@ -125,6 +125,7 @@
       @selection-change="handleSelectionChange"
       @view="handleView"
       @download="handleDownload"
+      @preview="handlePreview"
       @reference="handleReference"
       @acl="handleAcl"
       @transfer="handleTransfer"
@@ -157,6 +158,7 @@
     <file-transfer-dialog ref="transferDialogRef" @refresh="getList" />
     <file-audit-drawer ref="auditDrawerRef" />
     <file-reconcile-drawer ref="reconcileDrawerRef" @refresh="getList" />
+    <file-preview-dialog ref="previewDialogRef" />
   </div>
 </template>
 
@@ -173,6 +175,7 @@ import {
 import FileAclDrawer from "./components/FileAclDrawer.vue";
 import FileAuditDrawer from "./components/FileAuditDrawer.vue";
 import FileDetailDialog from "./components/FileDetailDialog.vue";
+import FilePreviewDialog from "./components/FilePreviewDialog.vue";
 import FileReferenceDrawer from "./components/FileReferenceDrawer.vue";
 import FileReconcileDrawer from "./components/FileReconcileDrawer.vue";
 import FileRetentionPolicyDrawer from "./components/FileRetentionPolicyDrawer.vue";
@@ -206,6 +209,7 @@ const aclDrawerRef = ref();
 const transferDialogRef = ref();
 const auditDrawerRef = ref();
 const reconcileDrawerRef = ref();
+const previewDialogRef = ref();
 const fileStats = reactive({
   totalCount: 0,
   totalSize: 0,
@@ -293,6 +297,11 @@ function handleDownload(row) {
   proxy.$download.file(
     `/system/file/download/${row.fileId}/${displayName}`
   );
+}
+
+/** 预览文件 */
+function handlePreview(row) {
+  previewDialogRef.value?.open(row);
 }
 
 /** 查看文件业务引用 */

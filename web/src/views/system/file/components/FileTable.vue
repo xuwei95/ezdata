@@ -155,6 +155,19 @@
           />
         </el-tooltip>
         <el-tooltip
+          v-if="scope.row.status === 'active'"
+          content="预览"
+          placement="top"
+        >
+          <el-button
+            link
+            type="primary"
+            icon="ZoomIn"
+            @click="emit('preview', scope.row)"
+            v-hasPermi="['system:file:download']"
+          />
+        </el-tooltip>
+        <el-tooltip
           v-if="
             scope.row.accessType === 'private' && scope.row.status === 'active'
           "
@@ -277,6 +290,7 @@ const emit = defineEmits([
   "selection-change",
   "view",
   "download",
+  "preview",
   "reference",
   "acl",
   "transfer",

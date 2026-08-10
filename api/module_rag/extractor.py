@@ -53,8 +53,24 @@ def extract_bytes(raw: bytes, ext: str) -> str:
 
 # ---------------- storage ----------------
 def _normalize_key(file_key: str) -> str:
-    """剥掉上传接口返回的 UPLOAD_PREFIX(如 /profile/),还原为 storage 对象键。"""
-    from config.env import UploadConfig
+    """把上传接口返回的 fileName 还原为 storage 对象键。
+
+    兼容两种形态:
+    - local/公有:'/profile/xxx' → 剥掉 UPLOAD_PREFIX;
+    - s3/对象存储公有:完整 URL '{endpoint}/{bucket}/public/upload/..' → 取 bucket 之后的对象键
+      (文件管理改造后 /common/upload 对 s3 公有返回直链 URL)。
+    """
+    from config.env import StorageConfig, UploadConfig
+
+    # s3/minio 直链:剥掉 scheme+host+bucket,取对象键
+    if '://' in file_key:
+        from urllib.parse import urlparse
+
+        path = urlparse(file_key).path.lstrip('/')
+        bucket = (getattr(StorageConfig, 's3_bucket_name', '') or '').strip('/')
+        if bucket and path.startswith(bucket + '/'):
+            path = path[len(bucket) + 1 :]
+        return path
 
     prefix = (UploadConfig.UPLOAD_PREFIX or '').strip('/')
     k = file_key.lstrip('/')

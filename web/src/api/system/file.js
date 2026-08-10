@@ -239,3 +239,12 @@ export function delFile(fileIds) {
     method: 'delete'
   })
 }
+
+// 预览:鉴权拉取文件字节流(blob),用于页面内嵌预览(图片/PDF/音视频)
+export function previewFile(fileId, displayName) {
+  return request({
+    url: '/system/file/download/' + fileId + '/' + encodeURIComponent(displayName || 'file'),
+    method: 'get',
+    responseType: 'blob'
+  })
+}
