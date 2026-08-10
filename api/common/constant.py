@@ -247,6 +247,8 @@ class ApiNamespace:
     LOGIN_USER_ROUTERS = 'login:user:routers'
     CAPTCHA_IMAGE = 'captcha:image'
     COMMON_UPLOAD = 'common:upload'
+    COMMON_PRIVATE_UPLOAD = 'common:private-upload'
+    COMMON_FILE_DOWNLOAD = 'common:file-download'
     TRANSPORT_CRYPTO_PUBLIC_KEY = 'transport-crypto:public-key'
     TRANSPORT_CRYPTO_FRONTEND_CONFIG = 'transport-crypto:frontend-config'
 

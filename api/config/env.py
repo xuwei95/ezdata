@@ -272,6 +272,7 @@ class UploadSettings:
     FILE_TRASH_PATH = 'vf_admin/file_trash_path'
     FILE_RECONCILE_QUARANTINE_PATH = 'vf_admin/file_reconcile_quarantine_path'
     UPLOAD_MACHINE = 'A'
+    MAX_FILE_SIZE = 100 * 1024 * 1024  # 单文件大小上限(文件管理上传用)
     DEFAULT_ALLOWED_EXTENSION = [
         # 图片
         'bmp',
