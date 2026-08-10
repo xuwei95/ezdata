@@ -267,6 +267,10 @@ class UploadSettings:
 
     UPLOAD_PREFIX = '/profile'
     UPLOAD_PATH = 'vf_admin/upload_path'
+    # 文件管理:私有区/回收站/对账隔离区(public 复用 UPLOAD_PATH)
+    PRIVATE_UPLOAD_PATH = 'vf_admin/private_upload_path'
+    FILE_TRASH_PATH = 'vf_admin/file_trash_path'
+    FILE_RECONCILE_QUARANTINE_PATH = 'vf_admin/file_reconcile_quarantine_path'
     UPLOAD_MACHINE = 'A'
     DEFAULT_ALLOWED_EXTENSION = [
         # 图片
@@ -307,10 +311,15 @@ class UploadSettings:
     DOWNLOAD_PATH = 'vf_admin/download_path'
 
     def __init__(self) -> None:
-        if not os.path.exists(self.UPLOAD_PATH):
-            os.makedirs(self.UPLOAD_PATH)
-        if not os.path.exists(self.DOWNLOAD_PATH):
-            os.makedirs(self.DOWNLOAD_PATH)
+        for _p in (
+            self.UPLOAD_PATH,
+            self.PRIVATE_UPLOAD_PATH,
+            self.FILE_TRASH_PATH,
+            self.FILE_RECONCILE_QUARANTINE_PATH,
+            self.DOWNLOAD_PATH,
+        ):
+            if not os.path.exists(_p):
+                os.makedirs(_p)
 
 
 class CachePathConfig:
