@@ -142,6 +142,16 @@ class DataIntegrationRunner(BaseRunner):
         return injected or _load_datasource(code)
 
     def run(self) -> Any:
+        """入口:解析数据质量规则 → 执行抽取装载 → 收尾行数校验。"""
+        q = self.params.get('quality') or {}
+        self._q_rules = q.get('rules') or []
+        self._q_on_violation = q.get('on_violation') or 'warn'  # 'warn' | 'block'
+        self._q_loaded = 0
+        result = self._run_body()
+        self._finalize_quality()
+        return result
+
+    def _run_body(self) -> Any:
         from ezdata.handlers import Capability
 
         extract = self.params.get('extract') or {}
@@ -186,7 +196,7 @@ class DataIntegrationRunner(BaseRunner):
 
         # 快路①:文件源(DuckDB)→ DuckDB→Arrow→dlt(实测约 3x)。任意只读查询都适用
         # (整条 SQL 交 DuckDB 跑,结果取 Arrow 而非 list;WHERE/列裁剪均可)。
-        if not fn and not dst_is_file and isinstance(native, str) and hasattr(src, 'query_arrow'):
+        if not fn and not self._q_rules and not dst_is_file and isinstance(native, str) and hasattr(src, 'query_arrow'):
             assert_readonly_sql(native)
             self.logger.info(f'文件源 → DuckDB→Arrow→dlt 列式快路:{str(native)[:120]}')
             tbl = src.query_arrow(native)
@@ -195,7 +205,7 @@ class DataIntegrationRunner(BaseRunner):
             return f'ETL 完成(Arrow 列式): {src_code} -> {dst_code}.{table}'
 
         # 快路②:SQL 源整表查询(SELECT * FROM 表)→ dlt 原生 pyarrow 流式 extract→load(实测约 2x)。
-        fast_table = None if fn else _whole_table_native(native)
+        fast_table = None if (fn or self._q_rules) else _whole_table_native(native)
         if fast_table and src.has(Capability.EXTRACT) and not dst_is_file:
             self.logger.info(f'整表无转换 → dlt 原生流式快路(pyarrow):extract {fast_table} -> {dst_code}.{table}')
             resource = src.extract(fast_table, backend='pyarrow')
@@ -377,6 +387,12 @@ class DataIntegrationRunner(BaseRunner):
         """
         from ezdata.utils.etl_util import is_file_target, serialize_records
 
+        # 数据质量:行级规则对每批 list[dict] 校验并累计装载行数(供收尾的 row_count_min 判断)。
+        # 快路的 Arrow/resource 非 list,已在 run 中因配置了质量规则而禁用,这里只需处理 list。
+        if getattr(self, '_q_rules', None) and isinstance(data, list):
+            self._q_loaded += len(data)
+            self._check_row_quality(data, table)
+
         mode = load.get('mode') or 'append'
         dataset = load.get('dataset') or 'public'
         id_field = load.get('id_field') or None
@@ -385,3 +401,66 @@ class DataIntegrationRunner(BaseRunner):
         dst.check_write_mode(mode)  # 门禁:该源不支持所选 mode 即报清晰错误(而非静默当 append)
         pname = f'etl_{self.context.get("task_id") or src_code}_{table}'
         return dst.write(data, table, mode=mode, dataset=dataset, pipeline_name=pname, id_field=id_field)
+
+    # ---------- 数据质量断言 ----------
+    def _check_row_quality(self, data: list[dict], table: str | None) -> None:
+        """对一批数据跑行级规则(not_null/unique/value_range/allowed_values),命中则告警/阻断。"""
+        from module_task_schedule.runners.quality import check_quality
+
+        violations = check_quality(data, self._q_rules)
+        if violations:
+            self._handle_quality_violations(violations, table)
+
+    def _finalize_quality(self) -> None:
+        """收尾:对累计装载行数跑 row_count_min(流式/一次性统一在此判定)。"""
+        if not getattr(self, '_q_rules', None):
+            return
+        from module_task_schedule.runners.quality import check_row_count
+
+        violations = check_row_count(self._q_loaded, self._q_rules)
+        if violations:
+            table = (self.params.get('load') or {}).get('table')
+            self._handle_quality_violations(violations, table)
+
+    def _handle_quality_violations(self, violations: list[dict], table: str | None) -> None:
+        """命中质量违规:记日志 + 发告警;on_violation='block' 时抛异常使任务失败。"""
+        from module_task_schedule.runners.quality import DataQualityError
+
+        msg = '; '.join(v['message'] for v in violations)
+        self.logger.warning(f'数据质量校验命中 {len(violations)} 项:{msg}')
+        self._emit_quality_alert(violations, table)
+        if self._q_on_violation == 'block':
+            raise DataQualityError(f'数据质量校验未通过:{msg}')
+
+    def _emit_quality_alert(self, violations: list[dict], table: str | None) -> None:
+        """按任务绑定的告警策略发数据质量告警(复用 AlertService.dispatch_task_alert)。"""
+        from sqlalchemy import select
+
+        from module_alert.service.alert_service import AlertService
+        from module_task_schedule.entity.do.task_do import Task
+        from module_task_schedule.sync_db import get_sync_session_local
+
+        task_id = self.context.get('task_id')
+        if not task_id:
+            return
+        db = get_sync_session_local()()
+        try:
+            task = db.execute(select(Task).where(Task.id == task_id)).scalars().first()
+            if task is None:
+                return
+            content = '数据质量校验未通过:\n' + '\n'.join(f'- {v["message"]}' for v in violations)
+            AlertService.dispatch_task_alert(
+                db, task,
+                title=f'数据质量告警: {task.name}',
+                content=content, biz='etl', source=table or task.name, metric='data_quality',
+                tags={
+                    'task_id': task_id,
+                    'instance_id': self.context.get('instance_id'),
+                    'table': table,
+                    'violations': violations,
+                },
+            )
+        except Exception as e:
+            self.logger.error(f'数据质量告警发送失败: {e}')
+        finally:
+            db.close()
