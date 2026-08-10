@@ -47,12 +47,16 @@ def build_logger_config(task_uuid: str | None) -> dict | None:
 
 def _post(path: str, body: dict, timeout: int) -> dict[str, Any]:
     url = SandboxConfig.sandbox_api_url.rstrip('/') + path
-    resp = requests.post(
-        url,
-        json=body,
-        headers={'Authorization': f'Bearer {SandboxConfig.sandbox_bearer_key}', 'Content-Type': 'application/json'},
-        timeout=timeout,
-    )
+    headers = {'Authorization': f'Bearer {SandboxConfig.sandbox_bearer_key}', 'Content-Type': 'application/json'}
+    try:  # 透传链路 ID,贯穿 backend/worker → sandbox
+        from middlewares.trace_middleware.ctx import TraceCtx
+
+        tid = TraceCtx.get_trace_id()
+        if tid:
+            headers['trace-id'] = tid
+    except Exception:
+        pass
+    resp = requests.post(url, json=body, headers=headers, timeout=timeout)
     resp.raise_for_status()
     return resp.json()
 
