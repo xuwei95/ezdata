@@ -348,36 +348,88 @@ class DataIntegrationRunner(BaseRunner):
         load: dict,
         fn: Any,
     ) -> Any:
-        """流式源:max_events 有值→有界读取一批;否则长驻阻塞消费,微批持续装载。"""
+        """流式源:max_events 有值→有界读取一批;否则长驻阻塞消费,微批持续装载。
+
+        CDC 源(family='cdc',如 MySQL binlog)额外做位点断点续读:启动时从 Redis 读上次位点作为
+        起点,每批**装载成功后**再提交末条事件位点(at-least-once);位点字段 _log_file/_log_pos 在
+        装载前剔除,不污染目标表。kafka 等非 CDC 流式源不受影响(自带 offset/group 机制)。
+        """
         from ezdata.utils.etl_util import stream_kwargs, stream_statement
+        from module_task_schedule.cdc_checkpoint import ckpt_key, load_checkpoint, save_checkpoint
+
+        cdc = getattr(src, 'family', None) == 'cdc'
+        inst = self.context.get('instance_id')
+        key = ckpt_key(self.context.get('task_id'), src_code, obj) if cdc else None
+        ck = load_checkpoint(key) if key else None
+        if cdc and ck:
+            self.logger.info(f'CDC 从上次位点续读:{ck.get("log_file")}:{ck.get("log_pos")}')
 
         max_events = int(extract.get('max_events') or 0)
         if max_events > 0:  # 有界:读这一批后一次性装载
             self.logger.info(f'流式有界读取最多 {max_events} 条(table/topic={obj or "全部"})')
-            data = src.query(stream_statement(obj), None, max_events)
+            stmt = stream_statement(obj)
+            start_pos = None  # CDC 起点:续读用 checkpoint,首跑锚定当前位点(读到 0 条也不丢)
+            if cdc:
+                start_pos = (ck['log_file'], ck['log_pos']) if ck else src.current_position()
+                if start_pos:
+                    stmt['start_log_file'], stmt['start_log_pos'] = start_pos
+                    self.logger.info(f'CDC 起点位点:{start_pos[0]}:{start_pos[1]}({"续读" if ck else "首跑锚定当前"})')
+            data = src.query(stmt, None, max_events)
+            last_pos = self._pop_positions(data) if cdc else None
             if fn:
                 data = [fn(dict(r)) for r in data]
             self.logger.info(f'读取 {len(data)} 条')
             info = self._load(dst, src_code, table, data, load)
             self.logger.info(str(info)[:500])
+            if cdc:  # 装载成功后提交位点;读到 0 条则维持起点,保证下次从此续读不漏
+                commit = last_pos or start_pos
+                if commit:
+                    save_checkpoint(key, commit[0], commit[1], inst)
             return f'流式有界摄取完成: {src_code} -> {dst_code}.{table} ({len(data)} 条)'
 
         # 无界:长驻阻塞消费,微批写入(任务 hang 住直到被终止)
         batch_size = int(extract.get('batch_size') or 100)
         self.logger.info(f'流式长驻消费(微批 {batch_size},阻塞直到任务终止)…')
+        skw = stream_kwargs(obj)
+        if cdc:
+            # 续读用 checkpoint;首跑锚定当前位点并立即落盘,保证首批完成前重启也能从锚点续读不漏
+            start_pos = (ck['log_file'], ck['log_pos']) if ck else src.current_position()
+            if start_pos:
+                skw['start_log_file'], skw['start_log_pos'] = start_pos
+                if not ck:
+                    save_checkpoint(key, start_pos[0], start_pos[1], inst)
         buf: list[dict] = []
+        last_pos: tuple[str, int] | None = None
         total = 0
-        for ev in src.stream(**stream_kwargs(obj)):
+        for ev in src.stream(**skw):
+            if cdc:  # 先弹位点再进 fn/buf,保证装载行干净
+                lf, lp = ev.pop('_log_file', None), ev.pop('_log_pos', None)
+                if lf and lp is not None:
+                    last_pos = (lf, lp)
             buf.append(fn(dict(ev)) if fn else ev)
             if len(buf) >= batch_size:
                 self._load(dst, src_code, table, buf, load)
                 total += len(buf)
                 self.logger.info(f'已装载 {total} 条')
+                if cdc and last_pos:  # 装载成功后提交位点
+                    save_checkpoint(key, last_pos[0], last_pos[1], inst)
                 buf = []
         if buf:  # 正常不会到这(stream 阻塞),保险
             self._load(dst, src_code, table, buf, load)
             total += len(buf)
+            if cdc and last_pos:
+                save_checkpoint(key, last_pos[0], last_pos[1], inst)
         return f'流式消费结束: {src_code} -> {dst_code}.{table} ({total} 条)'
+
+    @staticmethod
+    def _pop_positions(rows: list[dict]) -> tuple[str, int] | None:
+        """从有界读取结果里弹出各行的 _log_file/_log_pos(不污染装载),返回末条有效位点。"""
+        last: tuple[str, int] | None = None
+        for r in rows:
+            lf, lp = r.pop('_log_file', None), r.pop('_log_pos', None)
+            if lf and lp is not None:
+                last = (lf, lp)
+        return last
 
     def _load(self, dst: Any, src_code: str, table: str, data: list[dict], load: dict) -> Any:
         """装载一批记录:对象存储序列化整写,其余走 dlt pipeline。
