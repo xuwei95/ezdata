@@ -30,6 +30,8 @@ class AppSettings(BaseSettings):
     app_disable_redoc: bool = False
     app_trusted_proxy_ips: str = '127.0.0.1,::1'
     app_trusted_proxy_hops: int = 1
+    # 前端访问基址,用于告警等消息里的外链拼接(结尾不带斜杠;部署时按实际域名覆盖)
+    app_web_base_url: str = 'http://localhost'
 
 
 class JwtSettings(BaseSettings):

@@ -449,6 +449,10 @@ class DataIntegrationRunner(BaseRunner):
             if task is None:
                 return
             content = '数据质量校验未通过:\n' + '\n'.join(f'- {v["message"]}' for v in violations)
+            # 追加任务定位链接(与任务失败告警同格式),收到告警可直接点开对应任务
+            link = AlertService.build_task_link(task.name)
+            if link:
+                content += f'\n查看任务：{link}'
             AlertService.dispatch_task_alert(
                 db, task,
                 title=f'数据质量告警: {task.name}',

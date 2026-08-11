@@ -10,6 +10,7 @@
 import json
 from datetime import datetime
 from typing import Any
+from urllib.parse import quote
 
 from loguru import logger as loguru_logger
 from sqlalchemy import select
@@ -139,6 +140,20 @@ class AlertRecordService:
 class AlertService:
     """告警中心：失败告警处理入口(同步,供执行层调用)"""
 
+    @staticmethod
+    def build_task_link(task_name: str | None) -> str:
+        """构造任务定位链接(落到任务管理页并按任务名过滤)。
+
+        base 取 AppConfig.app_web_base_url;未配置或任务名为空时返回空串(告警内容据此安全降级不追加)。
+        任务失败告警、数据质量告警等复用此方法,保证链接格式一致。
+        """
+        from config.env import AppConfig
+
+        base = (AppConfig.app_web_base_url or '').rstrip('/')
+        if not base or not task_name:
+            return ''
+        return f'{base}/task/info?name={quote(task_name)}'
+
     @classmethod
     def dispatch_task_alert(
         cls,
@@ -225,6 +240,10 @@ class AlertService:
                 f'{task_type_map.get(task_type, "普通任务")}失败告警:{task.name} 在重试{retries}次后仍失败。'
                 f'任务报错：{exception_file}:{exception_line}:{exception[:500]}'
             )
+            # 追加可点击的任务链接:落到任务管理页并按任务名过滤,收到告警即可点开定位
+            link = cls.build_task_link(task.name)
+            if link:
+                content += f'\n查看任务：{link}'
             tags = {
                 'instance_id': instance_id,
                 'worker': worker,

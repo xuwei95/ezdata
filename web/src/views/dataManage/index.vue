@@ -68,6 +68,7 @@
                 </el-descriptions>
                 <div style="margin-top: 12px">
                   <el-button type="primary" icon="Edit" @click="openEditModel(current.raw)">{{ $t('编辑模型(描述/字段说明)') }}</el-button>
+                  <el-button icon="Link" @click="copyModelLink(current.raw)">{{ $t('复制链接') }}</el-button>
                   <el-button type="danger" icon="Delete" @click="removeModel(current.raw)">{{ $t('删除') }}</el-button>
                 </div>
                 <vxe-table :data="current.raw.fields || []" height="300" border style="margin-top: 12px">
@@ -138,7 +139,8 @@
 </template>
 
 <script setup name="DataManage">
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, reactive, onMounted, watch, nextTick } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Splitpanes, Pane } from 'splitpanes'
 import 'splitpanes/dist/splitpanes.css'
@@ -158,11 +160,58 @@ const sourceModalRef = ref()
 const current = ref(null)
 const activeTab = ref('info')
 const capsMap = ref({})
+const route = useRoute()
+const router = useRouter()
 
 onMounted(async () => {
   const res = await getSourceTypes()
   capsMap.value = Object.fromEntries((res.data || []).map((t) => [t.sourceType, t.capabilities || []]))
+  // 支持外链直达:?model=<id> 时定位到该数据模型(告警/血缘/分享链接均可复用)
+  if (route.query.model) locateModelById(String(route.query.model))
 })
+
+// 按模型 id 定位:拉模型详情 + 所属数据源(取 sourceType 供右侧 tab 能力判断),右面板直接展示;树高亮尽力而为
+async function locateModelById(id) {
+  try {
+    const m = (await getModel(id)).data
+    if (!m) {
+      ElMessage.warning('未找到该数据模型(可能已删除)')
+      return
+    }
+    const srcRes = await listSource({ pageNum: 1, pageSize: 200 })
+    const src = (srcRes.rows || []).find((s) => s.code === m.datasourceCode)
+    const sourceType = src ? src.sourceType : undefined
+    if (sourceType) loadSourceIcon(sourceType)
+    current.value = { nodeType: 'model', sourceType, raw: m }
+    // 展开左树对应数据源节点并高亮该模型(懒加载树,失败不影响右面板已定位)
+    if (src) highlightModelInTree('s_' + src.id, 'm_' + m.id)
+  } catch (e) {
+    ElMessage.error('定位数据模型失败')
+  }
+}
+
+// 懒加载树里展开数据源节点、加载其模型后高亮目标节点(锦上添花)
+async function highlightModelInTree(sourceKey, modelKey) {
+  await nextTick()
+  const tree = treeRef.value
+  const srcNode = tree && tree.store && tree.store.nodesMap[sourceKey]
+  if (!srcNode) return
+  srcNode.expand(() => {
+    tree.setCurrentKey(modelKey)
+  })
+}
+
+// 复制当前模型的直达链接(?model=<id>),粘到告警/文档里点开即定位
+function copyModelLink(m) {
+  const href = router.resolve({ path: '/data/manage', query: { model: m.id } }).href
+  const url = window.location.origin + href
+  const done = () => ElMessage.success('已复制模型链接')
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(done).catch(() => ElMessage.info(url))
+  } else {
+    ElMessage.info(url)
+  }
+}
 
 const capsOf = (type) => capsMap.value[type] || []
 

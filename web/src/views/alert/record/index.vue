@@ -59,7 +59,9 @@
         <el-descriptions-item :label="$t('业务')">{{ current.biz }}</el-descriptions-item>
         <el-descriptions-item :label="$t('对象')">{{ current.source }}</el-descriptions-item>
         <el-descriptions-item :label="$t('指标')">{{ current.metric }}</el-descriptions-item>
-        <el-descriptions-item :label="$t('内容')">{{ current.content }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('内容')">
+          <span class="alert-content" v-html="renderContent(current.content)"></span>
+        </el-descriptions-item>
         <el-descriptions-item :label="$t('标签')">{{ current.tags }}</el-descriptions-item>
         <el-descriptions-item :label="$t('时间')">{{ current.createTime }}</el-descriptions-item>
         <el-descriptions-item :label="$t('恢复时间')">{{ current.recoverTime || '-' }}</el-descriptions-item>
@@ -86,6 +88,31 @@ const data = reactive({
   queryParams: { pageNum: 1, pageSize: 10, title: undefined, status: undefined }
 })
 const { queryParams } = toRefs(data)
+
+// 内容里的 URL 渲染成可点链接:先整体 HTML 转义防 XSS(content 含任务报错文本),再把 http(s) 链接替换为 <a>
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+function renderContent(text) {
+  if (!text) return ''
+  const urlRe = /(https?:\/\/[^\s]+)/g
+  let out = ''
+  let last = 0
+  let m
+  while ((m = urlRe.exec(text)) !== null) {
+    out += escapeHtml(text.slice(last, m.index))
+    const safeUrl = escapeHtml(m[0])
+    out += `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${safeUrl}</a>`
+    last = m.index + m[0].length
+  }
+  out += escapeHtml(text.slice(last))
+  return out
+}
 
 function levelText(l) {
   return ['信息', '警告', '错误'][l] || '信息'
@@ -138,3 +165,10 @@ function handleDelete(row) {
 
 getList()
 </script>
+
+<style scoped>
+.alert-content {
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+</style>
