@@ -170,31 +170,57 @@
     <file-reconcile-drawer ref="reconcileDrawerRef" @refresh="getList" />
     <file-preview-dialog ref="previewDialogRef" />
 
-    <el-dialog v-model="uploadOpen" title="上传文件" width="480px" append-to-body>
+    <el-dialog
+      v-model="uploadOpen"
+      title="上传文件"
+      width="500px"
+      append-to-body
+      :close-on-click-modal="false"
+      @closed="resetUpload"
+    >
       <el-form label-width="90px">
         <el-form-item label="访问类型">
-          <el-radio-group v-model="uploadAccessType">
+          <el-radio-group v-model="uploadAccessType" :disabled="uploading">
             <el-radio value="private">受保护(需授权下载)</el-radio>
-            <el-radio value="public">公开</el-radio>
+            <el-radio value="public">公开(任何人可访问)</el-radio>
           </el-radio-group>
         </el-form-item>
         <el-form-item label="选择文件">
           <el-upload
+            ref="uploadRef"
             drag
+            multiple
+            :auto-upload="false"
             :action="uploadAction"
             :headers="uploadHeaders"
-            :show-file-list="true"
+            :on-change="onFileChange"
+            :on-remove="onFileChange"
             :on-success="handleUploadSuccess"
             :on-error="handleUploadError"
             style="width: 100%"
           >
             <el-icon class="el-icon--upload"><upload-filled /></el-icon>
-            <div class="el-upload__text">将文件拖到此处，或<em>点击上传</em></div>
+            <div class="el-upload__text">将文件拖到此处，或<em>点击选择</em></div>
+            <template #tip>
+              <div class="el-upload__tip">
+                先选好文件，确认无误后点「确认上传」；可多选，单文件不超过 100MB。
+              </div>
+            </template>
           </el-upload>
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="uploadOpen = false">关闭</el-button>
+        <span class="upload-count" v-if="fileCount">已选 {{ fileCount }} 个文件</span>
+        <el-button @click="uploadOpen = false">取消</el-button>
+        <el-button
+          type="primary"
+          icon="Upload"
+          :loading="uploading"
+          :disabled="!fileCount"
+          @click="submitUpload"
+        >
+          确认上传
+        </el-button>
       </template>
     </el-dialog>
   </div>
@@ -228,22 +254,61 @@ import { getToken } from "@/utils/auth";
 const { proxy } = getCurrentInstance();
 const uploadOpen = ref(false);
 const uploadAccessType = ref("private");
+const uploadRef = ref();
+const fileCount = ref(0);
+const uploading = ref(false);
 const uploadHeaders = computed(() => ({ Authorization: "Bearer " + getToken() }));
 const uploadAction = computed(
   () =>
     import.meta.env.VITE_APP_BASE_API +
     (uploadAccessType.value === "public" ? "/common/upload" : "/common/files/upload")
 );
-function handleUploadSuccess(res) {
-  if (res && res.code === 200) {
-    proxy.$modal.msgSuccess("上传成功");
-    getList();
-  } else {
-    proxy.$modal.msgError((res && res.msg) || "上传失败");
+
+/** 选择/移除文件时同步已选数量(不自动上传) */
+function onFileChange(_file, fileList) {
+  fileCount.value = fileList.length;
+}
+
+/** 点「确认上传」才真正提交 */
+function submitUpload() {
+  if (!fileCount.value) {
+    proxy.$modal.msgWarning("请先选择文件");
+    return;
+  }
+  uploading.value = true;
+  uploadRef.value?.submit();
+}
+
+/** 所有分片都结束(无 ready/uploading)时收尾 */
+function finishIfDone(fileList) {
+  const pending = (fileList || []).some(f => ["ready", "uploading"].includes(f.status));
+  if (pending) return;
+  uploading.value = false;
+  const ok = (fileList || []).filter(f => f.status === "success").length;
+  const fail = (fileList || []).length - ok;
+  if (ok) proxy.$modal.msgSuccess(`成功上传 ${ok} 个文件${fail ? `，失败 ${fail} 个` : ""}`);
+  else if (fail) proxy.$modal.msgError(`上传失败 ${fail} 个文件`);
+  getList();
+  if (ok && !fail) {
+    uploadOpen.value = false; // 全部成功则关闭
   }
 }
-function handleUploadError() {
-  proxy.$modal.msgError("上传失败");
+
+function handleUploadSuccess(res, _file, fileList) {
+  if (!res || res.code !== 200) {
+    proxy.$modal.msgError((res && res.msg) || "部分文件上传失败");
+  }
+  finishIfDone(fileList);
+}
+function handleUploadError(_err, _file, fileList) {
+  finishIfDone(fileList);
+}
+
+/** 关闭弹窗后清空暂存 */
+function resetUpload() {
+  uploadRef.value?.clearFiles();
+  fileCount.value = 0;
+  uploading.value = false;
 }
 const fileList = ref([]);
 const loading = ref(true);
@@ -441,3 +506,8 @@ getFileAclDeptTree().then(response => {
   fileDeptOptions.value = response.data;
 });
 </script>
+
+<style scoped>
+.upload-count { margin-right: 12px; color: #909399; font-size: 12px; }
+.el-upload__tip { color: #909399; }
+</style>
