@@ -6,7 +6,13 @@
 模块加载时实例化单例 `storage` 供业务层使用。
 """
 
+import hashlib
+import tempfile
 from collections.abc import Generator
+from typing import BinaryIO
+
+from fastapi import UploadFile
+from fastapi.concurrency import run_in_threadpool
 
 from config.env import StorageConfig, UploadConfig
 from utils.storage.local_storage import LocalStorage
@@ -105,6 +111,38 @@ class Storage:
 
     def load_stream(self, filename: str) -> Generator:
         return self.storage_runner.load_stream(filename)
+
+    def load_range(self, filename: str, start: int = 0, length: int | None = None) -> Generator:
+        return self.storage_runner.load_range(filename, start, length)
+
+    def stat(self, filename: str) -> int:
+        return self.storage_runner.stat(filename)
+
+    def save_fileobj(self, filename: str, fileobj: BinaryIO) -> None:
+        self.storage_runner.save_fileobj(filename, fileobj)
+
+    async def save_upload(self, file: UploadFile, filename: str, max_size: int | None = None) -> tuple[int, str]:
+        """流式落盘上传文件：计算大小与 SHA-256,内存占用恒定,写入当前存储后端。
+
+        :param file: FastAPI 上传文件对象
+        :param filename: 目标对象键（相对路径）
+        :param max_size: 允许的最大字节数,超出抛 ValueError
+        :return: (文件大小, SHA-256 十六进制)
+        """
+        hasher = hashlib.sha256()
+        total_size = 0
+        # 8MB 以内驻留内存,超过自动落临时磁盘文件
+        with tempfile.SpooledTemporaryFile(max_size=8 * 1024 * 1024) as spool:
+            while chunk := await file.read(1024 * 1024):
+                total_size += len(chunk)
+                if max_size is not None and total_size > max_size:
+                    raise ValueError('文件大小超出限制')
+                hasher.update(chunk)
+                spool.write(chunk)
+            spool.seek(0)
+            # 后端为同步实现,放线程池避免阻塞事件循环
+            await run_in_threadpool(self.storage_runner.save_fileobj, filename, spool)
+        return total_size, hasher.hexdigest()
 
     def download(self, filename, target_filepath):
         self.storage_runner.download(filename, target_filepath)

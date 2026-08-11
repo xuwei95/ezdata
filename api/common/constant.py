@@ -247,6 +247,8 @@ class ApiNamespace:
     LOGIN_USER_ROUTERS = 'login:user:routers'
     CAPTCHA_IMAGE = 'captcha:image'
     COMMON_UPLOAD = 'common:upload'
+    COMMON_PRIVATE_UPLOAD = 'common:private-upload'
+    COMMON_FILE_DOWNLOAD = 'common:file-download'
     TRANSPORT_CRYPTO_PUBLIC_KEY = 'transport-crypto:public-key'
     TRANSPORT_CRYPTO_FRONTEND_CONFIG = 'transport-crypto:frontend-config'
 
@@ -300,6 +302,15 @@ class ApiNamespace:
     SYSTEM_POST_LIST = 'system:post:list'
     SYSTEM_POST_DETAIL = 'system:post:detail'
     SYSTEM_POST_EXPORT = 'system:post:export'
+
+    # 文件管理(移植自 RuoYi-Vue3-FastAPI v1.10.0 文件管理模块)
+    SYSTEM_FILE_DOWNLOAD = 'system:file:download'
+    SYSTEM_FILE_DELETE = 'system:file:delete'
+    SYSTEM_FILE_ACL = 'system:file:acl'
+    SYSTEM_FILE_RETENTION_POLICY = 'system:file:retention-policy'
+    SYSTEM_FILE_RECONCILE = 'system:file:reconcile'
+    SYSTEM_FILE_TRANSFER = 'system:file:transfer'
+    SYSTEM_FILE_RESTORE = 'system:file:restore'
 
     SYSTEM_ROLE_DEPT_TREE = 'system:role:dept-tree'
     SYSTEM_ROLE_LIST = 'system:role:list'

@@ -142,6 +142,16 @@ class DataIntegrationRunner(BaseRunner):
         return injected or _load_datasource(code)
 
     def run(self) -> Any:
+        """入口:解析数据质量规则 → 执行抽取装载 → 收尾行数校验。"""
+        q = self.params.get('quality') or {}
+        self._q_rules = q.get('rules') or []
+        self._q_on_violation = q.get('on_violation') or 'warn'  # 'warn' | 'block'
+        self._q_loaded = 0
+        result = self._run_body()
+        self._finalize_quality()
+        return result
+
+    def _run_body(self) -> Any:
         from ezdata.handlers import Capability
 
         extract = self.params.get('extract') or {}
@@ -186,7 +196,7 @@ class DataIntegrationRunner(BaseRunner):
 
         # 快路①:文件源(DuckDB)→ DuckDB→Arrow→dlt(实测约 3x)。任意只读查询都适用
         # (整条 SQL 交 DuckDB 跑,结果取 Arrow 而非 list;WHERE/列裁剪均可)。
-        if not fn and not dst_is_file and isinstance(native, str) and hasattr(src, 'query_arrow'):
+        if not fn and not self._q_rules and not dst_is_file and isinstance(native, str) and hasattr(src, 'query_arrow'):
             assert_readonly_sql(native)
             self.logger.info(f'文件源 → DuckDB→Arrow→dlt 列式快路:{str(native)[:120]}')
             tbl = src.query_arrow(native)
@@ -195,7 +205,7 @@ class DataIntegrationRunner(BaseRunner):
             return f'ETL 完成(Arrow 列式): {src_code} -> {dst_code}.{table}'
 
         # 快路②:SQL 源整表查询(SELECT * FROM 表)→ dlt 原生 pyarrow 流式 extract→load(实测约 2x)。
-        fast_table = None if fn else _whole_table_native(native)
+        fast_table = None if (fn or self._q_rules) else _whole_table_native(native)
         if fast_table and src.has(Capability.EXTRACT) and not dst_is_file:
             self.logger.info(f'整表无转换 → dlt 原生流式快路(pyarrow):extract {fast_table} -> {dst_code}.{table}')
             resource = src.extract(fast_table, backend='pyarrow')
@@ -338,36 +348,88 @@ class DataIntegrationRunner(BaseRunner):
         load: dict,
         fn: Any,
     ) -> Any:
-        """流式源:max_events 有值→有界读取一批;否则长驻阻塞消费,微批持续装载。"""
+        """流式源:max_events 有值→有界读取一批;否则长驻阻塞消费,微批持续装载。
+
+        CDC 源(family='cdc',如 MySQL binlog)额外做位点断点续读:启动时从 Redis 读上次位点作为
+        起点,每批**装载成功后**再提交末条事件位点(at-least-once);位点字段 _log_file/_log_pos 在
+        装载前剔除,不污染目标表。kafka 等非 CDC 流式源不受影响(自带 offset/group 机制)。
+        """
         from ezdata.utils.etl_util import stream_kwargs, stream_statement
+        from module_task_schedule.cdc_checkpoint import ckpt_key, load_checkpoint, save_checkpoint
+
+        cdc = getattr(src, 'family', None) == 'cdc'
+        inst = self.context.get('instance_id')
+        key = ckpt_key(self.context.get('task_id'), src_code, obj) if cdc else None
+        ck = load_checkpoint(key) if key else None
+        if cdc and ck:
+            self.logger.info(f'CDC 从上次位点续读:{ck.get("log_file")}:{ck.get("log_pos")}')
 
         max_events = int(extract.get('max_events') or 0)
         if max_events > 0:  # 有界:读这一批后一次性装载
             self.logger.info(f'流式有界读取最多 {max_events} 条(table/topic={obj or "全部"})')
-            data = src.query(stream_statement(obj), None, max_events)
+            stmt = stream_statement(obj)
+            start_pos = None  # CDC 起点:续读用 checkpoint,首跑锚定当前位点(读到 0 条也不丢)
+            if cdc:
+                start_pos = (ck['log_file'], ck['log_pos']) if ck else src.current_position()
+                if start_pos:
+                    stmt['start_log_file'], stmt['start_log_pos'] = start_pos
+                    self.logger.info(f'CDC 起点位点:{start_pos[0]}:{start_pos[1]}({"续读" if ck else "首跑锚定当前"})')
+            data = src.query(stmt, None, max_events)
+            last_pos = self._pop_positions(data) if cdc else None
             if fn:
                 data = [fn(dict(r)) for r in data]
             self.logger.info(f'读取 {len(data)} 条')
             info = self._load(dst, src_code, table, data, load)
             self.logger.info(str(info)[:500])
+            if cdc:  # 装载成功后提交位点;读到 0 条则维持起点,保证下次从此续读不漏
+                commit = last_pos or start_pos
+                if commit:
+                    save_checkpoint(key, commit[0], commit[1], inst)
             return f'流式有界摄取完成: {src_code} -> {dst_code}.{table} ({len(data)} 条)'
 
         # 无界:长驻阻塞消费,微批写入(任务 hang 住直到被终止)
         batch_size = int(extract.get('batch_size') or 100)
         self.logger.info(f'流式长驻消费(微批 {batch_size},阻塞直到任务终止)…')
+        skw = stream_kwargs(obj)
+        if cdc:
+            # 续读用 checkpoint;首跑锚定当前位点并立即落盘,保证首批完成前重启也能从锚点续读不漏
+            start_pos = (ck['log_file'], ck['log_pos']) if ck else src.current_position()
+            if start_pos:
+                skw['start_log_file'], skw['start_log_pos'] = start_pos
+                if not ck:
+                    save_checkpoint(key, start_pos[0], start_pos[1], inst)
         buf: list[dict] = []
+        last_pos: tuple[str, int] | None = None
         total = 0
-        for ev in src.stream(**stream_kwargs(obj)):
+        for ev in src.stream(**skw):
+            if cdc:  # 先弹位点再进 fn/buf,保证装载行干净
+                lf, lp = ev.pop('_log_file', None), ev.pop('_log_pos', None)
+                if lf and lp is not None:
+                    last_pos = (lf, lp)
             buf.append(fn(dict(ev)) if fn else ev)
             if len(buf) >= batch_size:
                 self._load(dst, src_code, table, buf, load)
                 total += len(buf)
                 self.logger.info(f'已装载 {total} 条')
+                if cdc and last_pos:  # 装载成功后提交位点
+                    save_checkpoint(key, last_pos[0], last_pos[1], inst)
                 buf = []
         if buf:  # 正常不会到这(stream 阻塞),保险
             self._load(dst, src_code, table, buf, load)
             total += len(buf)
+            if cdc and last_pos:
+                save_checkpoint(key, last_pos[0], last_pos[1], inst)
         return f'流式消费结束: {src_code} -> {dst_code}.{table} ({total} 条)'
+
+    @staticmethod
+    def _pop_positions(rows: list[dict]) -> tuple[str, int] | None:
+        """从有界读取结果里弹出各行的 _log_file/_log_pos(不污染装载),返回末条有效位点。"""
+        last: tuple[str, int] | None = None
+        for r in rows:
+            lf, lp = r.pop('_log_file', None), r.pop('_log_pos', None)
+            if lf and lp is not None:
+                last = (lf, lp)
+        return last
 
     def _load(self, dst: Any, src_code: str, table: str, data: list[dict], load: dict) -> Any:
         """装载一批记录:对象存储序列化整写,其余走 dlt pipeline。
@@ -377,6 +439,12 @@ class DataIntegrationRunner(BaseRunner):
         """
         from ezdata.utils.etl_util import is_file_target, serialize_records
 
+        # 数据质量:行级规则对每批 list[dict] 校验并累计装载行数(供收尾的 row_count_min 判断)。
+        # 快路的 Arrow/resource 非 list,已在 run 中因配置了质量规则而禁用,这里只需处理 list。
+        if getattr(self, '_q_rules', None) and isinstance(data, list):
+            self._q_loaded += len(data)
+            self._check_row_quality(data, table)
+
         mode = load.get('mode') or 'append'
         dataset = load.get('dataset') or 'public'
         id_field = load.get('id_field') or None
@@ -385,3 +453,70 @@ class DataIntegrationRunner(BaseRunner):
         dst.check_write_mode(mode)  # 门禁:该源不支持所选 mode 即报清晰错误(而非静默当 append)
         pname = f'etl_{self.context.get("task_id") or src_code}_{table}'
         return dst.write(data, table, mode=mode, dataset=dataset, pipeline_name=pname, id_field=id_field)
+
+    # ---------- 数据质量断言 ----------
+    def _check_row_quality(self, data: list[dict], table: str | None) -> None:
+        """对一批数据跑行级规则(not_null/unique/value_range/allowed_values),命中则告警/阻断。"""
+        from module_task_schedule.runners.quality import check_quality
+
+        violations = check_quality(data, self._q_rules)
+        if violations:
+            self._handle_quality_violations(violations, table)
+
+    def _finalize_quality(self) -> None:
+        """收尾:对累计装载行数跑 row_count_min(流式/一次性统一在此判定)。"""
+        if not getattr(self, '_q_rules', None):
+            return
+        from module_task_schedule.runners.quality import check_row_count
+
+        violations = check_row_count(self._q_loaded, self._q_rules)
+        if violations:
+            table = (self.params.get('load') or {}).get('table')
+            self._handle_quality_violations(violations, table)
+
+    def _handle_quality_violations(self, violations: list[dict], table: str | None) -> None:
+        """命中质量违规:记日志 + 发告警;on_violation='block' 时抛异常使任务失败。"""
+        from module_task_schedule.runners.quality import DataQualityError
+
+        msg = '; '.join(v['message'] for v in violations)
+        self.logger.warning(f'数据质量校验命中 {len(violations)} 项:{msg}')
+        self._emit_quality_alert(violations, table)
+        if self._q_on_violation == 'block':
+            raise DataQualityError(f'数据质量校验未通过:{msg}')
+
+    def _emit_quality_alert(self, violations: list[dict], table: str | None) -> None:
+        """按任务绑定的告警策略发数据质量告警(复用 AlertService.dispatch_task_alert)。"""
+        from sqlalchemy import select
+
+        from module_alert.service.alert_service import AlertService
+        from module_task_schedule.entity.do.task_do import Task
+        from module_task_schedule.sync_db import get_sync_session_local
+
+        task_id = self.context.get('task_id')
+        if not task_id:
+            return
+        db = get_sync_session_local()()
+        try:
+            task = db.execute(select(Task).where(Task.id == task_id)).scalars().first()
+            if task is None:
+                return
+            content = '数据质量校验未通过:\n' + '\n'.join(f'- {v["message"]}' for v in violations)
+            # 追加任务定位链接(与任务失败告警同格式),收到告警可直接点开对应任务
+            link = AlertService.build_task_link(task.name)
+            if link:
+                content += f'\n查看任务：{link}'
+            AlertService.dispatch_task_alert(
+                db, task,
+                title=f'数据质量告警: {task.name}',
+                content=content, biz='etl', source=table or task.name, metric='data_quality',
+                tags={
+                    'task_id': task_id,
+                    'instance_id': self.context.get('instance_id'),
+                    'table': table,
+                    'violations': violations,
+                },
+            )
+        except Exception as e:
+            self.logger.error(f'数据质量告警发送失败: {e}')
+        finally:
+            db.close()

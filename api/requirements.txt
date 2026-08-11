@@ -20,6 +20,7 @@ loguru==0.7.3
 mistralai==1.12.0
 ollama==0.6.1
 openai==2.17.0
+prometheus-client==0.21.1
 openpyxl==3.1.5
 # RAG 文件解析(pdf / docx / html)
 pypdf>=4.3  # unstructured 会拉 6.x

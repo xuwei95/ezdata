@@ -234,8 +234,10 @@ import { getTaskLogViewable, listTaskLog } from '@/api/task/log'
 import Crontab from '@/components/Crontab'
 import SchemaRenderer from '@/views/task/components/SchemaRenderer.vue'
 import { getTaskComponent } from '@/views/task/components/templates'
+import { useRoute } from 'vue-router'
 
 const { proxy } = getCurrentInstance()
+const route = useRoute()
 // 运行队列：实时从在线 worker 获取(无 worker 时后端回退到配置队列)
 const runQueueOptions = ref([])
 function loadRunQueues() {
@@ -701,6 +703,10 @@ function crontabFill(value) {
   form.value.crontab = value
 }
 
+// 支持从告警链接跳转:带 ?name= 时预填过滤条,直接定位到对应任务
+if (route.query.name) {
+  queryParams.value.name = route.query.name
+}
 getList()
 </script>
 

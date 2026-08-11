@@ -20,6 +20,12 @@ class TraceCtx:
         return CTX_TRACE_ID.get()
 
     @staticmethod
+    def set_trace_id_value(value: str) -> str:
+        """注入指定 trace_id(供 Celery worker 继承 HTTP 派发的链路 ID)。"""
+        CTX_TRACE_ID.set(value or '')
+        return value or ''
+
+    @staticmethod
     def set_request_id() -> str:
         _id = uuid4().hex
         CTX_REQUEST_ID.set(_id)

@@ -20,8 +20,10 @@ _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
+import time as _time
+
 from celery import Celery
-from celery.signals import worker_process_init
+from celery.signals import task_failure, task_postrun, task_prerun, task_retry, task_success, worker_process_init
 from kombu import Queue
 
 from config.env import CeleryConfig, RedisConfig
@@ -76,3 +78,64 @@ def _init_worker_process(**kwargs) -> None:
     from module_task_schedule.sync_db import reset_sync_engine
 
     reset_sync_engine()
+
+
+# —— 链路追踪 + Prometheus 指标(任务级信号,覆盖所有 celery 任务) ——
+_task_start: dict[str, float] = {}
+
+
+@task_prerun.connect
+def _on_task_prerun(task_id=None, task=None, **kwargs) -> None:
+    """继承 HTTP 派发的 trace_id(headers 无则用 task_id),使 worker 日志与 backend 同链路;并计时。"""
+    try:
+        from middlewares.trace_middleware.ctx import TraceCtx
+
+        headers = getattr(getattr(task, 'request', None), 'headers', None) or {}
+        TraceCtx.set_trace_id_value(headers.get('trace_id') or task_id or '')
+    except Exception:
+        pass
+    if task_id:
+        _task_start[task_id] = _time.monotonic()
+
+
+@task_postrun.connect
+def _on_task_postrun(task_id=None, task=None, **kwargs) -> None:
+    """记录任务时长并清理链路上下文。"""
+    try:
+        from common import metrics
+
+        started = _task_start.pop(task_id, None)
+        if started is not None:
+            metrics.observe_celery_duration(getattr(task, 'name', 'unknown'), _time.monotonic() - started)
+    except Exception:
+        pass
+    try:
+        from middlewares.trace_middleware.ctx import TraceCtx
+
+        TraceCtx.set_trace_id_value('')
+    except Exception:
+        pass
+
+
+@task_success.connect
+def _on_task_success(sender=None, **kwargs) -> None:
+    _inc_celery(getattr(sender, 'name', 'unknown'), 'success')
+
+
+@task_failure.connect
+def _on_task_failure(sender=None, **kwargs) -> None:
+    _inc_celery(getattr(sender, 'name', 'unknown'), 'failure')
+
+
+@task_retry.connect
+def _on_task_retry(sender=None, **kwargs) -> None:
+    _inc_celery(getattr(sender, 'name', 'unknown'), 'retry')
+
+
+def _inc_celery(name: str, status: str) -> None:
+    try:
+        from common import metrics
+
+        metrics.inc_celery_task(name, status)
+    except Exception:
+        pass

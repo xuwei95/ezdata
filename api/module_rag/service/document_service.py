@@ -60,6 +60,21 @@ class DocumentService:
                     create_time=datetime.now(),
                 )
             )
+            # 归入文件管理:上传型文档登记文件业务引用(referenceCount +1、受引用保护/保留策略)。
+            # 文件本体已由 /common/upload 写入 sys_file_info;此处仅补业务血缘。
+            if req.document_type == 'upload_file' and req.file_id:
+                from module_admin.entity.do.file_do import SysFileReference
+
+                db.add(
+                    SysFileReference(
+                        file_id=req.file_id,
+                        business_type='rag_document',
+                        business_id=doc_id,
+                        business_name=req.name,
+                        create_by=operator,
+                        create_time=datetime.now(),
+                    )
+                )
             await db.commit()
             if req.auto_train:
                 await cls._launch_train(doc_id)
@@ -112,9 +127,18 @@ class DocumentService:
         for snap, did, tid in targets:
             await run_in_threadpool(cls._drop_doc_vectors, snap, did, tid)
         try:
+            from module_admin.entity.do.file_do import SysFileReference
+
             for doc_id in id_list:
                 await db.execute(delete(RagChunk).where(RagChunk.document_id == doc_id))
                 await db.execute(delete(RagDocument).where(RagDocument.id == doc_id))
+                # 解除文件业务引用(referenceCount -1;引用清零后文件方可在文件管理删除)
+                await db.execute(
+                    delete(SysFileReference).where(
+                        SysFileReference.business_type == 'rag_document',
+                        SysFileReference.business_id == doc_id,
+                    )
+                )
             await db.commit()
             return CrudResponseModel(is_success=True, message='删除成功')
         except Exception as e:

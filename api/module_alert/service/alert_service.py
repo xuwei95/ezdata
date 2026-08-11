@@ -10,6 +10,7 @@
 import json
 from datetime import datetime
 from typing import Any
+from urllib.parse import quote
 
 from loguru import logger as loguru_logger
 from sqlalchemy import select
@@ -139,6 +140,75 @@ class AlertRecordService:
 class AlertService:
     """告警中心：失败告警处理入口(同步,供执行层调用)"""
 
+    @staticmethod
+    def build_task_link(task_name: str | None) -> str:
+        """构造任务定位链接(落到任务管理页并按任务名过滤)。
+
+        base 取 AppConfig.app_web_base_url;未配置或任务名为空时返回空串(告警内容据此安全降级不追加)。
+        任务失败告警、数据质量告警等复用此方法,保证链接格式一致。
+        """
+        from config.env import AppConfig
+
+        base = (AppConfig.app_web_base_url or '').rstrip('/')
+        if not base or not task_name:
+            return ''
+        return f'{base}/task/info?name={quote(task_name)}'
+
+    @classmethod
+    def dispatch_task_alert(
+        cls,
+        db: Any,
+        task: Any,
+        *,
+        title: str,
+        content: str,
+        biz: str,
+        source: str,
+        metric: str,
+        tags: dict[str, Any] | None = None,
+        level_override: int | None = None,
+    ) -> int:
+        """通用告警分发(同步):按 task.alert_strategy_ids 查启用策略,逐策略建记录并多渠道转发。
+
+        任务失败告警、数据质量告警等都走这里——只是 biz/metric/title/content 不同。
+        多租户:按 task.tenant_id 盖章(Worker 无请求上下文)。level 默认取各策略 trigger_conf.level,
+        可用 level_override 覆盖。返回命中并已转发的策略数。
+        """
+        from common.context import RequestContext
+
+        if task is None or not getattr(task, 'alert_strategy_ids', None):
+            return 0
+        tenant_token = RequestContext.set_current_tenant_id(task.tenant_id)
+        try:
+            strategy_ids = [int(i) for i in str(task.alert_strategy_ids).split(',') if i.strip().isdigit()]
+            strategies = AlertStrategyDao.sync_get_enabled_strategies(db, strategy_ids)
+            n = 0
+            for strategy in strategies:
+                trigger_conf = _parse_json(strategy.trigger_conf, {})
+                forward_conf = _parse_json(strategy.forward_conf, [])
+                level = level_override if level_override is not None else int(trigger_conf.get('level', 0) or 0)
+                record_values = {
+                    'strategy_id': strategy.strategy_id,
+                    'title': title,
+                    'content': content,
+                    'level': level,
+                    'status': 0,
+                    'biz': biz,
+                    'source': source,
+                    'metric': metric,
+                    'tags': json.dumps(tags or {}, ensure_ascii=False),
+                    'ext_params': '{}',
+                    'create_time': datetime.now(),
+                }
+                AlertRecordDao.sync_add_record(db, dict(record_values))
+                # 转发渠道使用记录内容(record_values 即可作为渠道 payload)
+                dispatch_forward(record_values, forward_conf if isinstance(forward_conf, list) else [])
+                n += 1
+            return n
+        finally:
+            if tenant_token is not None:
+                RequestContext.reset_current_tenant_id(tenant_token)
+
     @classmethod
     def handle_task_fail_alert_sync(
         cls,
@@ -160,58 +230,34 @@ class AlertService:
         # 任务类型映射(对齐 ezdata)
         task_type_map = {'normal_task': '普通任务', 'dag_task': '任务工作流', 'dag_node_task': '任务工作流节点任务'}
 
-        from common.context import RequestContext
-
         session_local = get_sync_session_local()
         db = session_local()
-        tenant_token = None
         try:
             task = db.execute(select(Task).where(Task.id == task_id)).scalars().first()
             if task is None or not task.alert_strategy_ids:
                 return
-            # 多租户：按任务所属租户盖章告警记录(Worker 无请求上下文)
-            tenant_token = RequestContext.set_current_tenant_id(task.tenant_id)
-            strategy_ids = [int(i) for i in str(task.alert_strategy_ids).split(',') if i.strip().isdigit()]
-            strategies = AlertStrategyDao.sync_get_enabled_strategies(db, strategy_ids)
-            if not strategies:
-                return
-
-            task_name = task.name
             content = (
-                f'{task_type_map.get(task_type, "普通任务")}失败告警:{task_name} 在重试{retries}次后仍失败。'
+                f'{task_type_map.get(task_type, "普通任务")}失败告警:{task.name} 在重试{retries}次后仍失败。'
                 f'任务报错：{exception_file}:{exception_line}:{exception[:500]}'
             )
-            for strategy in strategies:
-                trigger_conf = _parse_json(strategy.trigger_conf, {})
-                forward_conf = _parse_json(strategy.forward_conf, [])
-                level = int(trigger_conf.get('level', 0) or 0)
-                tags = {
-                    'instance_id': instance_id,
-                    'worker': worker,
-                    'retries': retries,
-                    'task_id': task_id,
-                    'exception_file': exception_file,
-                    'exception_line': exception_line,
-                }
-                record_values = {
-                    'strategy_id': strategy.strategy_id,
-                    'title': f'任务执行失败: {task_name}',
-                    'content': content,
-                    'level': level,
-                    'status': 0,
-                    'biz': 'scheduler',
-                    'source': task_name,
-                    'metric': 'task_fail',
-                    'tags': json.dumps(tags, ensure_ascii=False),
-                    'ext_params': '{}',
-                    'create_time': datetime.now(),
-                }
-                AlertRecordDao.sync_add_record(db, dict(record_values))
-                # 转发渠道使用记录内容(record_values 即可作为渠道 payload)
-                dispatch_forward(record_values, forward_conf if isinstance(forward_conf, list) else [])
+            # 追加可点击的任务链接:落到任务管理页并按任务名过滤,收到告警即可点开定位
+            link = cls.build_task_link(task.name)
+            if link:
+                content += f'\n查看任务：{link}'
+            tags = {
+                'instance_id': instance_id,
+                'worker': worker,
+                'retries': retries,
+                'task_id': task_id,
+                'exception_file': exception_file,
+                'exception_line': exception_line,
+            }
+            cls.dispatch_task_alert(
+                db, task,
+                title=f'任务执行失败: {task.name}',
+                content=content, biz='scheduler', source=task.name, metric='task_fail', tags=tags,
+            )
         except Exception as e:
             loguru_logger.error(f'处理任务失败告警异常: {e}')
         finally:
-            if tenant_token is not None:
-                RequestContext.reset_current_tenant_id(tenant_token)
             db.close()
