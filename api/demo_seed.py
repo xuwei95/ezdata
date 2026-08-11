@@ -1784,10 +1784,18 @@ _INVOKE = 'module_task_schedule.dispatch.run_task'
 
 _DS_SQL = text("""INSERT INTO data_source (id,name,code,source_type,family,config,secrets,status,remark,create_by,create_time,tenant_id)
 VALUES (:id,:name,:code,:stype,:family,:config,NULL,'ok',:remark,'admin',:now,:tenant)""")
-_TASK_SQL = text("""INSERT INTO task (id,template_code,task_type,run_type,name,params,status,built_in,trigger_type,crontab,priority,retry,countdown,run_queue,create_by,create_time,remark,tenant_id)
-VALUES (:id,'DataIntegrationTask',1,1,:name,:params,1,0,:trigger,:crontab,1,0,60,'default','admin',:now,:remark,:tenant)""")
+_TASK_SQL = text("""INSERT INTO task (id,template_code,task_type,run_type,name,params,status,built_in,trigger_type,crontab,priority,retry,countdown,run_queue,alert_strategy_ids,create_by,create_time,remark,tenant_id)
+VALUES (:id,'DataIntegrationTask',1,1,:name,:params,1,0,:trigger,:crontab,1,0,60,'default',:alert_ids,'admin',:now,:remark,:tenant)""")
 _JOB_SQL = text("""INSERT INTO sys_job (job_name,job_group,job_executor,invoke_target,job_args,cron_expression,misfire_policy,concurrent,status,create_by,create_time,tenant_id)
 VALUES (:jn,'default','default',:inv,:args,:cron,'2','1','0','admin',:now,:tenant)""")
+
+# 默认告警策略:任务失败 → 站内通知 admin(挂到所有 demo 任务的 alert_strategy_ids)。
+# forward_conf 用 notice 渠道、notice_users='admin';trigger_conf.level=1(中)。status=1 启用。
+_ALERT_STRATEGY_NAME = '默认-任务失败通知(admin)'
+_ALERT_STRATEGY_TRIGGER = json.dumps({'level': 1}, ensure_ascii=False)
+_ALERT_STRATEGY_FORWARD = json.dumps([{'type': 'notice', 'notice_users': 'admin'}], ensure_ascii=False)
+_ALERT_SQL = text("""INSERT INTO alert_strategy (strategy_name,biz,trigger_conf,forward_conf,status,create_by,create_time,tenant_id)
+VALUES (:name,'scheduler',:trigger,:forward,1,'admin',:now,:tenant)""")
 _MODEL_SQL = text("""INSERT INTO data_model (id,name,code,datasource_code,kind,object_name,auth,status,remark,create_by,create_time,tenant_id)
 VALUES (:id,:name,:code,:ds,'index',:obj,'query,extract,api',1,:remark,'admin',:now,:tenant)""")
 _APP_SQL = text("""INSERT INTO ai_app (app_id,name,description,app_type,status,config,user_id,create_by,create_time,tenant_id)
@@ -1833,6 +1841,23 @@ def seed_metadata() -> int:
                     'tenant': TENANT,
                 },
             )
+        # 默认告警策略(幂等:先删同名再插),返回自增 id 挂到每个 demo 任务
+        db.execute(
+            text('DELETE FROM alert_strategy WHERE strategy_name=:n AND tenant_id=:t'),
+            {'n': _ALERT_STRATEGY_NAME, 't': TENANT},
+        )
+        alert_r = db.execute(
+            _ALERT_SQL,
+            {
+                'name': _ALERT_STRATEGY_NAME,
+                'trigger': _ALERT_STRATEGY_TRIGGER,
+                'forward': _ALERT_STRATEGY_FORWARD,
+                'now': now,
+                'tenant': TENANT,
+            },
+        )
+        alert_ids = str(alert_r.lastrowid)
+
         for tid, name, params, idx, label, cron, desc in TASKS:
             jn = 'TASK_' + tid
             db.execute(text('DELETE FROM task WHERE id=:id'), {'id': tid})
@@ -1847,6 +1872,7 @@ def seed_metadata() -> int:
                     'trigger': trigger,
                     'crontab': cron,
                     'remark': desc,
+                    'alert_ids': alert_ids,  # 挂默认「任务失败通知 admin」告警策略
                     'now': now,
                     'tenant': TENANT,
                 },
