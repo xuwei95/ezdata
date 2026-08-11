@@ -35,6 +35,7 @@ class DocumentCreateReq(_Base):
     name: str = Field(description='文档名')
     document_type: str = Field(default='upload_file', description='upload_file/website/text/datamodel')
     file_key: str | None = Field(default=None, description='文件 key(upload_file)')
+    file_id: str | None = Field(default=None, description='文件管理 fileId(upload_file,用于登记业务引用)')
     source: str | None = Field(default=None, description='URL / datamodel_id 等')
     text: str | None = Field(default=None, description='直接粘贴的文本(text 类型)')
     chunk_strategy: dict | None = Field(default=None, description='切分策略 chunk_size/chunk_overlap')

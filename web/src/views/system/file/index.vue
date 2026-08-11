@@ -15,6 +15,16 @@
       <el-col :span="1.5">
         <el-button
           type="primary"
+          icon="Upload"
+          @click="uploadOpen = true"
+          v-hasPermi="['system:file:list']"
+        >
+          上传
+        </el-button>
+      </el-col>
+      <el-col :span="1.5">
+        <el-button
+          type="primary"
           plain
           icon="Lock"
           :disabled="privateMultiple"
@@ -159,6 +169,34 @@
     <file-audit-drawer ref="auditDrawerRef" />
     <file-reconcile-drawer ref="reconcileDrawerRef" @refresh="getList" />
     <file-preview-dialog ref="previewDialogRef" />
+
+    <el-dialog v-model="uploadOpen" title="上传文件" width="480px" append-to-body>
+      <el-form label-width="90px">
+        <el-form-item label="访问类型">
+          <el-radio-group v-model="uploadAccessType">
+            <el-radio value="private">受保护(需授权下载)</el-radio>
+            <el-radio value="public">公开</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="选择文件">
+          <el-upload
+            drag
+            :action="uploadAction"
+            :headers="uploadHeaders"
+            :show-file-list="true"
+            :on-success="handleUploadSuccess"
+            :on-error="handleUploadError"
+            style="width: 100%"
+          >
+            <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+            <div class="el-upload__text">将文件拖到此处，或<em>点击上传</em></div>
+          </el-upload>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="uploadOpen = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -184,8 +222,29 @@ import FileSearchForm from "./components/FileSearchForm.vue";
 import FileStatistics from "./components/FileStatistics.vue";
 import FileTable from "./components/FileTable.vue";
 import FileTransferDialog from "./components/FileTransferDialog.vue";
+import { UploadFilled } from "@element-plus/icons-vue";
+import { getToken } from "@/utils/auth";
 
 const { proxy } = getCurrentInstance();
+const uploadOpen = ref(false);
+const uploadAccessType = ref("private");
+const uploadHeaders = computed(() => ({ Authorization: "Bearer " + getToken() }));
+const uploadAction = computed(
+  () =>
+    import.meta.env.VITE_APP_BASE_API +
+    (uploadAccessType.value === "public" ? "/common/upload" : "/common/files/upload")
+);
+function handleUploadSuccess(res) {
+  if (res && res.code === 200) {
+    proxy.$modal.msgSuccess("上传成功");
+    getList();
+  } else {
+    proxy.$modal.msgError((res && res.msg) || "上传失败");
+  }
+}
+function handleUploadError() {
+  proxy.$modal.msgError("上传失败");
+}
 const fileList = ref([]);
 const loading = ref(true);
 const showSearch = ref(true);

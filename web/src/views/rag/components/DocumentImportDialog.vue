@@ -124,7 +124,7 @@ watch(
   },
 )
 
-function onTypeChange() { docForm.value.fileKey = ''; docForm.value.uploadedName = ''; uploading.value = false }
+function onTypeChange() { docForm.value.fileKey = ''; docForm.value.fileId = ''; docForm.value.uploadedName = ''; uploading.value = false }
 function beforeUpload(file) {
   if (file.size > 50 * 1024 * 1024) { proxy.$modal.msgError('文件不能超过 50MB'); return false }
   uploading.value = true; uploadPercent.value = 0
@@ -135,6 +135,7 @@ function onUploaded(res, file) {
   uploading.value = false
   if (res && res.code === 200) {
     docForm.value.fileKey = res.fileName || res.url
+    docForm.value.fileId = res.fileId
     docForm.value.uploadedName = res.originalFilename || res.newFileName || file?.name || '已上传'
     if (!docForm.value.name) docForm.value.name = docForm.value.uploadedName
     proxy.$modal.msgSuccess('上传成功')
@@ -143,7 +144,7 @@ function onUploaded(res, file) {
   }
 }
 function onUploadError() { uploading.value = false; proxy.$modal.msgError('上传失败,请检查文件类型或大小') }
-function clearUpload() { docForm.value.fileKey = ''; docForm.value.uploadedName = '' }
+function clearUpload() { docForm.value.fileKey = ''; docForm.value.fileId = ''; docForm.value.uploadedName = '' }
 
 function submitDoc() {
   docRef.value.validate((valid) => {
@@ -156,7 +157,7 @@ function submitDoc() {
     docSubmitting.value = true
     addDocument({
       datasetId: props.datasetId, name: f.name, documentType: f.documentType,
-      fileKey: f.fileKey, source: f.source, text: f.text, autoTrain: true,
+      fileKey: f.fileKey, fileId: f.fileId, source: f.source, text: f.text, autoTrain: true,
       chunkStrategy: { strategy: f.strategy, contextual: f.contextual, chunk_size: f.chunkSize, chunk_overlap: f.chunkOverlap },
     }).then(() => {
       proxy.$modal.msgSuccess('已创建,开始训练')
