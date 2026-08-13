@@ -1,8 +1,5 @@
-import asyncio
-import json
 import uuid
 from collections.abc import AsyncGenerator
-from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,13 +9,19 @@ from module_ai.entity.vo.ai_chat_vo import (
     AiChatRequestModel,
 )
 from module_ai.entity.vo.ai_model_vo import AiModelModel
-from module_ai.service.chat import agent_factory, app_spec, recipe_fastpath, session_store, stream_translator
+from module_ai.service.chat import (
+    agent_factory,
+    app_spec,
+    mcp_bridge,
+    recipe_fastpath,
+    session_store,
+    stream_translator,
+)
 from module_ai.service.chat.prompts import (
     _PASSTHROUGH_BUILTIN,
     _SCOPED_ASK_INSTRUCTIONS,
     _default_builtin_codes,
 )
-from utils.log_util import logger
 
 # 本文件已瘦身为「编排门面」。实现分布在 chat/ 包:
 # - prompts.py:提示词/意图常量 + _default_builtin_codes
@@ -221,7 +224,7 @@ class AiChatService:
         member_specs: list[dict] = []  # 多 agent:引用的应用作为 Team 成员的装配规格
         if not app_cfg:
             # 普通对话:MCP 工具来自用户对话设置
-            mcp_configs = await cls._load_mcp_configs(query_db, user_config)
+            mcp_configs = await mcp_bridge.load_mcp_configs(query_db, user_config)
             # 多 agent:用户在对话设置里引用的应用 → 解析成 Team 成员
             for aid in cls._load_agent_app_ids(user_config):
                 spec = await cls._resolve_app_agent_spec(query_db, aid, user_id, session_id, temperature)
@@ -350,115 +353,15 @@ class AiChatService:
                 yield chunk
             return
 
-        # 有 MCP:在独立 worker task 内连 MCP + 跑 agent/Team,队列桥接给本生成器。
-        # MCPTools 基于 anyio cancel scope,其进入/退出必须在同一 task;放进 worker 可避免与
-        # 请求 DB 会话/生成器收尾跨 task 冲突("exit cancel scope in a different task")。
-        queue: asyncio.Queue = asyncio.Queue(maxsize=256)
-        sentinel = object()
-
-        async def _run_with_tools(extra_tools: list) -> None:
+        # 有 MCP:交给 mcp_bridge,在独立 worker task 内连 MCP + 跑 agent/Team,队列桥接回本生成器。
+        # run_stream 的首次迭代(agent/Team 构造 + arun)发生在 worker task 内、MCPTools 作用域中,
+        # 满足 anyio cancel scope 同 task 约束(详见 mcp_bridge 模块 docstring)。
+        async def _run_stream(extra_tools: list) -> AsyncGenerator[str, None]:
             async for chunk in stream_translator.stream_agent(agent=_runnable(extra_tools), **stream_kwargs):
-                await queue.put(chunk)
-
-        async def _worker() -> None:
-            try:
-                logger.info(
-                    f'[MCP worker] 启动,选中 {len(all_mcp_configs)} 个 MCP 工具,{len(member_specs)} 个成员 agent'
-                )
-                await cls._with_mcp_tools(all_mcp_configs, [], _run_with_tools)
-                logger.info('[MCP worker] 正常结束')
-            except Exception as e:
-                logger.exception(f'[MCP worker] 异常: {e}')
-                await queue.put(json.dumps({'error': str(e), 'type': 'error'}, ensure_ascii=False) + '\n')
-            finally:
-                await queue.put(sentinel)
-
-        task = asyncio.create_task(_worker())
-        emitted = 0
-        stuck = False
-        idle_timeout = 120  # 秒:超过此时长无任何输出则判定卡住(MCP/模型无响应),中断并报错而非冻结
-        try:
-            while True:
-                try:
-                    chunk = await asyncio.wait_for(queue.get(), timeout=idle_timeout)
-                except asyncio.TimeoutError:
-                    stuck = True
-                    logger.warning(f'[MCP worker] {idle_timeout}s 无输出,判定卡住,中断(已输出 {emitted} 段)')
-                    yield (
-                        json.dumps(
-                            {
-                                'error': f'工具调用 {idle_timeout}s 无响应,已中断(可能是 MCP 服务或模型卡住,请重试或减少所选工具)',
-                                'type': 'error',
-                            },
-                            ensure_ascii=False,
-                        )
-                        + '\n'
-                    )
-                    break
-                if chunk is sentinel:
-                    break
-                emitted += 1
                 yield chunk
-            if not stuck:  # 正常结束:等 worker 收尾(它已 put sentinel,很快完成)
-                await task
-                logger.info(f'[MCP worker] 生成器完成,共输出 {emitted} 段')
-        finally:
-            if not task.done():
-                logger.warning(f'[MCP worker] worker 未结束(已输出 {emitted} 段),取消')
-                task.cancel()
-                try:
-                    await task
-                except BaseException:
-                    pass
 
-    @classmethod
-    async def _load_mcp_configs(cls, query_db: AsyncSession, user_config: AiChatConfigModel) -> list[dict]:
-        """按用户配置 mcp_tool_ids 取启用的 MCP 工具配置(只读 DB,不建连接)。"""
-        raw = (getattr(user_config, 'mcp_tool_ids', None) or '').strip()
-        if not raw:
-            return []
-        try:
-            ids = [int(x) for x in raw.split(',') if x.strip()]
-        except ValueError:
-            return []
-        from module_ai.service.ai_tool_service import AiToolService
-
-        return await AiToolService.get_enabled_mcp_tools_by_ids(query_db, ids)
-
-    @classmethod
-    async def _with_mcp_tools(cls, configs: list[dict], connected: list, cb: Any) -> None:
-        """递归地用**直接 async with** 逐个连上 MCP server,全部进入后在最内层调 cb(connected)。
-
-        为何递归而非 AsyncExitStack:agno MCPTools 基于 anyio,经 AsyncExitStack 退出时
-        stdio_client 的 cancel scope 会"跨 task"报错;直接嵌套 async with 进出都在本 task,稳。
-        单个连接失败则跳过该工具、继续其余(已连的保持在外层 async with 帧内)。
-        """
-        if not configs:
-            await cb(connected)
-            return
-        try:
-            from agno.tools.mcp import MCPTools
-        except Exception as e:
-            logger.warning(f'MCP 依赖未安装,跳过 MCP 工具装配: {e}')
-            await cb(connected)
-            return
-        from module_ai.service.ai_tool_service import AiToolService
-
-        cfg, rest = configs[0], configs[1:]
-        try:
-            kwargs = AiToolService.build_mcp_kwargs(cfg['args'])
-        except Exception as e:
-            logger.warning(f'MCP 工具配置无效,跳过 {cfg.get("code")}: {e}')
-            await cls._with_mcp_tools(rest, connected, cb)
-            return
-        try:
-            async with MCPTools(**kwargs) as t:
-                logger.info(f'MCP 工具已连接: {cfg["code"]} ({len(getattr(t, "functions", None) or {})} 个方法)')
-                t._ezdata_code = cfg['code']  # 标记来源 code,便于多 agent 时按应用分发
-                await cls._with_mcp_tools(rest, [*connected, t], cb)
-        except Exception as e:
-            logger.warning(f'MCP 工具连接失败,跳过 {cfg["code"]}: {e}')
-            await cls._with_mcp_tools(rest, connected, cb)
+        async for chunk in mcp_bridge.stream_with_mcp_bridge(all_mcp_configs, len(member_specs), _run_stream):
+            yield chunk
 
     # —— 构造工厂 / 应用装配:实现在 chat.agent_factory / chat.app_spec,此处委派 ——
     # (_resolve_chat_model_config 亦被 module_ai/module_data 外部直接调用,委派保其可达)
