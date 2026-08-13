@@ -2,129 +2,37 @@ import asyncio
 import json
 import os
 import uuid
-from collections.abc import AsyncGenerator, AsyncIterator
-from datetime import datetime
-from typing import TYPE_CHECKING, Any
+from collections.abc import AsyncGenerator
+from typing import Any
 
 from agno.agent import Agent
-from agno.db.base import SessionType
-from agno.exceptions import InputCheckError
 from agno.media import Image
-from agno.run.agent import RunEvent, RunOutput, RunOutputEvent
-from agno.run.cancel import acancel_run
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from common.vo import CrudResponseModel
 from config.env import UploadConfig
 from exceptions.exception import ServiceException
-from module_ai.dao.ai_chat_dao import AiChatConfigDao
 from module_ai.dao.ai_model_dao import AiModelDao
-from module_ai.entity.do.ai_chat_do import AiChatConfig
 from module_ai.entity.vo.ai_chat_vo import (
-    AgentDataModel,
     AiChatConfigModel,
     AiChatRequestModel,
-    AiChatSessionBaseModel,
-    AiChatSessionModel,
-    ChatMessageModel,
-    MessageMetrics,
-    SessionDataModel,
-    SessionMetricsModel,
 )
 from module_ai.entity.vo.ai_model_vo import AiModelModel
+from module_ai.service.chat import recipe_fastpath, session_store, stream_translator
+from module_ai.service.chat.prompts import (
+    _DATA_AGENT_INSTRUCTIONS,
+    _PASSTHROUGH_BUILTIN,
+    _SCOPED_ASK_INSTRUCTIONS,
+    _WEAK_AGENT_NUDGE,
+    _default_builtin_codes,
+)
 from utils.ai_util import AiUtil
 from utils.common_util import CamelCaseUtil
 from utils.crypto_util import CryptoUtil
 from utils.log_util import logger
 
-if TYPE_CHECKING:
-    from agno.models.message import Message
-    from agno.run.team import TeamRunOutput
-    from agno.run.workflow import WorkflowRunOutput
-    from agno.session import Session
-
-
-def _short(v: Any, n: int = 300) -> str:
-    """转字符串并截断(仅用于过程展示,不影响给 LLM 的内容)。"""
-    s = v if isinstance(v, str) else json.dumps(v, ensure_ascii=False, default=str)
-    return s if len(s) <= n else s[:n] + '…'
-
-
-def _short_args(args: Any, n: int = 600) -> Any:
-    """工具参数逐值截断(code 等长参数防刷屏)。"""
-    if not isinstance(args, dict):
-        return _short(args, n)
-    return {k: (_short(v, n) if isinstance(v, str) else v) for k, v in args.items()}
-
-
-# 数据 agent 工作流指令:约束"取数前先查知识库里验证过的解法",让收藏的解法被真正复用。
-# 这是工具用法层面的固定规则(由我们提供的工具决定),与用户自定义 system_prompt 叠加生效。
-# 常驻核心(每轮注入):只保留不可省的漏斗主流程。出图/ES/任务cron 等条件性专题已抽成
-# 内置 Skill(chart_building/es_query/task_scheduling),由模型按需 load_skill 拉取——
-# 详见 docs/skill-agent-optimization.md。
-_DATA_AGENT_INSTRUCTIONS: list[str] = [
-    '你是 ezdata 的数据分析助手:可发现数据源、查表结构、检索数据源知识库,并在沙箱里跑取数/计算代码、产出结论与图表表格。',
-    '取数工作流(务必按序,目标是尽量少绕圈、少调工具):',
-    '1. 先看上面「数据源与关键表」目录判断目标数据源编码;目录已能认出源/表时,不要再调 list_datasources。'
-    '   仅当目录里没有、或拿不准时,才用 list_datasources 认源。',
-    '2. 【关键·先查解法】在写任何取数代码、甚至查表结构之前,先调用 '
-    'search_datasource_knowledge(datasource_code, query=用户的原始问题),查该源是否已有”验证过的解法”'
-    '(标注 QA 的历史问答,answer 即可直接运行的取数/分析代码):命中→**直接复用、或仅按本次差异微调后运行**,'
-    '不要从零重写、也不必再逐个 get_table_schema;未命中→进第 3 步。',
-    '3. 没有可用解法时:用 get_table_schema 查清目标表字段/调用参数 → run_datasource_query 编写取数代码。'
-    '**优先一段成型**:取数+清洗+计算+(需要就出图)写进同一段 run_datasource_query 代码里一次跑完,别拆成多次调用来回试'
-    '(沙箱无状态,分多次要重复取数、更慢更费轮次);要看中间数据就在同段 print。',
-    '4. 取数/计算成功后正常作答;无需声称”已存入知识库”(由用户点”收藏到知识库”决定)。',
-    '一句话:先复用已验证解法,不行再发现现写;单次调用尽量一段成型,能省一轮工具调用就省一轮。',
-    # 条件性专题的完整手册在内置技能里,按需 load_skill;此处只留各自「一条最易错的关键规则」兜底,
-    # 防模型跳过加载时丢掉要点(完整版见 docs/skill-agent-optimization.md)。
-    '出图:默认 plot_chart 且让 native(SQL 写 GROUP BY/ORDER BY/LIMIT、度量 agg=none)**直接返回要画的最终值**,'
-    '别靠前端二次聚合(会把总和/极值算错);多重聚合/多步计算才改 run_datasource_query 写代码——完整分流规则 load_skill("chart_building")。',
-    'Elasticsearch 源:文本字段做聚合/精确匹配/排序必须用 .keyword 子字段;取明细/时序要显式写足 size(默认只回10条)——更多注意 load_skill("es_query")。',
-    '要新建/修改/复制定时任务(含 cron 写法)→ 先 load_skill("task_scheduling") 拿流程与 7 段 Quartz cron 规则再动手,别凭记忆写 cron。',
-]
-
-# Recipe 快路的"回退哨兵":_stream_recipe_fastpath 执行失败时 yield 此对象,chat_services 见到即回退到模型。
-_RECIPE_FALLBACK = object()
-
-# 稍弱模型专项强化(仅弱模型追加):压制跳步/凭记忆硬写,强调按工具返回的写法调用
-_WEAK_AGENT_NUDGE = (
-    '【稳妥执行(要点)】① 严格按上面取数工作流逐步来、不要跳步,一次只做一步、看清工具返回再继续;'
-    '② 出图/建任务/ES 等专项先 load_skill 拿手册再动手,别凭记忆硬写;'
-    '③ handler.query 严格按 get_table_schema 给出的该源写法调用——'
-    'ES 是单个 dict `handler.query({"index":"索引","body":{DSL}})`,不要写成 handler.query("索引", {DSL}) 两参;'
-    '④ 聚合尽量下推到查询(ES 用 aggs+size:0、文本字段用 .keyword),别只靠前端/记忆估算;'
-    '⑤ 沙箱每次执行都是全新隔离进程、不保留上次的变量——取数与加工写进同一段 code,'
-    '别引用上一次调用留下的 result/df(否则 NameError)。'
-)
-
-# 「AI 洞察」锁定单表的交互式问数:行为约束(与主对话 _DATA_AGENT_INSTRUCTIONS 并列,但聚焦单表、只读、简洁)
-_SCOPED_ASK_INSTRUCTIONS = (
-    '你是聚焦「当前这张表」的数据分析助手,只针对上文指定的数据源+表回答用户问题。'
-    '工作流:必要时用 get_table_schema 确认字段 → 用 run_datasource_query 编写只读取数/计算代码(优先一段成型)'
-    '→ 需要图表时用 plot_chart 或在代码里出图(经产物通道渲染)。'
-    '只读:绝不写库/改数。尽量少绕圈,单次问答控制在约 6 次工具调用内。最后给要点式中文结论。'
-)
-
-# 用户可在「工具」下拉里自选、按需挂载的内置工具集 code(其余内置工具由平台按能力自动挂载:
-# data_explore/sandbox_code 由「数据分析」数据源选择控制,不在此白名单)。
-_PASSTHROUGH_BUILTIN = {'task_propose', 'baidu_search'}
-
-# 任务管理意图关键词:命中才给普通对话挂 task_propose 工具集(它 docstring 很大、每轮重发,
-# 纯查数/出图轮用不上)。宁可多挂(误挂只是这轮多花 token,无正确性损失),故词表偏宽。
-_TASK_INTENT_KW = (
-    '任务', '作业', '定时', '调度', 'cron', 'crontab', '定期', '周期', '跑批', '批量抓',
-    '每天', '每日', '每周', '每月', '每小时', '每分钟', '每隔', '每晚', '工作日', '交易日', '自动化',
-)
-
-
-def _default_builtin_codes(message: str | None) -> list[str]:
-    """普通对话默认内置工具:data_explore + sandbox_code + baidu_search;
-    仅当消息含任务管理意图时才追加 task_propose(避免其大 docstring 每轮白发)。"""
-    codes = ['data_explore', 'sandbox_code', 'baidu_search']
-    if message and any(k in message for k in _TASK_INTENT_KW):
-        codes.append('task_propose')
-    return codes
+# 提示词/意图常量与 _default_builtin_codes 已抽到 chat/prompts.py;
+# Recipe 快路(含回退哨兵 RECIPE_FALLBACK)已抽到 chat/recipe_fastpath.py;
+# 流式事件→SSE 翻译(stream_agent + _short/_short_args)已抽到 chat/stream_translator.py。
 
 
 def _make_baidu_tools() -> Any:
@@ -186,47 +94,6 @@ class AiChatService:
         num_history = user_config.num_history_runs or 5
 
         return bool(add_history), int(num_history)
-
-    @staticmethod
-    def _rebuild_blocks(m: 'Message', tool_results: dict[str, Any]) -> list[dict] | None:
-        """把一条 assistant 消息重建成与流式同构的 blocks(文字 + 工具调用),供历史回放展示工具调用。
-
-        tool_results: {tool_call_id: 结果文本}(由 role='tool' 的消息预索引)。
-        工具调用参数(arguments)为 JSON 串 → 解析成 dict;结果从 tool_results 回填。
-        """
-        blocks: list[dict] = []
-        if m.content:
-            blocks.append({'type': 'text', 'text': m.content})
-        for tc in getattr(m, 'tool_calls', None) or []:
-            if isinstance(tc, dict):
-                tc_id = tc.get('id')
-                fn = tc.get('function') or {}
-                name = fn.get('name')
-                raw_args = fn.get('arguments')
-            else:  # 对象形态兜底
-                tc_id = getattr(tc, 'id', None)
-                fn = getattr(tc, 'function', None)
-                name = getattr(fn, 'name', None) if fn else None
-                raw_args = getattr(fn, 'arguments', None) if fn else None
-            args: Any = raw_args
-            if isinstance(raw_args, str):
-                try:
-                    args = json.loads(raw_args)
-                except (ValueError, TypeError):
-                    args = raw_args
-            result = tool_results.get(tc_id)
-            err = isinstance(result, str) and result.lstrip().startswith(('执行失败', '调用沙箱失败', '数据源解析失败'))
-            blocks.append(
-                {
-                    'type': 'tool',
-                    'id': tc_id,
-                    'name': name,
-                    'args': args,
-                    'status': 'error' if err else 'done',
-                    'result': result,
-                }
-            )
-        return blocks or None
 
     @classmethod
     async def _resolve_chat_model_config(cls, query_db: AsyncSession, model_id: int) -> AiModelModel:
@@ -592,326 +459,6 @@ class AiChatService:
         return run_kwargs
 
     @classmethod
-    def _convert_images_to_upload_paths(cls, images: list[Image] | None) -> list[str] | None:
-        """
-        将Agno Image对象列表转换为前端可访问的上传路径列表
-
-        :param images: Image对象列表
-        :return: 上传路径列表
-        """
-        if not images:
-            return None
-
-        result = []
-        for img in images:
-            # 如果是本地文件路径
-            if hasattr(img, 'filepath') and img.filepath:
-                try:
-                    # 使用 abspath 确保路径标准化
-                    abs_filepath = os.path.abspath(img.filepath)
-                    abs_upload_path = os.path.abspath(UploadConfig.UPLOAD_PATH)
-
-                    if abs_filepath.startswith(abs_upload_path):
-                        relative_path = os.path.relpath(abs_filepath, abs_upload_path)
-                        # 转换路径分隔符为URL格式
-                        url_path = relative_path.replace(os.sep, '/')
-                        # 拼接前缀
-                        full_url = f'{UploadConfig.UPLOAD_PREFIX}/{url_path}'.replace('//', '/')
-                        result.append(full_url)
-                    else:
-                        result.append(img.filepath)
-                except Exception:
-                    result.append(img.filepath)
-            # 如果是URL
-            elif hasattr(img, 'url') and img.url:
-                result.append(img.url)
-
-        return result if result else None
-
-    @classmethod
-    async def _stream_agent(
-        cls,
-        agent: Agent,
-        chat_req: AiChatRequestModel,
-        run_kwargs: dict[str, Any],
-        is_reasoning: bool,
-        session_id: str,
-        artifacts: list | None = None,
-        ui_actions: list | None = None,
-    ) -> AsyncGenerator[str, None]:
-        """
-        将Agent输出流式转换为前端SSE消息
-
-        :param agent: Agent实例
-        :param chat_req: 对话请求对象
-        :param run_kwargs: 运行参数字典
-        :param is_reasoning: 是否输出推理内容
-        :param session_id: 会话ID
-        :return: SSE消息生成器
-        """
-        full_response = ''
-        full_reasoning = ''
-        arts = artifacts if artifacts is not None else []
-        emitted = 0  # 已发出的产物游标
-        acts = ui_actions if ui_actions is not None else []
-        acts_emitted = 0  # 已发出的任务提议(ui_action)游标
-        try:
-            yield json.dumps({'session_id': session_id, 'type': 'meta'}) + '\n'
-
-            response_stream: AsyncIterator[RunOutputEvent] = agent.arun(chat_req.message, **run_kwargs)
-
-            async for chunk in response_stream:
-                content = None
-                reasoning = None
-
-                # 事件归一:Team 的 leader 事件值带 "Team" 前缀(TeamRunContent…),成员(普通 Agent)事件不带。
-                # 去前缀后按 RunEvent 值比对,使 Team 与单 Agent 共用同一套处理。
-                ev = chunk.event
-                ev_str = ev.value if hasattr(ev, 'value') else str(ev)
-                base = ev_str[4:] if ev_str.startswith('Team') else ev_str
-                # 成员归属:非 Team 前缀且带 agent_name 的事件来自某成员(多 agent 时),用于前端"谁在说"标签;
-                # 单 agent 模式 leader 无 name → agent_name 为空,不影响既有行为。
-                member = None if ev_str.startswith('Team') else getattr(chunk, 'agent_name', None)
-
-                def _with_member(d: dict) -> dict:
-                    if member:
-                        d['agentName'] = member
-                    return d
-
-                if base == RunEvent.run_started.value and chunk.run_id:
-                    yield json.dumps({'run_id': chunk.run_id, 'type': 'run_info'}) + '\n'
-
-                # 工具调用过程(可观测):转发 start/end/error,前端渲染"执行过程"时间线
-                tl = getattr(chunk, 'tool', None)
-                if tl is not None:
-                    if base == RunEvent.tool_call_started.value:
-                        yield (
-                            json.dumps(
-                                _with_member(
-                                    {
-                                        'type': 'tool',
-                                        'phase': 'start',
-                                        'id': tl.tool_call_id,
-                                        'name': tl.tool_name,
-                                        'args': _short_args(tl.tool_args),
-                                    }
-                                ),
-                                ensure_ascii=False,
-                            )
-                            + '\n'
-                        )
-                    elif base == RunEvent.tool_call_completed.value:
-                        yield (
-                            json.dumps(
-                                _with_member(
-                                    {
-                                        'type': 'tool',
-                                        'phase': 'end',
-                                        'id': tl.tool_call_id,
-                                        'name': tl.tool_name,
-                                        'result': _short(tl.result, 300),
-                                    }
-                                ),
-                                ensure_ascii=False,
-                            )
-                            + '\n'
-                        )
-                    elif base == RunEvent.tool_call_error.value:
-                        yield (
-                            json.dumps(
-                                _with_member(
-                                    {
-                                        'type': 'tool',
-                                        'phase': 'error',
-                                        'id': tl.tool_call_id,
-                                        'name': tl.tool_name,
-                                        'error': _short(tl.tool_call_error or tl.result, 300),
-                                    }
-                                ),
-                                ensure_ascii=False,
-                            )
-                            + '\n'
-                        )
-
-                if base == RunEvent.run_content.value:
-                    content = chunk.content
-                    if hasattr(chunk, 'reasoning_content') and chunk.reasoning_content:
-                        reasoning = chunk.reasoning_content
-
-                if reasoning and is_reasoning:
-                    full_reasoning += reasoning
-                    yield json.dumps({'content': reasoning, 'type': 'reasoning'}) + '\n'
-
-                # 仅在最外层 Team/Agent 完成时报指标(成员完成不报,避免多次)
-                if base == RunEvent.run_completed.value and not member and getattr(chunk, 'metrics', None):
-                    yield (
-                        json.dumps(
-                            {'metrics': CamelCaseUtil.transform_result(chunk.metrics.to_dict()), 'type': 'metrics'}
-                        )
-                        + '\n'
-                    )
-
-                if content:
-                    full_response += content
-                    yield json.dumps(_with_member({'content': content, 'type': 'content'}), ensure_ascii=False) + '\n'
-
-                # 增量排空结构化产物(图表/表格):工具产出后即推给前端渲染
-                while emitted < len(arts):
-                    yield json.dumps({'artifact': arts[emitted], 'type': 'artifact'}, ensure_ascii=False) + '\n'
-                    emitted += 1
-
-                # 增量排空任务提议(ui_action):工具产出后即推给前端渲染成确认表单卡片
-                while acts_emitted < len(acts):
-                    yield json.dumps({'action': acts[acts_emitted], 'type': 'ui_action'}, ensure_ascii=False) + '\n'
-                    acts_emitted += 1
-
-            # 兜底:最后一次工具调用后(run_completed 之后)产生的产物 / 提议
-            while emitted < len(arts):
-                yield json.dumps({'artifact': arts[emitted], 'type': 'artifact'}, ensure_ascii=False) + '\n'
-                emitted += 1
-            while acts_emitted < len(acts):
-                yield json.dumps({'action': acts[acts_emitted], 'type': 'ui_action'}, ensure_ascii=False) + '\n'
-                acts_emitted += 1
-        except InputCheckError as e:
-            # 输入侧护栏命中(提示注入/高危意图):回友好提示,当作助手正常拒答而非系统错误
-            msg = getattr(e, 'message', None) or str(e)
-            yield json.dumps({'content': msg, 'type': 'content'}, ensure_ascii=False) + '\n'
-        except Exception as e:
-            yield json.dumps({'error': str(e), 'type': 'error'}) + '\n'
-
-    @classmethod
-    async def _recipe_fastpath_lookup(
-        cls, query_db: AsyncSession, chat_req: AiChatRequestModel, datasource_scope: list | None
-    ) -> tuple[str, str] | None:
-        """Recipe 快路查询:问题**一字不差**命中某数据源专属库里⭐收藏的解法(QA,question_hash=md5)
-        → 返回 (可直跑取数代码, 数据源编码);未命中/被关/多模态 → None(照常走模型)。
-
-        这是"确定性执行缓存":精确命中即确定,故可绕开模型直跑;非精确不进此路,避免误判。
-        """
-        from config.env import AiConfig
-
-        if not getattr(AiConfig, 'llm_recipe_fastpath', True):
-            return None
-        if getattr(chat_req, 'images', None):  # 多模态需模型
-            return None
-        q = (chat_req.message or '').strip()
-        if not q:
-            return None
-        from sqlalchemy import select
-
-        from module_data.entity.do.data_do import DataSource
-        from module_rag.entity.do.rag_do import RagChunk, RagDataset
-        from module_rag.runtime_util import md5
-
-        stmt = (
-            select(RagChunk.answer, DataSource.code)
-            .join(RagDataset, RagDataset.id == RagChunk.dataset_id)
-            .join(DataSource, DataSource.id == RagDataset.source_id)
-            .where(
-                RagChunk.chunk_type == 'qa',
-                RagChunk.star_flag == 1,  # 只有⭐标星的 QA(收藏的已验证解法)才走快路;普通/导入 QA 不绕开模型
-                RagChunk.question_hash == md5(q),
-                RagDataset.status == 1,
-            )
-        )
-        if datasource_scope:
-            stmt = stmt.where(DataSource.code.in_(list(datasource_scope)))
-        row = (await query_db.execute(stmt.limit(1))).first()
-        if not row or not (row[0] and row[1]):
-            return None
-        return row[0], row[1]
-
-    @classmethod
-    async def _stream_recipe_fastpath(
-        cls, session_id: str, code: str, datasource_code: str, datasource_scope: list | None, out: dict | None = None
-    ) -> AsyncGenerator[Any, None]:
-        """流式执行命中的解法(不经模型):meta → 命中提示 → 沙箱直跑 → 成功吐 artifact+结果+metrics;
-        失败/异常则吐提示并 yield `_RECIPE_FALLBACK`,由 chat_services 回退到模型继续。
-        沙箱执行沿用 SandboxCodeTools.run_datasource_query(只读护栏 + egress 白名单 + 图表可存看板)。
-        out(可选可变字典):成功时写入 out['answer']=结果文本,供 chat_services 落会话记录。"""
-        from fastapi.concurrency import run_in_threadpool
-
-        from module_ai.tools.sandbox_code_tools import SandboxCodeTools
-
-        yield json.dumps({'session_id': session_id, 'type': 'meta'}) + '\n'
-        yield json.dumps({'content': '🔖 命中已验证解法,直接执行(未经模型)…\n', 'type': 'content'}, ensure_ascii=False) + '\n'
-        arts: list = []
-        try:
-            tools = SandboxCodeTools(artifacts=arts, allowed_codes=datasource_scope, enable_datasource=True)
-            text = await run_in_threadpool(tools.run_datasource_query, datasource_code, code)
-        except Exception as e:
-            logger.warning(f'[recipe-fastpath] 执行异常,回退模型: {e}')
-            yield json.dumps({'content': '解法执行异常,转由模型继续处理…\n', 'type': 'content'}, ensure_ascii=False) + '\n'
-            yield _RECIPE_FALLBACK
-            return
-        _FAIL_PREFIX = ('执行失败', '查询失败', '调用沙箱失败', '数据源解析失败', '查询未执行', '该应用未授权')
-        if isinstance(text, str) and text.startswith(_FAIL_PREFIX):
-            logger.info(f'[recipe-fastpath] 解法执行失败,回退模型: {text[:80]}')
-            yield json.dumps({'content': '已验证解法这次没跑通,转由模型继续处理…\n', 'type': 'content'}, ensure_ascii=False) + '\n'
-            yield _RECIPE_FALLBACK
-            return
-        # 成功:先排空图表/表格产物,再吐结果文本 + 快路 metrics(标注未经模型、零 token)
-        for a in arts:
-            yield json.dumps({'artifact': a, 'type': 'artifact'}, ensure_ascii=False) + '\n'
-        if text:
-            yield json.dumps({'content': str(text), 'type': 'content'}, ensure_ascii=False) + '\n'
-        yield json.dumps({'metrics': {'fastPath': True, 'inputTokens': 0, 'outputTokens': 0, 'totalTokens': 0}, 'type': 'metrics'}) + '\n'
-        if out is not None:
-            out['answer'] = str(text) if text else ''  # 供上层落会话记录
-        logger.info(f'[recipe-fastpath] 命中直跑成功: ds={datasource_code}')
-
-    @classmethod
-    async def _persist_fastpath_turn(cls, session_id: str, user_id: int, question: str, answer: str) -> None:
-        """把 recipe 快路这一轮(用户问题 + 助手答案)落进 agno 会话,保证 transcript 与下一轮历史一致。
-        用 agno 原生 AgentSession/RunOutput/RunInput/Message 构造,schema 正确;失败只告警、不影响本轮。
-        (图表 artifact 的历史回放属增量,B 版先落文字。)"""
-        try:
-            import time
-            import uuid as _uuid
-
-            from agno.db.base import SessionType
-            from agno.models.message import Message
-            from agno.run.agent import RunInput, RunOutput
-            from agno.run.base import RunStatus
-            from agno.session import AgentSession
-
-            storage = AiUtil.get_storage_engine()
-            uid = str(user_id)
-            ts = int(time.time())
-            sess = await storage.get_session(session_id=session_id, session_type=SessionType.AGENT, user_id=uid)
-            if sess is None:
-                sess = await storage.get_session(session_id=session_id, session_type=SessionType.AGENT)
-            if sess is None:
-                # agent_id='chat-agent' 使会话进入普通对话列表(get_sessions 按 component_id 过滤);
-                # session_data/agent_data 置空 dict,对齐 agno 正常会话、避免 transcript 读取 NoneType。
-                sess = AgentSession(
-                    session_id=session_id, user_id=uid, agent_id='chat-agent',
-                    runs=[], session_data={}, agent_data={}, created_at=ts, updated_at=ts,
-                )
-            run = RunOutput(
-                run_id=str(_uuid.uuid4()),
-                session_id=session_id,
-                user_id=uid,
-                agent_id='chat-agent',  # 关键:AgentSession.from_dict 只保留 run dict 里含 agent_id 的 run,否则反序列化丢弃
-                input=RunInput(input_content=question),
-                content=answer,
-                created_at=ts,
-                status=RunStatus.completed,  # 关键:非 completed 的 run 会在反序列化时被 agno 过滤掉
-                messages=[
-                    Message(role='user', content=question, created_at=ts),
-                    Message(role='assistant', content=answer, created_at=ts),
-                ],
-            )
-            if sess.runs is None:
-                sess.runs = []
-            sess.runs.append(run)
-            sess.updated_at = ts
-            await storage.upsert_session(sess)
-            logger.info(f'[recipe-fastpath] 已落会话: session={session_id} runs={len(sess.runs)}')
-        except Exception as e:
-            logger.warning(f'[recipe-fastpath] 落会话失败(不影响本轮): {e}')
-
-    @classmethod
     async def scoped_ask_stream(
         cls,
         query_db: AsyncSession,
@@ -965,7 +512,7 @@ class AiChatService:
             question=question,
             is_reasoning=is_reasoning,
         )
-        async for chunk in cls._stream_agent(
+        async for chunk in stream_translator.stream_agent(
             agent=agent,
             chat_req=chat_req,
             run_kwargs={'stream': True, 'stream_events': True},
@@ -1067,18 +614,22 @@ class AiChatService:
         # —— Recipe 快路:问题一字不差命中⭐收藏的解法 → 沙箱直跑一次(不经模型),失败/异常再回退模型 ——
         # 放在 agent 装配之前:命中即秒回、省下模型与工具的一整轮开销;未命中/跑挂则 fall through 到下方正常流程。
         if datasource_query_enabled:
-            _hit = await cls._recipe_fastpath_lookup(query_db, chat_req, datasource_scope)
+            _hit = await recipe_fastpath.recipe_fastpath_lookup(query_db, chat_req, datasource_scope)
             if _hit:
                 _fell_back = False
                 _out: dict = {}
-                async for _sse in cls._stream_recipe_fastpath(session_id, _hit[0], _hit[1], datasource_scope, _out):
-                    if _sse is _RECIPE_FALLBACK:
+                async for _sse in recipe_fastpath.stream_recipe_fastpath(
+                    session_id, _hit[0], _hit[1], datasource_scope, _out
+                ):
+                    if _sse is recipe_fastpath.RECIPE_FALLBACK:
                         _fell_back = True
                         break
                     yield _sse
                 if not _fell_back:
                     # 落会话记录(transcript + 下一轮历史一致);失败只告警,不影响已返回结果
-                    await cls._persist_fastpath_turn(session_id, user_id, chat_req.message, _out.get('answer', ''))
+                    await recipe_fastpath.persist_fastpath_turn(
+                        session_id, user_id, chat_req.message, _out.get('answer', '')
+                    )
                     return  # 命中直跑成功 → 本轮结束,不进模型
 
         artifacts: list = []  # 工具(沙箱)产出的图表/表格收集器,经 _stream_agent 推给前端渲染
@@ -1178,7 +729,7 @@ class AiChatService:
 
         if not all_mcp_configs:
             # 无 MCP:直连路径(单 agent 保持既有行为不变;有成员则直接组 Team)
-            async for chunk in cls._stream_agent(agent=_runnable([]), **stream_kwargs):
+            async for chunk in stream_translator.stream_agent(agent=_runnable([]), **stream_kwargs):
                 yield chunk
             return
 
@@ -1189,7 +740,7 @@ class AiChatService:
         sentinel = object()
 
         async def _run_with_tools(extra_tools: list) -> None:
-            async for chunk in cls._stream_agent(agent=_runnable(extra_tools), **stream_kwargs):
+            async for chunk in stream_translator.stream_agent(agent=_runnable(extra_tools), **stream_kwargs):
                 await queue.put(chunk)
 
         async def _worker() -> None:
@@ -1372,261 +923,14 @@ class AiChatService:
             logger.warning(f'MCP 工具连接失败,跳过 {cfg["code"]}: {e}')
             await cls._with_mcp_tools(rest, connected, cb)
 
-    @classmethod
-    async def ai_chat_config_detail_services(cls, query_db: AsyncSession, user_id: int) -> AiChatConfigModel:
-        """
-        获取用户配置
+    # —— 会话 / 用户对话配置读写:实现在 chat.session_store,此处委派以保持公开 API(controller 调用面)不变 ——
+    ai_chat_config_detail_services = staticmethod(session_store.ai_chat_config_detail_services)
+    save_ai_chat_config_services = staticmethod(session_store.save_ai_chat_config_services)
+    get_chat_session_list_services = staticmethod(session_store.get_chat_session_list_services)
+    delete_chat_session_services = staticmethod(session_store.delete_chat_session_services)
+    get_chat_session_detail_services = staticmethod(session_store.get_chat_session_detail_services)
+    cancel_run_services = staticmethod(session_store.cancel_run_services)
 
-        :param query_db: orm对象
-        :param user_id: 用户ID
-        :return: 配置模型
-        """
-        chat_config = await AiChatConfigDao.get_chat_config_detail_by_user_id(query_db, user_id)
-        result = AiChatConfigModel(**CamelCaseUtil.transform_result(chat_config)) if chat_config else AiChatConfig()
-
-        return result
-
-    @classmethod
-    async def save_ai_chat_config_services(
-        cls, query_db: AsyncSession, user_id: int, page_object: AiChatConfigModel
-    ) -> CrudResponseModel:
-        """
-        保存用户配置
-
-        :param query_db: orm对象
-        :param user_id: 用户ID
-        :param page_object: AI对话配置对象
-        :return: 更新后的配置模型
-        """
-        chat_config = await AiChatConfigDao.get_chat_config_detail_by_user_id(query_db, user_id)
-        if page_object.user_id is None:
-            page_object.user_id = user_id
-
-        try:
-            if chat_config:
-                if chat_config.chat_config_id != page_object.chat_config_id:
-                    raise ServiceException(message='只允许修改当前用户的配置')
-                page_object.update_time = datetime.now()
-                edit_ai_chat_config = page_object.model_dump(exclude_unset=True)
-                await AiChatConfigDao.edit_chat_config_dao(query_db, edit_ai_chat_config)
-            else:
-                page_object.create_time = datetime.now()
-                await AiChatConfigDao.add_chat_config_dao(query_db, page_object)
-
-            await query_db.commit()
-        except Exception as e:
-            await query_db.rollback()
-            raise e
-
-        return CrudResponseModel(is_success=True, message='保存成功')
-
-    @classmethod
-    async def get_chat_session_list_services(
-        cls, user_id: int, app_id: str | None = None
-    ) -> list[AiChatSessionBaseModel]:
-        """
-        获取用户会话列表
-
-        会话按 session_id 前缀区分归属:应用对话用 `app-{appId}-` 前缀。
-        - 传 app_id:只返回该应用的会话;
-        - 不传:返回普通对话会话(排除所有 `app-` 前缀的应用会话),保持普通对话页干净。
-
-        :param user_id: 用户ID
-        :param app_id: 应用ID(可选,按应用过滤会话)
-        :return: 用户会话列表
-        """
-        # 获取Agno会话列表
-        storage = AiUtil.get_storage_engine()
-        sessions: list[Session] = await storage.get_sessions(
-            user_id=str(user_id),
-            component_id='chat-agent',
-            session_type=SessionType.AGENT,
-        )
-
-        app_prefix = f'app-{app_id}-' if app_id else None
-        result = []
-        for s in sessions:
-            sid = s.session_id or ''
-            if app_prefix is not None:
-                if not sid.startswith(app_prefix):
-                    continue  # 只要本应用的会话
-            elif sid.startswith('app-'):
-                continue  # 普通对话列表:排除应用会话
-            created_at = datetime.fromtimestamp(s.created_at) if s.created_at else None
-            updated_at = datetime.fromtimestamp(s.updated_at) if s.updated_at else None
-
-            title_limit = 20
-            session_title = s.runs[0].input.input_content[:title_limit] + '...' if s.runs else ''
-
-            result.append(
-                AiChatSessionBaseModel(
-                    sessionId=s.session_id,
-                    sessionTitle=session_title if len(session_title) <= title_limit else session_title[:title_limit],
-                    userId=s.user_id,
-                    createdAt=created_at,
-                    updatedAt=updated_at,
-                )
-            )
-        return result
-
-    @classmethod
-    async def delete_chat_session_services(cls, session_id: str) -> CrudResponseModel:
-        """
-        删除会话
-
-        :param session_id: 会话ID
-        :return: 删除结果
-        """
-        storage = AiUtil.get_storage_engine()
-        delete_result = await storage.delete_session(session_id=session_id)
-        if not delete_result:
-            raise ServiceException(message='删除会话失败')
-        return CrudResponseModel(is_success=True, message='删除成功')
-
-    @classmethod
-    async def get_chat_session_detail_services(cls, session_id: str) -> AiChatSessionModel:
-        """
-        获取会话消息详情
-
-        :param session_id: 会话ID
-        :return: 会话消息详情
-        """
-        storage = AiUtil.get_storage_engine()
-        session: Session | None = await storage.get_session(session_id=session_id, session_type=SessionType.AGENT)
-
-        if not session:
-            raise ServiceException(message='会话不存在')
-
-        session_data: dict[str, Any] = session.session_data or {}  # 快路/异常会话可能为空,兜底避免 NoneType
-        agent_data: dict[str, Any] = session.agent_data or {}
-        runs: list[RunOutput | TeamRunOutput | WorkflowRunOutput] = session.runs
-        messages: list[Message] = session.get_messages(skip_roles=['system'])
-
-        run_metrics_map = {}
-        if runs:
-            for run in runs:
-                if run.model_provider_data and (provider_id := run.model_provider_data.get('id')):
-                    run_metrics_map[provider_id] = run.metrics
-
-        # 工具结果按 tool_call_id 预索引(role='tool' 的消息),供重建工具块时回填 result
-        tool_results = {
-            getattr(m, 'tool_call_id', None): m.content
-            for m in messages
-            if m.role == 'tool' and getattr(m, 'tool_call_id', None)
-        }
-
-        chat_messages = []
-        for m in messages:
-            if hasattr(m, 'provider_data') and m.provider_data:
-                provider_id = m.provider_data.get('id')
-                if provider_id and provider_id in run_metrics_map:
-                    m.metrics = run_metrics_map[provider_id]
-
-            metrics_model = None
-            if getattr(m, 'metrics', None) and hasattr(m.metrics, 'to_dict'):
-                metrics_dict = m.metrics.to_dict()
-                if metrics_dict:
-                    metrics_model = MessageMetrics(**CamelCaseUtil.transform_result(metrics_dict))
-
-            chat_messages.append(
-                ChatMessageModel(
-                    id=m.id,
-                    role=m.role,
-                    content=m.content,
-                    images=cls._convert_images_to_upload_paths(m.images),
-                    metrics=metrics_model,
-                    createdAt=datetime.fromtimestamp(m.created_at) if m.created_at else None,
-                    reasoningContent=m.reasoning_content,
-                    fromHistory=m.from_history,
-                    stopAfterToolCall=m.stop_after_tool_call,
-                    blocks=cls._rebuild_blocks(m, tool_results) if m.role == 'assistant' else None,
-                )
-            )
-
-        session_detail = AiChatSessionModel(
-            sessionId=session.session_id,
-            sessionTitle=session.runs[0].input.input_content[:20] + '...' if session.runs else '',
-            userId=session.user_id,
-            createdAt=datetime.fromtimestamp(session.created_at) if session.created_at else None,
-            updatedAt=datetime.fromtimestamp(session.updated_at) if session.updated_at else None,
-            agentId=session.agent_id,
-            sessionData=SessionDataModel(
-                sessionState=session_data.get('session_state'),
-                sessionMetrics=SessionMetricsModel(
-                    **CamelCaseUtil.transform_result(session_data.get('session_metrics') or {})
-                ),
-            ),
-            agentData=AgentDataModel(**CamelCaseUtil.transform_result(agent_data)),
-            messages=chat_messages,
-        )
-
-        return session_detail
-
-    @classmethod
-    async def cancel_run_services(cls, run_id: str) -> CrudResponseModel:
-        """
-        取消运行
-
-        :param run_id: 运行ID
-        :return: 取消结果
-        """
-        cancel_result = await acancel_run(run_id)
-        if not cancel_result:
-            raise ServiceException(message='取消运行失败')
-        return CrudResponseModel(is_success=True, message='取消成功')
-
-    @classmethod
-    async def save_recipe_services(
-        cls, query_db: AsyncSession, session_id: str, tool_call_id: str, operator: str
-    ) -> dict:
-        """把某次成功的取数调用(全量 code + 触发问题)存进该数据源专属知识库,作为带星 QA 解法。
-
-        全量 code 从 agno 持久化的会话(ai_sessions)里按 tool_call_id 回查(流式事件里的 code 被截断,
-        不能用)。下次同问 → retrieval 的 QA 精确命中直接返回这段 code。
-        """
-        storage = AiUtil.get_storage_engine()
-        session: Session | None = await storage.get_session(session_id=session_id, session_type=SessionType.AGENT)
-        if not session:
-            raise ServiceException(message='会话不存在')
-
-        # 在所有 run 里按 tool_call_id 找那次工具调用,顺带取该 run 的用户问题
-        found_args: dict | None = None
-        question: str = ''
-        for run in session.runs or []:
-            for t in getattr(run, 'tools', None) or []:
-                if getattr(t, 'tool_call_id', None) == tool_call_id:
-                    found_args = getattr(t, 'tool_args', None) or {}
-                    question = (getattr(getattr(run, 'input', None), 'input_content', None) or '').strip()
-                    break
-            if found_args is not None:
-                break
-        if found_args is None:
-            raise ServiceException(message='未找到该工具调用(请等本轮回答结束后再收藏)')
-
-        code = (found_args.get('code') or '').strip()
-        datasource_code = (found_args.get('datasource_code') or '').strip()
-        if not (code and datasource_code):
-            raise ServiceException(message='该调用不是数据源取数(无 code/数据源),暂不支持收藏')
-        if not question:
-            raise ServiceException(message='未取到本轮问题,无法作为解法收藏')
-
-        from module_rag.entity.vo.rag_vo import ChunkSaveReq
-        from module_rag.service.chunk_service import ChunkService
-        from module_rag.service.dataset_service import DatasetService
-
-        ds = await DatasetService.ensure_for_source(query_db, None, datasource_code, operator)
-        dataset_id = ds['id']
-        saved = await ChunkService.save(
-            query_db,
-            ChunkSaveReq(datasetId=dataset_id, chunkType='qa', question=question, answer=code),
-            operator,
-        )
-        chunk_id = saved['id']
-        await ChunkService.star(query_db, chunk_id, 1)
-        return {
-            'chunkId': chunk_id,
-            'datasetName': ds.get('name'),
-            'datasourceCode': datasource_code,
-            'question': question,
-        }
+    # —— Recipe 收藏:实现在 chat.recipe_fastpath,此处委派以保持公开 API(controller 调用面)不变 ——
+    save_recipe_services = staticmethod(recipe_fastpath.save_recipe_services)
 
