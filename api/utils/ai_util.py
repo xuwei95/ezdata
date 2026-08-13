@@ -205,9 +205,18 @@ class AiUtil:
             client_params.setdefault('base_url', base_url)
             params['client_params'] = client_params
         if cls._wants_completion_metrics(provider, base_url):
-            # 非官方 OpenAI 线(SiliconFlow / DeepSeek / 自建聚合网关)流式时每块重复带累计 usage,
-            # agno 默认逐块累加会放大成「真实值 × 流式块数」。仅在收尾块采一次,结果正确。详见 _wants_completion_metrics。
+            # 非官方 OpenAI 线(SiliconFlow / DeepSeek / 自建聚合网关)的两处网关兼容修复:
+            # ① 流式 usage 放大坑:每块重复带累计 usage,agno 默认逐块累加会放大成「真实值 × 流式块数」。
+            #    仅在收尾块采一次,结果正确。详见 _wants_completion_metrics。
             params.setdefault('collect_metrics_on_completion', True)
+            # ② system→developer 角色坑:agno 2.8 的 OpenAIChat.default_role_map 把 system 映射成
+            #    developer(OpenAI o1/o3 约定),而这类聚合/自建网关只认 system/assistant/user/tool,
+            #    收到 developer 直接 400(invalid value: developer)→ 对话半截而止。强制标准 system 角色。
+            #    官方 OpenAI 线(api.openai.com / *.openai.azure.com,由 _wants_completion_metrics 排除)
+            #    的 o 系列反而需要 developer,故此覆盖仅作用于非官方主机。
+            params.setdefault(
+                'role_map', {'system': 'system', 'user': 'user', 'assistant': 'assistant', 'tool': 'tool'}
+            )
         model_class = cls._resolve_provider_class(provider)
         if model_class is None:
             # 未知提供商，回退到OpenAI

@@ -57,3 +57,8 @@ user-agents==2.2.0
 
 # 对象存储（S3 / MinIO，storage_type=s3 时使用）
 boto3
+
+# 可选:可观测性(OTel → Langfuse / 任意 OTLP 后端)。默认关,配 LANGFUSE_*/OTEL_* 才启用(见 module_ai/observability.py)。
+opentelemetry-sdk==1.44.0
+opentelemetry-exporter-otlp-proto-http==1.38.0
+openinference-instrumentation-agno==1.0.3

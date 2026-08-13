@@ -185,6 +185,11 @@ def create_app() -> FastAPI:
         swagger_ui_oauth2_redirect_url=APIDocsUtil.proxy_oauth2_redirect_url(),
     )
 
+    # 可选可观测性(OTel → Langfuse/OTLP):默认关,配了 LANGFUSE_*/OTEL_* 才启用(见 module_ai/observability.py)
+    from module_ai.observability import init_observability
+
+    init_observability(app)
+
     # 自定义API文档路由，修复无法直接通过后端地址访问文档的问题
     APIDocsUtil.custom_api_docs_router(app)
 
