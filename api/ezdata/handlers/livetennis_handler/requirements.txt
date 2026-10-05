@@ -1,0 +1,2 @@
+filelock>=3.13,<4
+requests>=2.31,<3
